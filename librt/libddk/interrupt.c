@@ -24,6 +24,7 @@
 
 #include <ddk/busdevice.h>
 #include <ddk/types/interrupt.h>
+#include <ddk/types/interrupt.h>
 #include <ddk/types/pci-interrupt.h>
 #include <os/device.h>
 #include <internal/_syscalls.h>
@@ -40,6 +41,14 @@ struct DeviceInterruptState {
     int    Ready;
     int    PendingCleanup;
 };
+
+oserr_t
+DeviceInterruptControllerResolve(
+    _In_  const InterruptMessageControllerIdentity_t* query,
+    _Out_ uuid_t*                                     idOut)
+{
+    return Syscall_InterruptControllerResolve(query, idOut);
+}
 
 static oserr_t
 __PciControl(
@@ -222,7 +231,7 @@ DeviceInterruptAllocate(
         return OS_EOOM;
     }
     
-    request.DeviceId = interrupt->DeviceId;
+    request.ControllerID = support.ControllerID;
     request.Line = interrupt->Line;
     request.Flags = interrupt->Flags;
     request.Minimum = min;

@@ -14,58 +14,63 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * Interrupt groups share lifecycle, and execution control.
- * Kernel callers must supply strategies supported by the device and platform.
- * Syscalls must call InterruptGroupCheckOwner before using a group handle.
- * Call these interfaces outside interrupt (non-syscall) context.
+ * Interrupt groups let a caller manage several related interrupts together.
+ * Kernel callers must request options supported by both the device and platform.
+ * System calls must check group ownership before using a handle.
+ * Do not call these functions from an interrupt handler.
  */
 
 #ifndef __VALI_INTERRUPT_GROUP_H__
 #define __VALI_INTERRUPT_GROUP_H__
 
-#include <arch/interrupts.h>
+#include <interrupt_types.h>
 #include <ddk/types/interrupt.h>
 
 /**
- * @brief Reserves a disabled interrupt group without programming PCI hardware.
+ * @brief Reserve a group of disabled interrupts without programming PCI hardware.
  *
- * Strategies are tried in MSI-X, MSI, INTx order. MSI and INTx use one vector.
- * MSI-X uses independent vectors. Minimum must be 1..2048 and no greater than
- * Optimal. The allocated count is capped by the backend's capacity.
+ * The core tries MSI-X, then MSI, then INTx. MSI and INTx provide one interrupt
+ * vector. MSI-X can provide several independent vectors. Minimum must be from
+ * 1 to 2048 and no greater than Optimal. The platform may provide fewer than
+ * Optimal requests.
  *
- * Messages target the x86 BSP. Affinity and CPU hotplug are unsupported.
- * ARM64 does not support message allocation.
+ * ControllerID selects the message controller. User allocations must provide
+ * an ID found during platform discovery. Kernel tests may use 0 to select the
+ * platform controller. On x86, messages go to the bootstrap processor (BSP),
+ * and cannot be moved to another CPU. ARM64 does not support message allocation yet.
  *
- * @param request Requested vector counts, strategies, and interrupt line.
- * @param kernelHandlers 1 for kernel handlers, 0 for bindings in the current memory space.
- * @param result Receives the handle, count, strategy, and first message. Unchanged on failure.
+ * @param request Requested interrupt count, allowed methods, and interrupt line.
+ * @param kernelHandlers Nonzero for kernel handlers. Zero binds handlers in
+ *        the current process.
+ * @param result Receives the group handle, count, selected method, and first
+ *        message. Unchanged on failure.
  * @return OS_EOK on success, or an allocation or validation error.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptGroupCreate(
     _In_  const InterruptGroupRequest_t* request,
-    _In_  int                           kernelHandlers,
-    _Out_ InterruptGroupResult_t*       result);
+    _In_  int                            kernelHandlers,
+    _Out_ InterruptGroupResult_t*        result);
 
 /**
- * @brief Checks that the current memory space owns a non-kernel group.
+ * @brief Check that the caller's memory space owns a user interrupt group.
  *
- * @param handle Group handle.
- * @return OS_EOK for the owner, OS_EPERMISSIONS for kernel groups or another
- *         owner, or OS_ENOENT if the handle does not exist.
+ * @param handle Group handle to check.
+ * @return OS_EOK if this process owns the group, OS_EPERMISSIONS if it does
+ *         not, or OS_ENOENT if the handle does not exist.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptGroupCheckOwner(
     _In_ uuid_t handle);
 
 /**
- * @brief Binds a handler and its resources to one vector in a disabled group.
+ * @brief Attach a handler and its resources to one interrupt in a disabled group.
  *
- * Finish any pending unbind before binding another handler.
+ * Complete cleanup from an earlier unbind before attaching another handler.
  *
  * @param handle Group handle.
- * @param index Zero-based vector index.
- * @param resources Handler and resources to bind.
+ * @param index Zero-based interrupt index.
+ * @param resources Handler and resources to attach.
  * @return OS_EOK on success, or an error if binding fails.
  */
 KERNELAPI oserr_t KERNELABI
@@ -75,10 +80,10 @@ InterruptGroupBind(
     _In_ InterruptResourceTable_t* resources);
 
 /**
- * @brief Reads a vector's hardware message without changing dispatch.
+ * @brief Read one interrupt's hardware message without changing its handler.
  *
  * @param handle Group handle.
- * @param index Zero-based vector index.
+ * @param index Zero-based interrupt index.
  * @param message Receives the message address and data. Unchanged on failure.
  * @return OS_EOK on success, OS_ENOTSUPPORTED for INTx, or another error.
  */
@@ -89,14 +94,14 @@ InterruptGroupGetMessage(
     _Out_ InterruptMessage_t* message);
 
 /**
- * @brief Enables or disables dispatch for the whole group.
+ * @brief Enable or disable all handlers in the group.
  *
- * Enabling requires all vectors to be bound with no pending unbind.
- * Stop device messages before disabling. Disable waits for running handlers,
- * but cannot mask a PCI source or drain messages in flight.
+ * Bind every interrupt and finish any pending cleanup before enabling. Stop
+ * device messages before disabling. Disabling waits for running handlers, but
+ * cannot stop the PCI device or clear messages already in transit.
  *
  * @param handle Group handle.
- * @param enable 1 to enable dispatch, 0 to disable it.
+ * @param enable 1 to enable the handlers, 0 to disable them.
  * @return OS_EOK on success, or an error if the state change fails.
  */
 KERNELAPI oserr_t KERNELABI
@@ -105,9 +110,10 @@ InterruptGroupSetEnabled(
     _In_ int    enable);
 
 /**
- * @brief Removes all handler mappings while keeping the group's reservations.
+ * @brief Remove all handler resource mappings but keep the group's interrupts reserved.
  *
- * Disable the group first. If cleanup fails, retry before binding or enabling.
+ * Disable the group first. If cleanup fails, retry before attaching handlers
+ * or enabling the group.
  *
  * @param handle Group handle.
  * @return OS_EOK on success, or an error if cleanup fails.
@@ -117,16 +123,13 @@ InterruptGroupUnbind(
     _In_ uuid_t handle);
 
 /**
- * @brief Disables and unbinds the group, then releases its handle.
+ * @brief Disable the group, remove its handlers, and release its handle.
  *
  * Stop device messages first. Keep the handle and retry if cleanup fails.
  *
- * Non-kernel message vectors that were enabled stay reserved until reboot,
- * disabled and unbound, so a late PCI write cannot reach another device's
- * handler after the group and its mappings are freed.
- * Each retired vector occupies one slot. Disabling and enabling the same
- * group reuses its slots. Reclaiming retired slots requires platform support
- * for draining messages.
+ * User message interrupts that were enabled stay reserved, disabled and
+ * unbound, until reboot after release. This keeps a late PCI message from
+ * reaching another device's handler after the group and its mappings are gone.
  *
  * @param handle Group handle. Invalid after a successful release.
  * @return OS_EOK on success, or an error if cleanup fails.

@@ -18,22 +18,14 @@
  *
  *
  * Interrupts Interface
- * - Contains the shared kernel interrupts interface
- *   that all sub-layers / architectures must conform to
+ * - Shared kernel interface used by each architecture's interrupt code.
  */
 
 #ifndef __VALI_ARCH_INTERRUPT_H__
 #define __VALI_ARCH_INTERRUPT_H__
 
 #include <os/osdefs.h>
-#include <interrupts.h>
-
-// Interrupt message structure used for configuring interrupt delivery.
-// Represents MSI (Message Signaled Interrupts) messages.
-typedef struct InterruptMessage {
-    uint64_t Address;
-    uint32_t Data;
-} InterruptMessage_t;
+#include <interrupt_types.h>
 
 /**
  * @brief Initializes the interrupts for the platform.
@@ -66,15 +58,15 @@ InterruptResolve(
     _Out_   uuid_t*                tableIndex);
 
 /**
- * Initialize and enable/disable the interrupt described in systemInterrupt member.
- * @param systemInterrupt
- * @param enable
- * @return Status of the operation
+ * Set up, enable, or disable a controller route without changing its handler.
+ * @param resource Controller and hardware route for the interrupt.
+ * @param enable Nonzero to enable delivery, or zero to disable it.
+ * @return OS_EOK or an error from the controller.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptConfigure(
-    _In_ SystemInterrupt_t* systemInterrupt,
-    _In_ int                enable);
+    _In_ const InterruptControllerResource_t* resource,
+    _In_ int                                  enable);
 
 /* InterruptsPriority
  * Set or get the current core task priority. Can be used to leverage hardware
@@ -94,17 +86,17 @@ KERNELAPI irqstate_t KERNELABI InterruptSaveState(void);
 KERNELAPI int        KERNELABI InterruptIsDisabled(void);
 
 /**
- * @brief Retrieves the count of available interrupt message vectors.
+ * @brief Return the number of message-vector slots the platform can provide.
  */
 KERNELAPI uint32_t KERNELABI InterruptMessageVectorCount(void);
 
 /**
- * @brief Format the interrupt message vector for the given ordinal.
+ * @brief Build the descriptor and hardware message for one message-vector slot.
  *
- * @param ordinal The ordinal of the interrupt message vector.
- * @param descriptor Pointer to the interrupt descriptor to be filled.
- * @param message Pointer to the interrupt message to be filled.
- * @return Status of the operation.
+ * @param ordinal Zero-based slot number.
+ * @param descriptor Receives the interrupt details.
+ * @param message Receives the address and data for the device's message.
+ * @return OS_EOK or an error if the platform cannot provide this slot.
  */
 KERNELAPI oserr_t KERNELABI InterruptMessageVector(
     _In_ uint32_t               ordinal,

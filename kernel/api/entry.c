@@ -41,6 +41,7 @@
 DECL_STRUCT(InterruptGroupRequest);
 DECL_STRUCT(InterruptGroupResult);
 DECL_STRUCT(InterruptBindRequest);
+DECL_STRUCT(InterruptMessageControllerIdentity);
 DECL_STRUCT(DeviceInterruptMessage);
 
 struct MemoryMappingParameters;
@@ -79,6 +80,7 @@ extern oserr_t ScInterruptDisable(uuid_t);
 extern oserr_t ScInterruptUnbind(uuid_t);
 extern oserr_t ScInterruptRelease(uuid_t);
 extern oserr_t ScInterruptGetMessage(uuid_t, uint32_t, DeviceInterruptMessage_t*);
+extern oserr_t ScInterruptControllerResolve(const InterruptMessageControllerIdentity_t*, uuid_t*);
 extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
 extern oserr_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
@@ -151,7 +153,7 @@ extern oserr_t ScDmaSyncForCpu(uuid_t, size_t, size_t);
 extern oserr_t ScDmaUnmap(uuid_t);
 extern oserr_t ScDmaClose(uuid_t);
 
-#define SYSTEM_CALL_COUNT 78
+#define SYSTEM_CALL_COUNT 79
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -196,81 +198,82 @@ static struct SystemCallDescriptor {
         DefineSyscall(22, ScInterruptUnbind),
         DefineSyscall(23, ScInterruptRelease),
         DefineSyscall(24, ScInterruptGetMessage),
-        DefineSyscall(25, ScGetProcessBaseAddress),
+        DefineSyscall(25, ScInterruptControllerResolve),
+        DefineSyscall(26, ScGetProcessBaseAddress),
 
-        DefineSyscall(26, ScMapThreadMemoryRegion),
+        DefineSyscall(27, ScMapThreadMemoryRegion),
 
         ///////////////////////////////////////////////
         // Operating System Interface
         // - Unprotected, all
 
         // Threading interface
-        DefineSyscall(27, ScThreadCreate),
-        DefineSyscall(28, ScThreadExit),
-        DefineSyscall(29, ScThreadSignal),
-        DefineSyscall(30, ScThreadJoin),
-        DefineSyscall(31, ScThreadDetach),
-        DefineSyscall(32, ScThreadYield),
-        DefineSyscall(33, ScThreadGetCurrentId),
-        DefineSyscall(34, ScThreadCookie),
-        DefineSyscall(35, ScThreadSetCurrentName),
-        DefineSyscall(36, ScThreadGetCurrentName),
+        DefineSyscall(28, ScThreadCreate),
+        DefineSyscall(29, ScThreadExit),
+        DefineSyscall(30, ScThreadSignal),
+        DefineSyscall(31, ScThreadJoin),
+        DefineSyscall(32, ScThreadDetach),
+        DefineSyscall(33, ScThreadYield),
+        DefineSyscall(34, ScThreadGetCurrentId),
+        DefineSyscall(35, ScThreadCookie),
+        DefineSyscall(36, ScThreadSetCurrentName),
+        DefineSyscall(37, ScThreadGetCurrentName),
 
         // Synchronization interface
-        DefineSyscall(37, ScFutexWait),
-        DefineSyscall(38, ScFutexWake),
-        DefineSyscall(39, ScEventCreate),
+        DefineSyscall(38, ScFutexWait),
+        DefineSyscall(39, ScFutexWake),
+        DefineSyscall(40, ScEventCreate),
 
         // Communication interface
-        DefineSyscall(40, IpcContextSendMultiple),
+        DefineSyscall(41, IpcContextSendMultiple),
 
         // Memory interface
-        DefineSyscall(41, ScMemoryAllocate),
-        DefineSyscall(42, ScMemoryFree),
-        DefineSyscall(43, ScMemoryProtect),
-        DefineSyscall(44, ScMemoryQueryAllocation),
-        DefineSyscall(45, ScMemoryQueryAttributes),
+        DefineSyscall(42, ScMemoryAllocate),
+        DefineSyscall(43, ScMemoryFree),
+        DefineSyscall(44, ScMemoryProtect),
+        DefineSyscall(45, ScMemoryQueryAllocation),
+        DefineSyscall(46, ScMemoryQueryAttributes),
     
-        DefineSyscall(46, ScSHMCreate),
-        DefineSyscall(47, ScSHMExport),
-        DefineSyscall(48, ScSHMConform),
-        DefineSyscall(49, ScSHMAttach),
-        DefineSyscall(50, ScSHMMap),
-        DefineSyscall(51, ScSHMCommit),
-        DefineSyscall(52, ScSHMUnmap),
-        DefineSyscall(53, ScSHMDetach),
-        DefineSyscall(54, ScSHMMetrics),
+        DefineSyscall(47, ScSHMCreate),
+        DefineSyscall(48, ScSHMExport),
+        DefineSyscall(49, ScSHMConform),
+        DefineSyscall(50, ScSHMAttach),
+        DefineSyscall(51, ScSHMMap),
+        DefineSyscall(52, ScSHMCommit),
+        DefineSyscall(53, ScSHMUnmap),
+        DefineSyscall(54, ScSHMDetach),
+        DefineSyscall(55, ScSHMMetrics),
     
-        DefineSyscall(55, ScCreateHandle),
-        DefineSyscall(56, ScDestroyHandle),
-        DefineSyscall(57, ScLookupHandle),
-        DefineSyscall(58, ScSetHandleActivity),
+        DefineSyscall(56, ScCreateHandle),
+        DefineSyscall(57, ScDestroyHandle),
+        DefineSyscall(58, ScLookupHandle),
+        DefineSyscall(59, ScSetHandleActivity),
 
-        DefineSyscall(59, ScCreateHandleSet),
-        DefineSyscall(60, ScControlHandleSet),
-        DefineSyscall(61, ScListenHandleSet),
+        DefineSyscall(60, ScCreateHandleSet),
+        DefineSyscall(61, ScControlHandleSet),
+        DefineSyscall(62, ScListenHandleSet),
     
         // Misc interface
-        DefineSyscall(62, ScInstallSignalHandler),
-        DefineSyscall(63, ScFlushHardwareCache),
-        DefineSyscall(64, ScSystemQuery),
+        DefineSyscall(63, ScInstallSignalHandler),
+        DefineSyscall(64, ScFlushHardwareCache),
+        DefineSyscall(65, ScSystemQuery),
 
         // Timing interface
-        DefineSyscall(65, ScSystemClockTick),
-        DefineSyscall(66, ScSystemClockFrequency),
-        DefineSyscall(67, ScSystemTime),
-        DefineSyscall(68, ScTimeSleep),
-        DefineSyscall(69, ScTimeStall),
+        DefineSyscall(66, ScSystemClockTick),
+        DefineSyscall(67, ScSystemClockFrequency),
+        DefineSyscall(68, ScSystemTime),
+        DefineSyscall(69, ScTimeSleep),
+        DefineSyscall(70, ScTimeStall),
 
         // DMA interface
-        DefineSyscall(70, ScDmaOpen),
-        DefineSyscall(71, ScDmaAllocate),
-        DefineSyscall(72, ScDmaMapShm),
-        DefineSyscall(73, ScDmaGetSegments),
-        DefineSyscall(74, ScDmaSyncForDevice),
-        DefineSyscall(75, ScDmaSyncForCpu),
-        DefineSyscall(76, ScDmaUnmap),
-        DefineSyscall(77, ScDmaClose)
+        DefineSyscall(71, ScDmaOpen),
+        DefineSyscall(72, ScDmaAllocate),
+        DefineSyscall(73, ScDmaMapShm),
+        DefineSyscall(74, ScDmaGetSegments),
+        DefineSyscall(75, ScDmaSyncForDevice),
+        DefineSyscall(76, ScDmaSyncForCpu),
+        DefineSyscall(77, ScDmaUnmap),
+        DefineSyscall(78, ScDmaClose)
 };
 
 Context_t*

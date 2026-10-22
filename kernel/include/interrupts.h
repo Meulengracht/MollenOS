@@ -17,42 +17,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Interrupt Interface
- * - Contains the shared kernel interrupt interface
- *   that all sub-layers must conform to
  */
 
 #ifndef _MCORE_INTERRUPTS_H_
 #define _MCORE_INTERRUPTS_H_
 
-#include <ddk/interrupt.h>
+#include <interrupt_types.h>
 #include <os/osdefs.h>
 #include <os/context.h>
-
-// Kernel specific interrupt models
-#define INTERRUPT_KERNEL 0x10000000U
-
-// Represents the data needed to register an interrupt
-typedef struct InterruptDescriptor {
-    // Kernel handlers receive Context directly. User handlers instead receive
-    // the resource table mapped by InterruptBind.
-    InterruptResourceTable_t ResourceTable;
-    void*                    Context;
-
-    // InterruptResolve may replace Line with the platform's routed line number.
-    unsigned int AcpiConform;
-    int          Line;
-    int          Pin;
-
-    // Candidate lines for kernel sources such as HPET. This fixed-size list is
-    // unrelated to DeviceInterrupt_t's dynamically allocated vector array.
-    int Vectors[INTERRUPT_MAXVECTORS];
-
-    // Existing kernel MSI users receive their hardware message here. Driver
-    // MSI/MSI-X allocation is deliberately not implemented by this descriptor.
-    uint64_t  MsiAddress;
-    uintptr_t MsiValue;
-} InterruptDescriptor_t;
 
 // Describes a kernel registered interrupt and its state
 typedef struct SystemInterrupt {
@@ -63,10 +35,9 @@ typedef struct SystemInterrupt {
     InterruptHandler_t       Handler;
     void*                    Context;
     unsigned int             Flags;
-    unsigned int             AcpiConform;
-    int                      Line;
-    int                      Pin;
-    int                      Source;
+    InterruptControllerResource_t Routing;
+    // Successful controller release must not be repeated for retained tombstones.
+    int                      ControllerReleased;
     // Reserved entries stay in the table while disabled. Dispatch checks Enabled
     // before reading their handler, so a shared line can remain active safely.
     _Atomic(int)             Enabled;
@@ -101,8 +72,8 @@ KERNELAPI InterruptFunctionTable_t* KERNELABI
 GetFastInterruptTable(void);
 
 /**
- * @brief Reserve the needed interrupt resources. This does not
- * enable any interruptd, but is used to claim a specific interrupt.
+ * @brief Reserve an interrupt without enabling it.
+ * This claims the requested interrupt for a handler.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptReserve(
@@ -111,7 +82,51 @@ InterruptReserve(
     _Out_   uuid_t*                idOut);
 
 /**
- * @brief Maps resources to an already reserved interrupt.
+ * @brief Find out how many message slots a controller can provide.
+ * This does not reserve any slots.
+ * 
+ * @param domain Controller ID. Zero selects the platform controller for kernel handlers.
+ * @param kernelHandlers Nonzero when the handler runs in the kernel.
+ * @param capacityOut Receives the slot count, including slots already in use.
+ * @return OS_EOK or an error finding the controller.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptGetMessageCapacity(
+    _In_  uuid_t    domain,
+    _In_  int       kernelHandlers,
+    _Out_ uint32_t* capacityOut);
+
+/**
+ * @brief Reserve one disabled message interrupt for exclusive use.
+ * @param domain Controller ID. Zero selects the platform controller for kernel handlers.
+ * @param ordinal Zero-based message slot, less than the controller's capacity.
+ * @param flags Handler options. The core adds the message and exclusive-use flags.
+ * @param idOut Receives the reservation ID, or UUID_INVALID on failure.
+ * @param messageOut Receives the hardware message on success. It does not change later.
+ * @return OS_EOK, OS_EBUSY if the slot is in use, or another reservation error.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptReserveMessage(
+    _In_  uuid_t              domain,
+    _In_  uint32_t            ordinal,
+    _In_  unsigned int        flags,
+    _Out_ uuid_t*             idOut,
+    _Out_ InterruptMessage_t* messageOut);
+
+/**
+ * @brief Release a reservation, or keep its message slot reserved after removing the handler.
+ * @param id Reservation ID.
+ * @param retire Nonzero keeps the disabled message slot reserved until reboot.
+ * @return OS_EOK or an error. On failure, ownership stays in place for retry.
+ * Stop the device from sending messages before calling this function.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptRelease(
+    _In_ uuid_t id,
+    _In_ int    retire);
+
+/**
+ * @brief Map a handler's resources to an interrupt that is already reserved.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptBind(
@@ -119,10 +134,10 @@ InterruptBind(
     _In_ InterruptResourceTable_t* resources);
 
 /**
- * @brief Enables or disables a reserved interrupt. 
- * If disabling, waits for running handlers.
- * A shared interrupt remains enabled until its last enabled instance stops.
- * Never call from interrupt (non-syscall) context.
+ * @brief Enable or disable a reserved interrupt.
+ * Disabling waits for any running handlers to finish. A shared interrupt stays
+ * enabled while at least one handler still needs it. Do not call from an
+ * interrupt handler.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptSetEnabled(
@@ -130,9 +145,9 @@ InterruptSetEnabled(
     _In_ int    enable);
 
 /**
- * @brief Releases handler mappings while keeping the reservation.
- * This allows a driver to change configuration without losing its interrupt.
- * If cleanup fails, retry Unbind before enabling or binding another handler.
+ * @brief Remove a handler's resource mappings but keep its interrupt reserved.
+ * A driver can then change its setup without giving up the interrupt. If
+ * cleanup fails, retry Unbind before enabling the interrupt or binding another handler.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptUnbind(

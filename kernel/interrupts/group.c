@@ -18,6 +18,7 @@
  */
 
 #include <interrupts_group.h>
+#include <interrupts.h>
 #include <heap.h>
 #include <memoryspace.h>
 #include <spinlock.h>
@@ -29,33 +30,30 @@
 _Static_assert(MAX_SUPPORTED_INTERRUPTS <= INTERRUPT_GROUP_TAG,
     "Group handles must not name interrupt table entries");
 
+/** @brief One reservation and its immutable device message. */
 struct __InterruptGroupVector {
     uuid_t             Id;
     InterruptMessage_t Message;
 };
 
+/** @brief Group lifecycle state and reservations owned by the interrupt core. */
 struct __InterruptGroup {
-    struct __InterruptGroup* Next;
-    uuid_t                   Handle;
-    uuid_t                   Owner;
-    uuid_t                   DeviceId;
-    uint32_t                 Strategy;
-    uint32_t                 Count;
-    int                      KernelHandlers;
-    int                      Updating;
-    int                      Unbinding;
-    int                      EverEnabled;
-    _Atomic(int)             Enabled;
+    struct __InterruptGroup*     Next;
+    uuid_t                       Handle;
+    uuid_t                       Owner;
+    uint32_t                     Strategy;
+    uint32_t                     Count;
+    int                          KernelHandlers;
+    int                          Updating;
+    int                          Unbinding;
+    int                          EverEnabled;
+    _Atomic(int)                 Enabled;
     struct __InterruptGroupVector Vectors[];
 };
 
 static Spinlock_t               g_groupLock = OS_SPINLOCK_INIT;
 static struct __InterruptGroup* g_groups;
 static uint32_t                 g_groupGeneration;
-// A device may still send a late PCI message after release. Keep that vector
-// reserved until reboot so the message cannot reach another device's handler.
-// Kernel-only groups do not program PCI devices, so their vectors can be reused.
-static _Atomic(int)             g_retiredGroupEnabled;
 
 static struct __InterruptGroup*
 __FindGroup(
@@ -145,7 +143,7 @@ __DiscardReservedGroup(
 {
     uint32_t i;
     for (i = 0; i < group->Count; i++) {
-        InterruptUnregister(group->Vectors[i].Id);
+        InterruptRelease(group->Vectors[i].Id, 0);
     }
     kfree(group);
 }
@@ -187,8 +185,7 @@ __ReserveGroup(
     unsigned int                   flags = kernelHandlers ? INTERRUPT_KERNEL : 0;
     oserr_t                        status = OS_EBUSY;
     
-    // Only MSI-X supports multiple vectors, so the capacity is based f
-    // on the optimal count for MSI-X requests.
+    // Only MSI-X supports multiple vectors.
     capacity = strategy == INTERRUPT_STRATEGY_MSIX ? request->Optimal : 1;
     if (capacity > INTERRUPT_GROUP_LIMIT) {
         capacity = INTERRUPT_GROUP_LIMIT;
@@ -200,7 +197,10 @@ __ReserveGroup(
     }
 
     if (strategy != INTERRUPT_STRATEGY_INTx) {
-        available = InterruptMessageVectorCount();
+        status = InterruptGetMessageCapacity(request->ControllerID, kernelHandlers, &available);
+        if (status != OS_EOK) {
+            return status;
+        }
         if (available == 0) {
             return OS_ENOTSUPPORTED;
         }
@@ -231,7 +231,6 @@ __ReserveGroup(
     // Keep dispatch closed until the caller binds handlers and enables the group.
     atomic_init(&group->Enabled, 0);
     group->Owner = GetCurrentMemorySpaceHandle();
-    group->DeviceId = request->DeviceId;
     group->KernelHandlers = kernelHandlers;
     group->Strategy = strategy;
 
@@ -244,20 +243,23 @@ __ReserveGroup(
             descriptor.Line = request->Line.Line;
             descriptor.Pin = request->Line.Pin;
             descriptor.AcpiConform = request->Line.AcpiConform;
+            status = InterruptReserve(&descriptor, flags, &vector->Id);
         } else {
-            if (ordinal >= InterruptMessageVectorCount()) {
+            if (ordinal >= available) {
                 break;
             }
             
-            status = InterruptMessageVector(ordinal, &descriptor, &vector->Message);
-            if (status != OS_EOK) {
-                goto fail;
-            }
+            status = InterruptReserveMessage(
+                request->ControllerID,
+                ordinal,
+                flags,
+                &vector->Id,
+                &vector->Message
+            );
         }
 
         // InterruptReserve claims the vector atomically. Another group may get
         // there first, so a busy result sends us to the next candidate.
-        status = InterruptReserve(&descriptor, flags, &vector->Id);
         if (status == OS_EBUSY && strategy != INTERRUPT_STRATEGY_INTx) {
             continue;
         }
@@ -589,7 +591,6 @@ InterruptGroupRelease(
 {
     struct __InterruptGroup*  group;
     struct __InterruptGroup** link;
-    SystemInterrupt_t*        entry;
     oserr_t                   status;
 
     status = __BeginGroup(handle, &group);
@@ -613,17 +614,10 @@ InterruptGroupRelease(
             continue;
         }
         
-        if (__ShouldKeepGroupVector(group)) {
-            entry = InterruptGet(group->Vectors[i].Id);
-            // Disable and Unbind have drained handlers and removed driver mappings.
-            // Keep the vector reserved and point it at a static closed gate before
-            // freeing the group. A late PCI write may still arrive.
-            entry->GroupEnabled = &g_retiredGroupEnabled;
-            InterruptPut(entry);
-            status = OS_EOK;
-        } else {
-            status = InterruptUnregister(group->Vectors[i].Id);
-        }
+        status = InterruptRelease(
+            group->Vectors[i].Id,
+            __ShouldKeepGroupVector(group)
+        );
         
         if (status != OS_EOK) {
             __EndGroup(group);
