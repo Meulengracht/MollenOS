@@ -177,6 +177,19 @@ CpuCoreEnterInterrupt(
     _In_ int        InterruptPriority);
 
 /**
+ * @brief Defers release of the outgoing thread until after interrupt return.
+ * The calling core must have selected a new thread with interrupts disabled.
+ * At most one outgoing thread is retained until the next outer interrupt entry.
+ *
+ * @param core         The calling core.
+ * @param threadHandle The outgoing thread handle whose reference is transferred.
+ */
+KERNELAPI void KERNELABI
+CpuCoreTerminateThread(
+    _In_ SystemCpuCore_t* core,
+    _In_ uuid_t           threadHandle);
+
+/**
  * CpuCoreExitInterrupt
  * @param InterruptContext  The context of the current interrupt
  * @param InterruptPriority The priority before entering the interrupt

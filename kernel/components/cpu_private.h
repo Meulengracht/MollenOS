@@ -49,6 +49,7 @@ typedef struct SystemCpuCore {
     queue_t                                 FunctionQueue[CpuFunctionCount];
     _Atomic(MemorySynchronizationObject_t*) MemorySync;
     Thread_t*                               CurrentThread;
+    uuid_t                                  TerminatingThread;
     Context_t*                              InterruptRegisters;
     int                                     InterruptNesting;
     uint32_t                                InterruptPriority;

@@ -43,7 +43,7 @@ static SystemCpuCore_t* g_coreTable[__CPU_MAX_COUNT] = { 0 };
 
 SystemCpuCore_t*
 GetProcessorCore(
-        _In_ uuid_t coreId)
+    _In_ uuid_t coreId)
 {
     assert(coreId < __CPU_MAX_COUNT);
     return g_coreTable[coreId];
@@ -57,17 +57,18 @@ CpuCoreCurrent(void)
 
 static void
 __ConstructCpuCore(
-        _In_ SystemCpuCore_t* core,
-        _In_ uuid_t           coreId,
-        _In_ SystemCpuState_t state,
-        _In_ int              external)
+    _In_ SystemCpuCore_t* core,
+    _In_ uuid_t           coreId,
+    _In_ SystemCpuState_t state,
+    _In_ int              external)
 {
     // zero out the entire structure first
     memset(core, 0, sizeof(SystemCpuCore_t));
 
-    core->Id       = coreId;
-    core->State    = state;
-    core->External = external;
+    core->Id                = coreId;
+    core->State             = state;
+    core->External          = external;
+    core->TerminatingThread = UUID_INVALID;
 
     // Scheduler  = { 0 } TODO SchedulerConstruct
     queue_construct(&core->FunctionQueue[0]);
@@ -76,8 +77,8 @@ __ConstructCpuCore(
 
 void
 CpuInitializePlatform(
-        _In_ SystemCpu_t*     cpu,
-        _In_ SystemCpuCore_t* core)
+    _In_ SystemCpu_t*     cpu,
+    _In_ SystemCpuCore_t* core)
 {
     // Initialize the boot cpu's primary core pointer immediately before
     // passing it down to the arch layer - so it can use the storage.
@@ -93,10 +94,10 @@ CpuInitializePlatform(
 
 void
 CpuCoreRegister(
-        _In_ SystemCpu_t*     cpu,
-        _In_ uuid_t           coreId,
-        _In_ SystemCpuState_t initialState,
-        _In_ int              external)
+    _In_ SystemCpu_t*     cpu,
+    _In_ uuid_t           coreId,
+    _In_ SystemCpuState_t initialState,
+    _In_ int              external)
 {
     SystemCpuCore_t* core;
     SystemCpuCore_t* i;
@@ -121,7 +122,7 @@ CpuCoreRegister(
 
 static void
 __InitializeTLS(
-        _In_ SystemCpuCore_t* cpuCore)
+    _In_ SystemCpuCore_t* cpuCore)
 {
     // Set the first entry of the TLS to point to the core structure,
     // when threads migrate they need this pointer updated.
@@ -136,6 +137,7 @@ CpuCoreStart(void)
     SystemDomain_t*  domain;
     SystemCpuCore_t* i;
     SystemCpuCore_t* cpuCore;
+
 #if !defined(__aarch64__)
     oserr_t          osStatus;
     uuid_t           memorySpace;
@@ -254,15 +256,38 @@ CpuCoreEnterInterrupt(
     _In_ int        InterruptPriority)
 {
     SystemCpuCore_t* core = CpuCoreCurrent();
+    uuid_t           terminatingThread;
+
     if (!core->InterruptNesting) {
         InterruptSetActiveStatus(1);
         core->InterruptRegisters = InterruptContext;
         core->InterruptPriority  = InterruptPriority;
     }
     core->InterruptNesting++;
+
+    // The preceding outer interrupt has returned on its selected stack. Clear
+    // the slot before cleanup, and never reclaim from a nested interrupt that
+    // could still be using the outgoing stack.
+    if (core->InterruptNesting == 1) {
+        terminatingThread = core->TerminatingThread;
+        core->TerminatingThread = UUID_INVALID;
+        if (terminatingThread != UUID_INVALID) {
+            DestroyHandle(terminatingThread);
+        }
+    }
 #ifdef __OSCONFIG_NESTED_INTERRUPTS
     InterruptEnable();
 #endif
+}
+
+void
+CpuCoreTerminateThread(
+    _In_ SystemCpuCore_t* core,
+    _In_ uuid_t           threadHandle)
+{
+    assert(core == CpuCoreCurrent());
+    assert(core->TerminatingThread == UUID_INVALID);
+    core->TerminatingThread = threadHandle;
 }
 
 Context_t*

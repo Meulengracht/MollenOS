@@ -759,7 +759,7 @@ ThreadingAdvance(
     SystemCpuCore_t* core          = CpuCoreCurrent();
     Thread_t*        currentThread = CpuCoreCurrentThread(core);
     Thread_t*        nextThread;
-    uuid_t           retiredHandle = UUID_INVALID;
+    uuid_t           terminatingThreadHandle = UUID_INVALID;
     int              signalsPending;
     int              cleanup;
 
@@ -793,9 +793,9 @@ GetNextThread:
         // If the thread is finished then add it to garbagecollector
         if (cleanup == 1) {
             if (currentThread == CpuCoreCurrentThread(core)) {
-                // Keep the outgoing address space alive until ArchThreadEnter
-                // has installed the next one. The janitor runs on another CPU.
-                retiredHandle = currentThread->Handle;
+                // Interrupt return still runs on this thread's kernel stack
+                // after ArchThreadEnter installs the next address space.
+                terminatingThreadHandle = currentThread->Handle;
             } else {
                 DestroyHandle(currentThread->Handle);
             }
@@ -855,8 +855,8 @@ GetNextThread:
     }
 
     CpuCoreSetInterruptContext(core, nextThread->ContextActive);
-    if (retiredHandle != UUID_INVALID) {
-        DestroyHandle(retiredHandle);
+    if (terminatingThreadHandle != UUID_INVALID) {
+        CpuCoreTerminateThread(core, terminatingThreadHandle);
     }
     return OS_EOK;
 }

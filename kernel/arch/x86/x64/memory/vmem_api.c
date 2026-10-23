@@ -56,10 +56,12 @@ MmVirtualGetMasterTable(
         return NULL;
     }
 
-    // If there is no parent then we ignore it as we don't have to synchronize with kernel directory.
-    // We always have the shared page-tables mapped. The address must be below the thread-specific space
+    // Only process mappings inherit from the parent. Kernel mappings already
+    // share their directory, and kernel TLS belongs to this thread. Looking up
+    // a handle here for heap growth would invert the handle-table/heap locks.
     if (memorySpace->ParentHandle != UUID_INVALID) {
-        if (address < MEMORY_LOCATION_RING3_THREAD_START) {
+        if (address >= MEMORY_LOCATION_RING3_CODE &&
+            address < MEMORY_LOCATION_RING3_THREAD_START) {
             MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandleOfType(
                     memorySpace->ParentHandle, HandleTypeMemorySpace);
             parent = (PageMasterTable_t*)MemorySpaceParent->PlatformData.Cr3VirtualAddress;
