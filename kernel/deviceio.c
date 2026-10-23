@@ -335,69 +335,76 @@ MapSystemDeviceIo(
 
 oserr_t
 CreateKernelSystemDeviceIo(
-    _In_  DeviceIo_t*  SourceIoSpace,
-    _Out_ DeviceIo_t** SystemIoSpace)
+    _In_  DeviceIo_t*  sourceIoSpace,
+    _Out_ DeviceIo_t** systemIoSpace)
 {
     DeviceIOEntry_t* ioEntry;
+    DeviceIo_t*     copy;
+    uintptr_t       mapping;
+    size_t          offset;
+    size_t          length;
+    oserr_t         status;
 
-    ioEntry = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(SourceIoSpace->Id));
+    *systemIoSpace = NULL;
+    ioEntry = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(sourceIoSpace->Id));
     if (!ioEntry) {
         return OS_EUNKNOWN;
     }
 
-    switch (ioEntry->Io.Type) {
-        case DeviceIoMemoryBased: {
-            paddr_t physicalBase = ioEntry->Io.Access.Memory.PhysicalBase;
-            size_t  pageSize     = GetMemorySpacePageSize();
-            size_t  length       = ioEntry->Io.Access.Memory.Length + (physicalBase % pageSize);
-            oserr_t oserr        = MemorySpaceMap(
-                    GetCurrentMemorySpace(),
-                    &(struct MemorySpaceMapOptions) {
-                        .PhysicalStart = physicalBase,
-                        .Length = length,
-                        .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_DEVICE | MAPPING_PERSISTENT,
-                        .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_GLOBAL
-                    },
-                    &ioEntry->Io.Access.Memory.VirtualBase
-            );
-            if (oserr != OS_EOK) {
-                ERROR(" > failed to create mapping");
-                return OS_EUNKNOWN;
-            }
-        } break;
-
-        // Both port and port/pin are not needed to remap here
-        default:
-            break;
+    // Each interrupt binding owns its descriptor and mapping. Reusing the
+    // registry descriptor lets unbinding one vector invalidate another's IO.
+    copy = kmalloc(sizeof(*copy));
+    if (copy == NULL) {
+        return OS_EOOM;
     }
-    *SystemIoSpace = &ioEntry->Io;
+    *copy = ioEntry->Io;
+    if (copy->Type == DeviceIoMemoryBased) {
+        offset = copy->Access.Memory.PhysicalBase % GetMemorySpacePageSize();
+        if (copy->Access.Memory.Length > SIZE_MAX - offset) {
+            kfree(copy);
+            return OS_EOVERFLOW;
+        }
+        length = copy->Access.Memory.Length + offset;
+        status = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &(struct MemorySpaceMapOptions) {
+                .PhysicalStart = copy->Access.Memory.PhysicalBase - offset,
+                .Length = length,
+                .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_DEVICE | MAPPING_PERSISTENT,
+                .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_GLOBAL
+            },
+            &mapping
+        );
+        if (status != OS_EOK) {
+            kfree(copy);
+            return status;
+        }
+        copy->Access.Memory.VirtualBase = mapping + offset;
+    }
+    *systemIoSpace = copy;
     return OS_EOK;
 }
 
 oserr_t
 ReleaseKernelSystemDeviceIo(
-    _In_ DeviceIo_t* SystemIoSpace)
+    _In_ DeviceIo_t* systemIoSpace)
 {
-    DeviceIOEntry_t* ioEntry;
+    size_t  offset;
+    oserr_t status;
 
-    ioEntry = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(SystemIoSpace->Id));
-    if (!ioEntry) {
-        return OS_EUNKNOWN;
+    if (systemIoSpace->Type == DeviceIoMemoryBased) {
+        offset = systemIoSpace->Access.Memory.PhysicalBase % GetMemorySpacePageSize();
+        status = MemorySpaceUnmap(
+            GetCurrentMemorySpace(),
+            systemIoSpace->Access.Memory.VirtualBase - offset,
+            systemIoSpace->Access.Memory.Length + offset
+        );
+        if (status != OS_EOK) {
+            // Preserve both descriptor and mapping so the binding can retry.
+            return status;
+        }
     }
-
-    switch (ioEntry->Io.Type) {
-        case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress   = ioEntry->Io.Access.Memory.PhysicalBase;
-            size_t PageSize         = GetMemorySpacePageSize();
-            size_t Length           = ioEntry->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            MemorySpaceUnmap(GetCurrentMemorySpace(), ioEntry->Io.Access.Memory.VirtualBase, Length);
-            ioEntry->Io.Access.Memory.VirtualBase = 0;
-        } break;
-
-        // Both port and port/pin are not needed to remap here
-        default:
-            break;
-    }
+    kfree(systemIoSpace);
     return OS_EOK;
 }
 

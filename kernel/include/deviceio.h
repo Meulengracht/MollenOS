@@ -72,14 +72,14 @@ MapSystemDeviceIo(
  * and cleaned up by the opposite call. */
 KERNELAPI oserr_t KERNELABI
 CreateKernelSystemDeviceIo(
-    _In_  DeviceIo_t*  SourceIoSpace,
-    _Out_ DeviceIo_t** SystemIoSpace);
+    _In_  DeviceIo_t*  sourceIoSpace,
+    _Out_ DeviceIo_t** systemIoSpace);
 
 /* ReleaseKernelSystemDeviceIo 
  * Releases the kernel mapped copy of the passed device-io. */
 KERNELAPI oserr_t KERNELABI
 ReleaseKernelSystemDeviceIo(
-    _In_ DeviceIo_t* SystemIoSpace);
+    _In_ DeviceIo_t* systemIoSpace);
 
 /* ValidateDeviceIoMemoryAddress (@interrupt_context)
  * Tries to validate the given virtual address by 

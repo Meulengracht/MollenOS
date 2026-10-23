@@ -18,6 +18,7 @@
 #define __TRACE
 
 #include <assert.h>
+#include <limits.h>
 #include <ds/mstring.h>
 #include <ds/hashtable.h>
 #include <ddk/barrier.h>
@@ -68,8 +69,7 @@ DestroyProcess(
 {
     TRACE("DestroyProcess(process=%u)", process->handle);
 
-    // remove us from list of processes, remember we hold the process lock already
-    // so nowhere in this code can we do the opposite acq/rel pattern
+    // The final owner calls cleanup without holding the process mutex.
     usched_mtx_lock(&g_processesLock);
     hashtable_remove(&g_threadmappings, &(struct thread_mapping){ .thread_id = process->primary_thread_id });
     hashtable_remove(&g_processes, &(struct process_entry){ .process_id = process->handle.ID });
@@ -728,11 +728,14 @@ exit:
 }
 
 static void
-__get_timestamp_from_now(unsigned int ms, struct timespec* ts)
+__get_timestamp_from_now(
+    _In_  unsigned int     ms,
+    _Out_ struct timespec* ts)
 {
     timespec_get(ts, TIME_UTC);
-    ts->tv_nsec += (NSEC_PER_MSEC * ms);
-    while (ts->tv_nsec >= NSEC_PER_SEC) {
+    ts->tv_sec += ms / 1000;
+    ts->tv_nsec += NSEC_PER_MSEC * (ms % 1000);
+    if (ts->tv_nsec >= NSEC_PER_SEC) {
         ts->tv_sec++;
         ts->tv_nsec -= NSEC_PER_SEC;
     }
@@ -740,61 +743,69 @@ __get_timestamp_from_now(unsigned int ms, struct timespec* ts)
 
 oserr_t
 PmJoinProcess(
-        _In_  uuid_t       handle,
-        _In_  unsigned int timeout,
-        _Out_ int*         exitCodeOut)
+    _In_  uuid_t       handle,
+    _In_  unsigned int timeout,
+    _Out_ int*         exitCodeOut)
 {
-    Process_t* target;
-    oserr_t    oserr = OS_EOK;
-
+    struct process_entry*         entry;
+    struct process_history_entry* history;
+    Process_t*                    target;
+    struct timespec               until;
+    oserr_t                       oserr = OS_EOK;
+    int                           status;
+    int                           destroy;
     TRACE("PmJoinProcess(process=%u, timeout=%u)", handle, timeout);
 
-    target = PmGetProcessByHandle(handle);
-    if (!target) {
-        struct process_history_entry* entry;
-
-        // first check process history before responding negative
+    // Pin the process before dropping the registry lock. Termination removes
+    // its entry under the same lock before it can release the registry owner.
+    usched_mtx_lock(&g_processesLock);
+    entry = hashtable_get(&g_processes, &(struct process_entry) { .process_id = handle });
+    if (entry == NULL) {
+        usched_mtx_unlock(&g_processesLock);
         usched_mtx_lock(&g_processHistoryLock);
-        entry = hashtable_get(&g_processHistory, &(struct process_history_entry) {
-                .process_id = handle
+        history = hashtable_get(&g_processHistory, &(struct process_history_entry) {
+            .process_id = handle
         });
-        if (entry) {
-            *exitCodeOut = entry->exit_code;
-            usched_mtx_unlock(&g_processHistoryLock);
-            return OS_EOK;
+        if (history != NULL) {
+            *exitCodeOut = history->exit_code;
+            oserr = OS_EOK;
+        } else {
+            oserr = OS_ENOENT;
         }
         usched_mtx_unlock(&g_processHistoryLock);
-        return OS_ENOENT;
+        return oserr;
     }
 
-    // ok so the process is still running/terminating
+    target = entry->process;
     usched_mtx_lock(&target->mutex);
-    if (target->state == ProcessState_RUNNING) {
-        struct timespec ts;
-        int             status;
+    if (target->references == INT_MAX) {
+        usched_mtx_unlock(&target->mutex);
+        usched_mtx_unlock(&g_processesLock);
+        return OS_EOVERFLOW;
+    }
+    target->references++;
+    usched_mtx_unlock(&g_processesLock);
 
-        target->references++;
-        __get_timestamp_from_now(timeout, &ts);
-        status = usched_cnd_timedwait(&target->condition, &target->mutex, &ts);
-        if (status) {
-            usched_mtx_unlock(&target->mutex);
+    __get_timestamp_from_now(timeout, &until);
+    while (target->state == ProcessState_RUNNING) {
+        status = usched_cnd_timedwait(&target->condition, &target->mutex, &until);
+        if (status != 0 && target->state == ProcessState_RUNNING) {
             oserr = OS_ETIMEOUT;
-            goto exit;
+            break;
         }
-
-        // store exit code and handle cleanup
-        *exitCodeOut = target->exit_code;
-        target->references--;
-        if (target->references == 0) {
-            DestroyProcess(target);
-            goto exit;
-        }
-    } else {
+    }
+    if (oserr == OS_EOK) {
         *exitCodeOut = target->exit_code;
     }
-    usched_mtx_unlock(&target->mutex);
 
-exit:
+    // Timeouts and spurious wakeups own the same reference as normal exits.
+    // Destroy outside the process mutex: cleanup takes the registry lock.
+    target->references--;
+    destroy = target->references == 0;
+    usched_mtx_unlock(&target->mutex);
+    if (destroy) {
+        DestroyProcess(target);
+    }
     return oserr;
 }
 
@@ -855,6 +866,8 @@ PmTerminateProcess(
         usched_cnd_notify_all(&process->condition);
         usched_mtx_unlock(&process->mutex);
     } else {
+        process->references--;
+        usched_mtx_unlock(&process->mutex);
         DestroyProcess(process);
     }
     return OS_EOK;

@@ -73,14 +73,22 @@ PEImageLoadContextNew(
         return NULL;
     }
 
-    hashtable_construct(
+    if (hashtable_construct(
             &loadContext->ModuleMap, 0,
             sizeof(struct ModuleMapEntry),
             __module_hash, __module_cmp
-    );
+    ) != 0) {
+        Syscall_DestroyHandle(loadContext->MemorySpace);
+        free(loadContext);
+        return NULL;
+    }
 
     loadContext->Scope = scope;
     loadContext->Paths = strdup(paths);
+    if (loadContext->Paths == NULL) {
+        PEImageLoadContextDelete(loadContext);
+        return NULL;
+    }
     loadContext->LoadAddress = __GetLoadAddress();
     return loadContext;
 }
@@ -117,6 +125,10 @@ PEImageLoadContextDelete(
     PEImageUnload(loadContext, loadContext->RootModule, true);
     hashtable_enumerate(&loadContext->ModuleMap, __module_cleanup_enum, NULL);
     hashtable_destroy(&loadContext->ModuleMap);
+    // Release the loader's initial reference after unloading. Each started
+    // thread retains its own reference until kernel thread teardown completes.
+    // This also releases the space when loading fails before a thread exists.
+    Syscall_DestroyHandle(loadContext->MemorySpace);
     free(loadContext->Paths);
     free(loadContext);
 }
