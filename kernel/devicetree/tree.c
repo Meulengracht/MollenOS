@@ -24,6 +24,7 @@
 
 struct __TreeBuilder {
     DeviceTree_t*     Tree;
+    const char*       StructureBlock;
     DeviceTreeNode_t* Current;
     DeviceTreeNode_t* Last;
 };
@@ -247,6 +248,7 @@ __BeginNode(
 
     memset(node, 0, sizeof(*node));
     node->Name = name;
+    node->NodeOffset = (uint32_t)(name - builder->StructureBlock) - sizeof(uint32_t);
     node->Parent = builder->Current;
     
     if (builder->Last) {
@@ -404,6 +406,7 @@ DeviceTreeCreate(
     tree->Version = header.Version;
     
     builder.Tree = tree;
+    builder.StructureBlock = (const char*)copy + header.OffDtStruct;
     
     status = FdtParseStructure(
         copy + header.OffDtStruct,

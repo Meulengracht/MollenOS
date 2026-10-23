@@ -201,17 +201,18 @@ VirtioBlkDeviceCreate(
     if (device->Features & VIRTIO_BLK_F_RO) {
         device->Descriptor.Flags |= STORAGE_READONLY;
     }
+    // Enable the PCI interrupt mode before assigning a queue's MSI-X vector.
+    oserr = VirtioBlkRegisterInterrupt(device);
+    if (oserr != OS_EOK) {
+        goto error;
+    }
+
     oserr = VirtioSplitQueueCreate(
         &device->Transport,
         0,
         VIRTIO_BLK_QUEUE_SIZE,
         &device->RequestQueue
     );
-    if (oserr != OS_EOK) {
-        goto error;
-    }
-
-    oserr = VirtioBlkRegisterInterrupt(device);
     if (oserr != OS_EOK) {
         goto error;
     }

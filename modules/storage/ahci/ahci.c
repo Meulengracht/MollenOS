@@ -108,7 +108,7 @@ AhciControllerCreate(
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN, ioBase->Access.Memory.VirtualBase);
     controller->Registers = (AHCIGenericRegisters_t*)ioBase->Access.Memory.VirtualBase;
     
-    // Stop this device's source before preparing a handler on a shared line.
+    // Stop this device's source before preparing its interrupt handler.
     WRITE_VOLATILE(controller->Registers->GlobalHostControl,
         READ_VOLATILE(controller->Registers->GlobalHostControl) & ~AHCI_HOSTCONTROL_IE);
     DeviceInterruptInitialize(&controller->Interrupt, busDevice);
@@ -117,7 +117,7 @@ AhciControllerCreate(
         &controller->Interrupt,
         1, // Min
         1, // Optimal
-        INTERRUPT_STRATEGY_INTx,
+        INTERRUPT_STRATEGY_ANY,
         &count
     );
     if (osStatus != OS_EOK) {

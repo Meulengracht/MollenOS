@@ -119,7 +119,7 @@ PciCheckFunction(
     }
     
     device->Handler = PciFunctionHandlerFind(device);
-    if ((device->Host->DriversBlocked || device->Handler != NULL) && !device->IsBridge) {
+    if (device->Handler != NULL && !device->IsBridge) {
         settings = PciRead16(device->Host, bus, slot, function, 0x04);
         settings &= ~PCI_COMMAND_BUSMASTER;
         PciWrite16(device->Host, bus, slot, function, 0x04, settings | PCI_COMMAND_INTDISABLE);

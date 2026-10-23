@@ -158,7 +158,7 @@ __TranslateAddress(
 }
 
 oserr_t
-DeviceTreeReadRegister(
+DeviceTreeReadRegisterRaw(
     _In_  const DeviceTreeNode_t* node,
     _In_  unsigned int            index,
     _Out_ uint64_t*               addressOut,
@@ -199,6 +199,27 @@ DeviceTreeReadRegister(
         return OS_EOVERFLOW;
     }
     
+    *addressOut = address;
+    *lengthOut = length;
+    return OS_EOK;
+}
+
+oserr_t
+DeviceTreeReadRegister(
+    _In_  const DeviceTreeNode_t* node,
+    _In_  unsigned int            index,
+    _Out_ uint64_t*               addressOut,
+    _Out_ uint64_t*               lengthOut)
+{
+    uint64_t address;
+    uint64_t length;
+    oserr_t  status;
+
+    status = DeviceTreeReadRegisterRaw(node, index, &address, &length);
+    if (status != OS_EOK) {
+        return status;
+    }
+
     status = __TranslateAddress(node->Parent, length, &address);
     if (status != OS_EOK) {
         return status;

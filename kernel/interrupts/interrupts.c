@@ -573,7 +573,7 @@ __ReserveInterrupt(
     }
     
     index = entry->Routing.TableIndex;
-    if (index >= MAX_SUPPORTED_INTERRUPTS) {
+    if (index >= MAX_SUPPORTED_INTERRUPTS || (index & INTERRUPT_GROUP_TAG) == INTERRUPT_GROUP_TAG) {
         ERROR("__ReserveInterrupt: controller returned invalid table index %u", index);
         status = OS_EINVALPARAMS;
         goto rollback;
@@ -1277,18 +1277,13 @@ __IsSystemInterruptEnabled(
     return true;
 }
 
-Context_t*
-InterruptHandle(
-    _In_  Context_t* context,
-    _In_  int        tableIndex)
+static int
+__HandleInterrupt(
+    _In_ int tableIndex)
 {
-    uint32_t           initialPriority = InterruptsGetPriority();
     int                interruptSource = INTERRUPT_NONE;
     irqstatus_t        interruptStatus;
     SystemInterrupt_t* entry;
-
-    InterruptsSetPriority(tableIndex);
-    CpuCoreEnterInterrupt(context, initialPriority);
 
     // The interrupt path deliberately does not acquire the table lock.
     // Entering the RCU read-side critical section before loading Descriptor
@@ -1318,7 +1313,31 @@ InterruptHandle(
         entry = atomic_load(&entry->Link);
     }
     InterruptReadExit();
-    
+    return interruptSource;
+}
+
+void
+InterruptHandleDirect(
+    _In_ uint32_t tableIndex)
+{
+    // The parent owns CPU entry/exit and hardware acknowledgement. Its read
+    // section also keeps child reservations alive across a pending snapshot.
+    assert(InterruptGetActiveStatus());
+    assert(tableIndex < MAX_SUPPORTED_INTERRUPTS);
+    (void)__HandleInterrupt((int)tableIndex);
+}
+
+Context_t*
+InterruptHandle(
+    _In_ Context_t* context,
+    _In_ int        tableIndex)
+{
+    uint32_t initialPriority = InterruptsGetPriority();
+    int      interruptSource;
+
+    InterruptsSetPriority(tableIndex);
+    CpuCoreEnterInterrupt(context, initialPriority);
+    interruptSource = __HandleInterrupt(tableIndex);
     InterruptsAcknowledge(interruptSource, tableIndex);
     return CpuCoreExitInterrupt(context, initialPriority);
 }

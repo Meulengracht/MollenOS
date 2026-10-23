@@ -31,8 +31,17 @@
 // Allocation block size for memory management
 #define ALLOCATION_BLOCK_SIZE 0x100000 // 1 mb
 
-// Maximum number of supported interrupts on AArch64 architecture
-#define MAX_SUPPORTED_INTERRUPTS 1020
+// Physical GIC IDs occupy 0..1019; 1020..1023 are reserved hardware responses.
+#define INTERRUPT_PHYSICAL_BASE 32
+#define INTERRUPT_PHYSICAL_END  1020
+
+// The Pi 4 aggregate MSI controller dispatches 32 messages through software IDs.
+#if defined(__OSCONFIG_RPI)
+#define INTERRUPT_MESSAGE_BASE   1024
+#define MAX_SUPPORTED_INTERRUPTS (INTERRUPT_MESSAGE_BASE + 32)
+#else
+#define MAX_SUPPORTED_INTERRUPTS INTERRUPT_PHYSICAL_END
+#endif
 
 // Page size for AArch64 architecture
 #define ARM64_PAGE_SIZE 4096
@@ -56,8 +65,6 @@
 // PPI/SPI range. They are not exposed as allocatable device interrupt lines.
 #define INTERRUPT_SOFTWARE_BASE 0
 #define INTERRUPT_SOFTWARE_END 16
-#define INTERRUPT_PHYSICAL_BASE 32
-#define INTERRUPT_PHYSICAL_END 1020
 #define INTERRUPT_SYSCALL 0
 #define INTERRUPT_LAPIC 1
 

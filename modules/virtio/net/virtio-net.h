@@ -212,6 +212,8 @@ typedef struct VirtioNetClosedSession {
 typedef struct VirtioNetInterruptResource {
     // Register offset used to acknowledge the device interrupt.
     uint32_t            IsrOffset;
+    // MSI-X shares vector zero between queues and configuration changes.
+    int                 MsixEnabled;
     // Interrupt bits saved for the executor to process.
     atomic_uint_fast8_t PendingStatus;
 } VirtioNetInterruptResource_t;

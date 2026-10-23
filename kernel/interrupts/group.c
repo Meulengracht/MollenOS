@@ -25,10 +25,8 @@
 #include <string.h>
 
 #define INTERRUPT_GROUP_LIMIT 2048U
-#define INTERRUPT_GROUP_TAG 1023U
-
-_Static_assert(MAX_SUPPORTED_INTERRUPTS <= INTERRUPT_GROUP_TAG,
-    "Group handles must not name interrupt table entries");
+_Static_assert(MAX_SUPPORTED_INTERRUPTS <= UINT16_MAX,
+    "Interrupt table indices must fit in descriptor IDs");
 
 /** @brief One reservation and its immutable device message. */
 struct __InterruptGroupVector {

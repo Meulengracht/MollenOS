@@ -806,7 +806,6 @@ BcmPciInitialize(
     }
 
     bus->OpContext = controller;
-    bus->DriversBlocked = 1;
     bus->IoResourcePolicy = PciIoResourceMemory;
     bus->IsExtended = 1;
     bus->Identification.BusStart = firmware->BusStart;

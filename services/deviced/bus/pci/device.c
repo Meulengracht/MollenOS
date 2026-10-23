@@ -54,9 +54,8 @@ __PciBusControl(
         device->Host->Identification.Segment, device->Bus, device->Slot,
         device->Function, request->Flags);
 
-    // Do not change command bits while the host or this handler forbids activation.
-    if (device->Host->DriversBlocked ||
-        (device->Handler != NULL && device->Handler->BlockActivation)) {
+    // Do not change command bits while this handler forbids activation.
+    if (device->Handler != NULL && device->Handler->BlockActivation) {
         WARNING("__PciBusControl activation blocked for %u:%u:%u.%u",
             device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
         return OS_ENOTSUPPORTED;
@@ -164,8 +163,7 @@ __PciIoctlDevice(
         return OS_EBUSY;
     }
 
-    if (device->Host->DriversBlocked ||
-        (device->Handler != NULL && device->Handler->BlockActivation)) {
+    if (device->Handler != NULL && device->Handler->BlockActivation) {
         WARNING("__PciIoctlDevice configuration writes blocked by device policy");
         return OS_ENOTSUPPORTED;
     }
@@ -330,7 +328,7 @@ __PciInterruptControl(
             return status;
         }
 
-        support->Domain = device->Host->InterruptControllerId;
+        support->ControllerID = device->Host->InterruptControllerId;
         support->MsiCapacity = capabilities.MsiCapacity;
         support->MsixCapacity = capabilities.MsixCapacity;
 
@@ -420,8 +418,7 @@ __PciAllowsDriverBinding(
 {
     // Bridges are managed through their child bus and handled functions already
     // have an owner, so neither should be offered to a generic driver.
-    return !device->IsBridge && device->Handler == NULL 
-            && !device->Host->DriversBlocked;
+    return !device->IsBridge && device->Handler == NULL;
 }
 
 static void
@@ -778,8 +775,7 @@ PciPublishDevice(
         return DmPublicationEnableBinding(group);
     }
 
-    if (device->Host->InterruptControllerId == UUID_INVALID &&
-        !device->Host->DriversBlocked && PciIsMsiAvailable()) {
+    if (device->Host->InterruptControllerId == UUID_INVALID && PciIsMsiAvailable()) {
         if (device->Host->Firmware != NULL) {
             query.Kind = InterruptMessageControllerKindDeviceTree;
             query.FirmwareNode = device->Host->Firmware->NodeOffset;

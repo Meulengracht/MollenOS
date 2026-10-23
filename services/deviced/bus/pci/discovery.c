@@ -274,7 +274,7 @@ __OnFdtPciHost(
     }
     
     PciCheckBus(bus->RootDevice, host->BusStart);
-    WARNING("Broadcom PCIe enumerated; device drivers remain blocked pending DMA/INTx acceptance");
+    TRACE("Broadcom PCIe host initialized and enumerated");
 }
 
 static void

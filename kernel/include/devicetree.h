@@ -51,6 +51,7 @@ typedef struct DeviceTreeProperty {
 typedef struct DeviceTreeNode {
     const char*            Name;      // Node name, borrowed from the retained FDT blob.
     uint32_t               Phandle;   // Host-endian phandle, or zero when none is defined.
+    uint32_t               NodeOffset; // BEGIN_NODE byte offset within the FDT structure block.
     struct DeviceTreeNode* Parent;    // Parent node, or NULL for the root.
     struct DeviceTreeNode* Children;  // First child node, or NULL when there are no children.
     struct DeviceTreeNode* Next;      // Next sibling under the same parent.
@@ -225,6 +226,24 @@ DeviceTreeFindPhandle(
  */
 __EXTERN oserr_t
 DeviceTreeReadRegister(
+    _In_  const DeviceTreeNode_t* node,
+    _In_  unsigned int            index,
+    _Out_ uint64_t*               addressOut,
+    _Out_ uint64_t*               lengthOut);
+
+/**
+ * @brief Read a reg tuple in its parent bus address space, without ranges translation.
+ * Use this for bindings whose register tuple encodes a device-visible message
+ * address. CPU MMIO mappings must use DeviceTreeReadRegister instead.
+ *
+ * @param node Node whose reg property is read.
+ * @param index Zero-based tuple index.
+ * @param addressOut Receives the untranslated address on success.
+ * @param lengthOut Receives its length on success.
+ * @return OS_EOK or a resource decoding error. Outputs stay unchanged on failure.
+ */
+__EXTERN oserr_t
+DeviceTreeReadRegisterRaw(
     _In_  const DeviceTreeNode_t* node,
     _In_  unsigned int            index,
     _Out_ uint64_t*               addressOut,

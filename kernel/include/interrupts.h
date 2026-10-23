@@ -16,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
  */
 
 #ifndef _MCORE_INTERRUPTS_H_
@@ -199,6 +198,14 @@ KERNELAPI Context_t* KERNELABI
 InterruptHandle(
     _In_  Context_t* context,
     _In_  int        tableIndex);
+
+/**
+ * @brief Handles a interrupt directly without entering CPU interrupt context. Useful
+ * for some specific interrupt controllers.
+ */
+KERNELAPI void KERNELABI
+InterruptHandleDirect(
+    _In_ uint32_t tableIndex);
 
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. This affects how the system allocates

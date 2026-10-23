@@ -36,8 +36,7 @@
  *
  * ControllerID selects the message controller. User allocations must provide
  * an ID found during platform discovery. Kernel tests may use 0 to select the
- * platform controller. On x86, messages go to the bootstrap processor (BSP),
- * and cannot be moved to another CPU. ARM64 does not support message allocation yet.
+ * platform controller.
  *
  * @param request Requested interrupt count, allowed methods, and interrupt line.
  * @param kernelHandlers Nonzero for kernel handlers. Zero binds handlers in

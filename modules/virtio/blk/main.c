@@ -49,14 +49,18 @@ OnFastInterrupt(
     DeviceIo_t* ioSpace = INTERRUPT_IOSPACE(resourceTable, 0);
     uint8_t status;
 
-    // Reading the Virtio ISR byte acknowledges legacy INTx. The fast handler
-    // only preserves the cause and wakes the module loop; queue processing and
-    // protocol responses are not safe in interrupt context.
-    status = (uint8_t)interruptTable->ReadIoSpace(
-        ioSpace,
-        resource->IsrOffset,
-        sizeof(uint8_t)
-    );
+    // MSI-X does not supply ISR bits. Our single vector covers both causes,
+    // so the module checks configuration and drains its queue on every event.
+    // Reading the ISR byte preserves the existing MSI/INTx acknowledgment.
+    if (resource->MsixEnabled) {
+        status = VIRTIO_ISR_QUEUE_INTERRUPT | VIRTIO_ISR_CONFIG_INTERRUPT;
+    } else {
+        status = (uint8_t)interruptTable->ReadIoSpace(
+            ioSpace,
+            resource->IsrOffset,
+            sizeof(uint8_t)
+        );
+    }
 
     if (status == 0) {
         return IRQSTATUS_NOT_HANDLED;

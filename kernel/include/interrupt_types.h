@@ -21,6 +21,10 @@
 
 #include <ddk/interrupt.h>
 
+// Group handles end in these ten bits. Dispatch slots with this suffix must
+// remain unavailable, including when an architecture adds software-only slots.
+#define INTERRUPT_GROUP_TAG 1023U
+
 #define INTERRUPT_KERNEL 0x10000000U
 
 typedef struct InterruptMessage {

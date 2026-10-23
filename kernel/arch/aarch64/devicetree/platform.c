@@ -21,8 +21,8 @@
 #include <component/cpu.h>
 #include <component/ic.h>
 #include <machine.h>
-#include <memoryspace.h>
 #include <string.h>
+
 #include "../common/private.h"
 
 struct Arm64Platform g_arm64Platform;
@@ -50,6 +50,7 @@ __ReadCpu(
     
     cpu->EnableMethod = 0;
     cpu->ReleaseAddress = 0;
+    
     if (method && !strcmp(method, "spin-table")) {
         cpu->EnableMethod = ARM64_CPU_ENABLE_SPIN_TABLE;
         status = DeviceTreeReadInteger(node, "cpu-release-addr", &cpu->ReleaseAddress);
@@ -451,33 +452,7 @@ ArchDeviceTreeInitialize(
     return CreateInterruptController(
         description.Gic->Phandle,
         0,
-        MAX_SUPPORTED_INTERRUPTS,
+        INTERRUPT_PHYSICAL_END,
         description.Platform.Distributor
     );
-}
-
-uintptr_t
-Arm64MapDevice(
-    _In_ uint64_t physical,
-    _In_ uint64_t length)
-{
-    uintptr_t offset = physical & (ARM64_PAGE_SIZE - 1);
-    uintptr_t virtual;
-    oserr_t   status;
-
-    status = MemorySpaceMap(
-        GetDomainMemorySpace(),
-        &(struct MemorySpaceMapOptions) {
-            .PhysicalStart = physical - offset,
-            .Length = (length + offset + ARM64_PAGE_SIZE - 1) & ~(ARM64_PAGE_SIZE - 1ULL),
-            .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_DEVICE | MAPPING_PERSISTENT,
-            .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_GLOBAL
-        },
-        &virtual
-    );
-    if (status != OS_EOK) {
-        return 0;
-    }
-    
-    return virtual + offset;
 }

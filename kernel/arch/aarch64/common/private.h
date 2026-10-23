@@ -379,22 +379,6 @@ Arm64TimerAdvance(
     _In_ int preemptive);
 
 /**
- * @brief Maps physical device registers for access by the kernel.
- *
- * Creates a persistent, shared kernel mapping with device memory settings,
- * without user access or instruction execution. Covers the pages containing
- * the requested range and preserves the starting offset within the first page.
- *
- * @param physical Physical address of the first device byte to access.
- * @param length Number of bytes in the device range to map.
- * @return Kernel virtual address of the requested first byte, or zero if mapping fails.
- */
-__EXTERN uintptr_t
-Arm64MapDevice(
-    _In_ uint64_t physical,
-    _In_ uint64_t length);
-
-/**
  * @brief Saves the current CPU's SIMD and floating-point state for a thread.
  *
  * Stores all 32 SIMD registers, followed by the floating-point control and

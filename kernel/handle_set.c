@@ -73,7 +73,9 @@ static oserr_t DestroySetElement(struct handleset_element*);
 static oserr_t AddHandleToSet(struct handle_set*, uuid_t, struct ioset_event*);
 
 static hashtable_t g_handleSets;
-static Spinlock_t  g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
+// Entries contain list locks and can move on insertion, removal or resize.
+// Hold this IRQ-safe lock until all access to an entry's list has finished.
+static Spinlock_t  g_handleSetsLock;
 
 oserr_t
 HandleSetsInitialize(void)
@@ -327,13 +329,13 @@ MarkHandle(
 
     SpinlockAcquireIrq(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
-    SpinlockReleaseIrq(&g_handleSetsLock);
-
     if (!element) {
+        SpinlockReleaseIrq(&g_handleSetsLock);
         return OS_ENOENT;
     }
 
     list_enumerate(&element->sets, MarkHandleCallback, (void*)(uintptr_t)flags);
+    SpinlockReleaseIrq(&g_handleSetsLock);
     return OS_EOK;
 }
 
@@ -345,16 +347,13 @@ DestroySetElement(
 
     SpinlockAcquireIrq(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
-    SpinlockReleaseIrq(&g_handleSetsLock);
-
     if (element) {
         list_remove(&element->sets, &setElement->set_header);
         if (!list_count(&element->sets)) {
-            SpinlockAcquireIrq(&g_handleSetsLock);
             hashtable_remove(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
-            SpinlockReleaseIrq(&g_handleSetsLock);
         }
     }
+    SpinlockReleaseIrq(&g_handleSetsLock);
 
     // If we have an event queued up, we should now remove it
     list_remove(&setElement->set->events, &setElement->event_header);
@@ -372,20 +371,7 @@ AddHandleToSet(
     struct handleset_element* setElement;
     int                       status;
 
-    SpinlockAcquireIrq(&g_handleSetsLock);
-    element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
-    if (!element) {
-        hashtable_set(&g_handleSets, &(struct handle_sets) { .id = handle, .sets = LIST_INIT });
-        element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
-    }
-    SpinlockReleaseIrq(&g_handleSetsLock);
-
-    // Now we have access to the handle-set and the target handle, so we can go ahead
-    // and add the target handle to the set-tree and then create the set element for
-    // the handle
-    
-    // For each handle added we must allocate a SetElement and add it to the
-    // handle instance
+    // Allocate before taking the table lock.
     setElement = (struct handleset_element*)kmalloc(sizeof(struct handleset_element));
     if (!setElement) {
         return OS_EOOM;
@@ -400,6 +386,18 @@ AddHandleToSet(
     setElement->Handle        = handle;
     setElement->Context       = event->data;
     setElement->Configuration = event->events;
+
+    SpinlockAcquireIrq(&g_handleSetsLock);
+    element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
+    if (!element) {
+        hashtable_set(&g_handleSets, &(struct handle_sets) { .id = handle, .sets = LIST_INIT });
+        element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
+        if (!element) {
+            SpinlockReleaseIrq(&g_handleSetsLock);
+            kfree(setElement);
+            return OS_EOOM;
+        }
+    }
     
     // Append to the list of sets on the target handle we are going to listen
     // too. 
@@ -408,11 +406,13 @@ AddHandleToSet(
     // Register the target handle in the current set, so we can clean up again
     status = rb_tree_append(&set->handles, &setElement->handle_header);
     if (status) {
-        ERROR("AddHandleToSet rb_tree_append failed with %i", status);
         list_remove(&element->sets, &setElement->set_header);
+        SpinlockReleaseIrq(&g_handleSetsLock);
+        ERROR("AddHandleToSet rb_tree_append failed with %i", status);
         kfree(setElement);
         return OS_EINVALPARAMS;
     }
+    SpinlockReleaseIrq(&g_handleSetsLock);
     return OS_EOK;
 }
 

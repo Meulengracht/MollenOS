@@ -800,12 +800,41 @@ oserr_t
 VirtioPciFinishInitialization(
     _In_ VirtioPciTransport_t* transport)
 {
-    uint8_t status;
-    oserr_t oserr;
+    uint64_t value;
+    uint8_t  status;
+    oserr_t  oserr;
     TRACE("VirtioPciFinishInitialization: starting");
 
     if (transport == NULL) {
         return OS_EINVALPARAMS;
+    }
+
+    // A Virtio reset clears the device's routing but leaves PCI MSI-X enabled.
+    // Restore the shared configuration vector before making the device live.
+    if (transport->MsixEnabled) {
+        oserr = VirtioPciRegionWrite(
+            &transport->Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1],
+            offsetof(VirtioPciCommonConfiguration_t, ConfigMsiXVector),
+            0,
+            sizeof(uint16_t)
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+
+        oserr = VirtioPciRegionRead(
+            &transport->Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1],
+            offsetof(VirtioPciCommonConfiguration_t, ConfigMsiXVector),
+            sizeof(uint16_t),
+            &value
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        
+        if (value != 0) {
+            return OS_EDEVFAULT;
+        }
     }
 
     oserr = __AddStatus(transport, VIRTIO_STATUS_DRIVER_OK);

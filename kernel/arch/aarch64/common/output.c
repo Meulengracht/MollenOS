@@ -17,7 +17,9 @@
  */
 
 #include <arch/output.h>
+
 #include "private.h"
+#include "device.h"
 
 static BootTerminal_t     g_terminal;
 static volatile uint32_t* g_uart;

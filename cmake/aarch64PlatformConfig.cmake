@@ -13,6 +13,7 @@ set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -march=armv8-a -mno-outl
 if ("${VALI_PLATFORM}" STREQUAL "rpi")
     # Raspberry Pi specific feature flags can be set here
     set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_DEVICETREE_SUPPORT")
+    set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_RPI")
 
     # Turn off some things rpi does not support
     set (VALI_BUILD_FEATURE_ACPI OFF)

@@ -128,11 +128,17 @@ OnFastInterrupt(
     uint8_t     status;
             
     
-    status = (uint8_t)interruptTable->ReadIoSpace(
-        ioSpace,
-        resource->IsrOffset,
-        sizeof(uint8_t)
-    );
+    // MSI-X does not supply ISR bits. Our single vector covers both causes,
+    // so the module checks configuration and drains its queues on every event.
+    if (resource->MsixEnabled) {
+        status = VIRTIO_ISR_QUEUE_INTERRUPT | VIRTIO_ISR_CONFIG_INTERRUPT;
+    } else {
+        status = (uint8_t)interruptTable->ReadIoSpace(
+            ioSpace,
+            resource->IsrOffset,
+            sizeof(uint8_t)
+        );
+    }
     if (!status) {
         return IRQSTATUS_NOT_HANDLED;
     }

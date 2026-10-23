@@ -360,6 +360,9 @@ typedef struct VirtioPciTransport {
 	uint32_t          ResetGeneration;
 	uint16_t          ActiveQueues;
 	uint8_t           AcquiredBars;
+	// Selected by the driver before creating queues. Survives a Virtio reset
+	// while the PCI interrupt reservation remains enabled; all routes use entry 0.
+	int               MsixEnabled;
 	spinlock_t        ConfigurationLock;
 } VirtioPciTransport_t;
 
@@ -534,11 +537,12 @@ VirtioPciNegotiateFeatures(
  *
  * Sets DRIVER_OK and verifies that the device accepted the state without
  * reporting FAILED or DEVICE_NEEDS_RESET. Call this only after successful
- * feature negotiation and all required queue and device-specific setup.
+ * feature negotiation and all required queue and device-specific setup. With
+ * MsixEnabled, assigns configuration changes to table entry zero first.
  *
  * @param transport The initialized and configured transport.
  * @return OS_EOK when DRIVER_OK is accepted, OS_EINVALPARAMS if @p transport
- *         is NULL, OS_EDEVFAULT if the resulting device status is invalid, or
+ *         is NULL, OS_EDEVFAULT if the vector is rejected or device status is invalid, or
  *         an I/O error from the common configuration region.
  */
 oserr_t

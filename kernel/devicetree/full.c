@@ -44,7 +44,7 @@ DeviceTreeParseFull(
     // Components are registered only after the complete tree is validated.
     // Platform discovery resolves all required resources before publication;
     // any later allocation failure is fatal to boot, not a partial topology.
-#ifdef __aarch64__
+#if defined(__OSCONFIG_DEVICETREE_SUPPORT)
     oserr = ArchDeviceTreeInitialize(tree);
     if (oserr != OS_EOK) {
         DeviceTreeDestroy(tree);

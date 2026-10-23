@@ -17,6 +17,7 @@
  */
 
 #include <arch/interrupts.h>
+#include <interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <debug.h>

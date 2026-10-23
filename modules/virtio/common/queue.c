@@ -339,6 +339,34 @@ __ProgramQueue(
         goto exit;
     }
 
+    // MSI-X uses table entry zero for every queue. Program and verify the
+    // route before QueueEnable, including when rebuilding queues after reset.
+    if (transport->MsixEnabled) {
+        oserr = __CommonWrite(
+            transport,
+            offsetof(VirtioPciCommonConfiguration_t, QueueMsiXVector),
+            0,
+            sizeof(uint16_t)
+        );
+        if (oserr != OS_EOK) {
+            goto exit;
+        }
+        
+        oserr = __CommonRead(
+            transport,
+            offsetof(VirtioPciCommonConfiguration_t, QueueMsiXVector),
+            sizeof(uint16_t),
+            &value
+        );
+        if (oserr != OS_EOK) {
+            goto exit;
+        }
+        if (value != 0) {
+            oserr = OS_EDEVFAULT;
+            goto exit;
+        }
+    }
+
     // Publish the chosen size and the three independent split-ring physical
     // bases. The DMA allocator has already guaranteed each base describes the
     // entire corresponding component without SG discontinuities.

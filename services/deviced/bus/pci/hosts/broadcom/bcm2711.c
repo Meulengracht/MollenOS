@@ -310,8 +310,10 @@ __Bcm2711Inbound(
     }
 
     // Message-signaled interrupts (MSI) are raised by writing to an address.
-    // They are not set up yet, so disable the old interrupt destination that
-    // firmware may have left enabled.
+    // Disable any firmware destination during host startup. The kernel owns
+    // this receiver and initializes it on the first message allocation, after
+    // the host's reset and inbound-window programming have completed. Do not
+    // reset or reprogram the host after devices have acquired messages.
     status = WriteDeviceIo(
         &bus->IoSpace,
         BCM_PCIE_MSI_BAR,

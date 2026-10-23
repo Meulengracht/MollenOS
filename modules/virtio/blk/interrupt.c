@@ -38,7 +38,7 @@ VirtioBlkRegisterInterrupt(
     int         status;
     TRACE("VirtioBlkRegisterInterrupt()");
 
-    // The fast handler only acknowledges the ISR and signals this descriptor.
+    // The fast handler records interrupt causes and signals this descriptor.
     // Queue draining and protocol responses stay in the normal module context.
     device->EventDescriptor = eventd(0, EVT_RESET_EVENT);
     if (device->EventDescriptor < 0) {
@@ -74,13 +74,14 @@ VirtioBlkRegisterInterrupt(
         &device->Interrupt,
         1, // Min
         1, // Optimal
-        INTERRUPT_STRATEGY_INTx,
+        INTERRUPT_STRATEGY_ANY,
         &count
     );
     if (oserr != OS_EOK) {
         goto cleanup;
     }
     
+    device->InterruptResource.MsixEnabled = device->Interrupt.Strategy == INTERRUPT_STRATEGY_MSIX;
     oserr = DeviceInterruptSetDescriptor(&device->Interrupt, 0, device->EventDescriptor);
     if (oserr != OS_EOK) {
         goto cleanup;
@@ -111,6 +112,7 @@ VirtioBlkRegisterInterrupt(
     if (oserr != OS_EOK) {
         goto cleanup;
     }
+    device->Transport.MsixEnabled = device->InterruptResource.MsixEnabled;
     return OS_EOK;
 
 cleanup:

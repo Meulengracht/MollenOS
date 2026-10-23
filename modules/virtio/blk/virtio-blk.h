@@ -80,11 +80,13 @@ PACKED_TYPESTRUCT(VirtioBlkRequestHeader, {
  * @brief State shared with the fast interrupt handler.
  *
  * The ISR capability offset is relative to IoSpace. Reading it acknowledges
- * legacy INTx interrupts. PendingStatus carries the acknowledged bits to the
- * module event loop.
+ * legacy INTx interrupts. PendingStatus carries the causes to the module event
+ * loop; MSI-X reports both causes because they share one vector.
  */
 typedef struct VirtioBlkInterruptResource {
     uint32_t            IsrOffset;
+    // MSI-X shares vector zero between queues and configuration changes.
+    int                 MsixEnabled;
     atomic_uint_fast8_t PendingStatus;
 } VirtioBlkInterruptResource_t;
 

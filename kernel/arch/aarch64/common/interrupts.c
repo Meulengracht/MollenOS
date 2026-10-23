@@ -17,13 +17,16 @@
  */
 
 #include <arch/interrupts.h>
-#include <interrupts.h>
 #include <arch/utils.h>
+#include <interrupts.h>
 #include <component/cpu.h>
+#include <debug.h>
 #include <machine.h>
 #include <string.h>
+
 #include "private.h"
-#include <debug.h>
+#include "device.h"
+#include "platform.h"
 
 static volatile uint32_t* g_distributor;
 static volatile uint32_t* g_cpuInterface;
@@ -146,8 +149,8 @@ PlatformInterruptInitialize(void)
     g_interruptCount = ((capabilities & ARM64_GIC_TYPER_LINES_MASK) + 1) * ARM64_GIC_BITS_PER_REGISTER;
     // Stay within the kernel's interrupt tables. In particular, GIC IDs
     // 1020-1023 are special responses, not device interrupts we can register.
-    if (g_interruptCount > MAX_SUPPORTED_INTERRUPTS) {
-        g_interruptCount = MAX_SUPPORTED_INTERRUPTS;
+    if (g_interruptCount > ARM64_GIC_SPECIAL_ID_BASE) {
+        g_interruptCount = ARM64_GIC_SPECIAL_ID_BASE;
     }
 
     // Initially route shared device interrupts to this boot CPU. Each target
@@ -169,7 +172,7 @@ PlatformInterruptInitialize(void)
     DEBUG("GIC distributor=%llx cpu=%llx type=%x control=%x target=%x",
         g_arm64Platform.Distributor, g_arm64Platform.CpuInterface,
         capabilities, g_distributor[ARM64_GICD_CTLR / ARM64_GIC_REGISTER_SIZE], target);
-    return OS_EOK;
+    return Arm64PlatformInterruptInitialize(g_interruptCount);
 }
 
 void

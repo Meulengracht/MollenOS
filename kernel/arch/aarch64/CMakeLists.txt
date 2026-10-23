@@ -7,7 +7,7 @@ if (VALI_ENABLE_NESTED_IRQS)
     message(FATAL_ERROR "AArch64 does not yet support VALI_ENABLE_NESTED_IRQS")
 endif ()
 
-add_kernel_library(vali-aarch64 ""
+set (AARCH64_SOURCES
     common/entry.S
     common/vectors.S
     common/fp.S
@@ -18,8 +18,24 @@ add_kernel_library(vali-aarch64 ""
     common/secondary.S
     common/thread.c
     common/memory.c
+    common/device.c
     common/interrupts.c
     common/timer.c
     common/output.c
-    rpi/platform.c
 )
+
+# RPi uses device-tree discovery and adds its SoC interrupt controllers.
+if (VALI_PLATFORM STREQUAL "rpi")
+    list (APPEND AARCH64_SOURCES
+        devicetree/platform.c
+        rpi/interrupts.c
+        rpi/mip.c
+        rpi/mip-firmware.c
+        rpi/bcm2711-msi.c
+        rpi/bcm2711-msi-firmware.c
+    )
+else ()
+    list (APPEND AARCH64_SOURCES common/platform.c)
+endif ()
+
+add_kernel_library(vali-aarch64 "" ${AARCH64_SOURCES})

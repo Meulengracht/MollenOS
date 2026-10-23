@@ -806,7 +806,9 @@ UsbManagerConfigureInterrupt(
 
     DeviceInterruptInitialize(interrupt, controller->Device);
     
-    status = DeviceInterruptAllocate(interrupt, 1, 1, INTERRUPT_STRATEGY_INTx, &count);
+    // One vector serves the controller's existing event path. The allocator
+    // prefers MSI-X, then MSI, and retains INTx for controllers without either.
+    status = DeviceInterruptAllocate(interrupt, 1, 1, INTERRUPT_STRATEGY_ANY, &count);
     if (status != OS_EOK) {
         return status;
     }
