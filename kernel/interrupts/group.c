@@ -19,34 +19,61 @@
 
 #include <interrupts_group.h>
 #include <interrupts.h>
+#include <interrupts_chain.h>
+#include <ddk/types/interrupt-provider.h>
 #include <heap.h>
+#include <handle.h>
 #include <memoryspace.h>
 #include <spinlock.h>
 #include <string.h>
 
-#define INTERRUPT_GROUP_LIMIT 2048U
+#define INTERRUPT_GROUP_LIMIT INTERRUPT_PROVIDER_MAX_VECTORS
 _Static_assert(MAX_SUPPORTED_INTERRUPTS <= UINT16_MAX,
     "Interrupt table indices must fit in descriptor IDs");
 
-/** @brief One reservation and its immutable device message. */
+/**
+ * One reserved interrupt and the fixed address/data the device writes to signal it.
+ * CompletionHandle identifies an attachment when a provider retries a request.
+ * Completion holds the group's use of that callback, avoiding a lookup per interrupt.
+ */
 struct __InterruptGroupVector {
-    uuid_t             Id;
-    InterruptMessage_t Message;
+    uuid_t                      Id;
+    InterruptMessage_t          Message;
+    uuid_t                      CompletionHandle;
+    struct InterruptCompletion* Completion;
 };
 
-/** @brief Group lifecycle state and reservations owned by the interrupt core. */
+/**
+ * Records which bus provider attached this device to the group. Closed prevents
+ * a delayed attachment request from reopening a group that is being removed.
+ */
+struct __InterruptProviderLease {
+    uuid_t Provider;
+    uuid_t Device;
+    int    Closed;
+};
+
+/**
+ * Coordinates one process's interrupt reservations and optional provider callbacks.
+ * Updating permits only one group operation at a time, even while the lock is
+ * released. Unbinding remembers incomplete cleanup. Enabled is shared by all
+ * vectors so handlers start only after the entire group is ready. EverEnabled
+ * records whether late device messages might still target these reservations.
+ */
 struct __InterruptGroup {
-    struct __InterruptGroup*     Next;
-    uuid_t                       Handle;
-    uuid_t                       Owner;
-    uint32_t                     Strategy;
-    uint32_t                     Count;
-    int                          KernelHandlers;
-    int                          Updating;
-    int                          Unbinding;
-    int                          EverEnabled;
-    _Atomic(int)                 Enabled;
-    struct __InterruptGroupVector Vectors[];
+    struct __InterruptGroup*        Next;
+    uuid_t                          Handle;
+    uuid_t                          Owner;
+    uuid_t                          ControllerID;
+    struct __InterruptProviderLease Provider;
+    uint32_t                        Strategy;
+    uint32_t                        Count;
+    int                             KernelHandlers;
+    int                             Updating;
+    int                             Unbinding;
+    int                             EverEnabled;
+    _Atomic(int)                    Enabled;
+    struct __InterruptGroupVector   Vectors[];
 };
 
 static Spinlock_t               g_groupLock = OS_SPINLOCK_INIT;
@@ -88,6 +115,10 @@ __BeginGroup(
         SpinlockReleaseIrq(&g_groupLock);
         return OS_EBUSY;
     }
+    
+    // Mapping and waiting for handlers can take time. Reserve this operation's
+    // exclusive access before unlocking, so other threads cannot alter or free
+    // the group while we work without holding the list lock.
     group->Updating = 1;
     SpinlockReleaseIrq(&g_groupLock);
     
@@ -157,7 +188,7 @@ InterruptGroupCheckOwner(
     group = __FindGroup(handle);
     if (group == NULL) {
         status = OS_ENOENT;
-    } else if (group->KernelHandlers || group->Owner != GetCurrentMemorySpaceHandle()) {
+    } else if (group->KernelHandlers || group->Owner != InterruptCurrentOwner()) {
         status = OS_EPERMISSIONS;
     } else {
         status = OS_EOK;
@@ -228,9 +259,10 @@ __ReserveGroup(
     
     // Keep dispatch closed until the caller binds handlers and enables the group.
     atomic_init(&group->Enabled, 0);
-    group->Owner = GetCurrentMemorySpaceHandle();
+    group->Owner = InterruptCurrentOwner();
     group->KernelHandlers = kernelHandlers;
     group->Strategy = strategy;
+    group->ControllerID = request->ControllerID;
 
     // A candidate can be taken after enumeration. If it is busy, try the next one.
     for (ordinal = 0; group->Count < capacity; ordinal++) {
@@ -358,6 +390,7 @@ InterruptGroupBind(
     _In_ uint32_t                  index,
     _In_ InterruptResourceTable_t* resources)
 {
+    SystemInterrupt_t*       entry;
     struct __InterruptGroup* group;
     oserr_t                  status;
 
@@ -372,8 +405,20 @@ InterruptGroupBind(
         status = OS_EBUSY;
     } else if (group->Unbinding) {
         status = OS_EBUSY;
+    } else if (group->Provider.Closed) {
+        status = OS_EPERMISSIONS;
     } else {
         status = InterruptBind(group->Vectors[index].Id, resources);
+        if (status == OS_EOK) {
+            entry = InterruptGet(group->Vectors[index].Id);
+
+            // The driver supplies only its own handler. Add the provider's
+            // callback from the group so drivers need no completion API.
+            // The group keeps the callback in use; this entry adds no reference.
+            // Set the pointer while disabled, before any handler can run.
+            entry->Completion = group->Vectors[index].Completion;
+            InterruptPut(entry);
+        }
     }
     
     __EndGroup(group);
@@ -423,7 +468,8 @@ __DisableGroup(
     oserr_t current;
     oserr_t status = OS_EOK;
 
-    // Stop dispatch for the whole group before disabling individual vectors.
+    // Stop new handler calls for the whole group before disabling individual
+    // vectors. Otherwise a later vector could still run during partial shutdown.
     atomic_store(&group->Enabled, 0);
     for (uint32_t i = 0; i < group->Count; i++) {
         if (group->Vectors[i].Id == UUID_INVALID) {
@@ -484,12 +530,14 @@ __EnableGroup(
     }
 
     if (status != OS_EOK) {
-        // Some controller entries may already be enabled. Leave the shared
-        // dispatch gate closed while disabling them again.
+        // Some controller entries may already be enabled. The shared Enabled
+        // flag is still clear, so no handler runs while we disable them again.
         (void)__DisableGroup(group);
         return status;
     }
 
+    // Allow handler calls only after all vectors succeeded. Remember this group
+    // was usable because a device message may arrive even after it is disabled.
     group->EverEnabled = 1;
     atomic_store(&group->Enabled, 1);
     return OS_EOK;
@@ -526,7 +574,9 @@ static int
 __ShouldKeepGroupVector(
     _In_ const struct __InterruptGroup* group)
 {
-    // Keep used PCI message vectors reserved because a late device write may arrive.
+    // PCI message interrupts are memory writes that can arrive after device stop.
+    // Reusing a previously enabled slot could send that late write to a different
+    // driver's handler. Keep the slot unavailable until reboot instead.
     return !group->KernelHandlers &&
         group->EverEnabled &&
         group->Strategy != INTERRUPT_STRATEGY_INTx;
@@ -541,7 +591,8 @@ __UnbindGroup(
 
     group->Unbinding = 1;
     
-    // Go through all vectors and unbind them.
+    // Try every vector even if an earlier one fails. Successful removals reduce
+    // the work left for a retry; Unbinding prevents use of the incomplete group.
     for (uint32_t i = 0; i < group->Count; i++) {
         if (group->Vectors[i].Id == UUID_INVALID) {
             continue;
@@ -583,39 +634,43 @@ InterruptGroupUnbind(
     return status;
 }
 
-oserr_t
-InterruptGroupRelease(
-    _In_ uuid_t handle)
+static oserr_t
+__ReleaseGroup(
+    _In_ struct __InterruptGroup* group,
+    _In_ int                      reap)
 {
-    struct __InterruptGroup*  group;
     struct __InterruptGroup** link;
     oserr_t                   status;
-
-    status = __BeginGroup(handle, &group);
-    if (status != OS_EOK) {
-        return status;
-    }
+    uint32_t                  i;
     
-    status = __DisableGroup(group);
-    if (status == OS_EOK) {
-        status = __UnbindGroup(group);
-    }
-    if (status != OS_EOK) {
-        __EndGroup(group);
-        return status;
+    // Stop new handler calls before touching any vector. Ordinary release expects
+    // the caller to have stopped device writes. After driver death, keep message
+    // slots unavailable for reuse because the device may still send interrupts.
+    atomic_store(&group->Enabled, 0);
+    if (!reap) {
+        status = __DisableGroup(group);
+        if (status == OS_EOK) {
+            status = __UnbindGroup(group);
+        }
+        if (status != OS_EOK) {
+            __EndGroup(group);
+            return status;
+        }
     }
 
-    // The vectors are disabled and unmapped. Release their reservations now.
+    // Reaping also disables and unmaps each vector here. Keep the group and
+    // its completion references if any step fails, so another worker can retry.
     group->Unbinding = 1;
-    for (uint32_t i = 0; i < group->Count; i++) {
+    for (i = 0; i < group->Count; i++) {
         if (group->Vectors[i].Id == UUID_INVALID) {
             continue;
         }
         
-        status = InterruptRelease(
-            group->Vectors[i].Id,
-            __ShouldKeepGroupVector(group)
-        );
+        if (reap) {
+            status = InterruptReap(group->Vectors[i].Id, __ShouldKeepGroupVector(group));
+        } else {
+            status = InterruptRelease(group->Vectors[i].Id, __ShouldKeepGroupVector(group));
+        }
         
         if (status != OS_EOK) {
             __EndGroup(group);
@@ -633,6 +688,321 @@ InterruptGroupRelease(
     *link = group->Next;
     SpinlockReleaseIrq(&g_groupLock);
     
+    // Every vector has waited for running handlers to finish, including vectors
+    // removed on an earlier attempt. Only now may we drop the group's uses of
+    // provider callbacks and allow the provider to release their mappings.
+    for (i = 0; i < group->Count; i++) {
+        InterruptCompletionPut(group->Vectors[i].Completion);
+    }
+
     kfree(group);
     return OS_EOK;
+}
+
+oserr_t
+InterruptGroupRelease(
+    _In_ uuid_t handle)
+{
+    struct __InterruptGroup* group;
+    oserr_t                  status;
+
+    status = __BeginGroup(handle, &group);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (group->Provider.Provider != UUID_INVALID && !group->Provider.Closed) {
+        // The provider still owns hardware capable of writing this message.
+        // It must block those writes and close its attachment before group release.
+        __EndGroup(group);
+        return OS_EBUSY;
+    }
+    return __ReleaseGroup(group, 0);
+}
+
+oserr_t
+InterruptGroupReap(
+    _In_ uuid_t handle)
+{
+    struct __InterruptGroup* group;
+    oserr_t                  status;
+
+    status = __BeginGroup(handle, &group);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Process identity is shared by all native threads. A worker exiting must
+    // not look like driver death, and a cleanup job may move between workers.
+    if (group->KernelHandlers || LookupHandleOfType(group->Owner, HandleTypeMSContext) != NULL) {
+        __EndGroup(group);
+        return OS_EBUSY;
+    }
+    
+    // The driver is gone and cannot confirm what its hardware may still send.
+    // Treat its message slots as previously used, even if enable was not recorded.
+    group->EverEnabled = 1;
+    status = __ReleaseGroup(group, 1);
+    
+    // ENOENT denotes an absent group only, never unfinished vector cleanup.
+    return status == OS_ENOENT ? OS_EUNKNOWN : status;
+}
+
+static oserr_t
+__ProviderGroupIdle(
+    _In_ struct __InterruptGroup* group)
+{
+    SystemInterrupt_t* entry;
+    uint32_t          i;
+    int               bound;
+
+    if (atomic_load(&group->Enabled) || group->Unbinding) {
+        return OS_EBUSY;
+    }
+
+    // Disabled alone is not enough: a handler entry may still point to the
+    // completion. Unbind waits for running handlers and removes that pointer
+    // before clearing Bound. Failed cleanup leaves Bound set and blocks detach.
+    for (i = 0; i < group->Count; i++) {
+        entry = InterruptGet(group->Vectors[i].Id);
+        if (entry == NULL) {
+            return OS_EBUSY;
+        }
+        bound = entry->Bound;
+
+        InterruptPut(entry);
+        if (bound) {
+            return OS_EBUSY;
+        }
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__ProviderAttachGroup(
+    _InOut_ struct __InterruptGroup*                     group,
+    _In_    const struct InterruptProviderAttachRequest* request)
+{
+    struct __InterruptGroupVector* vector;
+    oserr_t                        status;
+    uint32_t                       i;
+
+    if (group->Provider.Closed) {
+        return OS_ENOENT;
+    }
+    
+    if (group->ControllerID != request->ControllerID || group->Count != request->Count) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (group->Provider.Provider != UUID_INVALID) {
+        // Returning messages to the provider may have failed after attachment
+        // succeeded. Accept the same request even if the driver has since bound
+        // or enabled its handlers. Compare input handles only; Message is output.
+        // Do not add references again or change callbacks that could be running.
+        for (i = 0; i < group->Count; i++) {
+            if (group->Vectors[i].CompletionHandle != request->Vectors[i].Completion) {
+                return OS_EBUSY;
+            }
+        }
+        goto messages;
+    }
+    
+    status = __ProviderGroupIdle(group);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // No handlers are bound and Updating excludes other group operations. Take
+    // one reference per callback before recording the provider's attachment.
+    // If any callback is unavailable, undo all earlier references below.
+    for (i = 0; i < group->Count; i++) {
+        vector = &group->Vectors[i];
+        if (request->Vectors[i].Completion != UUID_INVALID) {
+            status = InterruptCompletionAcquire(
+                request->Vectors[i].Completion,
+                &vector->Completion
+            );
+            if (status != OS_EOK) {
+                goto rollback;
+            }
+        }
+    }
+
+    // All callbacks are ready. Record the attachment before returning messages
+    // that the provider will use to program hardware. Later driver binds take
+    // their completion pointers from this group, including after an unbind.
+    for (i = 0; i < group->Count; i++) {
+        group->Vectors[i].CompletionHandle = request->Vectors[i].Completion;
+    }
+
+    group->Provider.Provider = InterruptCurrentOwner();
+    group->Provider.Device = request->Device;
+
+messages:
+    // Return the kernel's reserved message for each vector. Never accept an
+    // address or data value from the provider as the identity of a reservation.
+    for (i = 0; i < group->Count; i++) {
+        vector = &group->Vectors[i];
+        request->Vectors[i].Message.AddressLow = (uint32_t)vector->Message.Address;
+        request->Vectors[i].Message.AddressHigh = (uint32_t)(vector->Message.Address >> 32U);
+        request->Vectors[i].Message.Data = vector->Message.Data;
+    }
+    return OS_EOK;
+
+rollback:
+    // The failing element acquired nothing. Undo only earlier successful uses;
+    // no provider identity has been recorded, so a fresh attachment can retry.
+    while (i != 0) {
+        i--;
+        InterruptCompletionPut(group->Vectors[i].Completion);
+        group->Vectors[i].Completion = NULL;
+    }
+    return status;
+}
+
+static oserr_t
+__ProviderCloseGroup(
+    _InOut_ struct __InterruptGroup* group,
+    _In_    uuid_t                   device)
+{
+    uint32_t i;
+    oserr_t  status;
+
+    if (group->Provider.Closed) {
+        return OS_EOK;
+    }
+
+    status = __ProviderGroupIdle(group);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // Close can arrive before an earlier attachment request has been processed.
+    // Remember closure in the group even if nothing was attached, so that delayed
+    // request cannot restart a device whose shutdown has already been requested.
+    group->Provider.Provider = InterruptCurrentOwner();
+    group->Provider.Device = device;
+    group->Provider.Closed = 1;
+    
+    for (i = 0; i < group->Count; i++) {
+        InterruptCompletionPut(group->Vectors[i].Completion);
+        group->Vectors[i].Completion = NULL;
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__BeginProviderGroup(
+    _In_  uuid_t                   handle,
+    _In_  uuid_t                   principal,
+    _In_  uuid_t                   device,
+    _Out_ struct __InterruptGroup** groupOut)
+{
+    struct __InterruptGroup* group;
+    oserr_t                  status;
+
+    if (principal == UUID_INVALID || device == UUID_INVALID) {
+        return OS_EPERMISSIONS;
+    }
+
+    if (handle == UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+    
+    status = __BeginGroup(handle, &group);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // Principal is the driver's process identity, obtained by the provider from
+    // the message transport's verified sender information. Compare it with the
+    // recorded owner: knowing a group handle alone does not authorize attachment.
+    // This provider API currently supports MSI-X groups only. Once attached,
+    // both the calling provider and its device identity must continue to match.
+    if (group->KernelHandlers || group->Owner != principal) {
+        status = OS_EPERMISSIONS;
+    } else if (group->Strategy != INTERRUPT_STRATEGY_MSIX) {
+        status = OS_ENOTSUPPORTED;
+    } else if (group->Provider.Provider != UUID_INVALID &&
+               (group->Provider.Provider != InterruptCurrentOwner() ||
+                group->Provider.Device != device)) {
+        status = OS_EPERMISSIONS;
+    } else {
+        *groupOut = group;
+        return OS_EOK;
+    }
+    __EndGroup(group);
+    return status;
+}
+
+oserr_t
+InterruptGroupProviderAttach(
+    _In_ const struct InterruptProviderAttachRequest* request)
+{
+    struct __InterruptGroup* group;
+    oserr_t                  status;
+
+    if (request->Count == 0 || request->Count > INTERRUPT_PROVIDER_MAX_VECTORS) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (request->Vectors == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    status = __BeginProviderGroup(
+        request->Allocation,
+        request->Principal,
+        request->Device,
+        &group
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = __ProviderAttachGroup(group, request);
+    __EndGroup(group);
+    return status;
+}
+
+oserr_t
+InterruptGroupProviderCheckEnabled(
+    _In_ uuid_t handle,
+    _In_ uuid_t principal,
+    _In_ uuid_t device)
+{
+    struct __InterruptGroup* group;
+    oserr_t                  status;
+
+    status = __BeginProviderGroup(handle, principal, device, &group);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // This is a current-state check, not a reservation of that state. The driver
+    // can disable again after __EndGroup allows other operations to proceed.
+    status = !group->Provider.Closed && group->Provider.Provider != UUID_INVALID &&
+        atomic_load(&group->Enabled) ? OS_EOK : OS_EBUSY;
+    __EndGroup(group);
+    return status;
+}
+
+oserr_t
+InterruptGroupProviderClose(
+    _In_ uuid_t handle,
+    _In_ uuid_t principal,
+    _In_ uuid_t device)
+{
+    struct __InterruptGroup* group;
+    oserr_t                  status;
+
+    status = __BeginProviderGroup(handle, principal, device, &group);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = __ProviderCloseGroup(group, device);
+    __EndGroup(group);
+    return status;
 }

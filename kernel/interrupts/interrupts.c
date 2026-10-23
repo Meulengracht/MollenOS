@@ -36,17 +36,17 @@
 #include <deviceio.h>
 #include <debug.h>
 #include <heap.h>
+#include <handle.h>
 #include <memoryspace.h>
 #include <spinlock.h>
 #include <interrupts.h>
+#include <interrupts_chain.h>
+#include <interrupts_resources.h>
 #include <threading.h>
 #include <string.h>
 
-static oserr_t
-InterruptReleaseResources(
-        _In_ SystemInterrupt_t* Interrupt);
-
-// A dispatch chain and its shared reservation/delivery accounting.
+// All handlers sharing one interrupt table slot, plus the counts used to decide
+// whether the slot can be reserved and whether hardware delivery is needed.
 typedef struct InterruptTableEntry {
     _Atomic(SystemInterrupt_t*) Descriptor;
     int                         Penalty;
@@ -59,9 +59,10 @@ static Spinlock_t            g_interruptTableLock                       = OS_SPI
 static _Atomic(uuid_t)       g_nextInterruptId                          = 0;
 
 /*
- * Interrupt dispatch uses a small RCU read-side critical section. Readers
- * only update this counter and never wait for a lock. Unregistered entries
- * are placed on the retired list and reclaimed after all readers have left.
+ * Count interrupt handlers walking the table so they do not need its lock.
+ * Removing an entry first takes it out of the table, then delays freeing it
+ * until every walk that could have seen it has finished. Resource cleanup also
+ * waits for this count before removing mappings used by running callbacks.
  */
 static _Atomic(unsigned int) g_interruptReaders = 0;
 static SystemInterrupt_t*    g_retiredInterrupts;
@@ -70,12 +71,16 @@ static _Atomic(int)          g_retiredGroupEnabled;
 static void
 InterruptReadEnter(void)
 {
+    // Count this walk before loading any table pointer. Cleanup must see that
+    // the walk could still be using an entry that it is about to remove.
     atomic_fetch_add(&g_interruptReaders, 1);
 }
 
 static void
 InterruptReadExit(void)
 {
+    // Both the device handler and its completion must finish before leaving;
+    // cleanup treats a zero count as permission to remove their mappings.
     atomic_fetch_sub(&g_interruptReaders, 1);
 }
 
@@ -83,6 +88,8 @@ static void
 InterruptRetire(
         _In_ SystemInterrupt_t* Entry)
 {
+    // A running handler may still hold this entry even after table removal.
+    // Queue it for later cleanup; the caller already holds the table lock.
     Entry->RetiredLink = g_retiredInterrupts;
     g_retiredInterrupts = Entry;
 }
@@ -132,7 +139,8 @@ InterruptReclaimRetired(void)
     g_retiredInterrupts = NULL;
     while (retired != NULL) {
         next = retired->RetiredLink;
-        // The grace period has elapsed, so the table index may be handed out again.
+        // No table walk still uses this removed entry, so its reservation no
+        // longer needs to count against new users of the slot.
         InterruptReleasePenaltyLocked(retired);
         if (atomic_load(&retired->References) == 0) {
             retired->RetiredLink = reclaimable;
@@ -148,7 +156,7 @@ InterruptReclaimRetired(void)
     while (reclaimable != NULL) {
         next = reclaimable->RetiredLink;
         if (reclaimable->Owner != UUID_INVALID) {
-            status = InterruptReleaseResources(reclaimable);
+            status = InterruptReleaseResources(reclaimable->Id, &reclaimable->KernelResources);
             if (status != OS_EOK) {
                 ERROR("InterruptReclaimRetired: InterruptReleaseResources id %u failed: %u",
                       reclaimable->Id, status);
@@ -247,23 +255,23 @@ InterruptGetLeastLoaded(
     return SelectedIrq;
 }
 
-/* InterruptCleanupIoResources
- * Releases all kernel copies of the io-resources. */
+// Release the kernel I/O descriptions and mappings created for a callback.
 static oserr_t
-InterruptCleanupIoResources(
-    _In_ SystemInterrupt_t* Interrupt)
+__InterruptCleanupIoResources(
+    _In_    uuid_t                    id,
+    _InOut_ InterruptResourceTable_t* Resources)
 {
-    InterruptResourceTable_t* Resources = &Interrupt->KernelResources;
-    oserr_t                   Status;
-    int                       i;
+    oserr_t Status;
 
-    TRACE("InterruptCleanupIoResources(id=%u)", Interrupt->Id);
-    for (i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
+    TRACE("InterruptCleanupIoResources(id=%u)", id);
+    // Clear an entry only after release succeeds. A retry then skips resources
+    // already released and still knows which resource failed.
+    for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Resources->IoResources[i] != NULL) {
             Status = ReleaseKernelSystemDeviceIo(Resources->IoResources[i]);
             if (Status != OS_EOK) {
                 ERROR("InterruptCleanupIoResources: ReleaseKernelSystemDeviceIo id %u, resource %d failed: %u",
-                      Interrupt->Id, i, Status);
+                      id, i, Status);
                 return Status;
             }
             Resources->IoResources[i] = NULL;
@@ -272,27 +280,26 @@ InterruptCleanupIoResources(
     return OS_EOK;
 }
 
-/* InterruptResolveIoResources
- * Retrieves kernel copies of all requested io-resources, and remaps them into
- * kernel space to allow the handler to access them. */
+// Give the callback kernel-accessible descriptions and mappings for its I/O.
 static oserr_t
-InterruptResolveIoResources(
-    _In_ InterruptDescriptor_t* deviceInterrupt,
-    _In_ SystemInterrupt_t*     systemInterrupt)
+__InterruptResolveIoResources(
+    _In_    uuid_t                    id,
+    _In_    InterruptResourceTable_t* Source,
+    _InOut_ InterruptResourceTable_t* Destination)
 {
-    InterruptResourceTable_t* Source      = &deviceInterrupt->ResourceTable;
-    InterruptResourceTable_t* Destination = &systemInterrupt->KernelResources;
-    oserr_t                   Status;
-    oserr_t                   cleanupStatus;
-    int                       i;
+    oserr_t Status;
+    oserr_t cleanupStatus;
 
-    TRACE("InterruptResolveIoResources(id=%u)", systemInterrupt->Id);
-    for (i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
+    TRACE("InterruptResolveIoResources(id=%u)", id);
+    // The callback runs at kernel addresses and cannot use the provider's I/O
+    // description pointers directly. Record each kernel resource as it is made
+    // so an error later in the list can still be cleaned up.
+    for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Source->IoResources[i] != NULL) {
             Status = CreateKernelSystemDeviceIo(Source->IoResources[i], &Destination->IoResources[i]);
             if (Status != OS_EOK) {
                 ERROR("InterruptResolveIoResources: CreateKernelSystemDeviceIo id %u, resource %d failed: %u",
-                      systemInterrupt->Id, i, Status);
+                      id, i, Status);
                 goto error;
             }
         }
@@ -301,28 +308,28 @@ InterruptResolveIoResources(
     return OS_EOK;
 
 error:
-    cleanupStatus = InterruptCleanupIoResources(systemInterrupt);
+    cleanupStatus = __InterruptCleanupIoResources(id, Destination);
     if (cleanupStatus != OS_EOK) {
         ERROR("InterruptResolveIoResources: InterruptCleanupIoResources id %u failed: %u",
-              systemInterrupt->Id, cleanupStatus);
+              id, cleanupStatus);
     }
     return OS_EUNKNOWN;
 }
 
-/* InterruptCleanupMemoryResources
- * Releases all memory copies of the interrupt memory resources. */
+// Remove the kernel mappings recorded for the callback's memory resources.
 static oserr_t
-InterruptCleanupMemoryResources(
-    _In_ SystemInterrupt_t* Interrupt)
+__InterruptCleanupMemoryResources(
+    _In_    uuid_t                    id,
+    _InOut_ InterruptResourceTable_t* Resources)
 {
-    InterruptResourceTable_t* Resources = &Interrupt->KernelResources;
-    oserr_t                   Status;
-    uintptr_t                 Offset;
-    size_t                    Length;
-    int                       i;
+    oserr_t   Status;
+    uintptr_t Offset;
+    size_t    Length;
 
-    TRACE("InterruptCleanupMemoryResources(id=%u)", Interrupt->Id);
-    for (i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
+    TRACE("InterruptCleanupMemoryResources(id=%u)", id);
+    // Mapping begins at a page boundary even when the requested buffer does
+    // not. Include that initial offset to unmap the full range we created.
+    for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Resources->MemoryResources[i].Address != 0) {
             Offset = Resources->MemoryResources[i].Address % GetMemorySpacePageSize();
             Length = Resources->MemoryResources[i].Length + Offset;
@@ -331,25 +338,26 @@ InterruptCleanupMemoryResources(
                 Resources->MemoryResources[i].Address, Length);
             if (Status != OS_EOK) {
                 ERROR("InterruptCleanupMemoryResources: MemorySpaceUnmap id %u, resource %d, address 0x%" PRIxIN ", length %zu failed: %u",
-                      Interrupt->Id, i, Resources->MemoryResources[i].Address, Length, Status);
+                      id, i, Resources->MemoryResources[i].Address, Length, Status);
                 return Status;
             }
+            // Preserve failed entries above; only successful unmaps may be
+            // forgotten, otherwise a retry would lose track of live mappings.
             Resources->MemoryResources[i].Address = 0;
         }
     }
     return OS_EOK;
 }
 
-/* InterruptResolveMemoryResources
- * Retrieves kernel copies of all requested memory-resources, and remaps them into
- * kernel space to allow the handler to access them. */
+// Map the callback's existing buffers at addresses it can use inside the kernel.
 static oserr_t
-InterruptResolveMemoryResources(
-    _In_ InterruptDescriptor_t* deviceInterrupt,
-    _In_ SystemInterrupt_t*     systemInterrupt)
+__InterruptResolveMemoryResources(
+    _In_    uuid_t                    id,
+    _In_    InterruptResourceTable_t* Source,
+    _InOut_ InterruptResourceTable_t* Destination)
 {
-    InterruptResourceTable_t* source      = &deviceInterrupt->ResourceTable;
-    InterruptResourceTable_t* destination = &systemInterrupt->KernelResources;
+    InterruptResourceTable_t* source = Source;
+    InterruptResourceTable_t* destination = Destination;
     oserr_t                   oserr;
     oserr_t                   cleanupStatus;
     uintptr_t                 updatedMapping;
@@ -357,10 +365,12 @@ InterruptResolveMemoryResources(
     size_t                    length;
     unsigned int              pageFlags;
     unsigned int              placementFlags;
-    int                       i;
 
-    TRACE("InterruptResolveMemoryResources(id=%u)", systemInterrupt->Id);
-    for (i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
+    TRACE("InterruptResolveMemoryResources(id=%u)", id);
+    // Map the same memory at kernel-accessible addresses; this does not make
+    // independent copies of the buffer contents. Restore each buffer's offset
+    // within its first page so the callback sees the intended start address.
+    for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (source->MemoryResources[i].Address != 0) {
             offset         = source->MemoryResources[i].Address % GetMemorySpacePageSize();
             length         = source->MemoryResources[i].Length + offset;
@@ -381,11 +391,11 @@ InterruptResolveMemoryResources(
             );
             if (oserr != OS_EOK) {
                 ERROR("InterruptResolveMemoryResources: MemorySpaceCloneMapping id %u, resource %d, address 0x%" PRIxIN ", length %zu failed: %u",
-                      systemInterrupt->Id, i, source->MemoryResources[i].Address, length, oserr);
+                      id, i, source->MemoryResources[i].Address, length, oserr);
                 goto error;
             }
             TRACE("InterruptResolveMemoryResources: id %u, resource %d remapped from 0x%" PRIxIN " to 0x%" PRIxIN,
-                  systemInterrupt->Id, i, source->MemoryResources[i].Address, updatedMapping + offset);
+                  id, i, source->MemoryResources[i].Address, updatedMapping + offset);
             destination->MemoryResources[i].Address = updatedMapping + offset;
             destination->MemoryResources[i].Length  = source->MemoryResources[i].Length;
             destination->MemoryResources[i].Flags   = source->MemoryResources[i].Flags;
@@ -395,33 +405,34 @@ InterruptResolveMemoryResources(
     return OS_EOK;
 
 error:
-    cleanupStatus = InterruptCleanupMemoryResources(systemInterrupt);
+    cleanupStatus = __InterruptCleanupMemoryResources(id, Destination);
     if (cleanupStatus != OS_EOK) {
         ERROR("InterruptResolveMemoryResources: InterruptCleanupMemoryResources id %u failed: %u",
-              systemInterrupt->Id, cleanupStatus);
+              id, cleanupStatus);
     }
     return OS_EUNKNOWN;
 }
 
-static oserr_t
+oserr_t
 InterruptResolveResources(
-    _In_ InterruptDescriptor_t* deviceInterrupt,
-    _In_ SystemInterrupt_t* systemInterrupt)
+    _In_    uuid_t                    id,
+    _In_    InterruptResourceTable_t* Source,
+    _InOut_ InterruptResourceTable_t* Destination)
 {
-    InterruptResourceTable_t* Source      = &deviceInterrupt->ResourceTable;
-    InterruptResourceTable_t* Destination = &systemInterrupt->KernelResources;
-    unsigned int              PlacementFlags;
-    unsigned int              PageFlags;
-    oserr_t                   Status;
-    oserr_t                   cleanupStatus;
-    uintptr_t                 Virtual;
-    uintptr_t                 Offset;
-    size_t                    Length;
+    unsigned int PlacementFlags;
+    unsigned int PageFlags;
+    oserr_t      Status;
+    oserr_t      cleanupStatus;
+    uintptr_t    Virtual;
+    uintptr_t    Offset;
+    size_t       Length;
 
     TRACE("InterruptResolveResources(id=%u, handler=0x%" PRIxIN ")",
-          systemInterrupt->Id, (uintptr_t)Source->Handler);
+          id, (uintptr_t)Source->Handler);
 
-    // Calculate metrics we need to create the mappings
+    // Map the same code window for child handlers and provider callbacks.
+    // Preserve the entry point's page offset; callers must keep the callback
+    // within this window and use the supplied function table for external calls.
     Offset         = ((uintptr_t)Source->Handler) % GetMemorySpacePageSize();
     Length         = GetMemorySpacePageSize() + Offset;
     PageFlags      = MAPPING_COMMIT | MAPPING_EXECUTABLE | MAPPING_READONLY;
@@ -445,57 +456,63 @@ InterruptResolveResources(
 
     TRACE("InterruptResolveResources: handler remapped from 0x%" PRIxIN " to 0x%" PRIxIN,
           (uintptr_t)Source->Handler, Virtual);
+    // Record the code mapping before mapping data. Release uses Handler as the
+    // marker that cleanup is still required, including after a later failure.
     Destination->Handler = (InterruptHandler_t)Virtual;
 
-    Status = InterruptResolveIoResources(deviceInterrupt, systemInterrupt);
+    Status = __InterruptResolveIoResources(id, Source, Destination);
     if (Status != OS_EOK) {
         ERROR("InterruptResolveResources: InterruptResolveIoResources id %u failed: %u",
-              systemInterrupt->Id, Status);
+              id, Status);
         goto error;
     }
 
-    Status = InterruptResolveMemoryResources(deviceInterrupt, systemInterrupt);
+    Status = __InterruptResolveMemoryResources(id, Source, Destination);
     if (Status != OS_EOK) {
         ERROR("InterruptResolveResources: InterruptResolveMemoryResources id %u failed: %u",
-              systemInterrupt->Id, Status);
+              id, Status);
         goto error;
     }
     return OS_EOK;
 
 error:
-    cleanupStatus = InterruptReleaseResources(systemInterrupt);
+    // Cleanup can fail too. Return the original mapping error while keeping
+    // any remaining mappings in Destination for an explicit release retry.
+    cleanupStatus = InterruptReleaseResources(id, Destination);
     if (cleanupStatus != OS_EOK) {
         ERROR("InterruptResolveResources: InterruptReleaseResources id %u failed: %u",
-              systemInterrupt->Id, cleanupStatus);
+              id, cleanupStatus);
     }
     return Status;
 }
 
 /* InterruptReleaseResources
- * Releases previously allocated resources for the system interrupt. */
-static oserr_t
+ * Releases mappings owned by a child handler or provider completion. */
+oserr_t
 InterruptReleaseResources(
-    _In_ SystemInterrupt_t* Interrupt)
+    _In_    uuid_t                    id,
+    _InOut_ InterruptResourceTable_t* Resources)
 {
-    InterruptResourceTable_t* resources = &Interrupt->KernelResources;
+    InterruptResourceTable_t* resources = Resources;
     oserr_t                   osStatus;
     uintptr_t                 Offset;
     size_t                    Length;
 
-    TRACE("InterruptReleaseResources(id=%u)", Interrupt->Id);
-    // Sanitize a handler is present, if not, no resources are present
+    TRACE("InterruptReleaseResources(id=%u)", id);
+    // Code is mapped first and released last, so a cleared Handler means this
+    // table has nothing left to release, including on repeated cleanup calls.
     if ((uintptr_t)resources->Handler == 0) {
         return OS_EOK;
     }
 
     // Release data mappings first and the handler last. Keeping Handler set
     // until the end lets a failed cleanup retry the remaining resources.
-    osStatus = InterruptCleanupIoResources(Interrupt);
+    osStatus = __InterruptCleanupIoResources(id, Resources);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
     
-    osStatus = InterruptCleanupMemoryResources(Interrupt);
+    osStatus = __InterruptCleanupMemoryResources(id, Resources);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
@@ -507,9 +524,10 @@ InterruptReleaseResources(
         (uintptr_t)resources->Handler, Length);
     if (osStatus != OS_EOK) {
         ERROR("InterruptReleaseResources: MemorySpaceUnmap handler id %u, address 0x%" PRIxIN ", length %zu failed: %u",
-              Interrupt->Id, (uintptr_t)resources->Handler, Length, osStatus);
+              id, (uintptr_t)resources->Handler, Length, osStatus);
         return osStatus;
     }
+    
     resources->Handler = NULL;
     return OS_EOK;
 }
@@ -589,7 +607,7 @@ __ReserveInterrupt(
     atomic_init(&entry->Enabled, 0);
     atomic_init(&entry->Link, NULL);
     entry->Id = (atomic_fetch_add(&g_nextInterruptId, 1) << 16U) | index;
-    entry->Owner = (flags & INTERRUPT_KERNEL) ? UUID_INVALID : GetCurrentMemorySpaceHandle();
+    entry->Owner = (flags & INTERRUPT_KERNEL) ? UUID_INVALID : InterruptCurrentOwner();
     entry->Thread = ThreadCurrentHandle();
     entry->Flags = flags;
     entry->Context = descriptor->Context;
@@ -754,11 +772,11 @@ InterruptReserve(
     return OS_EBUSY;
 }
 
-// Ensures an interrupt can only make locked updates. This returns
-// an reference to a registered interrupt
+// Starts one exclusive update and retains the entry while the table lock is free.
 static oserr_t
 __BeginInterruptUpdate(
     _In_  uuid_t              id,
+    _In_  int                 reap,
     _Out_ SystemInterrupt_t** entryOut)
 {
     SystemInterrupt_t* entry;
@@ -771,21 +789,30 @@ __BeginInterruptUpdate(
 
     SpinlockAcquireIrq(&g_interruptTableLock);
 
-    // Find the entry in the list of the interrupt table
+    // The low bits select a table slot, which can contain several shared-line
+    // handlers. Compare the full ID to find this exact reservation.
     entry = atomic_load(&g_interruptTable[index].Descriptor);
     while (entry != NULL && entry->Id != id) {
         entry = atomic_load(&entry->Link);
     }
     
-    // If we didn't find the entry, or the rights were not correct
-    // then we return bad result
-    if (entry == NULL || (!(entry->Flags & INTERRUPT_KERNEL) &&
-                         entry->Owner != GetCurrentMemorySpaceHandle())) {
+    // Ordinary process callers can change only their own reservation. Report
+    // another owner's entry as absent, just like an unknown handle.
+    if (entry == NULL || (!reap && !(entry->Flags & INTERRUPT_KERNEL) &&
+                         entry->Owner != InterruptCurrentOwner())) {
         SpinlockReleaseIrq(&g_interruptTableLock);
         TRACE("__BeginInterruptUpdate: id %u not found for the current owner", id);
         return OS_ENOENT;
     }
     
+    // Reaping only cleans up a dead process's entries. Do not transfer ownership
+    // thread: a later retry may run on a different thread or service process.
+    if (reap && ((entry->Flags & INTERRUPT_KERNEL) ||
+        LookupHandleOfType(entry->Owner, HandleTypeMSContext) != NULL)) {
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        return OS_EBUSY;
+    }
+
     // If the entry is in the process of updating, try again later
     if (entry->Updating) {
         SpinlockReleaseIrq(&g_interruptTableLock);
@@ -793,12 +820,25 @@ __BeginInterruptUpdate(
         return OS_EBUSY;
     }
     
+    // Updating excludes another mutation; References keeps the entry allocated.
+    // Both are needed because mapping and waiting for handlers happen unlocked.
     entry->Updating = 1;
     atomic_fetch_add(&entry->References, 1);
     SpinlockReleaseIrq(&g_interruptTableLock);
     
     *entryOut = entry;
     return OS_EOK;
+}
+
+uuid_t
+InterruptCurrentOwner(void)
+{
+    MSContextSecurity_t* security = MemorySpaceGetSecurityContext();
+
+    // Threads have separate address spaces for their local data, but their
+    // security context identifies the whole process. Jobs can move between
+    // threads without changing who owns an interrupt or a completion binding.
+    return security != NULL ? security->Handle : UUID_INVALID;
 }
 
 // Releases the reference on an interrupt and ends the "updating"
@@ -817,38 +857,47 @@ __EndInterruptUpdate(
 static void
 __SynchronizeInterrupts(void)
 {
+    // Call after preventing new calls to the affected handler. Existing calls
+    // may still be in the device handler or its completion on another CPU.
+    // Do not wait from an interrupt handler: it would wait for itself to finish.
     while (atomic_load(&g_interruptReaders) != 0) {
         ArchThreadYield();
     }
     InterruptReclaimRetired();
 }
 
-static oserr_t
-__ValidateInterruptResources(
+oserr_t
+InterruptValidateResources(
     _In_ InterruptResourceTable_t* resources)
 {
     FastInterruptMemoryResource_t* memory;
-    unsigned int                   i;
 
     if (resources == NULL || resources->Handler == NULL) {
         WARNING("__ValidateInterruptResources: missing resource table or handler");
         return OS_EINVALPARAMS;
     }
     
-    for (i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
+    for (unsigned int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         memory = &resources->MemoryResources[i];
+        // A completely empty slot is optional. Partially filled slots are errors
+        // because the mapper would otherwise silently skip an intended resource.
         if (memory->Address == 0 && memory->Length == 0 && memory->Flags == 0) {
             continue;
         }
+
         if (memory->Address == 0 || memory->Length == 0) {
             WARNING("__ValidateInterruptResources: resource %u has address 0x%" PRIxIN ", length %zu",
                     i, memory->Address, memory->Length);
             return OS_EINVALPARAMS;
         }
+
+        // Check before adding length to address; integer wraparound could turn
+        // an invalid range into an apparently small valid one.
         if (memory->Length > UINTPTR_MAX - memory->Address) {
             WARNING("__ValidateInterruptResources: resource %u address range overflows", i);
             return OS_EINVALPARAMS;
         }
+
         if (memory->Flags & ~INTERRUPT_RESOURCE_DISABLE_CACHE) {
             WARNING("__ValidateInterruptResources: resource %u has unsupported flags 0x%x", i, memory->Flags);
             return OS_EINVALPARAMS;
@@ -863,10 +912,9 @@ InterruptBind(
     _In_ uuid_t                    id,
     _In_ InterruptResourceTable_t* resources)
 {
-    InterruptDescriptor_t request = { 0 };
-    SystemInterrupt_t     mapped = { 0 };
-    SystemInterrupt_t*    entry;
-    oserr_t               status;
+    InterruptResourceTable_t mapped = { 0 };
+    SystemInterrupt_t*       entry;
+    oserr_t                  status;
 
     TRACE("InterruptBind(id=%u, resources=%p)", id, resources);
     if (InterruptGetActiveStatus()) {
@@ -874,15 +922,15 @@ InterruptBind(
         return OS_EINVALPARAMS;
     }
 
-    // Interrupt syscalls can be invoked outside libddk (but hopefully not)
-    // so we also must validate certain resource aspects here
-    status = __ValidateInterruptResources(resources);
+    // The kernel cannot rely on libddk checking its inputs: a process can invoke
+    // a syscall directly. Apply the same resource rules to every caller here.
+    status = InterruptValidateResources(resources);
     if (status != OS_EOK) {
         return status;
     }
     
-    // Do a locked update of the reserved interrupt
-    status = __BeginInterruptUpdate(id, &entry);
+    // Prevent a concurrent enable or release while resources are being mapped.
+    status = __BeginInterruptUpdate(id, 0, &entry);
     if (status != OS_EOK) {
         return status;
     }
@@ -894,31 +942,33 @@ InterruptBind(
         return OS_EBUSY;
     }
     
-    request.ResourceTable = *resources;
-    mapped.Id = id;
-    mapped.KernelResources.HandleResource = resources->HandleResource;
+    mapped.HandleResource = resources->HandleResource;
     
     if (!(entry->Flags & INTERRUPT_KERNEL)) {
-        status = InterruptResolveResources(&request, &mapped);
+        status = InterruptResolveResources(id, resources, &mapped);
         if (status != OS_EOK) {
             ERROR("InterruptBind: InterruptResolveResources id %u failed: %u", id, status);
-            if (mapped.KernelResources.Handler != NULL) {
-                // Preserve partial mappings so Unbind can retry their cleanup.
-                entry->KernelResources = mapped.KernelResources;
+            if (mapped.Handler != NULL) {
+                // Bound also means resources still need cleanup, not just that
+                // a handler is usable. Unbinding prevents Enable from calling
+                // this incomplete handler; Unbind can retry the remaining work.
+                entry->KernelResources = mapped;
                 entry->Bound = 1;
                 entry->Unbinding = 1;
                 WARNING("InterruptBind: id %u retains mappings for cleanup retry", id);
             }
+            
             __EndInterruptUpdate(entry);
             return status;
         }
     }
     
-    entry->KernelResources = mapped.KernelResources;
+    entry->KernelResources = mapped;
     entry->Handler = resources->Handler;
     entry->Bound = 1;
 
-    // Release the reference, so we publish the changes
+    // Finish the update only after the whole handler is recorded. Binding keeps
+    // delivery disabled; a separate enable operation permits calls to it.
     __EndInterruptUpdate(entry);
     return OS_EOK;
 }
@@ -942,7 +992,9 @@ __SetInterruptEnabledLocked(
             return OS_EINVALPARAMS;
         }
 
-        // Publish the fully mapped handler before hardware can deliver to it.
+        // Make the prepared handler available before enabling hardware, which
+        // may deliver immediately. Only the first enabled user starts a shared
+        // line; disabling one user must not stop interrupts for the others.
         atomic_store(&entry->Enabled, 1);
         if (slot->EnabledCount == 0) {
             status = InterruptControllerSetEnabled(&entry->Routing, 1);
@@ -984,7 +1036,7 @@ InterruptSetEnabled(
     }
     
     // Get a locked reference to the interrupt handle
-    status = __BeginInterruptUpdate(id, &entry);
+    status = __BeginInterruptUpdate(id, 0, &entry);
     if (status != OS_EOK) {
         return status;
     }
@@ -994,7 +1046,8 @@ InterruptSetEnabled(
     status = __SetInterruptEnabledLocked(entry, enable);
     SpinlockReleaseIrq(&g_interruptTableLock);
     if (!enable || status != OS_EOK) {
-        // When disabling, ensure we synchronize the state
+        // Clearing Enabled stops new calls but does not finish a call already
+        // running on another CPU. Wait before the caller can clean up resources.
         __SynchronizeInterrupts();
     }
     
@@ -1017,7 +1070,7 @@ InterruptUnbind(
         return OS_EINVALPARAMS;
     }
 
-    status = __BeginInterruptUpdate(id, &entry);
+    status = __BeginInterruptUpdate(id, 0, &entry);
     if (status != OS_EOK) {
         return status;
     }
@@ -1028,12 +1081,14 @@ InterruptUnbind(
         return OS_EBUSY;
     }
     
+    // The group may share a callback with other vectors. Wait for this entry's
+    // device handler and completion before removing its pointers or mappings.
     __SynchronizeInterrupts();
     if (entry->Bound && !(entry->Flags & INTERRUPT_KERNEL)) {
         // A failed unmap can leave only part of the table valid. Keep cleanup
         // retryable, but reject Enable until every mapping has been released.
         entry->Unbinding = 1;
-        status = InterruptReleaseResources(entry);
+        status = InterruptReleaseResources(entry->Id, &entry->KernelResources);
         if (status != OS_EOK) {
             ERROR("InterruptUnbind: InterruptReleaseResources id %u failed, cleanup remains retryable: %u",
                   id, status);
@@ -1041,19 +1096,19 @@ InterruptUnbind(
             return status;
         }
     }
+
     memset(&entry->KernelResources, 0, sizeof(entry->KernelResources));
     entry->Handler = NULL;
+    
+    // This entry borrows the callback from its group. Clearing the pointer does
+    // not drop the group's reference; a later bind may use the same completion.
+    entry->Completion = NULL;
     entry->Bound = 0;
     entry->Unbinding = 0;
     __EndInterruptUpdate(entry);
     return OS_EOK;
 }
 
-/**
- * @brief Installs a kernel source using the same reservation and binding steps.
- * Boot timers and CPU messages already supply complete descriptors, so this
- * helper performs the sequence for them and returns their interrupt identity.
- */
 uuid_t
 InterruptRegister(
     _In_ InterruptDescriptor_t* descriptor,
@@ -1096,10 +1151,11 @@ error:
  * Entries removed by a handler remain on the retired list until dispatch exits;
  * normal callers wait before returning so their backing resources can be freed.
  */
-oserr_t
-InterruptRelease(
+static oserr_t
+__ReleaseInterrupt(
     _In_ uuid_t id,
-    _In_ int    retire)
+    _In_ int    retire,
+    _In_ int    reap)
 {
     SystemInterrupt_t*     entry;
     SystemInterrupt_t*     previous = NULL;
@@ -1108,15 +1164,25 @@ InterruptRelease(
     oserr_t                status;
 
     TRACE("InterruptRelease(id=%u, retire=%d)", id, retire);
-    status = __BeginInterruptUpdate(id, &entry);
+    status = __BeginInterruptUpdate(id, reap, &entry);
     if (status != OS_EOK) {
         return status;
     }
 
-    if (retire && (!(entry->Flags & INTERRUPT_MSI) || entry->Bound || atomic_load(&entry->Enabled))) {
-        WARNING("InterruptRelease: id %u cannot retire a non-message, bound or enabled reservation", id);
-        __EndInterruptUpdate(entry);
-        return OS_EINVALPARAMS;
+    if (retire) {
+        if (!(entry->Flags & INTERRUPT_MSI)) {
+            WARNING("InterruptRelease: id %u cannot retire a non-message reservation", id);
+            __EndInterruptUpdate(entry);
+            return OS_EINVALPARAMS;
+        }
+
+        // A live owner must stop and unbind before retiring its message. For
+        // a dead owner, this function performs those steps on the retry path.
+        if (!reap && (entry->Bound || atomic_load(&entry->Enabled))) {
+            WARNING("InterruptRelease: id %u cannot retire a bound or enabled reservation", id);
+            __EndInterruptUpdate(entry);
+            return OS_EINVALPARAMS;
+        }
     }
 
     if (InterruptGetActiveStatus() && !(entry->Flags & INTERRUPT_KERNEL)) {
@@ -1143,12 +1209,13 @@ InterruptRelease(
         __SynchronizeInterrupts();
         entry->Unbinding = 1;
         
-        status = InterruptReleaseResources(entry);
+        status = InterruptReleaseResources(entry->Id, &entry->KernelResources);
         if (status != OS_EOK) {
             ERROR("InterruptRelease: InterruptReleaseResources id %u failed, reservation retained: %u", id, status);
             __EndInterruptUpdate(entry);
             return status;
         }
+        entry->Completion = NULL;
         entry->Bound = 0;
         entry->Unbinding = 0;
     }
@@ -1168,8 +1235,9 @@ InterruptRelease(
     }
     
     if (retire) {
-        // The group can now be removed. Keep the disabled handler-table slot
-        // reserved so a late device message cannot reach another handler.
+        // Keep this slot disabled and unavailable for reuse so late messages
+        // cannot reach a different handler. Replace the pointer into the group
+        // with a permanent disabled flag before the group itself can be freed.
         entry->GroupEnabled = &g_retiredGroupEnabled;
         TRACE("InterruptRelease: id %u permanently retired", id);
         __EndInterruptUpdate(entry);
@@ -1189,6 +1257,8 @@ InterruptRelease(
         atomic_store(&previous->Link, atomic_load(&entry->Link));
     }
     
+    // A table walk may have loaded the old link before we removed it. Delay
+    // freeing the entry until those walks finish instead of freeing it here.
     InterruptRetire(entry);
     SpinlockReleaseIrq(&g_interruptTableLock);
     
@@ -1198,6 +1268,24 @@ InterruptRelease(
     }
     TRACE("InterruptRelease: id %u released", id);
     return OS_EOK;
+}
+
+oserr_t
+InterruptRelease(
+    _In_ uuid_t id,
+    _In_ int    retire)
+{
+    return __ReleaseInterrupt(id, retire, 0);
+}
+
+oserr_t
+InterruptReap(
+    _In_ uuid_t id,
+    _In_ int    retire)
+{
+    // Reuse normal release's disable, handler wait, and cleanup order. The reap
+    // flag permits cleanup for a dead owner and removes bindings it left behind.
+    return __ReleaseInterrupt(id, retire, 1);
 }
 
 oserr_t
@@ -1268,6 +1356,8 @@ static inline bool
 __IsSystemInterruptEnabled(
     _In_ SystemInterrupt_t* interrupt)
 {
+    // A vector can be ready before the rest of its group. Require both flags
+    // so no handler runs while group enable is only partly complete.
     if (!atomic_load(&interrupt->Enabled)) {
         return false;
     }
@@ -1285,10 +1375,9 @@ __HandleInterrupt(
     irqstatus_t        interruptStatus;
     SystemInterrupt_t* entry;
 
-    // The interrupt path deliberately does not acquire the table lock.
-    // Entering the RCU read-side critical section before loading Descriptor
-    // keeps every descriptor, handler, and context used below alive until
-    // the complete dispatch walk has finished.
+    // Count this table walk before reading pointers. Normal removal and unbinding
+    // then wait for the whole walk, including completion calls, before cleanup.
+    // This avoids taking the table lock on every interrupt.
     InterruptReadEnter();
     entry = atomic_load(&g_interruptTable[tableIndex].Descriptor);
     while (entry != NULL) {
@@ -1306,6 +1395,12 @@ __HandleInterrupt(
             interruptStatus = entry->KernelResources.Handler(GetFastInterruptTable(), &entry->KernelResources);
         }
 
+        // The provider may need to acknowledge upstream hardware even when the
+        // device reports no work, for example for a delayed notification. Run
+        // its completion before leaving the reader count, regardless of result.
+        // Only the device's result decides whether to try the next shared handler.
+        InterruptCompletionInvoke(entry->Completion);
+
         if (interruptStatus == IRQSTATUS_HANDLED) {
             interruptSource = entry->Routing.Source;
             break;
@@ -1320,8 +1415,9 @@ void
 InterruptHandleDirect(
     _In_ uint32_t tableIndex)
 {
-    // The parent owns CPU entry/exit and hardware acknowledgement. Its read
-    // section also keeps child reservations alive across a pending snapshot.
+    // An upstream interrupt handler has already entered interrupt context and
+    // will acknowledge its controller. Dispatch only the requested child here;
+    // entering or acknowledging again would duplicate the parent's work.
     assert(InterruptGetActiveStatus());
     assert(tableIndex < MAX_SUPPORTED_INTERRUPTS);
     (void)__HandleInterrupt((int)tableIndex);
@@ -1337,7 +1433,11 @@ InterruptHandle(
 
     InterruptsSetPriority(tableIndex);
     CpuCoreEnterInterrupt(context, initialPriority);
+    
     interruptSource = __HandleInterrupt(tableIndex);
+
+    // Finish the device handler and provider completion before acknowledging
+    // the CPU-facing controller, which may then allow the next interrupt.
     InterruptsAcknowledge(interruptSource, tableIndex);
     return CpuCoreExitInterrupt(context, initialPriority);
 }

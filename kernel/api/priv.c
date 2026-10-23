@@ -34,6 +34,7 @@
 #include <heap.h>
 #include <interrupts.h>
 #include <interrupts_group.h>
+#include <interrupts_chain.h>
 #include <component/ic.h>
 #include <machine.h>
 #include <memoryspace.h>
@@ -632,6 +633,26 @@ ScGetProcessBaseAddress(
 }
 
 oserr_t
+ScInterruptReap(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    // This operation cleans up another process's group. Require bus-management
+    // permission as well as interrupt access; the core also checks owner death.
+    status = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = CapabilityVerify(CAPABILITY_DEVICEIO_MANAGEMENT);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptGroupReap(handle);
+}
+
+oserr_t
 ScMapRamdisk(
         _Out_ void**  bufferOut,
         _Out_ size_t* lengthOut)
@@ -658,4 +679,203 @@ ScMapRamdisk(
         *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
     }
     return oserr;
+}
+
+static oserr_t
+__CheckInterruptProvider(void)
+{
+    oserr_t status;
+
+    // A completion runs inside the kernel, just like a device's fast handler.
+    // A provider also acts on behalf of another process, so interrupt permission
+    // alone is insufficient: it must be trusted to manage devices and identify
+    // the driver that sent it an attachment request.
+    status = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return CapabilityVerify(CAPABILITY_DEVICEIO_MANAGEMENT);
+}
+
+oserr_t
+ScInterruptCompletionCreate(
+    _Out_ uuid_t* userHandle)
+{
+    uuid_t  handle;
+    oserr_t status;
+
+    if (userHandle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = __CheckInterruptProvider();
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = InterruptCompletionCreate(&handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = MemorySpaceCopyUser(userHandle, &handle, sizeof(uuid_t), true);
+    if (status != OS_EOK) {
+        // The caller did not receive its handle, so it cannot request cleanup.
+        // Creation maps no resources; we can remove this empty object without
+        // needing to unmap anything that could fail and require a later retry.
+        InterruptCompletionRelease(handle);
+    }
+    return status;
+}
+
+oserr_t
+ScInterruptCompletionBind(
+    _In_ uuid_t                          handle,
+    _In_ const InterruptResourceTable_t* userResources)
+{
+    InterruptResourceTable_t resources;
+    DeviceIo_t               io[INTERRUPT_MAX_IO_RESOURCES];
+    oserr_t                  status;
+
+    if (userResources == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = __CheckInterruptProvider();
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = MemorySpaceCopyUser((void*)userResources, &resources, sizeof(resources), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Copying the outer table copies pointers, not the I/O descriptions they
+    // point to. Copy those descriptions too and replace their pointers with our
+    // local copies. Mapping can wait while another provider thread changes its
+    // memory; validation and mapping must use the same values throughout.
+    for (unsigned int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
+        if (resources.IoResources[i] != NULL) {
+            status = MemorySpaceCopyUser(resources.IoResources[i], &io[i], sizeof(io[i]), false);
+            if (status != OS_EOK) {
+                return status;
+            }
+            resources.IoResources[i] = &io[i];
+        }
+    }
+
+    return InterruptCompletionBind(handle, &resources);
+}
+
+oserr_t
+ScInterruptCompletionRelease(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    status = __CheckInterruptProvider();
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // The core checks ownership and attached groups before touching mappings.
+    // Keep its failure visible so the provider knows to retain and retry the handle.
+    return InterruptCompletionRelease(handle);
+}
+
+oserr_t
+ScInterruptProviderAttach(
+    _In_ const struct InterruptProviderAttachRequest* userRequest)
+{
+    struct InterruptProviderAttachRequest request;
+    struct InterruptProviderVector*       userVectors;
+    struct InterruptProviderVector*       vectors;
+    size_t                                length;
+    oserr_t                               status;
+
+    if (userRequest == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    status = __CheckInterruptProvider();
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = MemorySpaceCopyUser((void*)userRequest, &request, sizeof(request), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (request.Count == 0 || request.Count > INTERRUPT_PROVIDER_MAX_VECTORS) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (request.Vectors == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // The count limit above keeps this multiplication and allocation bounded.
+    // Copy the whole array before attaching anything, so an unreadable later
+    // element cannot leave only the earlier vectors attached.
+    length = request.Count * sizeof(struct InterruptProviderVector);
+    userVectors = request.Vectors;
+    vectors = kmalloc(length);
+    if (vectors == NULL) {
+        return OS_EOOM;
+    }
+
+    status = MemorySpaceCopyUser(userVectors, vectors, length, false);
+    if (status != OS_EOK) {
+        kfree(vectors);
+        return status;
+    }
+
+    request.Vectors = vectors;
+    status = InterruptGroupProviderAttach(&request);
+    if (status == OS_EOK) {
+        // Attachment has already succeeded. Writing the returned messages into
+        // user memory can still fail, so the caller may not know the outcome.
+        // Keep the attachment: an identical retry returns the same messages
+        // without adding another use of each completion.
+        status = MemorySpaceCopyUser(userVectors, vectors, length, true);
+    }
+    // The group keeps completion references and message values, never this
+    // temporary array. Free it on both success and failure.
+    kfree(vectors);
+    return status;
+}
+
+oserr_t
+ScInterruptProviderCheckEnabled(
+    _In_ uuid_t handle,
+    _In_ uuid_t principal,
+    _In_ uuid_t device)
+{
+    oserr_t status;
+
+    status = __CheckInterruptProvider();
+    if (status != OS_EOK) {
+        return status;
+    }
+    // The supplied driver identity must match the group's recorded owner. The
+    // provider is a different process, so checking only the caller would be wrong.
+    return InterruptGroupProviderCheckEnabled(handle, principal, device);
+}
+
+oserr_t
+ScInterruptProviderClose(
+    _In_ uuid_t handle,
+    _In_ uuid_t principal,
+    _In_ uuid_t device)
+{
+    oserr_t status;
+
+    status = __CheckInterruptProvider();
+    if (status != OS_EOK) {
+        return status;
+    }
+    // This records closure in the kernel. Stopping the actual device's interrupt
+    // writes is the provider's responsibility and must happen before this call.
+    return InterruptGroupProviderClose(handle, principal, device);
 }

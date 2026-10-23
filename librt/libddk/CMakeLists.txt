@@ -62,6 +62,7 @@ add_library(libddk
         dma.c
         firmware.c
         interrupt.c
+        interrupt-provider.c
         io.c
         mappings.c
         service.c

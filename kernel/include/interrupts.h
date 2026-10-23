@@ -25,37 +25,44 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 
-// Describes a kernel registered interrupt and its state
+/**
+ * One reserved interrupt and the state used to run or remove its handler.
+ * Several entries can share a hardware line. Group entries also hold the
+ * provider callback and point to the group's shared enable flag.
+ */
 typedef struct SystemInterrupt {
     uuid_t                   Id;
     uuid_t                   Owner;
     uuid_t                   Thread;
     InterruptResourceTable_t KernelResources;
+    // The group owns the callback reference. This entry borrows the pointer;
+    // unbind clears it after any running callback finishes.
+    struct InterruptCompletion* Completion;
     InterruptHandler_t       Handler;
     void*                    Context;
     unsigned int             Flags;
     InterruptControllerResource_t Routing;
-    // Successful controller release must not be repeated for retained tombstones.
+    // A disabled entry can stay reserved to absorb late messages. Remember a
+    // successful controller release so a retry does not release it twice.
     int                      ControllerReleased;
-    // Reserved entries stay in the table while disabled. Dispatch checks Enabled
-    // before reading their handler, so a shared line can remain active safely.
+    // Disabled entries stay in the table. Dispatch checks Enabled before reading
+    // the handler, which lets other entries on a shared line keep running.
     _Atomic(int)             Enabled;
-    // Shared group enable flag. NULL for standalone kernel interrupts.
+    // Shared group enable flag, or NULL for a standalone kernel interrupt.
     _Atomic(int)*            GroupEnabled;
     int                      Bound;
-    // Cleanup may have removed only some mappings; never enable that handler.
+    // Cleanup may leave some mappings behind. Never enable this handler then.
     int                      Unbinding;
-    // Serializes operations that must release the table lock to map resources
-    // or wait for running handlers. References keep the entry alive meanwhile.
+    // Allows one update while the table lock is released to map resources or
+    // wait for handlers. References keeps the entry alive during that time.
     int                      Updating;
-    // References acquired by InterruptGet() keep retired descriptors alive.
+    // InterruptGet() references keep a removed entry alive until callers release it.
     _Atomic(unsigned int)    References;
-    // Link is read by the interrupt path without taking the table lock. It
-    // remains valid until the corresponding RCU grace period has completed.
+    // The interrupt path reads Link without the table lock. Keep it valid until
+    // every table walk that could have seen it has finished.
     _Atomic(struct SystemInterrupt*) Link;
     struct SystemInterrupt*          RetiredLink;
-    // Set while the entry holds a penalty; 
-    // released after the grace period.
+    // Counts this reservation against the slot until active table walks finish.
     int                              HasPenalty;
 } SystemInterrupt_t;
 
@@ -81,13 +88,13 @@ InterruptReserve(
     _Out_   uuid_t*                idOut);
 
 /**
- * @brief Find out how many message slots a controller can provide.
- * This does not reserve any slots.
+ * @brief Get a controller's message-slot capacity without reserving slots.
  * 
- * @param domain Controller ID. Zero selects the platform controller for kernel handlers.
- * @param kernelHandlers Nonzero when the handler runs in the kernel.
- * @param capacityOut Receives the slot count, including slots already in use.
- * @return OS_EOK or an error finding the controller.
+ * @param domain Controller ID. Zero selects the platform controller for kernel
+ *        handlers.
+ * @param kernelHandlers Nonzero if the handler runs in the kernel.
+ * @param capacityOut Receives the total slot count, including slots in use.
+ * @return OS_EOK on success, or an error if the controller cannot be found.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptGetMessageCapacity(
@@ -96,12 +103,14 @@ InterruptGetMessageCapacity(
     _Out_ uint32_t* capacityOut);
 
 /**
- * @brief Reserve one disabled message interrupt for exclusive use.
- * @param domain Controller ID. Zero selects the platform controller for kernel handlers.
- * @param ordinal Zero-based message slot, less than the controller's capacity.
+ * @brief Reserve a disabled message interrupt for exclusive use.
+ *
+ * @param domain Controller ID. Zero selects the platform controller for kernel
+ *        handlers.
+ * @param ordinal Zero-based message slot, below the controller's capacity.
  * @param flags Handler options. The core adds the message and exclusive-use flags.
  * @param idOut Receives the reservation ID, or UUID_INVALID on failure.
- * @param messageOut Receives the hardware message on success. It does not change later.
+ * @param messageOut Receives the hardware message. It stays the same afterward.
  * @return OS_EOK, OS_EBUSY if the slot is in use, or another reservation error.
  */
 KERNELAPI oserr_t KERNELABI
@@ -113,7 +122,7 @@ InterruptReserveMessage(
     _Out_ InterruptMessage_t* messageOut);
 
 /**
- * @brief Release a reservation, or keep its message slot reserved after removing the handler.
+ * @brief Release a reservation or keep its message slot reserved after removing the handler.
  * @param id Reservation ID.
  * @param retire Nonzero keeps the disabled message slot reserved until reboot.
  * @return OS_EOK or an error. On failure, ownership stays in place for retry.
@@ -123,6 +132,28 @@ KERNELAPI oserr_t KERNELABI
 InterruptRelease(
     _In_ uuid_t id,
     _In_ int    retire);
+
+/**
+ * @brief Release a dead process's reservation without changing its owner.
+ *
+ * @param id Reservation in a group held busy by InterruptGroupReap.
+ * @param retire Nonzero keeps the message slot reserved so delayed device writes
+ *        cannot reach another handler.
+ * @return OS_EBUSY for a live owner, or the cleanup result. Keep the handle and
+ *         retry if cleanup fails.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptReap(
+    _In_ uuid_t id,
+    _In_ int    retire);
+
+/**
+ * @brief Return the process identity shared by all of the caller's threads.
+ *
+ * @return Process security-context handle, or UUID_INVALID without a context.
+ */
+KERNELAPI uuid_t KERNELABI
+InterruptCurrentOwner(void);
 
 /**
  * @brief Map a handler's resources to an interrupt that is already reserved.
