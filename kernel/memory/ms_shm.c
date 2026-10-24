@@ -20,6 +20,7 @@
 #define __need_minmax
 #include <arch/utils.h>
 #include <debug.h>
+#include <ds/streambuffer.h>
 #include <handle.h>
 #include <heap.h>
 #include <machine.h>
@@ -161,9 +162,11 @@ __CreateIPCBuffer(
     unsigned int   userMapFlags   = __MapFlagsForIPC(shm);
     unsigned int   kernelMapFlags = MAPPING_COMMIT | MAPPING_PERSISTENT;
     oserr_t        oserr;
+    oserr_t        cleanupStatus;
     vaddr_t        userMapping;
     vaddr_t        kernelMapping;
 
+    TRACE("__CreateIPCBuffer(id=%u, size=%zu)", buffer->ID, shm->Size);
     // Needs both an userspace mapping and a kernel mapping. IPC buffers
     // are special in this sense, since we want to anonomously be able to
     // send messages, without having direct access to the buffer itself from
@@ -181,6 +184,8 @@ __CreateIPCBuffer(
             &userMapping
     );
     if (oserr != OS_EOK) {
+        ERROR("__CreateIPCBuffer: MemorySpaceMap user mapping id %u, size %zu failed: %u",
+              buffer->ID, shm->Size, oserr);
         return oserr;
     }
 
@@ -197,12 +202,28 @@ __CreateIPCBuffer(
             &kernelMapping
     );
     if (oserr != OS_EOK) {
-        (void)MemorySpaceUnmap(memorySpace, userMapping, shm->Size);
+        ERROR("__CreateIPCBuffer: MemorySpaceMap kernel mapping id %u, size %zu failed: %u",
+              buffer->ID, shm->Size, oserr);
+        cleanupStatus = MemorySpaceUnmap(memorySpace, userMapping, shm->Size);
+        if (cleanupStatus != OS_EOK) {
+            ERROR("__CreateIPCBuffer: MemorySpaceUnmap user mapping id %u failed during rollback: %u",
+                  buffer->ID, cleanupStatus);
+        }
         return oserr;
     }
 
+    // SHMCreate publishes the endpoint name after this function returns.
+    // Initialize the stream first so another service can send immediately.
+    streambuffer_construct(
+            (streambuffer_t*)kernelMapping,
+            shm->Size - sizeof(streambuffer_t),
+            STREAMBUFFER_GLOBAL | STREAMBUFFER_MULTIPLE_WRITERS
+    );
+
     buffer->KernelMapping = kernelMapping;
     *userMappingOut = (void*)userMapping;
+    TRACE("__CreateIPCBuffer: id %u stream initialized with capacity %zu",
+          buffer->ID, shm->Size - sizeof(streambuffer_t));
     return OS_EOK;
 }
 
@@ -369,12 +390,22 @@ SHMCreate(
     oserr_t           oserr;
     void*             mapping;
 
+    TRACE("SHMCreate(shm=%p, handle=%p)", shm, handle);
     if (shm == NULL || handle == NULL || shm->Size == 0) {
+        WARNING("SHMCreate: missing request, output or buffer size");
+        return OS_EINVALPARAMS;
+    }
+
+    // Check before creating a handle or mapping storage: an IPC buffer needs
+    // room for both the stream header and at least one data byte.
+    if (SHM_KIND(shm->Flags) == SHM_IPC && shm->Size <= sizeof(streambuffer_t)) {
+        WARNING("SHMCreate: IPC size %zu must exceed stream header size %zu", shm->Size, sizeof(streambuffer_t));
         return OS_EINVALPARAMS;
     }
 
     buffer = __SHMBufferNew(0, shm->Size, shm->Flags, false);
     if (buffer == NULL) {
+        ERROR("SHMCreate: __SHMBufferNew size %zu, flags 0x%x failed", shm->Size, shm->Flags);
         return OS_EOOM;
     }
 
@@ -391,6 +422,7 @@ SHMCreate(
     }
 
     if (oserr != OS_EOK) {
+        ERROR("SHMCreate: buffer setup id %u, kind 0x%x failed: %u", buffer->ID, SHM_KIND(shm->Flags), oserr);
         __SHMBufferDelete(buffer);
         return oserr;
     }
@@ -399,6 +431,7 @@ SHMCreate(
     if (shm->Key != NULL) {
         oserr = RegisterHandlePath(buffer->ID, shm->Key);
         if (oserr != OS_EOK) {
+            ERROR("SHMCreate: RegisterHandlePath id %u failed: %u", buffer->ID, oserr);
             __SHMBufferDelete(buffer);
             return oserr;
         }
@@ -412,6 +445,7 @@ SHMCreate(
             0,
             mapping
     );
+    TRACE("SHMCreate: published id %u, size %zu", buffer->ID, shm->Size);
     return OS_EOK;
 }
 
@@ -1042,7 +1076,8 @@ __EnsurePhysicalPages(
             MutexUnlock(&shmBuffer->Mutex);
             return oserr;
         }
-        TRACE("__EnsurePhysicalPages: allocated page %i=0x%llx", i, shmBuffer->Pages[pageStart + i]);
+        TRACE("__EnsurePhysicalPages: allocated page %i=0x%llx",
+              i, (unsigned long long)shmBuffer->Pages[pageStart + i]);
     }
     MutexUnlock(&shmBuffer->Mutex);
     return OS_EOK;
@@ -1135,7 +1170,7 @@ __CreateMapping(
     size_t  pageIndex    = actualOffset / pageSize;
     size_t  pageCount    = DIVUP(length, pageSize);
     oserr_t oserr;
-    TRACE("__CreateMapping(length=0x%llx, index=0x%llx, count=0x%llx)", length, pageIndex, pageCount);
+    TRACE("__CreateMapping(length=0x%zx, index=0x%zx, count=0x%zx)", length, pageIndex, pageCount);
 
     // Ensure that the page index is not oob, if it is we cannot trust
     // the above calculations
@@ -1181,7 +1216,7 @@ SHMMap(
     oserr_t           oserr;
     void*             mapping;
     size_t            clampedLength;
-    TRACE("SHMMap(offset=0x%llx, length=0x%llx, flags=0x%x)", offset, length, flags);
+    TRACE("SHMMap(offset=0x%zx, length=0x%zx, flags=0x%x)", offset, length, flags);
 
     if (handle == NULL || length == 0) {
         return OS_EINVALPARAMS;
@@ -1313,7 +1348,7 @@ SHMCommit(
     uintptr_t         address = (uintptr_t)memory;
     size_t            clampedLength;
     int               i;
-    TRACE("SHMCommit(memoryBase=0x%llx, memory=0x%llx, length=0x%llx)",
+    TRACE("SHMCommit(memoryBase=%p, memory=%p, length=0x%zx)",
           memoryBase, memory, length);
 
     shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);

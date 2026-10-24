@@ -26,7 +26,11 @@ enum OSIOCtlRequest {
     OSIOCTLREQUEST_BUS_CONTROL         = 0,
     OSIOCTLREQUEST_IO_REQUIREMENTS     = 1 | __IOCTL_IN,
     OSIOCTLREQUEST_PCI_INTERRUPT_QUERY = 2 | __IOCTL_IN,
-    OSIOCTLREQUEST_PCI_INTERRUPT       = 3
+    OSIOCTLREQUEST_PCI_INTERRUPT       = 3,
+    // Platform bus message interrupts use PciInterruptRequest lifecycle commands.
+    OSIOCTLREQUEST_INTERRUPT_CONTROL   = 4,
+    // Returns PciInterruptSupport without exposing provider callback handles.
+    OSIOCTLREQUEST_INTERRUPT_QUERY     = 5 | __IOCTL_IN
 };
 
 /**

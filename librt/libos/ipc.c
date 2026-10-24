@@ -46,12 +46,6 @@ __Create(
     if (oserr != OS_EOK) {
         return oserr;
     }
-
-    streambuffer_construct(
-            SHMBuffer(handle),
-            SHMBufferLength(handle) - sizeof(streambuffer_t),
-            STREAMBUFFER_GLOBAL | STREAMBUFFER_MULTIPLE_WRITERS
-    );
     return OS_EOK;
 }
 

@@ -30,7 +30,7 @@
 
 extern void DmHandleNotify(uuid_t driverId, uuid_t driverHandle);
 extern void DmHandleGetDevicesByProtocol(struct gracht_message* message, uint8_t protocolID);
-extern oserr_t DmHandleIoctl(uuid_t, enum OSIOCtlRequest, void*, size_t);
+extern oserr_t DmHandleIoctl(uuid_t, uuid_t, enum OSIOCtlRequest, void*, size_t);
 extern oserr_t DmHandleIoctl2(uuid_t device_id, int direction, unsigned int command, size_t value, unsigned int width, size_t*);
 extern void DmHandleRegisterProtocol(uuid_t deviceID, const char* protocolName, uint8_t protocolID);
 
@@ -113,15 +113,29 @@ sys_device_ioctl_invocation(
     _In_ const uint8_t*         data,
     _In_ const uint32_t         data_count)
 {
+    uuid_t  principal = UUID_INVALID;
     oserr_t oserr;
     int     status;
     TRACE("sys_device_ioctl_invocation(device=%u, request=0x%x, length=%u)",
           deviceId, request, data_count);
 
+    // Only the transport's kernel-supplied sender identity can establish who
+    // owns an interrupt group. The reply endpoint and request body cannot.
+    if (message->security.source == GRACHT_SECURITY_KERNEL &&
+        message->security.principal <= UINT32_MAX) {
+        principal = (uuid_t)message->security.principal;
+    }
+    TRACE("sys_device_ioctl_invocation: resolved principal %u for device %u", principal, deviceId);
+    if (request == OSIOCTLREQUEST_INTERRUPT_CONTROL && principal == UUID_INVALID) {
+        WARNING("sys_device_ioctl_invocation: interrupt control for device %u has no valid kernel-supplied principal",
+                deviceId);
+    }
+
     // assert maximum request size
     if (request & __IOCTL_IN) {
         uint8_t out[data_count];
         oserr = DmHandleIoctl(
+                principal,
                 deviceId,
                 (enum OSIOCtlRequest)request,
                 &out[0],
@@ -138,6 +152,7 @@ sys_device_ioctl_invocation(
         }
     } else {
         oserr = DmHandleIoctl(
+                principal,
                 deviceId,
                 (enum OSIOCtlRequest)request,
                 (void*)&data[0],

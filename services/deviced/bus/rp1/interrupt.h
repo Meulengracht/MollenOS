@@ -17,7 +17,7 @@
  * Controls interrupts raised by hardware blocks inside the RP1 chip.
  * Each interrupt source has a number from 0 to 60. The PCI code sets up MSI-X,
  * a mechanism that delivers interrupts to CPUs through PCI memory writes.
- * This code enables or disables RP1 sources and tells RP1 when handling is done.
+ * This code configures and gates sources. The kernel acknowledges delivery.
  * 
  */
 
@@ -34,9 +34,10 @@
  * configure all 61 MSI-X entries before Rp1InterruptInitialize is called.
  * Callback numbers identify RP1 sources (0 through 60), not CPU interrupt numbers.
  *
- * MaskAndSynchronize must block new interrupts for the source and wait for any
- * running handler to finish. Unmask allows delivery again and may immediately
- * call a handler. Context is passed to both callbacks.
+ * Mask blocks new PCI messages. Unmask allows delivery again. The child driver
+ * synchronizes its kernel group after Mask, before releasing handler resources.
+ * Both return a status. Failure retains controller ownership for a disable or
+ * destroy retry; an unsuccessful Unmask may already have allowed delivery.
  *
  * The controller copies this structure. Keep the callback context and allocated
  * interrupt entries available until Rp1InterruptDestroy succeeds.
@@ -45,16 +46,9 @@ struct Rp1InterruptParent {
     void*        Context;
     unsigned int VectorCount;
 
-    void (*MaskAndSynchronize)(void*, unsigned int);
-    void (*Unmask)(void*, unsigned int);
+    oserr_t (*Mask)(void*, unsigned int);
+    oserr_t (*Unmask)(void*, unsigned int);
 };
-
-/**
- * Handles one source; receives the caller's context and an RP1 source number.
- * For a high-level interrupt, clear the device's interrupt condition before
- * returning so it no longer holds its interrupt signal high.
- */
-typedef void (*Rp1InterruptHandler)(void*, unsigned int);
 
 /**
  * @brief Register access, callbacks, and settings for one RP1 interrupt controller.
@@ -67,8 +61,6 @@ typedef void (*Rp1InterruptHandler)(void*, unsigned int);
 struct Rp1InterruptController {
     DeviceIo_t*               Registers;
     struct Rp1InterruptParent Parent;
-    Rp1InterruptHandler       Handler;
-    void*                     Context;
     int                       Ready;
     uint8_t                   Types[FDT_RP1_INTERRUPT_COUNT];
     uint8_t                   Enabled[FDT_RP1_INTERRUPT_COUNT];
@@ -84,9 +76,6 @@ struct Rp1InterruptController {
  *                  (APBS), at least RP1_PCIE_APBS_LENGTH bytes long.
  * @param parent PCI callbacks and interrupt entries, already allocated,
  *               configured, and blocked from delivery (masked).
- * @param handler Function to call when an enabled RP1 source raises an interrupt.
- * @param context Caller data passed to handler; keep it available until Destroy
- *                succeeds.
  * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs,
  *         OS_ENOTSUPPORTED for missing parent callbacks or too few interrupt
  *         entries, or a register-write error.
@@ -95,9 +84,7 @@ __EXTERN oserr_t
 Rp1InterruptInitialize(
     _Out_ struct Rp1InterruptController*   controller,
     _In_  DeviceIo_t*                      registers,
-    _In_  const struct Rp1InterruptParent* parent,
-    _In_  Rp1InterruptHandler              handler,
-    _In_  void*                            context);
+    _In_  const struct Rp1InterruptParent* parent);
 
 /**
  * @brief Select how a disabled source signals an interrupt.
@@ -130,7 +117,7 @@ Rp1InterruptEnable(
     _In_    unsigned int                   source);
 
 /**
- * @brief Block delivery, wait for any running handler, and disable the RP1 source.
+ * @brief Mask PCI delivery and disable the RP1 source.
  *
  * @param controller Controller with its register mapping and PCI callbacks set.
  * @param source RP1 source number, 0 through 60.
@@ -144,27 +131,9 @@ Rp1InterruptDisable(
     _In_    unsigned int                   source);
 
 /**
- * @brief Call the device handler for an interrupt delivered by the PCI code.
- *
- * For a high-level interrupt, the handler must clear the device's interrupt
- * condition. After it returns, this function tells RP1 that handling is done
- * by writing an acknowledgement to the controller.
- *
- * @param controller Controller receiving the interrupt.
- * @param source RP1 source number delivered by the PCI code, 0 through 60.
- * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs, OS_ENOENT if
- *         setup is incomplete or the source is disabled, or an acknowledgement
- *         register-write error.
- */
-__EXTERN oserr_t
-Rp1InterruptHandle(
-    _InOut_ struct Rp1InterruptController* controller,
-    _In_    unsigned int                   source);
-
-/**
  * @brief Stop all interrupt delivery and clear the controller's saved state.
  *
- * Blocks each source and waits for running handlers before disabling it. On
+ * Call after child drivers have disabled and released their kernel groups. On
  * success, the caller may release the register mapping and PCI interrupt entries;
  * this function does not free either. If it fails, keep them and the controller
  * available and retry this function.

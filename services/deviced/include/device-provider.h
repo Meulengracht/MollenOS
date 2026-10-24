@@ -55,9 +55,11 @@ struct DmDeviceProviderOperations {
 
     /**
      * @brief Handles a control request, or returns OS_ENOTSUPPORTED.
+     * @param principal Process identity verified by the transport, or UUID_INVALID.
      */
     oserr_t (*Control)(
         _In_    void*               context,
+        _In_    uuid_t              principal,
         _In_    enum OSIOCtlRequest request,
         _InOut_ void*               buffer,
         _In_    size_t              length);

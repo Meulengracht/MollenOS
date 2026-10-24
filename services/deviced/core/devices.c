@@ -360,6 +360,7 @@ DmDmaLeaseRelease(
 
 oserr_t
 DmHandleIoctl(
+    _In_ uuid_t              principal,
     _In_ uuid_t              deviceId,
     _In_ enum OSIOCtlRequest request,
     _In_ void*               buffer,
@@ -369,7 +370,8 @@ DmHandleIoctl(
     const struct DmDeviceProviderOperations* operations;
     uuid_t                                   driverId;
     oserr_t                                  status;
-    TRACE("DmHandleIoctl(device=%u, request=0x%x, length=%zu)", deviceId, request, length);
+    TRACE("DmHandleIoctl(principal=%u, device=%u, request=0x%x, length=%zu)",
+          principal, deviceId, request, length);
 
     status = __AcquireDeviceRequest(deviceId, &device);
     if (status != OS_EOK) {
@@ -395,10 +397,10 @@ DmHandleIoctl(
                     driverId, request, deviceId, status);
         }
     } else if (operations != NULL && operations->Control != NULL) {
-        status = operations->Control(device->Provider.Context, request, buffer, length);
+        status = operations->Control(device->Provider.Context, principal, request, buffer, length);
         if (status != OS_EOK) {
-            WARNING("DmHandleIoctl: provider failed request 0x%x for device %u: %u",
-                    request, deviceId, status);
+            WARNING("DmHandleIoctl: provider failed request 0x%x for device %u, principal %u: %u",
+                    request, deviceId, principal, status);
         }
     } else {
         TRACE("DmHandleIoctl: device %u has no provider for request 0x%x", deviceId, request);

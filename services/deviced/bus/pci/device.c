@@ -226,12 +226,14 @@ __PciInterruptControl(PciDevice_t* device, enum OSIOCtlRequest request,
 static oserr_t
 __PciProviderControl(
     _In_ void*               context,
+    _In_ uuid_t              principal,
     _In_ enum OSIOCtlRequest request,
     _In_ void*               buffer,
     _In_ size_t              length)
 {
     oserr_t status;
 
+    (void)principal;
     // Interrupt requests use the same lock as register access so a reservation
     // cannot race with another operation changing the device configuration.
     if (request == OSIOCTLREQUEST_PCI_INTERRUPT_QUERY ||
@@ -700,6 +702,33 @@ __PciHasInterruptReservation(
     return 0;
 }
 
+static oserr_t
+__PciPrepareAttachmentRemoval(
+    _In_ PciDevice_t* device)
+{
+    oserr_t status;
+
+    TRACE("__PciPrepareAttachmentRemoval(device=%u, bus=%u, slot=%u, function=%u)",
+          device->DeviceId, device->Bus, device->Slot, device->Function);
+    if (device->Attachment != NULL && device->Handler->PrepareRemoval != NULL) {
+        status = device->Handler->PrepareRemoval(device->Attachment);
+        if (status != OS_EOK) {
+            WARNING("__PciPrepareAttachmentRemoval: PrepareRemoval device %u failed: %u",
+                    device->DeviceId, status);
+            return status;
+        }
+    }
+    foreach (element, &device->children) {
+        status = __PciPrepareAttachmentRemoval(element->value);
+        if (status != OS_EOK) {
+            WARNING("__PciPrepareAttachmentRemoval: child of device %u blocked removal: %u",
+                    device->DeviceId, status);
+            return status;
+        }
+    }
+    return OS_EOK;
+}
+
 oserr_t
 PciUnpublishDevice(
     _In_ PciDevice_t* device)
@@ -724,7 +753,13 @@ PciUnpublishDevice(
             device->Host->Identification.HostId);
         return OS_EBUSY;
     }
+    status = __PciPrepareAttachmentRemoval(device);
     PciCriticalSectionLeave();
+    if (status != OS_EOK) {
+        WARNING("PciUnpublishDevice: __PciPrepareAttachmentRemoval device %u failed: %u",
+                device->DeviceId, status);
+        return status;
+    }
 
     // A kernel allocation made before PCI Reserve has no provider resources.
     // It can still be released after this publication disappears.

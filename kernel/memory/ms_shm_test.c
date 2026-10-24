@@ -21,6 +21,8 @@
 #include "private.h"
 #include <handle.h>
 #include <shm.h>
+#include <ds/streambuffer.h>
+#include <os/futex.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -242,6 +244,11 @@ void TestSHMCreate_IPC(void** state)
     oserr_t     oserr;
     SHMHandle_t handle;
     void*       kernelMapping;
+    _Alignas(streambuffer_t) unsigned char storage[0x1000];
+
+    // IPC creation now initializes the mapped stream before publishing it.
+    // Supply real storage rather than an address that cannot be written.
+    memset(storage, 0xa5, sizeof(storage));
 
     // The following function calls are expected during normal
     // creation:
@@ -274,7 +281,7 @@ void TestSHMCreate_IPC(void** state)
     g_testContext.MemorySpaceMap.Calls[1].CheckFlags              = true;
     g_testContext.MemorySpaceMap.Calls[1].ExpectedPlacement       = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL;
     g_testContext.MemorySpaceMap.Calls[1].CheckPlacement          = true;
-    g_testContext.MemorySpaceMap.Calls[1].ReturnedMapping         = 0x40000;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnedMapping         = (vaddr_t)storage;
     g_testContext.MemorySpaceMap.Calls[1].ReturnedMappingProvided = true;
     g_testContext.MemorySpaceMap.Calls[1].ReturnValue             = OS_EOK;
 
@@ -307,7 +314,8 @@ void TestSHMCreate_IPC(void** state)
     // Verify the kernel mapping
     oserr = SHMKernelMapping(handle.ID, &kernelMapping);
     assert_int_equal(oserr, OS_EOK);
-    assert_ptr_equal(kernelMapping, 0x40000);
+    assert_ptr_equal(kernelMapping, storage);
+    assert_int_equal(((streambuffer_t*)storage)->capacity, sizeof(storage) - sizeof(streambuffer_t));
     TeardownTest(state);
 }
 
@@ -1912,6 +1920,18 @@ int main(void)
 
 void* kmalloc(size_t size) {
     return test_malloc(size);
+}
+
+oserr_t
+OSFutex(
+    _In_ OSFutexParameters_t* parameters,
+    _In_ OSAsyncContext_t*    context)
+{
+    // These SHM tests only initialize streams; they must not block or wake.
+    (void)parameters;
+    (void)context;
+    fail();
+    return OS_EUNKNOWN;
 }
 
 void kfree(void* memp) {

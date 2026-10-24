@@ -21,6 +21,7 @@
 //#define __TRACE
 
 #include <bus/rp1/rp1.h>
+#include <bus/rp1/runtime.h>
 #include <bus/pci/device.h>
 #include <bus/pci/function.h>
 #include <bus/pci/host.h>
@@ -143,6 +144,7 @@ Rp1BusDestroy(
     _In_ struct Rp1Bus* bus)
 {
     struct Rp1Child* child;
+    oserr_t status;
 
     TRACE("Rp1BusDestroy(bus=%p)", bus);
     // A failed creation may call cleanup before a device list was allocated.
@@ -164,6 +166,11 @@ Rp1BusDestroy(
         }
     }
     
+    status = Rp1RuntimeStop(bus);
+    if (status != OS_EOK) {
+        ERROR("Rp1BusDestroy: Rp1RuntimeStop bus %p failed: %u; inventory retained", bus, status);
+        return status;
+    }
     while (bus->Children != NULL) {
         child = bus->Children;
         bus->Children = child->Next;
@@ -273,10 +280,18 @@ __Rp1PublishAttachment(
     return OS_EOK;
 }
 
+static oserr_t
+__Rp1PrepareRemoval(
+    _In_ void* attachment)
+{
+    return Rp1RuntimePrepareRemoval(attachment);
+}
+
 const struct PciFunctionHandler g_rp1PciHandler = {
     .Match = __Rp1Match,
     .BlockActivation = 1,
     .Attach = __Rp1Attach,
     .Destroy = __Rp1DestroyAttachment,
-    .Publish = __Rp1PublishAttachment
+    .Publish = __Rp1PublishAttachment,
+    .PrepareRemoval = __Rp1PrepareRemoval
 };

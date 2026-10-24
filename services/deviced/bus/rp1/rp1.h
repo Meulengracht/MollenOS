@@ -43,6 +43,7 @@
 struct PciDevice;
 struct DmPublicationGroup;
 struct PciFunctionHandler;
+struct Rp1Runtime;
 
 // Identifies the PCI attachment owned by RP1 when serving child resource queries.
 extern const struct PciFunctionHandler g_rp1PciHandler;
@@ -84,6 +85,9 @@ struct Rp1Bus {
     // Copies of the six PCI address ranges used to check that each child's
     // registers fit within memory assigned to RP1.
     struct PciBar    Bars[6];
+    // Owns messages and mappings, including unfinished startup/shutdown.
+    struct Rp1Runtime* Runtime;
+    int               Ready;
 };
 
 /**

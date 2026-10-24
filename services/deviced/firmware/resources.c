@@ -19,6 +19,7 @@
 //#define __TRACE
 #include <firmware/resources.h>
 #include <ddk/utils.h>
+#include <stdlib.h>
 #include <string.h>
 
 /**
@@ -438,9 +439,11 @@ FdtRawRegister(
     return OS_EOK;
 }
 
+/** Each walk owns its temporary ancestor records until all callbacks return. */
 struct __ResourceWalk {
-    FdtResourceFn Visitor;
-    void*         Context;
+    FdtResourceFn         Visitor;
+    void*                Context;
+    struct FdtResources* Nodes;
 };
 
 /**
@@ -536,12 +539,12 @@ __ResourceVisit(
     _InOut_ void*                 context)
 {
     struct __ResourceWalk* walk = context;
-    struct FdtResources    nodes[FDT_MAX_DEPTH];
+    int                    i;
 
-    for (int i = 0; i <= depth; i++) {
-        __ResourceBuildNode(views, nodes, i);
+    for (i = 0; i <= depth; i++) {
+        __ResourceBuildNode(views, walk->Nodes, i);
     }
-    walk->Visitor(nodes, depth, walk->Context);
+    walk->Visitor(walk->Nodes, depth, walk->Context);
 }
 
 /**
@@ -558,11 +561,23 @@ FdtWalkResources(
     _In_    FdtResourceFn visitor,
     _InOut_ void*         context)
 {
-    struct __ResourceWalk walk = { visitor, context };
+    struct __ResourceWalk walk = { .Visitor = visitor, .Context = context };
     oserr_t               status;
 
     TRACE("FdtWalkResources(blob=%p, length=%zu)", blob, length);
+
+    // The ancestor records alone nearly fill a service job's 16 KiB stack.
+    // Keep them on the heap so the parser and visitors have room to run.
+    // Each walk needs its own array: a visitor may start another resource
+    // lookup while it is still using the outer walk's records.
+    walk.Nodes = malloc(sizeof(*walk.Nodes) * FDT_MAX_DEPTH);
+    if (walk.Nodes == NULL) {
+        ERROR("FdtWalkResources: allocation failed for %u ancestor records", FDT_MAX_DEPTH);
+        return OS_EOOM;
+    }
+
     status = FdtWalkNodes(blob, length, __ResourceVisit, &walk);
+    free(walk.Nodes);
     if (status != OS_EOK) {
         ERROR("FdtWalkResources: resource traversal failed (%u)", status);
         return status;

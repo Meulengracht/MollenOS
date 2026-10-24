@@ -1,9 +1,13 @@
 add_library(deviced-rp1 STATIC
+    completion.c
     dma.c
     firmware.c
     interrupt.c
     publish.c
     rp1.c
+    runtime.c
+    runtime-source.c
+    runtime-pci.c
 )
 
 target_link_libraries(deviced-rp1 PRIVATE

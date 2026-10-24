@@ -22,10 +22,13 @@
 
 #include <bus/rp1/rp1.h>
 #include <bus/rp1/dma.h>
+#include <bus/rp1/runtime-private.h>
 #include <bus/pci/device.h>
+#include <bus/pci/host-private.h>
 #include <core/publication.h>
 #include <ddk/busdevice.h>
 #include <ddk/interrupt.h>
+#include <ddk/types/pci-interrupt.h>
 #include <ddk/platformdevice.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -113,11 +116,82 @@ __Rp1ProviderPrepareDma(
     return OS_EOK;
 }
 
+static oserr_t
+__Rp1QueryInterruptSupport(
+    _In_    struct Rp1Child* child,
+    _InOut_ void*            buffer,
+    _In_    size_t           length)
+{
+    struct PciInterruptSupport* support = buffer;
+    oserr_t status = OS_EBUSY;
+
+    TRACE("__Rp1QueryInterruptSupport(device=%u, length=%zu)", child->DeviceId, length);
+    if (support == NULL || length != sizeof(*support)) {
+        WARNING("__Rp1QueryInterruptSupport: device %u invalid output buffer or length %zu", child->DeviceId, length);
+        return OS_EINVALPARAMS;
+    }
+    // The request layer returns this output even when setup is not ready.
+    // Do not leave caller-visible fields uninitialized on that error path.
+    memset(support, 0, sizeof(*support));
+    PciCriticalSectionEnter();
+    if (child->Bus->Ready) {
+        // Drivers need only enough information to allocate a kernel group.
+        // Completion handles belong to this provider and never leave deviced.
+        support->Strategies = INTERRUPT_STRATEGY_MSIX;
+        support->MsixCapacity = child->Firmware.InterruptCount;
+        support->ControllerID = child->Bus->Parent->Host->InterruptControllerId;
+        status = OS_EOK;
+    }
+    PciCriticalSectionLeave();
+    if (status != OS_EOK) {
+        TRACE("__Rp1QueryInterruptSupport: device %u runtime is not ready", child->DeviceId);
+        return status;
+    }
+    TRACE("__Rp1QueryInterruptSupport: device %u controller %u, capacity %u",
+          child->DeviceId, support->ControllerID, support->MsixCapacity);
+    return status;
+}
+
+static oserr_t
+__Rp1ProviderControl(
+    _In_    void*               context,
+    _In_    uuid_t              principal,
+    _In_    enum OSIOCtlRequest request,
+    _InOut_ void*               buffer,
+    _In_    size_t              length)
+{
+    struct Rp1Child* child = context;
+    oserr_t          status;
+
+    TRACE("__Rp1ProviderControl(device=%u, principal=%u, request=0x%x, length=%zu)",
+          child->DeviceId, principal, request, length);
+    if (request == OSIOCTLREQUEST_INTERRUPT_QUERY) {
+        return __Rp1QueryInterruptSupport(context, buffer, length);
+    }
+    if (request != OSIOCTLREQUEST_INTERRUPT_CONTROL) {
+        TRACE("__Rp1ProviderControl: device %u unsupported request 0x%x", child->DeviceId, request);
+        return OS_ENOTSUPPORTED;
+    }
+    if (buffer == NULL || length != sizeof(struct PciInterruptRequest)) {
+        WARNING("__Rp1ProviderControl: device %u invalid control buffer or length %zu", child->DeviceId, length);
+        return OS_EINVALPARAMS;
+    }
+    PciCriticalSectionEnter();
+    status = Rp1RuntimeControl(context, principal, buffer);
+    PciCriticalSectionLeave();
+    if (status != OS_EOK) {
+        TRACE("__Rp1ProviderControl: Rp1RuntimeControl device %u, principal %u returned %u",
+              child->DeviceId, principal, status);
+    }
+    return status;
+}
+
 // Preparing a description supplies no register access or permission to run DMA.
 static const struct DmDeviceProviderOperations g_rp1ChildProviderOperations = {
     .Retain = __Rp1ProviderRetain,
     .Release = __Rp1ProviderRelease,
-    .PrepareDma = __Rp1ProviderPrepareDma
+    .PrepareDma = __Rp1ProviderPrepareDma,
+    .Control = __Rp1ProviderControl
 };
 
 static oserr_t
@@ -162,10 +236,8 @@ __Rp1PublishChild(
     
     device->Version = PLATFORM_DEVICE_VERSION;
     
-    // Registers and interrupt numbers alone are not enough to run the device.
-    // Block driver startup until interrupt delivery and direct memory access
-    // (DMA), which lets the device access memory itself, have been set up.
-    device->Pending = PLATFORM_DEVICE_PENDING_INTERRUPTS | PLATFORM_DEVICE_PENDING_DMA;
+    // Publication follows successful message setup and configured DMA validation.
+    device->Pending = 0;
     device->FirmwareNode = firmware->NodeOffset;
     device->CompatibleLength = firmware->CompatibleLength;
     memcpy(device->Compatibles, firmware->Compatible, firmware->CompatibleLength);
@@ -198,7 +270,7 @@ __Rp1PublishChild(
         free(device);
         return status;
     }
-    TRACE("__Rp1PublishChild: node %u published with activation pending", firmware->NodeOffset);
+    TRACE("__Rp1PublishChild: node %u ready for driver binding", firmware->NodeOffset);
     return OS_EOK;
 }
 
@@ -223,6 +295,14 @@ Rp1BusPublish(
     if (bus->Parent != endpoint) {
         WARNING("Rp1BusPublish: endpoint does not own this RP1 attachment");
         return OS_EINVALPARAMS;
+    }
+
+    PciCriticalSectionEnter();
+    status = Rp1RuntimeStart(bus);
+    PciCriticalSectionLeave();
+    if (status != OS_EOK) {
+        ERROR("Rp1BusPublish: interrupt/DMA setup failed (%u); children remain inactive", status);
+        return status;
     }
 
     for (child = bus->Children; child != NULL; child = child->Next) {

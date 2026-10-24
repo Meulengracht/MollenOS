@@ -158,6 +158,11 @@ DeviceInterruptControllerResolve(
  * @brief Initializes line and device information from the provided device base.
  * 
  * Pass NULL for device to set Line explicitly for a fixed platform interrupt.
+ * For a platform device with bus-managed message interrupts, pass NULL and set
+ * DeviceId to its published device ID. Allocate queries the bus; vector indices
+ * follow the firmware interrupt list. Use the normal handler/resource setters.
+ * The handler must clear or mask its peripheral before returning; any upstream
+ * acknowledgement is supplied by the bus provider without driver involvement.
  * IsPci is derived from the device bus type; only BusTypePci enables PCI MSI.
  * Must be called prior to Allocate. Flags defaults to shared delivery;
  * set INTERRUPT_EXCLUSIVE before allocation if this line must not be shared.

@@ -74,6 +74,14 @@ struct PciFunctionHandler {
     oserr_t (*Destroy)(void* attachment);
 
     /**
+     * @brief Exclude new child activity before publication removal, under the PCI lock.
+     * @param attachment Owned attachment.
+     * @return OS_EBUSY while clients still need their providers for cleanup.
+     *         On success, block new subscriptions until Destroy or republish.
+     */
+    oserr_t (*PrepareRemoval)(void* attachment);
+
+    /**
      * @brief Adds child descriptions to the host's group beneath this function.
      * The group handles driver matching and removal, including partial failure.
      *
