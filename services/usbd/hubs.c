@@ -185,13 +185,21 @@ void sys_usb_register_hub_invocation(struct gracht_message* message, const uuid_
                                      const uuid_t deviceId, const uuid_t driverId, const int portCount,
                                      const uint16_t characteristics)
 {
-    oserr_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount, characteristics);
+    oserr_t   osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount, characteristics);
     UsbHub_t* hub = UsbCoreHubsGet(deviceId);
+
     if (osStatus == OS_EOK && hub != NULL && hub->DeviceAddress != 0) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hub->ControllerDeviceId);
-        oserr_t controllerStatus;
-        ctt_usbhost_configure_hub(GetGrachtClient(), &msg.base, hub->ControllerDeviceId,
-                                  hub->DeviceAddress, (uint8_t)portCount, characteristics);
+        UsbController_t*         controller = UsbCoreControllerGet(hub->ControllerDeviceId);
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(controller->DriverId);
+        oserr_t                  controllerStatus;
+        
+        ctt_usbhost_configure_hub(
+            GetGrachtClient(), &msg.base,
+            hub->ControllerDeviceId, 
+            hub->DeviceAddress,
+            (uint8_t)portCount,
+            characteristics
+        );
         gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
         ctt_usbhost_configure_hub_result(GetGrachtClient(), &msg.base, &controllerStatus);
     }

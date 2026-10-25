@@ -199,9 +199,9 @@ CpuCoreStart(void)
 
     // Enter idle loop
     WARNING("CpuCoreStart %" PRIuIN " is online", cpuCore->Id);
-#if defined(__aarch64__)
+    
+    // Ensure scheduler is enabled before entering the idle loop.
     SchedulerEnable();
-#endif
 	for (;;) {
 		ArchProcessorIdle();
     }

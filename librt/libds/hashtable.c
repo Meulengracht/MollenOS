@@ -40,7 +40,8 @@ struct hashtable_element {
 };
 
 #define SHOULD_GROW(hashtable)        (hashtable->element_count == hashtable->grow_count)
-#define SHOULD_SHRINK(hashtable)      (hashtable->element_count == hashtable->shrink_count)
+#define SHOULD_SHRINK(hashtable)      (!((hashtable)->flags & HASHTABLE_FLAG_NO_SHRINK) && \
+                                     (hashtable)->element_count == (hashtable)->shrink_count)
 
 #define GET_ELEMENT_ARRAY(hashtable, elements, index) ((struct hashtable_element*)&((uint8_t*)elements)[index * hashtable->element_size])
 #define GET_ELEMENT(hashtable, index)                 GET_ELEMENT_ARRAY(hashtable, hashtable->elements, index)
@@ -85,6 +86,7 @@ int hashtable_construct(
         return -1;
     }
 
+    hashtable->flags         = 0;
     hashtable->capacity      = initialCapacity;
     hashtable->element_count = 0;
     hashtable->grow_count    = (initialCapacity * HASHTABLE_LOADFACTOR_GROW) / 100;
@@ -297,6 +299,7 @@ static void hashtable_remove_and_bump(
 
 static void __hashtable_clone(hashtable_t* dst, hashtable_t* src, void* elements, size_t capacity)
 {
+    dst->flags         = src->flags;
     dst->capacity      = capacity;
     dst->element_count = 0;
     dst->grow_count    = (capacity * HASHTABLE_LOADFACTOR_GROW) / 100;

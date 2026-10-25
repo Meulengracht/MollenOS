@@ -460,7 +460,7 @@ UsbGetConfigDescriptor(
 	_In_ int                         configurationIndex,
     _In_ usb_device_configuration_t* configuration)
 {
-    void*               descriptorStorage;
+    void*                descriptorStorage;
     enum USBTransferCode status;
     
     // Are we requesting the initial descriptor?
@@ -555,7 +555,7 @@ UsbGetStringDescriptor(
     _Out_ mstring_t**           stringOut)
 {
     usb_unicode_string_descriptor_t* desc;
-    enum USBTransferCode              status;
+    enum USBTransferCode             status;
     
     desc = malloc(sizeof(usb_unicode_string_descriptor_t) + 2);
     if (desc == NULL) {
@@ -616,7 +616,7 @@ UsbDetachDevice(
     _In_ uuid_t                controllerId,
     _In_ usb_device_context_t* device)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(controllerId);
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(device->controller_driver_id);
     oserr_t                  detachStatus;
 
     if (device->device_address == 0) {

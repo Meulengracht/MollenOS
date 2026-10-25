@@ -47,7 +47,7 @@ _CODE_END
 #define Syscall_InterruptBind(Handle, Request)                                        (oserr_t)syscall2(19, SCPARAM(Handle), SCPARAM(Request))
 #define Syscall_InterruptEnable(Handle)                                               (oserr_t)syscall1(20, SCPARAM(Handle))
 #define Syscall_InterruptDisable(Handle)                                              (oserr_t)syscall1(21, SCPARAM(Handle))
-#define Syscall_InterruptUnbind(Handle)                                               (oserr_t)syscall1(22, SCPARAM(Handle))
+#define Syscall_InterruptLineSourceResolve(Query, Controller)                         (oserr_t)syscall2(22, SCPARAM(Query), SCPARAM(Controller))
 #define Syscall_InterruptRelease(Handle)                                              (oserr_t)syscall1(23, SCPARAM(Handle))
 #define Syscall_InterruptGetMessage(Handle, Index, Message)                           (oserr_t)syscall3(24, SCPARAM(Handle), SCPARAM(Index), SCPARAM(Message))
 #define Syscall_InterruptReap(Handle)                                                 (oserr_t)syscall1(25, SCPARAM(Handle))
@@ -57,7 +57,7 @@ _CODE_END
 #define Syscall_InterruptProviderAttach(Request)                                      (oserr_t)syscall1(29, SCPARAM(Request))
 #define Syscall_InterruptProviderCheckEnabled(Handle, Principal, Device)              (oserr_t)syscall3(30, SCPARAM(Handle), SCPARAM(Principal), SCPARAM(Device))
 #define Syscall_InterruptProviderClose(Handle, Principal, Device)                     (oserr_t)syscall3(31, SCPARAM(Handle), SCPARAM(Principal), SCPARAM(Device))
-#define Syscall_InterruptControllerResolve(Query, Domain)                             (oserr_t)syscall2(32, SCPARAM(Query), SCPARAM(Domain))
+#define Syscall_InterruptMessageControllerResolve(Query, Controller)                  (oserr_t)syscall2(32, SCPARAM(Query), SCPARAM(Controller))
 
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                 (oserr_t)syscall1(33, SCPARAM(BaseAddressOut))
 #define Syscall_MapThreadMemoryRegion(ThreadHandle, Address, TopOfStack, PointerOut)  (oserr_t)syscall4(34, SCPARAM(ThreadHandle), SCPARAM(Address), SCPARAM(TopOfStack), SCPARAM(PointerOut))
@@ -114,7 +114,7 @@ _CODE_END
 #define Syscall_Sleep(DurationNs, RemainingNs)                             (oserr_t)syscall2(76, SCPARAM(DurationNs), SCPARAM(RemainingNs))
 #define Syscall_Stall(DurationNs)                                          (oserr_t)syscall1(77, SCPARAM(DurationNs))
 
-#define Syscall_DmaOpen(Grant, Limit, ContextOut)                          (oserr_t)syscall3(78, SCPARAM(Grant), SCPARAM(Limit), SCPARAM(ContextOut))
+#define Syscall_DmaOpen(Device, Parameters, ContextOut)                          (oserr_t)syscall3(78, SCPARAM(Device), SCPARAM(Parameters), SCPARAM(ContextOut))
 #define Syscall_DmaAllocate(Context, Requirements, ResultOut)              (oserr_t)syscall3(79, SCPARAM(Context), SCPARAM(Requirements), SCPARAM(ResultOut))
 #define Syscall_DmaMapShm(Context, Shm, Parameters, ResultOut)             (oserr_t)syscall4(80, SCPARAM(Context), SCPARAM(Shm), SCPARAM(Parameters), SCPARAM(ResultOut))
 #define Syscall_DmaGetSegments(Mapping, Entries, Capacity, CountOut)       (oserr_t)syscall4(81, SCPARAM(Mapping), SCPARAM(Entries), SCPARAM(Capacity), SCPARAM(CountOut))

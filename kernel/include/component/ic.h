@@ -22,8 +22,9 @@
 #ifndef __COMPONENT_INTERRUPT_CONTROLLER__
 #define __COMPONENT_INTERRUPT_CONTROLLER__
 
-#include <os/osdefs.h>
+#include <ddk/types/interrupt-controller.h>
 #include <ddk/types/interrupt.h>
+#include <os/osdefs.h>
 #include <interrupt_types.h>
 
 // Maps from a source IRQ to its system line and flags.
@@ -206,9 +207,9 @@ CreateInterruptMessageController(
     _Out_ uuid_t*                                     idOut);
 
 /**
- * @brief Find a registered message controller without changing kernel state.
+ * @brief Resolve a kernel-owned message allocator.
  * 
- * @param query Firmware identity to look up.
+ * @param query Platform or PCI host firmware identity.
  * @param idOut Receives the controller ID on success.
  * @return OS_EOK, OS_ENOTSUPPORTED if absent, or OS_EINVALPARAMS.
  */
@@ -216,6 +217,30 @@ KERNELAPI oserr_t KERNELABI
 InterruptMessageControllerResolve(
     _In_  const InterruptMessageControllerIdentity_t* query,
     _Out_ uuid_t*                                     idOut);
+
+/**
+ * @brief Validate a resolved controller against a fixed line before reservation.
+ * 
+ * @param controllerId Kernel line controller identity.
+ * @param line System interrupt number.
+ * @return OS_EOK or OS_ENOTSUPPORTED; never substitutes another controller.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptLineSourceValidate(
+    _In_ uuid_t controllerId,
+    _In_ int    line);
+
+/**
+ * @brief Resolve a DT fixed source without allocating or granting device access.
+ * 
+ * @param query Firmware controller and SPI identity.
+ * @param idOut Kernel line controller ID; unchanged on failure.
+ * @return OS_EOK or an unsupported/invalid identity error.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptLineSourceResolve(
+    _In_  const InterruptLineSourceIdentity_t* query,
+    _Out_ uuid_t*                              idOut);
 
 /**
  * @brief Find the message controller to use for an allocation.

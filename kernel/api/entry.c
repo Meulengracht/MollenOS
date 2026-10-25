@@ -20,22 +20,25 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <arch/thread.h>
-#include <arch/utils.h>
+#include <ddk/types/capabilities.h>
+#include <ddk/types/interrupt-controller.h>
+#include <ddk/types/interrupt-group.h>
 #include <ddk/acpi.h>
 #include <ddk/firmware.h>
 #include <ddk/video.h>
 #include <ddk/io.h>
-#include <debug.h>
-#include <handle_set.h>
-#include <ipc_context.h>
-#include <ddk/types/capabilities.h>
 #include <os/futex.h>
 #include <os/types/shm.h>
 #include <os/types/thread.h>
 #include <os/types/memory.h>
 #include <os/types/time.h>
 #include <os/types/syscall.h>
+
+#include <arch/thread.h>
+#include <arch/utils.h>
+#include <debug.h>
+#include <handle_set.h>
+#include <ipc_context.h>
 #include <threading.h>
 
 DECL_STRUCT(InterruptGroupRequest);
@@ -79,7 +82,6 @@ extern oserr_t ScInterruptAllocate(InterruptGroupRequest_t*, InterruptGroupResul
 extern oserr_t ScInterruptBind(uuid_t, InterruptBindRequest_t*);
 extern oserr_t ScInterruptEnable(uuid_t);
 extern oserr_t ScInterruptDisable(uuid_t);
-extern oserr_t ScInterruptUnbind(uuid_t);
 extern oserr_t ScInterruptRelease(uuid_t);
 extern oserr_t ScInterruptReap(uuid_t);
 extern oserr_t ScInterruptCompletionCreate(uuid_t*);
@@ -89,7 +91,8 @@ extern oserr_t ScInterruptProviderAttach(const struct InterruptProviderAttachReq
 extern oserr_t ScInterruptProviderCheckEnabled(uuid_t, uuid_t, uuid_t);
 extern oserr_t ScInterruptProviderClose(uuid_t, uuid_t, uuid_t);
 extern oserr_t ScInterruptGetMessage(uuid_t, uint32_t, DeviceInterruptMessage_t*);
-extern oserr_t ScInterruptControllerResolve(const InterruptMessageControllerIdentity_t*, uuid_t*);
+extern oserr_t ScInterruptLineSourceResolve(const InterruptLineSourceIdentity_t*, uuid_t*);
+extern oserr_t ScInterruptMessageControllerResolve(const InterruptMessageControllerIdentity_t*, uuid_t*);
 extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
 extern oserr_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
@@ -153,7 +156,7 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-extern oserr_t ScDmaOpen(uuid_t, const uint64_t*, uuid_t*);
+extern oserr_t ScDmaOpen(uuid_t, const struct OSDmaOpenParameters*, uuid_t*);
 extern oserr_t ScDmaAllocate(uuid_t, const struct SHMDeviceRequirements*, struct OSDmaAllocationResult*);
 extern oserr_t ScDmaMapShm(uuid_t, uuid_t, const struct OSDmaMapParameters*, struct OSDmaMappingResult*);
 extern oserr_t ScDmaGetSegments(uuid_t, struct SHMDeviceSegment*, uint32_t, uint32_t*);
@@ -206,7 +209,7 @@ static struct SystemCallDescriptor {
         DefineSyscall(19, ScInterruptBind),
         DefineSyscall(20, ScInterruptEnable),
         DefineSyscall(21, ScInterruptDisable),
-        DefineSyscall(22, ScInterruptUnbind),
+        DefineSyscall(22, ScInterruptLineSourceResolve),
         DefineSyscall(23, ScInterruptRelease),
         DefineSyscall(24, ScInterruptGetMessage),
         DefineSyscall(25, ScInterruptReap),
@@ -216,7 +219,7 @@ static struct SystemCallDescriptor {
         DefineSyscall(29, ScInterruptProviderAttach),
         DefineSyscall(30, ScInterruptProviderCheckEnabled),
         DefineSyscall(31, ScInterruptProviderClose),
-        DefineSyscall(32, ScInterruptControllerResolve),
+        DefineSyscall(32, ScInterruptMessageControllerResolve),
         
         DefineSyscall(33, ScGetProcessBaseAddress),
         DefineSyscall(34, ScMapThreadMemoryRegion),

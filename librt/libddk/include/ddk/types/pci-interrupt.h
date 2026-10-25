@@ -18,27 +18,47 @@
  * PCI interrupt reservation requests shared by libddk and deviced.
  */
 
-#ifndef __DDK_PCI_INTERRUPT_H__
-#define __DDK_PCI_INTERRUPT_H__
+#ifndef __DDK_TYPES_PCI_INTERRUPT_H__
+#define __DDK_TYPES_PCI_INTERRUPT_H__
 
 #include <os/osdefs.h>
 
+// PCI policy values shared by driver allocation and provider wire requests.
+// AllocatePci accepts a nonempty subset; GetPciMode and provider requests use
+// one selected bit. These values are independent of InterruptSourceKind.
+#define INTERRUPT_STRATEGY_INTx 0x1
+#define INTERRUPT_STRATEGY_MSI  0x2
+#define INTERRUPT_STRATEGY_MSIX 0x4
+#define INTERRUPT_STRATEGY_ANY  0x7
+
 enum PciInterruptOperation {
+    // Claim the device's selected message mode and leave delivery masked.
     PciInterruptReserve,
+    // Program one vector using the message read from its kernel allocation.
     PciInterruptProgram,
+    // Permit delivery after all messages and kernel handlers are ready.
     PciInterruptEnable,
+    // Mask delivery while retaining the device reservation and saved state.
     PciInterruptDisable,
+    // Restore saved state with message delivery off and relinquish ownership.
     PciInterruptRelease
 };
 
+/**
+ * OSIOCTLREQUEST_PCI_INTERRUPT_QUERY result describing PCI capability policy.
+ * Initialize the query buffer to zero. This reports capabilities and the host's
+ * message allocator; it does not reserve vectors, negotiate available capacity,
+ * or describe platform firmware sources. Strategies uses INTERRUPT_STRATEGY_*
+ * values from this wire header, independently of InterruptSourceKind.
+ */
 struct PciInterruptSupport {
     // Supported interrupt strategies (bitmask of INTERRUPT_STRATEGY_*)
     uint32_t Strategies;
-    // Advertised MSI message count
+    // Advertised hardware MSI capacity; the current driver API uses one message.
     uint32_t MsiCapacity;
     // Advertised MSI-X table entry count
     uint32_t MsixCapacity;
-    // Identifies the host interrupt controller
+    // Resolved kernel message-controller ID used by MSI and MSI-X allocations.
     uuid_t   ControllerID;
 };
 
@@ -69,15 +89,21 @@ struct PciInterruptSupport {
  * bus-control request. Keep the kernel allocation until Release succeeds.
  */
 struct PciInterruptRequest {
+    // One PciInterruptOperation value.
     uint32_t Operation;
+    // Driver-owned kernel message group, retained until provider release succeeds.
     uuid_t   Allocation;
+    // One MSI or MSI-X strategy, not a preference mask and never INTx.
     uint32_t Strategy;
+    // Reserve only: required vector count. Zero for every later operation.
     uint32_t Count;
+    // Program only: allocation vector/MSI-X table index; zero for single MSI.
     uint32_t Index;
+    // Program only: kernel-composed destination and payload; zero otherwise.
     uint32_t AddressLow;
     uint32_t AddressHigh;
     uint32_t Data;
-    uint32_t Reserved;
+    uint32_t Reserved; // Must be zero for every operation.
 };
 
-#endif
+#endif //!__DDK_TYPES_PCI_INTERRUPT_H__

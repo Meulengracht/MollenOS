@@ -24,185 +24,119 @@
 #ifndef __INTERRUPT_INTERFACE_H__
 #define __INTERRUPT_INTERFACE_H__
 
-#include <ddk/ddkdefs.h>
+#include <ddk/types/interrupt.h>
 
 DECL_STRUCT(DeviceIo);
 DECL_STRUCT(BusDevice);
-DECL_STRUCT(InterruptMessageControllerIdentity);
+DECL_STRUCT(Device);
 
-#define INTERRUPT_NONE                      (int)-1
-#define INTERRUPT_MAXVECTORS                8
-#define INTERRUPT_MAX_MEMORY_RESOURCES      4
-#define INTERRUPT_MAX_IO_RESOURCES          4
-
-#define INTERRUPT_RESOURCE_DISABLE_CACHE    0x00000001U
-
-// Fast-interrupts
-// Fast-interrupt handlers are called from an interrupt context and therefore
-// are very limited in terms of what they can do. They have full access to their memory space
-// however they are not allowed to do any waiting, functions calls or any lengthy operations.
-#ifndef __INTERRUPTHANDLER
-#define __INTERRUPTHANDLER
-typedef struct InterruptFunctionTable InterruptFunctionTable_t;
-typedef irqstatus_t(*InterruptHandler_t)(InterruptFunctionTable_t*, void*);
-#endif
-
-// Fast-Interrupt Memory Resource
-typedef struct FastInterruptMemoryResource {
-    uintptr_t    Address;
-    size_t       Length;
-    unsigned int Flags;
-} FastInterruptMemoryResource_t;
-
-// Fast-Interrupt Resource Table
-// Table that descripes the executable region of the fast interrupt handler, and the
-// memory resources the fast interrupt handler needs access too. Validation and security
-// measures will be taken on the passed regions, and interrupt-copies will be created for the handler.
-typedef struct InterruptResourceTable {
-    InterruptHandler_t            Handler;
-    uuid_t                        HandleResource;
-    DeviceIo_t*                   IoResources[INTERRUPT_MAX_IO_RESOURCES];
-    FastInterruptMemoryResource_t MemoryResources[INTERRUPT_MAX_MEMORY_RESOURCES];
-} InterruptResourceTable_t;
-
-// Fast-Interrupt
-// Fast-interrupts are severely limited in what they can access, the interrupt table provides access
-// to pre-mapped regions that was requested when the interrupt was registed. The table can provide access
-// to some memory regions, io-regions and some system-functions (like the standard input pipe).
-typedef struct InterruptFunctionTable {
-    size_t  (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
-    oserr_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
-    oserr_t (*EventSignal)(uuid_t handle);
-    void    (*Trace)(const char* format, ...);
-} InterruptFunctionTable_t;
-
-#define INTERRUPT_IOSPACE(Resources, Index)     Resources->IoResources[Index]
-#define INTERRUPT_RESOURCE(Resources, Index)    Resources->MemoryResources[Index].Address
-
-/*
- * ACPI Conform flags
- * This is essentially some bonus information that is
- * needed when registering interrupts
+/**
+ * @brief One driver-owned interrupt allocation and its handler configuration.
+ * Initialize before use. Flags and SourceIndex are pre-allocation inputs;
+ * DeviceId, IsPci and legacy Line routing are initialized from the device.
+ * Kind, Count, Vectors and State are maintained by libddk and must not be edited.
+ * A platform source always occupies vector zero, even when SourceIndex is nonzero.
+ * Use setters to configure Vectors rather than editing their resource tables.
+ * Serialize all operations outside fast-interrupt context and retain the object
+ * after failed cleanup. Initialization must not overwrite a live allocation.
  */
-#define INTERRUPT_ACPICONFORM_PRESENT         0x00000001U
-#define INTERRUPT_ACPICONFORM_TRIGGERMODE     0x00000002U // If set, trigger mode means level-triggered
-#define INTERRUPT_ACPICONFORM_POLARITY        0x00000004U // If set, polarity means active-low
-#define INTERRUPT_ACPICONFORM_SHAREABLE       0x00000008U
-#define INTERRUPT_ACPICONFORM_FIXED           0x00000010U
-
-// Interrupt register options
-#define INTERRUPT_SOFT      0x00000001U  // Interrupt is not triggered by a hardware line
-#define INTERRUPT_VECTOR    0x00000002U  // Interrupt can be either values set in the Vector
-#define INTERRUPT_MSI       0x00000004U  // Interrupt uses MSI to deliver
-#define INTERRUPT_EXCLUSIVE 0x00000008U  // Interrupt line can not be shared
-
-#define INTERRUPT_STRATEGY_INTx 0x1
-#define INTERRUPT_STRATEGY_MSI  0x2
-#define INTERRUPT_STRATEGY_MSIX 0x4
-#define INTERRUPT_STRATEGY_ANY  0x7
-
-// Describes a line-based interrupt. 
-typedef struct DeviceInterruptLine {
-    int          Line;
-    int          Pin;
-    unsigned int AcpiConform;
-} DeviceInterruptLine_t;
-
-// Describes a message based interrupt.
-typedef struct DeviceInterruptMessage {
-    uint32_t AddressLow;
-    uint32_t AddressHigh;
-    uint32_t Data;
-} DeviceInterruptMessage_t;
-
-// Each interrupt may carry its own resource table and an
-// affinity mask.
-typedef struct DeviceInterruptVector {
-    InterruptResourceTable_t ResourceTable;
-    uint32_t                 AffinityMask;
-} DeviceInterruptVector_t;
-
-// Describes all interrupts allocated for a single device.
-// This structure includes the device identifier, line-based interrupt information,
-// flags, the chosen strategy, the number of allocated vectors, the array of vectors,
-// and the current state of the interrupt allocation.
 typedef struct DeviceInterrupt {
+    // Published device identity, or UUID_INVALID for an explicitly supplied line.
     uuid_t                       DeviceId;
+    // Legacy/manual routing; platform source routing comes from its provider.
     DeviceInterruptLine_t        Line;
+    // Pre-allocation input: zero for shared lines or INTERRUPT_EXCLUSIVE.
     unsigned int                 Flags;
+    // Derived from BusTypePci during initialization; do not override.
     unsigned int                 IsPci;
-    uint32_t                     Strategy;
+    // Platform firmware source index; use DeviceInterruptSelectSource.
+    uint32_t                     SourceIndex;
 
-    // These are maintained by libddk
+    // Allocation results and private ownership state.
+    InterruptSourceKind_t        Kind;
     uint32_t                     Count;
     DeviceInterruptVector_t*     Vectors;
     struct DeviceInterruptState* State;
 } DeviceInterrupt_t;
 
 /**
- * @brief Resolve a kernel-owned message controller for a bus.
- * Requires INTERRUPT_CONTROL. The opaque ID remains valid for this boot and
- * needs no close operation. It selects an allocator; it does not grant device
- * access. The kernel owns controller discovery, initialization and lifetime.
- *
- * @param query Firmware identity as described above.
- * @param domainOut Receives the domain ID on success; unchanged on failure.
- * @return OS_EOK, OS_ENOTSUPPORTED if no backend exists, or a validation error.
- */
-__EXTERN oserr_t
-DeviceInterruptControllerResolve(
-    _In_  const InterruptMessageControllerIdentity_t* query,
-    _Out_ uuid_t*                                     idOut);
-
-/**
  * @brief Initializes line and device information from the provided device base.
  * 
- * Pass NULL for device to set Line explicitly for a fixed platform interrupt.
- * For a platform device with bus-managed message interrupts, pass NULL and set
- * DeviceId to its published device ID. Allocate queries the bus; vector indices
- * follow the firmware interrupt list. Use the normal handler/resource setters.
+ * Pass NULL for device to set Line explicitly for a manual/legacy line interrupt.
+ * Passing a platform Device_t supplies its published identity directly.
+ * Allocate queries the bus for the selected firmware source. Handler/resource
+ * setters use allocation vector indices; a platform source uses vector zero.
  * The handler must clear or mask its peripheral before returning; any upstream
  * acknowledgement is supplied by the bus provider without driver involvement.
  * IsPci is derived from the device bus type; only BusTypePci enables PCI MSI.
  * Must be called prior to Allocate. Flags defaults to shared delivery;
  * set INTERRUPT_EXCLUSIVE before allocation if this line must not be shared.
+ * This clears the object and allocates nothing. Do not call it to reset an
+ * object that still owns State; complete Destroy first.
+ *
+ * @param interrupt Storage for a new interrupt object; must be non-NULL.
+ * @param device Published Device_t/BusDevice_t, or NULL for manual line routing.
+ * @return No result; allocation and validation occur in Allocate.
  */
 DDKDECL(void,
 DeviceInterruptInitialize(
     _Out_ DeviceInterrupt_t* interrupt,
-    _In_  BusDevice_t*       device));
+    _In_  Device_t*          device));
 
 /**
- * @brief Reserves interrupts without installing a handler or enabling delivery.
+ * @brief Select one platform interrupt from the provider's firmware order.
+ * Each source uses a separate DeviceInterrupt object and one kernel group.
+ * This applies equally to direct lines and sources translated into messages.
+ * Selection allocates nothing and is unavailable while this object owns a group.
+ * Allocation validates the index against the provider. PCI devices and manual
+ * lines do not have a selectable firmware source list.
+ * @param interrupt Initialized platform device interrupt descriptor.
+ * @param index Firmware interrupt-list index.
+ * @return OS_EOK, OS_EBUSY for an existing allocation, or invalid arguments.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptSelectSource(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_ uint32_t index));
+
+/**
+ * @brief Reserve interrupts without installing a handler or enabling delivery.
  *
- * deviced prepares PCI messages with delivery and INTx masked. The driver must
- * stop interrupt sources and set up bus mastering and MMIO. For MSI-X, vector
- * index i is programmed into table entry i; route device queues/causes to those
- * entries before Enable. Only request modes the device-specific driver supports.
- * 
- * Strategies are preferences in MSI-X, MSI, INTx order. This implementation
- * supports PCI MSI-X, single-message MSI and INTx. MSI-X negotiates a count from
- * min through optimal, limited by the device table and free kernel vectors.
- * MSI and INTx fallback require min == 1. Multi-message MSI is unsupported.
- * Unsupported capabilities and kernel vector exhaustion allow fallback; malformed
- * configuration, provider ownership conflicts and transport failures are errors.
- * Success returns the actual count. Failure leaves @p countOut zero and retains
- * any existing allocation. If allocation rollback fails, State may remain set,
- * including when allocating local vector storage fails after kernel reservation.
- * Retry Destroy until cleanup succeeds before discarding the object. An object
- * can own only one allocation at a time. Serialize calls on the object and keep
- * the device stopped during allocation and teardown.
+ * Platform devices reserve the selected firmware source as one vector and
+ * require min == 1. Call DevicePrepare before querying an activated platform
+ * provider. The provider validates direct lines or attaches/programs translated
+ * messages with delivery blocked. SourceIndex is never a handler vector index.
+ * Manual line objects also reserve one vector without a provider lease.
  *
- * On x86, a released MSI/MSI-X vector that has been enabled is retired until reboot
- * because the platform cannot drain messages yet. Disable/Enable reuses the
- * reservation. Each Destroy/Allocate cycle uses another slot in the vector pool.
+ * PCI devices default to MSI-X, single-message MSI, then INTx. Drivers that only
+ * support particular PCI modes must use DeviceInterruptAllocatePci from
+ * pci-interrupt.h. Only unsupported capabilities and kernel vector exhaustion
+ * permit fallback; transport, configuration and provider conflicts are errors.
+ * Stop device interrupt sources during setup. Configure queues/causes before
+ * Enable; for PCI MSI-X vector i corresponds to table entry i.
+ *
+ * Failure sets countOut to zero and preserves any existing allocation. A failed
+ * rollback can leave State set, even if local vector storage allocation fails.
+ * Retry Destroy until successful before discarding the object. One object owns
+ * one allocation; serialize lifecycle calls and keep the device stopped during
+ * teardown. Disable synchronizes/unbinds handlers before Destroy releases the
+ * provider lease, which may retain platform clocks, reset and power dependencies.
+ *
+ * Enabled user message vectors can be retired until reboot when the platform
+ * cannot drain delayed writes. Disable/Enable reuses the existing reservation;
+ * repeated Destroy/Allocate cycles can consume the available message pool.
+ *
+ * @param interrupt Initialized object with no existing allocation.
+ * @param min Minimum acceptable count; one for platform or manual sources.
+ * @param optimal Preferred count, at least min; platform sources still use one.
+ * @param countOut Actual count on success, zero on failure.
+ * @return OS_EOK or an error; a retained State requires Destroy cleanup.
  */
 DDKDECL(oserr_t,
 DeviceInterruptAllocate(
     _InOut_ DeviceInterrupt_t* interrupt,
     _In_    uint32_t           min,
     _In_    uint32_t           optimal,
-    _In_    uint32_t           strategies,
     _Out_   uint32_t*          countOut));
 
 /**
@@ -210,8 +144,10 @@ DeviceInterruptAllocate(
  *
  * The index addresses the allocation's vector array. The initial PCI MSI-X
  * provider assigns this vector to the table entry with the same index.
- * INTx has no message and returns OS_ENOTSUPPORTED. Failure leaves messageOut
+ * Line sources have no message and return OS_ENOTSUPPORTED. Failure leaves messageOut
  * unchanged. Serialize this query with other operations on the allocation.
+ * A translated platform source also has a message, but its provider owns the
+ * upstream programming. Reading it does not transfer that responsibility.
  *
  * @param interrupt Successfully allocated interrupt object.
  * @param index Zero-based index less than Count.
@@ -226,9 +162,15 @@ DeviceInterruptGetMessage(
 
 /**
  * @brief Specifies acceptable CPUs before enabling the allocation.
- * INTx currently preserves platform routing: only UINT32_MAX (the default,
+ * Current backends preserve platform routing: only UINT32_MAX (the default,
  * meaning no additional restriction) is supported. Other masks return
  * OS_ENOTSUPPORTED rather than claiming a CPU assignment was made.
+ *
+ * @param interrupt Successfully allocated, editable interrupt object.
+ * @param index Allocation vector index, less than Count.
+ * @param affinityMask UINT32_MAX for existing routing; zero is invalid.
+ * @return OS_EOK, OS_ENOTSUPPORTED for other nonzero masks, OS_EBUSY while
+ *         bindings or cleanup prevent edits, or OS_EINVALPARAMS.
  */
 DDKDECL(oserr_t,
 DeviceInterruptSetAffinity(
@@ -240,6 +182,13 @@ DeviceInterruptSetAffinity(
  * @brief Sets a vector's fast handler while the allocation is disabled.
  * The handler is mapped and checked by the kernel during Enable, after all
  * resources have been described. A missing handler prevents Enable succeeding.
+ * Follow InterruptHandler_t's code/resource restrictions; ordinary callbacks
+ * that access driver globals or call library functions are not suitable.
+ *
+ * @param interrupt Successfully allocated, editable interrupt object.
+ * @param index Allocation vector index, less than Count.
+ * @param handler Non-NULL fast-handler entry point, retained until cleanup succeeds.
+ * @return OS_EOK, OS_EBUSY when not editable, or OS_EINVALPARAMS.
  */
 DDKDECL(oserr_t,
 DeviceInterruptSetHandler(
@@ -251,6 +200,13 @@ DeviceInterruptSetHandler(
  * @brief Gives one vector an event descriptor for deferred processing.
  * The descriptor and all registered resources must remain alive until Disable
  * or Destroy succeeds, because a running fast handler can still access them.
+ * libddk resolves the file descriptor to a native event handle stored in the
+ * resource table; a fast handler signals it through EventSignal.
+ *
+ * @param interrupt Successfully allocated, editable interrupt object.
+ * @param index Allocation vector index, less than Count.
+ * @param descriptor Nonnegative event descriptor with a valid native handle.
+ * @return OS_EOK, OS_EBUSY when not editable, or OS_EINVALPARAMS.
  */
 DDKDECL(oserr_t,
 DeviceInterruptSetDescriptor(
@@ -262,6 +218,14 @@ DeviceInterruptSetDescriptor(
  * @brief Adds an acquired I/O region that the kernel maps for this handler.
  * Returns OS_EOOM if the vector's resource table is full, so a driver never
  * enables a handler with a silently omitted register range.
+ * Entries occupy the first unused slot and retain that index during binding.
+ * Keep the descriptor and acquired mapping alive until cleanup succeeds.
+ *
+ * @param interrupt Successfully allocated, editable interrupt object.
+ * @param index Allocation vector index, less than Count.
+ * @param ioSpace Non-NULL acquired I/O region used by the fast handler.
+ * @return OS_EOK, OS_EOOM when no slots remain, OS_EBUSY when not editable,
+ *         or OS_EINVALPARAMS.
  */
 DDKDECL(oserr_t,
 DeviceInterruptAddIoResource(
@@ -273,6 +237,16 @@ DeviceInterruptAddIoResource(
  * @brief Adds memory that must remain accessible while the fast handler runs.
  * Address and length must describe a nonempty range without wrapping. The
  * kernel creates its own mapping, which the handler reads through its table.
+ * Binding preserves array indices and shares the original backing memory.
+ * Keep that backing alive until Disable or Destroy succeeds.
+ *
+ * @param interrupt Successfully allocated, editable interrupt object.
+ * @param index Allocation vector index, less than Count.
+ * @param address Nonzero start address in the driver's address space.
+ * @param length Nonzero accessible byte count without address wraparound.
+ * @param flags Zero or INTERRUPT_RESOURCE_DISABLE_CACHE.
+ * @return OS_EOK, OS_EOOM when no slots remain, OS_EBUSY when not editable,
+ *         or OS_EINVALPARAMS for an invalid range or flags.
  */
 DDKDECL(oserr_t,
 DeviceInterruptAddMemoryResource(
@@ -286,10 +260,16 @@ DeviceInterruptAddMemoryResource(
  * @brief Maps all handlers and resources before allowing them to run.
  * The driver must keep its device's interrupt source stopped during setup and
  * start device work only after success. Repeated Enable calls are harmless.
- * Kernel dispatch opens before deviced enables PCI MSI. If enabling MSI fails
- * or the response is lost, cleanup stops PCI delivery before waiting for handlers
+ * Kernel dispatch opens before the provider enables upstream delivery. If that fails
+ * or the response is lost, cleanup stops provider delivery before waiting for handlers
  * and unmapping them. If cleanup fails, Disable or Destroy must release the
  * remaining resources.
+ * An ordinary failed Disable is completed before a subsequent Enable rebinds
+ * handlers. An object whose Destroy has started cannot be enabled again.
+ *
+ * @param interrupt Successfully allocated object with every handler configured.
+ * @return OS_EOK when delivery is enabled, OS_EBUSY when setup/teardown prevents
+ *         reuse, or a handler, mapping, controller, or provider error.
  */
 DDKDECL(oserr_t,
 DeviceInterruptEnable(
@@ -298,11 +278,19 @@ DeviceInterruptEnable(
 /**
  * @brief Stops handler delivery and waits for running handlers to finish.
  * Stop interrupts at the device first: a shared INTx line may remain enabled
- * for another device. On success, handler mappings are released but the line
+ * for another device. On success, handler mappings are released but the group
  * reservation remains, allowing configuration changes and a later Enable.
- * For PCI MSI, deviced disables the capability before the kernel waits for
- * handlers. The driver must still stop its queues, DMA and other interrupt sources.
+ * When the provider controls upstream hardware, deviced masks it before kernel
+ * cleanup. Direct native lines are stopped by the kernel instead. The driver
+ * must still stop its queues, DMA and other interrupt sources.
  * Call from normal driver code, never from a fast interrupt handler.
+ * A failure retains cleanup state even for manual or PCI INTx lines. A later
+ * Enable finishes the incomplete stop before rebinding and reopening dispatch.
+ * Keep handler resources alive until Disable or Destroy succeeds.
+ *
+ * @param interrupt Initialized object; no allocation is a successful no-op.
+ * @return OS_EOK after provider stop and kernel handler cleanup, OS_EINVALPARAMS
+ *         for NULL, or a retryable provider/controller/unmapping error.
  */
 DDKDECL(oserr_t,
 DeviceInterruptDisable(
@@ -313,8 +301,15 @@ DeviceInterruptDisable(
  * Safe on an initialized or zeroed object and on repeated calls. If teardown
  * fails, ownership is retained so the caller can retry without losing resources.
  * Device identity and routing remain available for a later Allocate.
- * Retry a failed MSI Destroy until it succeeds. Enable rejects the object
- * because teardown may already have restored its PCI configuration.
+ * Once Destroy starts, setters and Enable reject the object for every source
+ * kind, even if a later Disable succeeds. Finish Destroy, then Allocate again;
+ * teardown may already have released part of the kernel or provider state.
+ * Successful Destroy clears allocation results, vector storage and State;
+ * it preserves the device identity, input flags and selected source for reuse.
+ *
+ * @param interrupt Initialized or zeroed object; must be non-NULL.
+ * @return OS_EOK after cleanup or when no allocation exists, OS_EINVALPARAMS
+ *         for NULL, or a cleanup error requiring another Destroy attempt.
  */
 DDKDECL(oserr_t,
 DeviceInterruptDestroy(

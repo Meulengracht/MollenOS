@@ -27,10 +27,17 @@ enum OSIOCtlRequest {
     OSIOCTLREQUEST_IO_REQUIREMENTS     = 1 | __IOCTL_IN,
     OSIOCTLREQUEST_PCI_INTERRUPT_QUERY = 2 | __IOCTL_IN,
     OSIOCTLREQUEST_PCI_INTERRUPT       = 3,
-    // Platform bus message interrupts use PciInterruptRequest lifecycle commands.
+    // Platform sources use DeviceInterruptSourceRequest lifecycle commands.
     OSIOCTLREQUEST_INTERRUPT_CONTROL   = 4,
-    // Returns PciInterruptSupport without exposing provider callback handles.
-    OSIOCTLREQUEST_INTERRUPT_QUERY     = 5 | __IOCTL_IN
+    // Queries one DeviceInterruptSourceQuery by firmware index.
+    OSIOCTLREQUEST_INTERRUPT_QUERY     = 5 | __IOCTL_IN,
+    // Copies registered IO resources, without mapping them into the driver.
+    OSIOCTLREQUEST_DEVICE_RESOURCES    = 6 | __IOCTL_IN,
+    // Prepares the device for register access, then enables/stops DMA separately.
+    OSIOCTLREQUEST_DEVICE_ACTIVATE     = 7,
+    // Retains the configured DMA path until the caller releases it after closing DMA.
+    OSIOCTLREQUEST_DMA_QUERY           = 8 | __IOCTL_IN,
+    OSIOCTLREQUEST_DMA_RELEASE         = 9
 };
 
 /**

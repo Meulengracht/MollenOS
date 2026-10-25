@@ -65,8 +65,9 @@ struct OSDmaMapParameters {
 };
 
 struct OSDmaMappingResult {
-    uuid_t   Handle;
-    uint32_t SegmentCount;
+    uuid_t                  Handle;
+    uint32_t                SegmentCount;
+    struct SHMDeviceSegment InlineSegment;
 };
 
 struct OSDmaAllocationResult {

@@ -468,8 +468,9 @@ UsbQueryController(
 
 /**
  * @brief Detaches a USB device from the specified controller.
- * @param controllerId The controller from which to detach the device.
- * @param device The USB device to detach.
+ * 
+ * @param controllerId The controller device ID carried in the detach request.
+ * @param device The USB device, including its controller driver IPC destination.
  * @return None.
  */
 DDKDECL(void,

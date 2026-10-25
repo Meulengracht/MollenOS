@@ -28,6 +28,9 @@
 #define HASHTABLE_LOADFACTOR_SHRINK 20 // Equals 20 percent load
 #define HASHTABLE_MINIMUM_CAPACITY  16
 
+// Retain capacity during removal; growth and explicit destruction still apply.
+#define HASHTABLE_FLAG_NO_SHRINK 0x1U
+
 // HashFn must return a 64-bit hash for the element given. The hash does
 // not need to be unique, but if two identical hashes should occur, then
 // CmpFn will be invoked on the two objects that share hash
@@ -43,13 +46,14 @@ typedef int (*hashtable_cmpfn)(const void* lh, const void* rh);
 typedef void (*hashtable_enumfn)(int index, const void* element, void* userContext);
 
 typedef struct hashtable {
-    size_t capacity;
-    size_t element_count;
-    size_t grow_count;
-    size_t shrink_count;
-    size_t element_size;
-    void*  swap;
-    void*  elements;
+    unsigned int flags;
+    size_t       capacity;
+    size_t       element_count;
+    size_t       grow_count;
+    size_t       shrink_count;
+    size_t       element_size;
+    void*        swap;
+    void*        elements;
 
     hashtable_hashfn hash;
     hashtable_cmpfn  cmp;

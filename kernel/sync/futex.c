@@ -317,12 +317,13 @@ CheckValue:
         SpinlockReleaseIrq(&futexItem->BlockQueueSyncObject);
         oserr = ThreadFork(asyncContext);
         if (oserr != OS_EFORKED) {
-            // If fork returned an actual error, then we are aborting the operation,
-            // and we should remember to do clenaup
+            // A failed fork has no child to complete the asynchronous wait.
             if (oserr != OS_EOK) {
                 (void)atomic_fetch_sub(&futexItem->Waiters, 1);
+                InterruptRestoreState(irqState);
+                return oserr;
             }
-            // In either case, we must restore irqs for the primary thread
+            // Only a successful fork lets the parent await a child completion.
             InterruptRestoreState(irqState);
             return OS_EFORKED;
         }

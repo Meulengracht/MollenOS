@@ -23,10 +23,17 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
+// this header must appear before the DDK's standalone ACPI subset to 
+// avoid conflicting platform macros.
 #include <acpiinterface.h>
-#include <arch/utils.h>
-#include <ddk/acpi.h>
+
+#include <ddk/types/interrupt-controller.h>
+#include <ddk/types/interrupt-group.h>
 #include <ddk/types/interrupt.h>
+#include <ddk/acpi.h>
+#include <string.h>
+
+#include <arch/utils.h>
 #include <capabilities.h>
 #include <deviceio.h>
 #include <firmware.h>
@@ -38,7 +45,6 @@
 #include <component/ic.h>
 #include <machine.h>
 #include <memoryspace.h>
-#include <string.h>
 
 oserr_t
 ScCapabilityGrant(
@@ -49,7 +55,7 @@ ScCapabilityGrant(
 }
 
 oserr_t
-ScInterruptControllerResolve(
+ScInterruptMessageControllerResolve(
     _In_  const InterruptMessageControllerIdentity_t* userQuery,
     _Out_ uuid_t*                                  userDomain)
 {
@@ -65,7 +71,7 @@ ScInterruptControllerResolve(
     if (status != OS_EOK) {
         return status;
     }
-    
+
     status = MemorySpaceCopyUser((void*)userQuery, &query, sizeof(query), false);
     if (status != OS_EOK) {
         return status;
@@ -75,8 +81,43 @@ ScInterruptControllerResolve(
     if (status != OS_EOK) {
         return status;
     }
-    
+
     return MemorySpaceCopyUser(userDomain, &domain, sizeof(domain), true);
+}
+
+oserr_t
+ScInterruptLineSourceResolve(
+    _In_  const InterruptLineSourceIdentity_t* userQuery,
+    _Out_ uuid_t*                              userController)
+{
+    InterruptLineSourceIdentity_t query;
+    uuid_t                        controller;
+    oserr_t                       status;
+
+    if (userQuery == NULL || userController == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Resolve a stable copy: userspace cannot change the firmware controller
+    // or line halfway through validation. No source is reserved by this call.
+    status = MemorySpaceCopyUser((void*)userQuery, &query, sizeof(query), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = InterruptLineSourceResolve(&query, &controller);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Copyout failure has no ownership to roll back, so the provider can retry
+    // the identical query without creating a second controller or lease.
+    return MemorySpaceCopyUser(userController, &controller, sizeof(controller), true);
 }
 
 oserr_t
@@ -235,7 +276,7 @@ ScFirmwareTableMap(
         (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
         return oserr;
     }
-    
+
     oserr = MemorySpaceChangeProtection(
         memorySpace, mapping, table.Length,
         MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_READONLY,
@@ -292,7 +333,7 @@ ScIoSpaceRegister(
     if (ioSpace == NULL) {
         return OS_EUNKNOWN;
     }
-    
+
     oserr = CapabilityVerify(CAPABILITY_DEVICEIO_MANAGEMENT);
     if (oserr != OS_EOK) {
         return oserr;
@@ -310,7 +351,7 @@ ScIoSpaceAcquire(
     if (IoSpace == NULL) {
         return OS_EUNKNOWN;
     }
-    
+
     oserr = CapabilityVerify(CAPABILITY_DEVICEIO_ACCESS);
     if (oserr != OS_EOK) {
         return oserr;
@@ -328,7 +369,7 @@ ScIoSpaceRelease(
     if (ioSpace == NULL) {
         return OS_EUNKNOWN;
     }
-    
+
     oserr = CapabilityVerify(CAPABILITY_DEVICEIO_ACCESS);
     if (oserr != OS_EOK) {
         return oserr;
@@ -346,7 +387,7 @@ ScIoSpaceDestroy(
     if (ioSpace == NULL) {
         return OS_EINVALPARAMS;
     }
-    
+
     oserr = CapabilityVerify(CAPABILITY_DEVICEIO_MANAGEMENT);
     if (oserr != OS_EOK) {
         return oserr;
@@ -380,7 +421,7 @@ ScIoSpaceMap(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    
+
     oserr = MemorySpaceCopyUser(userMapping, &mapping, sizeof(mapping), true);
     if (oserr != OS_EOK) {
         pageOffset = mapping % GetMemorySpacePageSize();
@@ -405,20 +446,20 @@ __CopyAndVerifyGroupRequest(
     if (status != OS_EOK) {
         return status;
     }
-    
+
     if (kernelRequest->Minimum == 0 || kernelRequest->Minimum > kernelRequest->Optimal) {
         return OS_EINVALPARAMS;
     }
-    if (kernelRequest->Strategies == 0 || (kernelRequest->Strategies & ~INTERRUPT_STRATEGY_ANY)) {
+    if (kernelRequest->Kind < InterruptSourceLine || kernelRequest->Kind > InterruptSourceMessage) {
         return OS_EINVALPARAMS;
     }
     if (kernelRequest->Flags & ~INTERRUPT_EXCLUSIVE) {
         return OS_EINVALPARAMS;
     }
 
-    // libddk checks PCI support before making this request. Vali has no device
-    // access checks yet. The group allocator negotiates MSI-X, single MSI or INTx.
-    if (kernelRequest->Strategies == INTERRUPT_STRATEGY_INTx && kernelRequest->Line.Line < 0) {
+    // Policy has already selected a resource kind. The kernel still validates
+    // the source and ownership; selecting a controller grants no device access.
+    if (kernelRequest->Kind != InterruptSourceMessage && kernelRequest->Line.Line < 0) {
         return OS_ENOENT;
     }
     return OS_EOK;
@@ -436,7 +477,7 @@ ScInterruptAllocate(
     if (userRequest == NULL || userResult == NULL) {
         return OS_EINVALPARAMS;
     }
-    
+
     oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
     if (oserr != OS_EOK) {
         return oserr;
@@ -446,7 +487,7 @@ ScInterruptAllocate(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    
+
     oserr = InterruptGroupCreate(&request, 0, &result);
     if (oserr != OS_EOK) {
         return oserr;
@@ -482,7 +523,7 @@ ScInterruptGetMessage(
     InterruptMessage_t       message;
     DeviceInterruptMessage_t result;
     oserr_t                  oserr;
-    
+
     oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
     if (oserr != OS_EOK) {
         return oserr;
@@ -529,7 +570,7 @@ ScInterruptBind(
     if (userRequest == NULL) {
         return OS_EINVALPARAMS;
     }
-    
+
     // get the request data
     oserr = MemorySpaceCopyUser(
         userRequest,
@@ -579,27 +620,9 @@ ScInterruptDisable(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return InterruptGroupSetEnabled(handle, 0);
-}
-
-oserr_t
-ScInterruptUnbind(
-    _In_ uuid_t handle)
-{
-    oserr_t oserr;
-
-    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    // Ownership check before we release resources asssociated
-    // with the interrupt
-    oserr = __CheckInterruptOwner(handle);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    return InterruptGroupUnbind(handle);
+    // The driver lifecycle always unmaps after stopping dispatch. Keep these
+    // steps under one group update so failures retain one retry obligation.
+    return InterruptGroupDisable(handle);
 }
 
 oserr_t

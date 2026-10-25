@@ -216,6 +216,14 @@ add_subdirectory (services)
 # Build modules
 add_subdirectory (modules)
 
+# Keep QEMU validation drivers opt-in, including when the testing submodule
+# is absent from a production checkout. They use the normal module build rules.
+option(VALI_EDU_SELFTEST "Build the QEMU EDU single-message MSI validation driver" OFF)
+option(VALI_ROCKER_SELFTEST "Build the QEMU Rocker MSI-X validation driver" OFF)
+if (VALI_EDU_SELFTEST OR VALI_ROCKER_SELFTEST)
+    add_subdirectory(testing/modules testing-modules)
+endif ()
+
 # Build tools
 add_subdirectory (tools)
 

@@ -127,8 +127,9 @@ static inline void __GetDeviceProtocol(
     TRACE("interface->AlternativeSetting=%u, interface->NumInterface=%u, interface->NumEndpoints=%u",
           interface->base.AlternativeSetting, interface->base.NumInterface, interface->base.NumEndpoints);
 
-    hidDevice->InterfaceId     = interface->base.NumInterface;
-    hidDevice->CurrentProtocol = HID_DEVICE_PROTOCOL_REPORT;
+    hidDevice->InterfaceId      = interface->base.NumInterface;
+    hidDevice->InterfaceSetting = interface->base.AlternativeSetting;
+    hidDevice->CurrentProtocol  = HID_DEVICE_PROTOCOL_REPORT;
     if (interface->base.Subclass == HID_SUBCLASS_BOOT) {
         hidDevice->CurrentProtocol = HID_DEVICE_PROTOCOL_BOOT;
     }

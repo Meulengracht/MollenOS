@@ -252,6 +252,7 @@ typedef struct HidDevice {
     size_t                     ReportLength;
     
     uint8_t                    InterfaceId;
+    uint8_t                    InterfaceSetting;
     uint8_t                    CurrentProtocol;
     usb_endpoint_descriptor_t* Interrupt;
 } HidDevice_t;

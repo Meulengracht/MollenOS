@@ -86,3 +86,21 @@ DeviceInterruptReap(
     // allocation. A missing reply from the driver alone is not enough evidence.
     return Syscall_InterruptReap(handle);
 }
+
+oserr_t
+DeviceInterruptMessageControllerResolve(
+    _In_  const InterruptMessageControllerIdentity_t* query,
+    _Out_ uuid_t*                                     idOut)
+{
+    // The kernel owns discovery and lifetime; resolving never creates a domain.
+    return Syscall_InterruptMessageControllerResolve(query, idOut);
+}
+
+oserr_t
+DeviceInterruptLineSourceResolve(
+    _In_  const InterruptLineSourceIdentity_t* query,
+    _Out_ uuid_t*                              idOut)
+{
+    // Verify firmware against the active controller before exposing the source.
+    return Syscall_InterruptLineSourceResolve(query, idOut);
+}

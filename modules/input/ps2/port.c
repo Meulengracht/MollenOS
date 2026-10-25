@@ -360,7 +360,7 @@ PS2PortRegisterInterrupt(
     uint32_t count;
     oserr_t status;
 
-    status = DeviceInterruptAllocate(&port->Interrupt, 1, 1, INTERRUPT_STRATEGY_INTx, &count);
+    status = DeviceInterruptAllocate(&port->Interrupt, 1, 1, &count);
     if (status != OS_EOK) {
         return status;
     }

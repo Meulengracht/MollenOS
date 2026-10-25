@@ -23,6 +23,7 @@
 #ifndef __VALI_INTERRUPT_GROUP_H__
 #define __VALI_INTERRUPT_GROUP_H__
 
+#include <ddk/types/interrupt-group.h>
 #include <interrupt_types.h>
 #include <ddk/types/interrupt.h>
 #include <ddk/types/interrupt-provider.h>
@@ -30,19 +31,21 @@
 /**
  * @brief Reserve disabled interrupts without programming PCI hardware.
  *
- * The core tries MSI-X first, then MSI, then INTx. MSI and INTx provide one
- * vector. MSI-X can provide several. Minimum must be between 1 and 2048 and
- * cannot exceed Optimal. The platform may grant fewer than Optimal vectors.
+ * The caller selects one resource kind; this layer never chooses PCI policy or
+ * falls back to another source. Lines require an exact count of one. Messages
+ * negotiate Minimum through Optimal, bounded by the controller and 2048 vectors.
+ * Fixed lines require an exact controller match and an architecture backend
+ * that preserves fixed routing (currently ARM). Legacy lines retain routing.
  *
  * ControllerID selects the message controller. User allocations must use an
  * ID found during platform discovery. Kernel tests can use 0 for the platform
  * controller.
  *
- * @param request Requested count, allowed methods, and interrupt line.
+ * @param request Resource kind, count, controller and optional line.
  * @param kernelHandlers Nonzero for kernel handlers. Zero binds handlers in the
  *        current process.
- * @param result Receives the group handle, count, selected method, and first
- *        message. The result is unchanged on failure.
+ * @param result Receives the group handle, count and resource kind. Query
+ *        messages by index after success. The result is unchanged on failure.
  * @return OS_EOK on success, or an allocation or validation error.
  */
 KERNELAPI oserr_t KERNELABI
@@ -86,7 +89,7 @@ InterruptGroupBind(
  * @param handle Group handle.
  * @param index Zero-based vector index.
  * @param message Receives the message address and data. Unchanged on failure.
- * @return OS_EOK on success, OS_ENOTSUPPORTED for INTx, or another error.
+ * @return OS_EOK on success, OS_ENOTSUPPORTED for line sources, or another error.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptGroupGetMessage(
@@ -100,6 +103,8 @@ InterruptGroupGetMessage(
  * Bind every vector and finish pending cleanup before enabling the group. Stop
  * device messages before disabling it. Disabling waits for running handlers,
  * but it cannot stop the PCI device or clear messages already in transit.
+ * If disabling fails, finish Disable or Unbind before enabling again; descriptor
+ * state may otherwise disagree with hardware after a partial controller stop.
  *
  * @param handle Group handle.
  * @param enable Set to 1 to enable the handlers or 0 to disable them.
@@ -109,6 +114,21 @@ KERNELAPI oserr_t KERNELABI
 InterruptGroupSetEnabled(
     _In_ uuid_t handle,
     _In_ int    enable);
+
+/**
+ * @brief Stop dispatch and remove handler mappings in one serialized operation.
+ *
+ * Device delivery must be stopped first. Waits for active handlers before
+ * unmapping their resources and retains the reservation/provider attachment.
+ * Failed cleanup blocks binding and enabling until Disable or Release succeeds.
+ * Kernel callers that intentionally retain bindings may use SetEnabled instead.
+ *
+ * @param handle Group handle.
+ * @return OS_EOK once all mappings are removed, or a retryable cleanup error.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptGroupDisable(
+    _In_ uuid_t handle);
 
 /**
  * @brief Remove handler mappings while keeping the group's interrupts reserved.
@@ -156,10 +176,13 @@ InterruptGroupReap(
     _In_ uuid_t handle);
 
 /**
- * @brief Attach provider callbacks to a disabled, unbound MSI-X group.
+ * @brief Attach a provider to a disabled message or validated fixed-line group.
  *
  * The group takes one reference to each callback, or none if attachment fails.
  * System calls must check provider permissions before calling this function.
+ * A native fixed group has one source, no completion callback and no message.
+ * Its controller, INTID and trigger flags must match the provider's description;
+ * legacy/manual line groups cannot use this attachment path.
  *
  * @param request Kernel copy of the request and vector array. Principal must be
  *        the driver's identity verified by the provider's message transport.

@@ -27,28 +27,111 @@
 #include <stdlib.h>
 #include "hid.h"
 
-static oserr_t __FillHidDescriptor(
-    _In_ HidDevice_t*        hidDevice,
-    _In_ UsbHidDescriptor_t* hidDescriptor)
+static oserr_t
+__FindHidDescriptor(
+    _In_  const uint8_t*      configuration,
+    _In_  size_t              capacity,
+    _In_  const HidDevice_t*  hidDevice,
+    _Out_ UsbHidDescriptor_t* hidDescriptor)
+{
+    const uint8_t*  descriptor;
+    size_t          length;
+    size_t          totalLength;
+    bool            selected = false;
+
+    if (capacity < sizeof(usb_config_descriptor_t)) {
+        return OS_EINVALPARAMS;
+    }
+
+    totalLength = configuration[2] | ((size_t)configuration[3] << 8);
+    if (configuration[1] != USB_DESCRIPTOR_CONFIG ||
+        configuration[0] < sizeof(usb_config_descriptor_t)) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (totalLength > capacity || totalLength < configuration[0]) {
+        return OS_EINVALPARAMS;
+    }
+
+    for (size_t offset = configuration[0]; offset < totalLength; offset += length) {
+        if (totalLength - offset < 2) {
+            return OS_EINVALPARAMS;
+        }
+
+        descriptor = configuration + offset;
+        length = descriptor[0];
+        if (length < 2 || length > totalLength - offset) {
+            return OS_EINVALPARAMS;
+        }
+        
+        if (descriptor[1] == USB_DESCRIPTOR_INTERFACE) {
+            if (length < sizeof(usb_interface_descriptor_t)) {
+                return OS_EINVALPARAMS;
+            }
+            
+            selected = descriptor[2] == hidDevice->InterfaceId &&
+                    descriptor[3] == hidDevice->InterfaceSetting &&
+                    descriptor[5] == USB_CLASS_HID;
+        } else if (selected && descriptor[1] == DESCRIPTOR_TYPE_HID) {
+            if (length < sizeof(UsbHidDescriptor_t) ||
+                descriptor[5] == 0 || descriptor[5] > (length - 6) / 3) {
+                return OS_EINVALPARAMS;
+            }
+            
+            for (unsigned int i = 0; i < descriptor[5]; i++) {
+                if (descriptor[6 + i * 3] != DESCRIPTOR_TYPE_REPORT) {
+                    continue;
+                }
+                memcpy(hidDescriptor, descriptor, 6);
+                memcpy(&hidDescriptor->ClassDescriptorType, descriptor + 6 + i * 3, 3);
+                return hidDescriptor->ClassDescriptorLength != 0 ? OS_EOK : OS_EINVALPARAMS;
+            }
+            return OS_ENOENT;
+        }
+    }
+    return OS_ENOENT;
+}
+
+static oserr_t
+__FillHidDescriptor(
+    _In_  HidDevice_t*        hidDevice,
+    _Out_ UsbHidDescriptor_t* hidDescriptor)
 {
     enum USBTransferCode status;
+    size_t               length = hidDevice->Base->DeviceContext.configuration_length;
+    uint8_t*             configuration;
+    oserr_t              oserr;
 
-    TRACE("__FillHidDescriptor(hidDevice=0x%" PRIxIN ", hidDescriptor=0x%" PRIxIN ")",
-          hidDevice, hidDescriptor);
+    if (length < sizeof(usb_config_descriptor_t)) {
+        return OS_EINVALPARAMS;
+    }
 
-    status = UsbExecutePacket(&hidDevice->Base->DeviceContext,
-                              USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
-                              USBPACKET_TYPE_GET_DESC, 0, DESCRIPTOR_TYPE_HID,
-                              (uint16_t)hidDevice->InterfaceId,
-                              sizeof(UsbHidDescriptor_t), (void*)hidDescriptor);
+    configuration = calloc(1, length);
+    if (configuration == NULL) {
+        return OS_EOOM;
+    }
 
+    // The HID descriptor belongs to the selected interface in the configuration.
+    // Some devices provide it only there and stall a standalone HID request.
+    // libusb's parsed configuration currently retains only interfaces/endpoints.
+    status = UsbExecutePacket(
+        &hidDevice->Base->DeviceContext,
+        USBPACKET_DIRECTION_IN,
+        USBPACKET_TYPE_GET_DESC,
+        0,
+        USB_DESCRIPTOR_CONFIG,
+        0,
+        (uint16_t)length,
+        configuration
+    );
     if (status != USBTRANSFERCODE_SUCCESS) {
-        ERROR("__FillHidDescriptor failed with code %u", status);
+        free(configuration);
         return OS_EUNKNOWN;
     }
-    else {
-        return OS_EOK;
-    }
+
+    oserr = __FindHidDescriptor(configuration, length, hidDevice, hidDescriptor);
+    free(configuration);
+    return oserr;
 }
 
 static oserr_t __FillReportDescriptor(

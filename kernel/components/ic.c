@@ -23,6 +23,7 @@
 
 //#define __TRACE
 
+#include <ddk/types/interrupt-controller.h>
 #include <assert.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
@@ -327,7 +328,11 @@ static int
 __ValidControllerQuery(
     _In_ const InterruptMessageControllerIdentity_t* query)
 {
-    if (query == NULL || query->Version != 1 || query->Reserved != 0) {
+    if (query == NULL || query->Version != 1) {
+        return 0;
+    }
+
+    if (query->Reserved != 0) {
         return 0;
     }
 
@@ -467,6 +472,80 @@ InterruptMessageControllerResolve(
     }
     TRACE("InterruptMessageControllerResolve: controller %u", controller->Id);
     return OS_EOK;
+}
+
+oserr_t
+InterruptLineSourceValidate(
+    _In_ uuid_t controllerId,
+    _In_ int    line)
+{
+#if defined(__aarch64__)
+    SystemInterruptController_t* controller;
+#endif
+
+    // Fixed device sources currently support shared peripheral interrupts only.
+    // Repeat the semantic check at allocation: callers can submit a resolved ID
+    // directly, and a GIC's registered range also includes CPU-local interrupts.
+    if (line < 32 || line >= 1020) {
+        WARNING("InterruptLineSourceValidate: invalid SPI %d", line);
+        return OS_EINVALPARAMS;
+    }
+
+#if defined(__aarch64__)
+    // Allocation already has a kernel identity. Do not reinterpret it as a
+    // firmware phandle or silently substitute another controller for this line.
+    controller = GetInterruptControllerByLine(line);
+    if (controller == NULL || controller->Id != controllerId) {
+        TRACE("InterruptLineSourceValidate: controller %u does not own line %d", controllerId, line);
+        return OS_ENOTSUPPORTED;
+    }
+    return OS_EOK;
+#else
+    // The current x86 resolver applies ACPI overrides even to fixed inputs.
+    // Until that backend can preserve an exact controller/line pair, reject
+    // this resource kind rather than validating one line and reserving another.
+    (void)controllerId;
+    (void)line;
+    return OS_ENOTSUPPORTED;
+#endif
+}
+
+oserr_t
+InterruptLineSourceResolve(
+    _In_  const InterruptLineSourceIdentity_t* query,
+    _Out_ uuid_t*                              idOut)
+{
+    oserr_t status;
+
+    if (query == NULL || idOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (query->Version != 1 || query->Reserved != 0 || query->FirmwareController == 0) {
+        WARNING("InterruptLineSourceResolve: invalid identity version %u, controller %u", query->Version, query->FirmwareController);
+        return OS_EINVALPARAMS;
+    }
+
+    if (query->Line < 32 || query->Line >= 1020) {
+        WARNING("InterruptLineSourceResolve: invalid SPI %u", query->Line);
+        return OS_EINVALPARAMS;
+    }
+
+#if defined(__aarch64__)
+    // ARM boot registers the primary GIC with its DT phandle as identity.
+    // Keep that firmware translation here; allocation only sees kernel IDs.
+    status = InterruptLineSourceValidate(query->FirmwareController, (int)query->Line);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    *idOut = query->FirmwareController;
+    TRACE("InterruptLineSourceResolve: controller %u, line %u", *idOut, query->Line);
+    return OS_EOK;
+#else
+    (void)status;
+    return OS_ENOTSUPPORTED;
+#endif
 }
 
 oserr_t

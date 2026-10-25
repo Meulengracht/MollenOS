@@ -17,15 +17,20 @@
  * Reserve, bind, and release interrupt vectors as a group.
  */
 
+#include <ddk/types/interrupt-controller.h>
+#include <ddk/types/interrupt-group.h>
+#include <ddk/types/interrupt-provider.h>
+#include <string.h>
+
 #include <interrupts_group.h>
 #include <interrupts.h>
 #include <interrupts_chain.h>
-#include <ddk/types/interrupt-provider.h>
+#include <component/ic.h>
 #include <heap.h>
 #include <handle.h>
 #include <memoryspace.h>
 #include <spinlock.h>
-#include <string.h>
+#include <debug.h>
 
 #define INTERRUPT_GROUP_LIMIT INTERRUPT_PROVIDER_MAX_VECTORS
 _Static_assert(MAX_SUPPORTED_INTERRUPTS <= UINT16_MAX,
@@ -65,8 +70,9 @@ struct __InterruptGroup {
     uuid_t                          Handle;
     uuid_t                          Owner;
     uuid_t                          ControllerID;
+    DeviceInterruptLine_t           FixedLine;
     struct __InterruptProviderLease Provider;
-    uint32_t                        Strategy;
+    InterruptSourceKind_t           Kind;
     uint32_t                        Count;
     int                             KernelHandlers;
     int                             Updating;
@@ -154,11 +160,27 @@ __ValidateGroupRequest(
         return OS_EINVALPARAMS;
     }
     
-    if (request->Strategies == 0 ||
-        (request->Strategies & ~INTERRUPT_STRATEGY_ANY) != 0) {
+    if (request->Kind < InterruptSourceLine || request->Kind > InterruptSourceMessage) {
+        WARNING("InterruptGroupCreate: invalid resource kind %u", request->Kind);
         return OS_EINVALPARAMS;
     }
     
+    // Count negotiation applies only to message vectors. A fixed hardware
+    // source cannot turn into multiple vectors or fall back to another route.
+    if (request->Kind != InterruptSourceMessage &&
+        (request->Minimum != 1 || request->Optimal != 1)) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (request->Kind == InterruptSourceMessage &&
+        (request->Line.Line || request->Line.Pin || request->Line.AcpiConform)) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (request->Kind == InterruptSourceLine && request->ControllerID != UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+
     if ((request->Flags & ~INTERRUPT_EXCLUSIVE) != 0) {
         return OS_EINVALPARAMS;
     }
@@ -201,7 +223,6 @@ static oserr_t
 __ReserveGroup(
     _In_  const InterruptGroupRequest_t* request,
     _In_  int                            kernelHandlers,
-    _In_  uint32_t                       strategy,
     _Out_ struct __InterruptGroup**      groupOut)
 {
     struct __InterruptGroup*       group;
@@ -214,18 +235,14 @@ __ReserveGroup(
     unsigned int                   flags = kernelHandlers ? INTERRUPT_KERNEL : 0;
     oserr_t                        status = OS_EBUSY;
     
-    // Only MSI-X supports multiple vectors.
-    capacity = strategy == INTERRUPT_STRATEGY_MSIX ? request->Optimal : 1;
+    // Policy was selected by the caller. Reserve exactly this resource kind;
+    // an exhausted message controller must not silently become a legacy line.
+    capacity = request->Optimal;
     if (capacity > INTERRUPT_GROUP_LIMIT) {
         capacity = INTERRUPT_GROUP_LIMIT;
     }
 
-    // MSI and INTx provide one vector. Skip them when the request needs more.
-    if (strategy != INTERRUPT_STRATEGY_MSIX && request->Minimum != 1) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    if (strategy != INTERRUPT_STRATEGY_INTx) {
+    if (request->Kind == InterruptSourceMessage) {
         status = InterruptGetMessageCapacity(request->ControllerID, kernelHandlers, &available);
         if (status != OS_EOK) {
             return status;
@@ -248,6 +265,18 @@ __ReserveGroup(
         if (request->Line.Line < 0) {
             return OS_ENOENT;
         }
+
+        if (request->Kind == InterruptSourceFixedLine) {
+            if (!(request->Line.AcpiConform & INTERRUPT_ACPICONFORM_FIXED)) {
+                return OS_EINVALPARAMS;
+            }
+
+            status = InterruptLineSourceValidate(request->ControllerID, request->Line.Line);
+            if (status != OS_EOK) {
+                return status;
+            }
+        }
+
         flags |= request->Flags;
     }
 
@@ -261,15 +290,16 @@ __ReserveGroup(
     atomic_init(&group->Enabled, 0);
     group->Owner = InterruptCurrentOwner();
     group->KernelHandlers = kernelHandlers;
-    group->Strategy = strategy;
+    group->Kind = request->Kind;
     group->ControllerID = request->ControllerID;
+    group->FixedLine = request->Line;
 
     // A candidate can be taken after enumeration. If it is busy, try the next one.
     for (ordinal = 0; group->Count < capacity; ordinal++) {
         descriptor = (InterruptDescriptor_t) {0};
         vector = &group->Vectors[group->Count];
         
-        if (strategy == INTERRUPT_STRATEGY_INTx) {
+        if (request->Kind != InterruptSourceMessage) {
             descriptor.Line = request->Line.Line;
             descriptor.Pin = request->Line.Pin;
             descriptor.AcpiConform = request->Line.AcpiConform;
@@ -290,7 +320,7 @@ __ReserveGroup(
 
         // InterruptReserve claims the vector atomically. Another group may get
         // there first, so a busy result sends us to the next candidate.
-        if (status == OS_EBUSY && strategy != INTERRUPT_STRATEGY_INTx) {
+        if (status == OS_EBUSY && request->Kind == InterruptSourceMessage) {
             continue;
         }
         if (status != OS_EOK) {
@@ -325,11 +355,6 @@ InterruptGroupCreate(
     _In_  int                            kernelHandlers,
     _Out_ InterruptGroupResult_t*        result)
 {
-    const uint32_t strategies[] = {
-        INTERRUPT_STRATEGY_MSIX,
-        INTERRUPT_STRATEGY_MSI,
-        INTERRUPT_STRATEGY_INTx
-    };
     struct __InterruptGroup* group = NULL;
     oserr_t                  status = OS_ENOTSUPPORTED;
     
@@ -342,20 +367,11 @@ InterruptGroupCreate(
         return status;
     }
 
-    // Try the requested strategies in order. Keep going when one is busy or unsupported.
-    for (unsigned int i = 0; i < sizeof(strategies) / sizeof(strategies[0]); i++) {
-        if (!(request->Strategies & strategies[i])) {
-            continue;
-        }
-        status = __ReserveGroup(request, kernelHandlers, strategies[i], &group);
-        if (status == OS_EOK) {
-            break;
-        }
-        if (status != OS_ENOTSUPPORTED && status != OS_EBUSY) {
-            return status;
-        }
-    }
-    if (group == NULL) {
+    TRACE("InterruptGroupCreate(kind=%u, controller=%u, count=%u/%u)",
+          request->Kind, request->ControllerID, request->Minimum, request->Optimal);
+    status = __ReserveGroup(request, kernelHandlers, &group);
+    if (status != OS_EOK) {
+        TRACE("InterruptGroupCreate: reservation failed: %u", status);
         return status;
     }
 
@@ -377,10 +393,7 @@ InterruptGroupCreate(
     
     result->Handle = group->Handle;
     result->Count = group->Count;
-    result->Strategy = group->Strategy;
-    result->AddressLow = (uint32_t)group->Vectors[0].Message.Address;
-    result->AddressHigh = (uint32_t)(group->Vectors[0].Message.Address >> 32);
-    result->Data = group->Vectors[0].Message.Data;
+    result->Kind = group->Kind;
     return OS_EOK;
 }
 
@@ -445,7 +458,7 @@ InterruptGroupGetMessage(
     
     if (index >= group->Count) {
         status = OS_EINVALPARAMS;
-    } else if (group->Strategy == INTERRUPT_STRATEGY_INTx) {
+    } else if (group->Kind != InterruptSourceMessage) {
         status = OS_ENOTSUPPORTED;
     } else {
         if (group->Unbinding) {
@@ -482,6 +495,14 @@ __DisableGroup(
             status = current;
         }
     }
+
+    if (status != OS_EOK) {
+        // A descriptor may still cache Enabled after its controller stop failed.
+        // Block every group caller, including kernel-only SetEnabled users,
+        // until explicit cleanup reconciles those descriptors and mappings.
+        group->Unbinding = 1;
+    }
+
     return status;
 }
 
@@ -579,7 +600,7 @@ __ShouldKeepGroupVector(
     // driver's handler. Keep the slot unavailable until reboot instead.
     return !group->KernelHandlers &&
         group->EverEnabled &&
-        group->Strategy != INTERRUPT_STRATEGY_INTx;
+        group->Kind == InterruptSourceMessage;
 }
 
 static oserr_t
@@ -609,6 +630,36 @@ __UnbindGroup(
     if (status == OS_EOK) {
         group->Unbinding = 0;
     }
+    return status;
+}
+
+oserr_t
+InterruptGroupDisable(
+    _In_ uuid_t handle)
+{
+    struct __InterruptGroup* group;
+    oserr_t                  status;
+
+    status = __BeginGroup(handle, &group);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Userspace Disable promises quiescence and removal of handler mappings.
+    // Hold the group across both steps so no competing bind or enable can slip
+    // between them. A failed controller stop also blocks reuse: dispatch has
+    // already closed, even if hardware shutdown is only partly complete.
+    group->Unbinding = 1;
+
+    status = __DisableGroup(group);
+    if (status == OS_EOK) {
+        status = __UnbindGroup(group);
+    }
+    if (status != OS_EOK) {
+        ERROR("InterruptGroupDisable: group %u cleanup failed: %u; retry required", handle, status);
+    }
+
+    __EndGroup(group);
     return status;
 }
 
@@ -791,7 +842,19 @@ __ProviderAttachGroup(
         return OS_ENOENT;
     }
     
-    if (group->ControllerID != request->ControllerID || group->Count != request->Count) {
+    if (group->Count != request->Count) {
+        return OS_EINVALPARAMS;
+    }
+    if (group->Kind == InterruptSourceFixedLine) {
+        if (group->ControllerID != request->ControllerID ||
+            group->FixedLine.Line != (int)request->Line || request->Vectors[0].Completion != UUID_INVALID) {
+            return OS_EINVALPARAMS;
+        }
+        
+        if (group->FixedLine.AcpiConform != request->LineFlags) {
+            return OS_EINVALPARAMS;
+        }
+    } else if (group->ControllerID != request->ControllerID || request->Line != 0 || request->LineFlags != 0) {
         return OS_EINVALPARAMS;
     }
 
@@ -918,11 +981,11 @@ __BeginProviderGroup(
     // Principal is the driver's process identity, obtained by the provider from
     // the message transport's verified sender information. Compare it with the
     // recorded owner: knowing a group handle alone does not authorize attachment.
-    // This provider API currently supports MSI-X groups only. Once attached,
+    // Only message or explicitly validated native fixed groups can attach. Once attached,
     // both the calling provider and its device identity must continue to match.
     if (group->KernelHandlers || group->Owner != principal) {
         status = OS_EPERMISSIONS;
-    } else if (group->Strategy != INTERRUPT_STRATEGY_MSIX) {
+    } else if (group->Kind == InterruptSourceLine) {
         status = OS_ENOTSUPPORTED;
     } else if (group->Provider.Provider != UUID_INVALID &&
                (group->Provider.Provider != InterruptCurrentOwner() ||
