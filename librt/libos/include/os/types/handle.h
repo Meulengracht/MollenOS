@@ -61,6 +61,12 @@ typedef struct OSHandleOps {
     void   (*Destroy)(struct OSHandle*);
     size_t (*Serialize)(struct OSHandle*, void*);
     size_t (*Deserialize)(struct OSHandle*, const void*);
+    // Optional release runs before unregistering the final owner.
+    // Failure keeps the descriptor and payload for retry. Keep identity and
+    // payload allocation intact; store cleanup progress inside the payload.
+    // On success, Destroy runs after unregistering to free the local payload.
+    // Without Release, Destroy still has its legacy all-in-one behavior.
+    oserr_t (*Release)(struct OSHandle*);
 } OSHandleOps_t;
 
 #endif //!__OS_TYPES_HANDLE_H__

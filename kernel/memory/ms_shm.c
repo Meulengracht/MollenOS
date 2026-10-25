@@ -1016,41 +1016,54 @@ SHMAttach(
     }
 
     __ConstructSHMHandle(
-            handle,
-            shmID,
-            shmBuffer->Length,
-            0,
-            0,
-            NULL
+        handle,
+        shmID,
+        shmBuffer->Length,
+        0,
+        0,
+        NULL
     );
     return OS_EOK;
 }
 
 oserr_t
 SHMDetach(
-        _In_ SHMHandle_t* handle)
+    _InOut_ SHMHandle_t* handle)
 {
+    oserr_t status;
+
     if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
 
     if (handle->Buffer != NULL) {
-        oserr_t oserr = SHMUnmap(
-                handle,
-                (vaddr_t)handle->Buffer,
-                handle->Length
-        );
-        if (oserr != OS_EOK) {
-            return oserr;
+        status = SHMUnmap(handle, (vaddr_t)handle->Buffer, handle->Length);
+        if (status != OS_EOK) {
+            return status;
         }
     }
 
-    // Did the handle refer to a source buffer? Then release our reference
-    // on it.
+    // Record each dropped reference. A failed final drop must not repeat the 
+    // conform source drop or successful unmap. EINCOMPLETE from DestroyHandle 
+    // means our reference WAS released; it only says that other owners remain. 
+    // It is not a retryable detach failure.
     if (handle->SourceID != UUID_INVALID) {
-        DestroyHandle(handle->SourceID);
+        status = DestroyHandle(handle->SourceID);
+        if (status != OS_EOK && status != OS_EINCOMPLETE) {
+            return status;
+        }
+        handle->SourceID = UUID_INVALID;
+        handle->SourceFlags = 0;
     }
-    return DestroyHandle(handle->ID);
+
+    if (handle->ID != UUID_INVALID) {
+        status = DestroyHandle(handle->ID);
+        if (status != OS_EOK && status != OS_EINCOMPLETE) {
+            return status;
+        }
+        handle->ID = UUID_INVALID;
+    }
+    return OS_EOK;
 }
 
 static oserr_t

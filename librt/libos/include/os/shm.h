@@ -22,9 +22,25 @@
 #include <os/types/handle.h>
 
 _CODE_BEGIN
+
+/**
+ * @brief Release a SHM attachment, preserving its owner when cleanup fails.
+ * The last local reference unmaps the CPU view and drops the kernel attachment.
+ * DMA mappings retain storage independently and must be reclaimed separately.
+ * Failure may leave partial cleanup; only retry release on that attachment.
+ * Successful release clears the slot. Serialize release against all other use.
+ * 
+ * @param handle Owning SHM slot. NULL/empty slots are harmless.
+ * @return OS_EOK or cleanup error. A failed release retains the slot and payload.
+ */
+CRTDECL(oserr_t,
+SHMRelease(
+        _InOut_ OSHandle_t* handle));
+
 /**
  * Creates a new page aligned memory buffer and provides the initial attachment.
  * The attachment will already be mapped into current address space and provided mappings.
+ * 
  * @param shm    [In] The information related to the buffer that should be created.
  * @param handle [In] The structure to fill with the attachment information.
  * @return Status of the operation.
@@ -37,6 +53,7 @@ SHMCreate(
 /**
  * Exports the memory buffer provided. The structure must be prefilled with most
  * of the information before being passed.
+ * 
  * @param buffer [In] The buffer that should be wrapped in a SHM instance. The buffer
  *                    must be page-aligned, otherwise the exporting will fail.
  * @param shm    [In] Options related to the export of the buffer.
@@ -55,7 +72,8 @@ SHMExport(
  * will automatically map the two (worst-case) buffers into the callers memory space.
  * OBS: This operation combines the functionality of an Attach/Map and because of it's memory
  * requirements should only be used scarcely, preferably by driver stacks that need to do this.
- * @param handle     The source SHM handle ID.
+ *
+ *  @param handle     The source SHM handle ID.
  * @param conformity The memory conformity requirements of the buffer.
  * @param flags      How the behaviour of the conformed buffer should be.
  * @param access     What kind of access the mapping should be created with, see SHM_ACCESS_*
@@ -77,6 +95,7 @@ SHMConform(
 
 /**
  * Attach to a memory buffer handle, but does not perform further actions.
+ * 
  * @param shmID  [In] The memory buffer handle to attach to.
  * @param handle [In] The structure to fill with the attachment information.
  * @return Status of the operation.
@@ -93,6 +112,7 @@ SHMAttach(
  * not change. When moving (when offset != initial offset) a mapping, the existing buffer will be destroyed
  * and a new one will be provided.
  * If the access flags change from the original mapping, the entire mapping will get the new flags applied.
+ * 
  * @param handle [In] The memory buffer attachment to map.
  * @param offset [In] The offset into the buffer the mapping should start.
  * @param length [In] The length of the buffer that should be mapped.
@@ -109,6 +129,7 @@ SHMMap(
 
 /**
  * Commits the address by allocating physical page to backup the virtual address
+ * 
  * @param handle  [In] The memory buffer attachment that should be resized.
  * @param address [In] The starting virtual address to commit from.
  * @param length  [In] The number of bytes to commit (will be rounded up to page-size).
@@ -122,6 +143,7 @@ SHMCommit(
 
 /**
  * Remove the mapping that has been previously created by its counterpart.
+ * 
  * @param handle [In] The memory buffer attachment to unmap from current addressing space.
  * @return Status of the operation.
  */
@@ -133,6 +155,7 @@ SHMUnmap(
 
 /**
  * @brief Returns the mapped buffer address represented by a shared-memory handle.
+ * 
  * @param handle Shared-memory handle to query.
  * @return The mapped buffer address, or NULL if it is not mapped.
  */
@@ -142,6 +165,7 @@ SHMBuffer(
 
 /**
  * @brief Returns the current mapped length of a shared-memory handle.
+ * 
  * @param handle Shared-memory handle to query.
  * @return The mapped length in bytes.
  */
@@ -151,6 +175,7 @@ SHMBufferLength(
 
 /**
  * @brief Returns the capacity of a shared-memory handle.
+ * 
  * @param handle Shared-memory handle to query.
  * @return The buffer capacity in bytes.
  */
@@ -163,6 +188,7 @@ SHMBufferCapacity(
  * The value returned is only valid for buffers that have been mapped, or exported.
  * That means either SHMMap, SHMConform or SHMExport must have been called on this
  * handle.
+ * 
  * @param handle The OS handle that represents a SHM buffer.
  * @return The current offset into the underlying buffer region this mapping represents.
  */
@@ -174,6 +200,7 @@ SHMBufferOffset(
  * Call this once with the count parameter to get the number of
  * scatter-gather entries, then the second time with the memory_sg parameter
  * to retrieve a list of all the entries
+ * 
  * @param handle [In]  Attachment to the memory buffer to query the list of memory entries
  * @param sg_table   [Out] Pointer to storage for the sg_table. This must be manually freed.
  * @param max_count  [In]  Max number of entries, if 0 or below it will get all number of entries.
@@ -187,6 +214,7 @@ SHMGetSGTable(
 
 /**
  * Converts a virtual buffer offset into a memory_sg index + offset
+ * 
  * @param sgTable  [In]  Scatter-gather table to perform the lookup in.
  * @param offset    [In]  The offset that should be converted to a sg-index/offset 
  * @param sg_index  [Out] A pointer to the variable for the index.

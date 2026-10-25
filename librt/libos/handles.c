@@ -20,6 +20,7 @@
 #include <internal/_syscalls.h>
 #include <os/handle.h>
 #include <os/spinlock.h>
+#include <ddk/utils.h>
 #include <string.h>
 
 struct __LocalHandle {
@@ -30,12 +31,22 @@ struct __LocalHandle {
     // support fileviews and other similar concepts, which are mostly
     // local to the process.
     int References;
+    // Closing excludes new aliases after a possibly partial final release.
+    bool Closing;
+    // Releasing excludes simultaneous cleanup while the registry is unlocked.
+    bool Releasing;
+};
+
+struct __HandleLookup {
+    uuid_t               ID;
+    struct __LocalHandle Match;
+    unsigned int         Matches;
 };
 
 #define OSHANDLE_FLAG_OWNERSHIP 0x0001
 
-static uint64_t handle_hash(const void* element);
-static int      handle_cmp(const void* element1, const void* element2);
+static uint64_t __HandleHash(const void* element);
+static int      __HandleCompare(const void* element1, const void* element2);
 
 static const OSHandleOps_t g_nullOps = {};
 extern const OSHandleOps_t g_osFileOps;
@@ -59,18 +70,18 @@ static spinlock_t  g_osHandlesLock;
 void OSHandlesInitialize(void)
 {
     hashtable_construct(
-            &g_osHandles,
-            0,
-            sizeof(struct __LocalHandle),
-            handle_hash,
-            handle_cmp
+        &g_osHandles,
+        0,
+        sizeof(struct __LocalHandle),
+        __HandleHash,
+        __HandleCompare
     );
     spinlock_init(&g_osHandlesLock);
 }
 
 static void
 __InsertHandle(
-        _In_ struct OSHandle* handle)
+    _In_ struct OSHandle* handle)
 {
     void* result;
 
@@ -93,9 +104,9 @@ __InsertHandle(
 
 oserr_t
 OSHandleCreate(
-        _In_ enum OSHandleType type,
-        _In_ void*             payload,
-        _In_ struct OSHandle*  handle)
+    _In_ enum OSHandleType type,
+    _In_ void*             payload,
+    _In_ struct OSHandle*  handle)
 {
     oserr_t oserr;
 
@@ -117,11 +128,11 @@ OSHandleCreate(
 
 oserr_t
 OSHandleWrap(
-        _In_ uuid_t            id,
-        _In_ enum OSHandleType type,
-        _In_ void*             payload,
-        _In_ bool              ownership,
-        _In_ struct OSHandle*  handle)
+    _In_ uuid_t            id,
+    _In_ enum OSHandleType type,
+    _In_ void*             payload,
+    _In_ bool              ownership,
+    _In_ struct OSHandle*  handle)
 {
     handle->ID = id;
     handle->Type = type;
@@ -131,57 +142,113 @@ OSHandleWrap(
     return OS_EOK;
 }
 
-void
-OSHandleDestroy(
-        _In_ struct OSHandle* handle)
+oserr_t
+OSHandleRelease(
+    _InOut_ struct OSHandle* handle)
 {
     const struct OSHandleOps* handlers;
-    struct __LocalHandle*     entry;
+    struct __LocalHandle     key = { 0 };
+    struct __LocalHandle*    entry;
+    struct OSHandle          owned;
+    oserr_t                  status = OS_EOK;
+    bool                     finalize = false;
+
+    if (handle == NULL || handle->ID == UUID_INVALID) {
+        return OS_EOK;
+    }
+
+    if (handle->Type >= __OSHANDLE_COUNT) {
+        return OS_EINVALPARAMS;
+    }
+
+    key.OSHandle = *handle;
+    
+    spinlock_acquire(&g_osHandlesLock);
+    entry = hashtable_get(&g_osHandles, &key);
+    if (entry == NULL) {
+        status = OS_ENOENT;
+        goto unlock;
+    }
+    
+    if (entry->OSHandle.Type != handle->Type || entry->OSHandle.Payload != handle->Payload) {
+        status = OS_EINVALPARAMS;
+        goto unlock;
+    }
+    
+    if (entry->Releasing) {
+        status = OS_EBUSY;
+        goto unlock;
+    }
+    
+    if (entry->References > 1) {
+        // A local alias shares its attachment. Dropping that alias must not
+        // unmap the CPU view or make a syscall while another local owner exists.
+        entry->References--;
+        memset(handle, 0, sizeof(*handle));
+        goto unlock;
+    }
+
+    entry->Closing = true;
+    entry->Releasing = true;
+    owned = entry->OSHandle;
+    spinlock_release(&g_osHandlesLock);
+
+    // Cleanup may block, yield or insert other handles. Copy the descriptor,
+    // and look up the entry again afterwards: table growth can relocate it.
+    // Keeping the entry reserved makes reentrant release/acquire fail safely.
+    handlers = g_osHandlers[owned.Type];
+    if (handlers->Release != NULL) {
+        status = handlers->Release(&owned);
+    } else if (handlers->Destroy != NULL) {
+        handlers->Destroy(&owned);
+    } else if (owned.Flags & OSHANDLE_FLAG_OWNERSHIP) {
+        status = Syscall_DestroyHandle(owned.ID);
+        // The kernel dropped our reference even when other references remain.
+        if (status == OS_EINCOMPLETE) {
+            status = OS_EOK;
+        }
+    }
 
     spinlock_acquire(&g_osHandlesLock);
-    entry = hashtable_get(
-            &g_osHandles,
-            &(struct __LocalHandle) {
-                .OSHandle.ID = handle->ID
-            }
-    );
-    if (entry) {
-        // Since we support local references, it's important that we handle
-        // the case where the handle is not actually supposed to be deleted.
-        // Instead we simply reduce the reference count and move on
-        if (entry->References > 1) {
-            entry->References--;
-            hashtable_set(&g_osHandles, entry);
-
-            // Set entry to null to return immediately. Act like it never
-            // existed.
-            entry = NULL;
-        } else {
-            // If the reference count simply was one, we remove it immediately
-            // and continue onwards.
-            hashtable_remove(&g_osHandles, entry);
-        }
-    }
-    spinlock_release(&g_osHandlesLock);
-    if (entry == NULL) {
-        return;
-    }
-
-    // Let the custom destructor handle it if it's set.
-    handlers = g_osHandlers[handle->Type];
-    if (handlers->Destroy) {
-        handlers->Destroy(handle);
+    entry = hashtable_get(&g_osHandles, &key);
+    if (status == OS_EOK) {
+        hashtable_remove(&g_osHandles, &key);
+        memset(handle, 0, sizeof(*handle));
+        finalize = handlers->Release != NULL && handlers->Destroy != NULL;
     } else {
-        // Otherwise we do the default destructor
-        if (handle->Flags & OSHANDLE_FLAG_OWNERSHIP) {
-            (void)Syscall_DestroyHandle(handle->ID);
-        }
+        // The payload holds any completed cleanup stages. Keep the last local
+        // reference and disallow new users, but allow this owner to retry.
+        entry->Releasing = false;
+    }
+
+unlock:
+    spinlock_release(&g_osHandlesLock);
+    if (finalize) {
+        // The payload is also the attachment key. Keep it allocated until the
+        // old entry is gone, so allocator reuse cannot replace a reserved key.
+        handlers->Destroy(&owned);
+    }
+    return status;
+}
+
+void
+OSHandleDestroy(
+    _In_ struct OSHandle* handle)
+{
+    oserr_t status;
+
+    // Preserve the legacy entry point without throwing away failed ownership.
+    // Callers with retryable lifetimes must consume OSHandleRelease's status.
+    status = OSHandleRelease(handle);
+    if (status != OS_EOK) {
+        (void)Syscall_Debug(OSSYSLOGLEVEL_WARNING,
+            "OSHandleDestroy: release failed; owner retained, retry with OSHandleRelease");
     }
 }
 
 oserr_t
 OSHandlesAcquire(
-        _In_ struct OSHandle* handle)
+    _In_ struct OSHandle* handle)
 {
     oserr_t               oserr = OS_ENOENT;
     struct __LocalHandle* entry;
@@ -190,35 +257,13 @@ OSHandlesAcquire(
     entry = hashtable_get(
             &g_osHandles,
             &(struct __LocalHandle) {
-                    .OSHandle.ID = handle->ID
+                    .OSHandle = *handle
             }
     );
-    if (entry != NULL) {
+    if (entry != NULL && entry->Closing) {
+        oserr = OS_EBUSY;
+    } else if (entry != NULL) {
         entry->References++;
-        hashtable_set(&g_osHandles, entry);
-        oserr = OS_EOK;
-    }
-    spinlock_release(&g_osHandlesLock);
-    return oserr;
-}
-
-oserr_t
-OSHandlesFind(
-        _In_ uuid_t           id,
-        _In_ struct OSHandle* handle)
-{
-    oserr_t               oserr = OS_ENOENT;
-    struct __LocalHandle* entry;
-
-    spinlock_acquire(&g_osHandlesLock);
-    entry = hashtable_get(
-            &g_osHandles,
-            &(struct __LocalHandle) {
-                    .OSHandle.ID = id
-            }
-    );
-    if (entry != NULL) {
-        memcpy(handle, &entry->OSHandle, sizeof(struct OSHandle));
         oserr = OS_EOK;
     }
     spinlock_release(&g_osHandlesLock);
@@ -226,9 +271,69 @@ OSHandlesFind(
 }
 
 static void
+__FindAttachment(
+    _In_ int         index,
+    _In_ const void* element,
+    _In_ void*       context)
+{
+    const struct __LocalHandle* entry = element;
+    struct __HandleLookup*      lookup = context;
+
+    _CRT_UNUSED(index);
+    if (entry->OSHandle.ID == lookup->ID) {
+        lookup->Match = *entry;
+        lookup->Matches++;
+    }
+}
+
+oserr_t
+OSHandlesFind(
+    _In_  uuid_t           id,
+    _Out_ struct OSHandle* handle)
+{
+    oserr_t               status = OS_ENOENT;
+    struct __LocalHandle* entry;
+    struct __HandleLookup lookup = { .ID = id };
+
+    spinlock_acquire(&g_osHandlesLock);
+    entry = hashtable_get(
+        &g_osHandles,
+        &(struct __LocalHandle) {
+            .OSHandle.ID = id
+        }
+    );
+    if (entry == NULL) {
+        // Ordinary handles keep their ID-only index. Independent SHM views
+        // need a payload key, so the legacy ID-only query may be ambiguous.
+        // Attachment acquire/release use the full key and never take this scan.
+        hashtable_enumerate(&g_osHandles, __FindAttachment, &lookup);
+        if (lookup.Matches > 1) {
+            status = OS_EEXISTS;
+            goto unlock;
+        }
+        if (lookup.Matches == 1) {
+            entry = &lookup.Match;
+        }
+    }
+
+    if (entry != NULL) {
+        if (entry->Closing) {
+            status = OS_EBUSY;
+        } else {
+            *handle = entry->OSHandle;
+            status = OS_EOK;
+        }
+    }
+
+unlock:
+    spinlock_release(&g_osHandlesLock);
+    return status;
+}
+
+static void
 __SerializeHandle(
-        _In_ struct OSHandle* handle,
-        _In_ uint8_t*         buffer)
+    _In_ struct OSHandle* handle,
+    _In_ uint8_t*         buffer)
 {
     *((uuid_t*)buffer) = handle->ID;
     *((uint16_t*)&buffer[sizeof(uuid_t)]) = handle->Type;
@@ -237,8 +342,8 @@ __SerializeHandle(
 
 size_t
 OSHandleSerialize(
-        _In_ struct OSHandle* handle,
-        _In_ void*            buffer)
+    _In_ struct OSHandle* handle,
+    _In_ void*            buffer)
 {
     const struct OSHandleOps* handlers;
     uint8_t*                  buffer8 = buffer;
@@ -257,8 +362,8 @@ OSHandleSerialize(
 
 static void
 __DeserializeHandle(
-        _In_ struct OSHandle* handle,
-        _In_ const uint8_t*   buffer)
+    _In_ struct OSHandle* handle,
+    _In_ const uint8_t*   buffer)
 {
     handle->ID = *((uuid_t*)&buffer[0]);
     handle->Type = *((uint16_t*)&buffer[sizeof(uuid_t)]);
@@ -268,8 +373,8 @@ __DeserializeHandle(
 
 size_t
 OSHandleDeserialize(
-        _In_ struct OSHandle* handle,
-        _In_ const void*      buffer)
+    _In_ struct OSHandle* handle,
+    _In_ const void*      buffer)
 {
     const struct OSHandleOps* handlers;
     const uint8_t*            buffer8 = buffer;
@@ -286,15 +391,35 @@ OSHandleDeserialize(
     return __HEADER_SIZE_RAW;
 }
 
-static uint64_t handle_hash(const void* element)
+static uint64_t
+__HandleHash(
+    _In_ const void* element)
 {
     const struct __LocalHandle* handle = element;
-    return handle->OSHandle.ID;
+    uint64_t                    hash = handle->OSHandle.ID;
+
+    // SHMAttach creates an independent view and kernel reference for each
+    // payload, even when the storage ID is shared. Aliases keep that payload.
+    if (handle->OSHandle.Type == OSHANDLE_SHM) {
+        hash ^= ((uint64_t)(uintptr_t)handle->OSHandle.Payload >> 3) * UINT64_C(0x9e3779b97f4a7c15);
+    }
+    return hash;
 }
 
-static int handle_cmp(const void* element1, const void* element2)
+static int
+__HandleCompare(
+    _In_ const void* element1,
+    _In_ const void* element2)
 {
     const struct __LocalHandle* handle1 = element1;
     const struct __LocalHandle* handle2 = element2;
-    return handle1->OSHandle.ID == handle2->OSHandle.ID ? 0 : -1;
+
+    if (handle1->OSHandle.ID != handle2->OSHandle.ID) {
+        return -1;
+    }
+    if (handle1->OSHandle.Type == OSHANDLE_SHM || handle2->OSHandle.Type == OSHANDLE_SHM) {
+        return handle1->OSHandle.Type == handle2->OSHandle.Type &&
+               handle1->OSHandle.Payload == handle2->OSHandle.Payload ? 0 : -1;
+    }
+    return 0;
 }

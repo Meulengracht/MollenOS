@@ -24,154 +24,187 @@
 
 _CODE_BEGIN
 
-// Forward declarations
+struct DMAContext;
+struct DMABuffer;
 struct DMAMapping;
 
 /**
- * @brief Open DMA access for an assigned device, with its inclusive address limit.
- * The grant must come from authorized device registration; a deviced DeviceId
- * or a physical address is not a grant. Drivers cannot supply ranges or cache
- * policy. UINT32_MAX limits device addresses to 32 bits; UINT64_MAX adds no limit.
+ * @brief Retain a registered device's provider path and open its DMA domain.
+ * Does not enable hardware. All drivers use the same API, including coherent
+ * devices. The kernel selects cache work and bounce backing from the provider
+ * policy; device addresses are never assumed to equal CPU physical addresses.
+ * Device authorization still uses the existing device identity pending Handle
+ * Grants. The context is local to this process and cannot be copied over IPC.
  *
- * This release returns OS_ENOTSUPPORTED: device grants and recovery are not yet
- * connected. There is deliberately no fallback to physical SHM addresses.
- *
- * @param deviceGrant Kernel-issued device grant belonging to this caller.
- * @param addressLimit Largest address the controller can use, including the last byte.
- * @param contextOut Owning slot initialized to NULL; unchanged on failure.
- * @return OS_EOK, OS_EINVALPARAMS, OS_EBUSY for an occupied slot, OS_EOOM,
- *         OS_ENOTSUPPORTED while unavailable, or a kernel error.
+ * @param device Registered controller identity.
+ * @param addressLimit Inclusive maximum device address; UINT64_MAX adds no limit.
+ * @param contextOut Empty owning slot. On failure it may retain a cleanup-only
+ * context if provider rollback failed; always close a non-NULL slot. Such a
+ * context refuses allocations and mappings and is usable only with DMAClose.
+ * @return OS_EOK, OS_EBUSY for an existing context, or provider/kernel error.
  */
 DDKDECL(oserr_t,
 DMAOpen(
-    _In_  uuid_t   deviceGrant,
-    _In_  uint64_t addressLimit,
-    _Out_ uuid_t*  handleOut));
+    _In_    uuid_t              device,
+    _In_    uint64_t            addressLimit,
+    _InOut_ struct DMAContext** contextOut));
 
 /**
- * @brief Allocate zeroed SHM for structures the CPU and controller keep sharing.
- * The allocation never bounces. Requirements apply to device addresses and may
- * fail even when ordinary RAM is available. Segments cover the page-rounded
- * allocation. Use SHMBuffer(bufferOut) for CPU access and DMAGetSegments for
- * hardware addresses. Keep ring publication/completion barriers in the driver.
+ * @brief Close a context after all buffers and mappings have been released.
+ * Serialize close against creation and other close calls. Separate children may
+ * be used concurrently. A busy close leaves an open context usable. Once kernel
+ * close starts, creation is refused; failed teardown is retried with this same
+ * object, including provider release after successful kernel close. Also retries
+ * any unpublished resources retained after a failed creation's cleanup.
  *
- * Stop hardware before cleanup. First DMAUnmap the mapping; only after success
- * destroy the SHM handle with OSHandleDestroy. These are separate owners. Do not
- * pass this mapping to the streaming sync calls; both sides keep using it.
+ * @param context Owning slot; cleared on success. NULL/empty slots are harmless.
+ * @return OS_EOK, OS_EBUSY for live children, or cleanup/provider/kernel error.
+ */
+DDKDECL(oserr_t,
+DMAClose(
+    _InOut_ struct DMAContext** context));
+
+/**
+ * @brief Allocate zeroed memory continuously shared by the CPU and controller.
+ * Never bounces and needs no streaming handoffs. The object owns both its CPU
+ * attachment and device mapping. Driver publication/completion barriers are
+ * still required. A single segment arrives inline in the allocation syscall;
+ * fragmented lists are fetched once before success. Accessors never allocate,
+ * perform syscalls or fail for a live object.
  *
- * @param context Open context; no hardware is started by allocation.
- * @param requirements Byte length, alignment, boundary and contiguous requirement.
- * @param bufferOut Empty OSHandle (zero initialized); unchanged on failure.
- * @param mappingOut Owning slot initialized to NULL; unchanged on failure.
- * @return OS_EOK, argument/allocation errors, or the kernel error. No physical
- *         allocation or weaker requirement is substituted on failure.
+ * @param context Open device context; serialize creation against context close.
+ * @param requirements Device-address constraints; size is rounded to whole pages.
+ * @param bufferOut Empty owning slot; unchanged on failure, including list failure.
+ * @return OS_EOK or argument, allocation, translation or kernel error.
  */
 DDKDECL(oserr_t,
 DMAAllocate(
-    _In_    uuid_t                              dmaHandle,
-    _In_    const struct SHMDeviceRequirements* requirements,
-    _InOut_ OSHandle_t*                         bufferOut,
-    _InOut_ struct DMAMapping**                 mappingOut));
+    _In_    struct DMAContext*            context,
+    _In_    const struct DMARequirements* requirements,
+    _InOut_ struct DMABuffer**            bufferOut));
 
 /**
- * @brief Map committed, SHM-owned bytes for a transfer and retain their storage.
- * The kernel may use the original pages or a bounce buffer. The result starts
- * CPU-owned. An arbitrary exported pointer or physical scatter/gather list is
- * not an acceptable substitute. The kernel must check caller rights to SHM.
+ * @brief Borrow the CPU view of a live allocation. Performs no kernel calls.
+ * @param buffer Live allocation, not undergoing cleanup.
+ * @return CPU pointer, valid until cleanup begins; never free it directly.
+ */
+DDKDECL(void*,
+DMABufferData(
+    _In_ const struct DMABuffer* buffer));
+
+/**
+ * @brief Get the actual, page-rounded allocation size without a kernel call.
+ * @param buffer Live allocation.
+ * @return Bytes covered by both the CPU view and device segments.
+ */
+DDKDECL(size_t,
+DMABufferSize(
+    _In_ const struct DMABuffer* buffer));
+
+/**
+ * @brief Borrow immutable device addresses for the entire allocation.
+ * @param buffer Live allocation, not undergoing cleanup.
+ * @param countOut Receives the number of entries.
+ * @return Borrowed list valid until successful free; no allocation or syscall.
+ */
+DDKDECL(const struct DMASegment*,
+DMABufferSegments(
+    _In_  const struct DMABuffer* buffer,
+    _Out_ uint32_t*               countOut));
+
+/**
+ * @brief Release an allocation after the driver has stopped hardware use.
+ * Releases the device mapping before its CPU attachment. Failure retains the
+ * owner for retry, including partial cleanup; do not use it again for DMA.
+ * This does not halt hardware or synchronize interrupt handlers.
+ * @param buffer Owning slot; cleared on success. NULL/empty slots are harmless.
+ * @return OS_EOK or kernel cleanup error.
+ */
+DDKDECL(oserr_t,
+DMAFree(
+    _InOut_ struct DMABuffer** buffer));
+
+/**
+ * @brief Map committed SHM-owned bytes for streaming DMA, initially CPU-owned.
+ * Retains the storage independently of the caller's SHM attachment. The kernel
+ * may bounce inaccessible or cache-line-unsafe storage. Arbitrary exported
+ * pointers are unsupported. Segments describe the mapped bytes in buffer order,
+ * not the original physical layout; hardware descriptor limits remain the
+ * driver's responsibility. The segment list is ready when this call succeeds.
  *
- * @param context Open context for the controller that will perform the transfer.
- * @param buffer Existing SHM handle. The mapping retains storage independently.
- * @param offset First byte relative to the entire SHM buffer, not its CPU view.
- * @param length Nonzero bytes to map; does not implicitly commit missing pages.
- * @param direction ToDevice means hardware reads; FromDevice means it writes.
- * @param mappingOut Owning slot initialized to NULL; unchanged on failure.
- * @return OS_EOK, argument/allocation errors, or the kernel error.
+ * @param context Open controller context; serialize creation against close.
+ * @param buffer Existing SHM handle; its attachment remains caller-owned.
+ * @param offset First byte relative to the whole SHM buffer, not its CPU view.
+ * @param length Nonzero committed bytes to map; missing pages are not committed.
+ * @param direction Direction of hardware access, fixed for this mapping.
+ * @param mappingOut Empty owning slot; unchanged on failure.
+ * @return OS_EOK or argument, allocation, translation or kernel error.
  */
 DDKDECL(oserr_t,
 DMAMapSHM(
-    _In_    uuid_t                  dmaHandle,
-    _In_    const OSHandle_t*       buffer,
-    _In_    size_t                  offset,
-    _In_    size_t                  length,
-    _In_    enum SHMDeviceDirection direction,
-    _InOut_ struct DMAMapping**     mappingOut));
+    _In_    struct DMAContext*  context,
+    _In_    const OSHandle_t*   buffer,
+    _In_    size_t              offset,
+    _In_    size_t              length,
+    _In_    enum DMADirection   direction,
+    _InOut_ struct DMAMapping** mappingOut));
 
 /**
- * @brief Borrow the device-address list, copied into local storage on first use.
- * Entries describe the mapped bytes in buffer order. They can differ from SHM's
- * physical entries because translation can split ranges or use bounce pages.
- * No entry implies a controller-specific maximum transfer length: drivers must
- * still split transfer descriptors as their hardware requires.
- *
- * @param mapping Live mapping; serialize calls with sync and release on this object.
- * @param segmentsOut Borrowed read-only list, valid until successful DMAUnmap.
- * @param countOut Number of entries; both outputs remain unchanged on failure.
- * @return OS_EOK, OS_EOOM, OS_EINVALPARAMS, or a kernel error. A query failure
- *         leaves the mapping owned and available for retry or unmap.
+ * @brief Borrow the mapping's immutable device-address list without kernel work.
+ * @param mapping Live mapping; serialize calls with release on this object.
+ * @param countOut Receives the number of entries.
+ * @return Borrowed list valid until successful unmap, including across handoffs.
  */
-DDKDECL(oserr_t,
-DMAGetSegments(
-    _In_  struct DMAMapping*              mapping,
-    _Out_ const struct SHMDeviceSegment** segmentsOut,
-    _Out_ uint32_t*                       countOut));
+DDKDECL(const struct DMASegment*,
+DMAMappingSegments(
+    _In_  const struct DMAMapping* mapping,
+    _Out_ uint32_t*                countOut));
 
 /**
- * @brief Publish transfer data before submitting it to hardware.
- * Cache handling and bounce copies happen in the kernel. Ownership is for the
- * whole mapping: the CPU and other SHM users must not touch any of its bytes
- * until completion and DMASyncForCpu. Calls on one mapping must be serialized.
+ * @brief Hand the whole mapping to the device before publishing descriptors.
+ * The active range controls cache work and bounce copies, not ownership scope.
+ * No CPU or other SHM user may access any mapped bytes until successful end.
+ * Calls on a mapping must be serialized. Does not start or wait for hardware.
+ * Uses one syscall on every architecture, with no RPC or allocation.
  *
- * @param mapping Streaming mapping from DMAMapSHM; not a DMAAllocate result.
- * @param offset Offset relative to the mapped range, not the whole SHM buffer.
- * @param length Nonzero bytes the device will use.
- * @return OS_EOK, OS_EBUSY if already device-owned, or an argument/kernel error.
+ * @param mapping CPU-owned streaming mapping.
+ * @param offset First active byte relative to the mapped range.
+ * @param length Nonzero active byte count.
+ * @return OS_EOK, OS_EBUSY if already active, or argument/kernel error. Failure
+ *         leaves CPU ownership unchanged.
  */
 DDKDECL(oserr_t,
-DMASyncForDevice(
+DMABeginTransfer(
     _In_ struct DMAMapping* mapping,
     _In_ size_t             offset,
     _In_ size_t             length));
 
 /**
- * @brief Reclaim transfer data after completion or confirmed hardware stop.
- * This does not wait for or stop hardware. For a bounced receive, only completed
- * bytes are copied back. The whole mapping returns to CPU ownership, even when
- * fewer bytes completed. It is not safe to reclaim while another transfer uses it.
+ * @brief Reclaim the whole mapping after completion or confirmed hardware stop.
+ * Copies back only the completed prefix of the range supplied to begin. A zero
+ * count reclaims a cancelled transfer without copying any receive bytes. Does
+ * not detect completion or stop hardware. Uses one syscall, no RPC/allocation.
  *
- * @param mapping Streaming mapping that was handed to the device.
- * @param offset First completed byte relative to the mapped range.
- * @param length Completed bytes; zero allows reclaim after a cancelled transfer.
- * @return OS_EOK, or an argument/ownership/kernel error.
+ * @param mapping Device-owned streaming mapping.
+ * @param completedLength Completed prefix length, at most the active length.
+ * @return OS_EOK or argument/ownership/kernel error. Failure preserves the active
+ *         range and device ownership for retry.
  */
 DDKDECL(oserr_t,
-DMASyncForCpu(
+DMAEndTransfer(
     _In_ struct DMAMapping* mapping,
-    _In_ size_t             offset,
-    _In_ size_t             length));
+    _In_ size_t             completedLength));
 
 /**
- * @brief Release a device mapping without losing a busy or failed resource.
- * On success, clears the owning slot and invalidates borrowed segment pointers.
- * On failure, keeps everything for retry. Does not destroy a separately returned
- * SHM handle, stop hardware, or implicitly copy back a transfer. NULL/empty slots
- * are harmless. Never release copied aliases or serialize these local pointers.
- * @return OS_EOK, OS_EBUSY while a streaming mapping is device-owned, or a kernel error.
+ * @brief Release a CPU-owned streaming mapping, retaining its owner on failure.
+ * Never stops hardware, copies back data or destroys the caller's SHM attachment.
+ * Do not release copied aliases. Successful unmap invalidates borrowed segments.
+ * @param mapping Owning slot; cleared on success. NULL/empty slots are harmless.
+ * @return OS_EOK, OS_EBUSY while device-owned, or kernel error.
  */
 DDKDECL(oserr_t,
 DMAUnmap(
     _InOut_ struct DMAMapping** mapping));
 
-/**
- * @brief Close a context; existing mappings retain their own kernel references.
- * Does not stop hardware or release mappings. Clears the owning slot only on
- * success. NULL/empty slots are harmless. Serialize calls on the same object;
- * do not share its pointer between processes or release copied aliases.
- * @return OS_EOK, or a kernel error with the owning slot unchanged.
- */
-DDKDECL(oserr_t,
-DMAClose(
-    _In_ uuid_t dmaHandle));
-
 _CODE_END
-
-#endif //!__DDK_DMA_H__
+#endif

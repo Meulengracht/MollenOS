@@ -23,17 +23,36 @@
 #include <stdlib.h>
 #include <string.h>
 
-static size_t __SHMImport(struct OSHandle*, const void*);
-static void   __SHMDestroy(struct OSHandle*);
+static size_t  __SHMImport(struct OSHandle*, const void*);
+static oserr_t __SHMRelease(struct OSHandle*);
+static void    __SHMDestroy(struct OSHandle*);
 
 const OSHandleOps_t g_shmOps = {
-        .Deserialize = __SHMImport,
-        .Destroy = __SHMDestroy
+    .Deserialize = __SHMImport,
+    .Release = __SHMRelease,
+    .Destroy = __SHMDestroy
 };
+
+oserr_t
+SHMRelease(
+    _InOut_ OSHandle_t* handle)
+{
+    if (handle == NULL || handle->ID == UUID_INVALID) {
+        return OS_EOK;
+    }
+
+    if (handle->Type != OSHANDLE_SHM || handle->Payload == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    // Local aliases share one attachment. Only the last reference may detach
+    // it, and the registry must retain that reference if detach needs a retry.
+    return OSHandleRelease(handle);
+}
 
 static oserr_t
 __ValidateNewBuffer(
-        _In_ SHM_t* shm)
+    _In_ SHM_t* shm)
 {
     if (shm == NULL) {
         return OS_EINVALPARAMS;
@@ -63,8 +82,8 @@ __shm_handle_new(void)
 
 oserr_t
 SHMCreate(
-        _In_  SHM_t*      shm,
-        _Out_ OSHandle_t* handleOut)
+    _In_  SHM_t*      shm,
+    _Out_ OSHandle_t* handleOut)
 {
     SHMHandle_t* shmHandle;
     oserr_t      oserr;
@@ -101,8 +120,8 @@ SHMCreate(
 
 static oserr_t
 __ValidateExistingBuffer(
-        _In_ void*  buffer,
-        _In_ SHM_t* shm)
+    _In_ void*  buffer,
+    _In_ SHM_t* shm)
 {
     if (shm == NULL || buffer == NULL) {
         return OS_EINVALPARAMS;
@@ -118,9 +137,9 @@ __ValidateExistingBuffer(
 
 oserr_t
 SHMExport(
-        _In_  void*       buffer,
-        _In_  SHM_t*      shm,
-        _Out_ OSHandle_t* handleOut)
+    _In_  void*       buffer,
+    _In_  SHM_t*      shm,
+    _Out_ OSHandle_t* handleOut)
 {
     SHMHandle_t* shmHandle;
     oserr_t      oserr;
@@ -158,13 +177,13 @@ SHMExport(
 
 oserr_t
 SHMConform(
-        _In_ uuid_t                  shmID,
-        _In_ SHMConformityOptions_t* conformity,
-        _In_ unsigned int            flags,
-        _In_ unsigned int            access,
-        _In_ size_t                  offset,
-        _In_ size_t                  length,
-        _In_ OSHandle_t*             handleOut)
+    _In_ uuid_t                  shmID,
+    _In_ SHMConformityOptions_t* conformity,
+    _In_ unsigned int            flags,
+    _In_ unsigned int            access,
+    _In_ size_t                  offset,
+    _In_ size_t                  length,
+    _In_ OSHandle_t*             handleOut)
 {
     SHMHandle_t*             shmHandle;
     oserr_t                  oserr;
@@ -210,8 +229,8 @@ SHMConform(
 
 oserr_t
 SHMAttach(
-        _In_  uuid_t      shmID,
-        _Out_ OSHandle_t* handleOut)
+    _In_  uuid_t      shmID,
+    _Out_ OSHandle_t* handleOut)
 {
     SHMHandle_t* shmHandle;
     oserr_t      oserr;
@@ -248,10 +267,10 @@ SHMAttach(
 
 oserr_t
 SHMMap(
-        _In_ OSHandle_t*  handle,
-        _In_ size_t       offset,
-        _In_ size_t       length,
-        _In_ unsigned int flags)
+    _In_ OSHandle_t*  handle,
+    _In_ size_t       offset,
+    _In_ size_t       length,
+    _In_ unsigned int flags)
 {
     if (handle == NULL || handle->Payload == NULL) {
         return OS_EINVALPARAMS;
@@ -261,9 +280,9 @@ SHMMap(
 
 oserr_t
 SHMCommit(
-        _In_ OSHandle_t* handle,
-        _In_ vaddr_t     address,
-        _In_ size_t      length)
+    _In_ OSHandle_t* handle,
+    _In_ vaddr_t     address,
+    _In_ size_t      length)
 {
     if (handle == NULL || handle->Payload == NULL) {
         return OS_EINVALPARAMS;
@@ -273,9 +292,9 @@ SHMCommit(
 
 oserr_t
 SHMUnmap(
-        _In_ OSHandle_t* handle,
-        _In_ void*       address,
-        _In_ size_t      length)
+    _In_ OSHandle_t* handle,
+    _In_ void*       address,
+    _In_ size_t      length)
 {
     if (handle == NULL || handle->Payload == NULL) {
         return OS_EINVALPARAMS;
@@ -285,7 +304,7 @@ SHMUnmap(
 
 void*
 SHMBuffer(
-        _In_ OSHandle_t* handle)
+    _In_ OSHandle_t* handle)
 {
     if (handle == NULL || handle->Payload == NULL) {
         return NULL;
@@ -295,7 +314,7 @@ SHMBuffer(
 
 size_t
 SHMBufferLength(
-        _In_ OSHandle_t* handle)
+    _In_ OSHandle_t* handle)
 {
     if (handle == NULL || handle->Payload == NULL) {
         return 0;
@@ -305,7 +324,7 @@ SHMBufferLength(
 
 size_t
 SHMBufferOffset(
-        _In_ OSHandle_t* handle)
+    _In_ OSHandle_t* handle)
 {
     SHMHandle_t* shm;
     if (handle == NULL || handle->Payload == NULL) {
@@ -327,7 +346,7 @@ SHMBufferOffset(
 
 size_t
 SHMBufferCapacity(
-        _In_ OSHandle_t* handle)
+    _In_ OSHandle_t* handle)
 {
     if (handle == NULL || handle->Payload == NULL) {
         return 0;
@@ -337,9 +356,9 @@ SHMBufferCapacity(
 
 oserr_t
 SHMGetSGTable(
-        _In_ OSHandle_t*   handle,
-        _In_ SHMSGTable_t* sgTable,
-        _In_ int           maxCount)
+    _In_ OSHandle_t*   handle,
+    _In_ SHMSGTable_t* sgTable,
+    _In_ int           maxCount)
 {
     oserr_t status;
 
@@ -366,10 +385,10 @@ SHMGetSGTable(
 
 oserr_t
 SHMSGTableOffset(
-        _In_  SHMSGTable_t* sgTable,
-        _In_  size_t        offset,
-        _Out_ int*          sgIndex,
-        _Out_ size_t*       sgOffset)
+    _In_  SHMSGTable_t* sgTable,
+    _In_  size_t        offset,
+    _Out_ int*          sgIndex,
+    _Out_ size_t*       sgOffset)
 {
     if (sgTable == NULL || sgIndex == NULL || sgOffset == NULL) {
         return OS_EINVALPARAMS;
@@ -389,8 +408,8 @@ SHMSGTableOffset(
 
 static size_t
 __SHMImport(
-        _In_ struct OSHandle* handle,
-        _In_ const void*      data)
+    _In_ struct OSHandle* handle,
+    _In_ const void*      data)
 {
     // So when importing we currently don't serialize any extra data, however
     // we do attach to the SHM buffer immediately.
@@ -409,11 +428,21 @@ __SHMImport(
     return 0;
 }
 
+static oserr_t
+__SHMRelease(
+    _In_ struct OSHandle* handle)
+{
+    // The kernel records completed stages in this payload. Do not discard it
+    // after a failed detach: a retry must neither repeat an unmap nor drop an
+    // already released source reference from a conformed attachment.
+    return Syscall_SHMDetach(handle->Payload);
+}
+
 static void
 __SHMDestroy(
-        _In_ struct OSHandle* handle)
+    _In_ struct OSHandle* handle)
 {
-    // Start out by detaching, then free the payload
-    (void)Syscall_SHMDetach(handle->Payload);
+    // Free only after unregistering this attachment. Otherwise another thread
+    // could allocate the same payload address while its old key is reserved.
     free(handle->Payload);
 }

@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,140 +16,107 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Interrupt Support Definitions & Structures
- * - This header describes the base interrupt-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 //#define __TRACE
 
+#include <ddk/types/interrupt-group.h>
 #include <ddk/busdevice.h>
-#include <ddk/types/interrupt.h>
-#include <ddk/types/interrupt.h>
-#include <ddk/types/pci-interrupt.h>
+#include <ddk/interrupt.h>
+#include <ddk/pci-interrupt.h>
+#include "interrupt-private.h"
+#include <ddk/types/interrupt-source.h>
 #include <ddk/utils.h>
 #include <os/device.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-// Local state in libddk to keep track of changes
-struct DeviceInterruptState {
-    uuid_t Handle;
-    int    Bound;
-    int    Enabled;
-    int    PciReserved;
-    int    Ready;
-    int    PendingCleanup;
-    enum OSIOCtlRequest ControlRequest;
-};
-
-oserr_t
-DeviceInterruptControllerResolve(
-    _In_  const InterruptMessageControllerIdentity_t* query,
-    _Out_ uuid_t*                                     idOut)
-{
-    return Syscall_InterruptControllerResolve(query, idOut);
-}
-
 static oserr_t
-__PciControl(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ uint32_t           operation)
+__ProviderControl(
+    _In_ DeviceInterrupt_t*                interrupt,
+    _In_ enum __InterruptProviderOperation operation)
 {
-    struct PciInterruptRequest request = {
-        .Operation = operation,
-        .Allocation = interrupt->State->Handle,
-        .Strategy = interrupt->Strategy
-    };
-    oserr_t status;
+    struct DeviceInterruptState*        state = interrupt->State;
+    struct DeviceInterruptSourceRequest source = { .Allocation = state->Handle };
+    oserr_t                             status;
 
-    TRACE("__PciControl(device=%u, allocation=%u, request=0x%x, operation=%u)",
-          interrupt->DeviceId, request.Allocation, interrupt->State->ControlRequest, operation);
-    status = OSDeviceIOCtl(
-        interrupt->DeviceId,
-        interrupt->State->ControlRequest,
-        &request,
-        sizeof(request)
-    );
-    if (status != OS_EOK) {
-        ERROR("__PciControl: OSDeviceIOCtl device %u, allocation %u, operation %u failed: %u",
-              interrupt->DeviceId, request.Allocation, operation, status);
+    // Translate neutral lifecycle commands at the protocol boundary. Native
+    // sources and PCI capabilities share ordering, not a wire format or enum.
+    if (state->PlatformSource) {
+        switch (operation) {
+            case InterruptProviderReserve:
+                source.Operation = DeviceInterruptSourceReserve;
+                source.Index = interrupt->SourceIndex;
+                break;
+            case InterruptProviderEnable:
+                source.Operation = DeviceInterruptSourceEnable;
+                break;
+            case InterruptProviderDisable:
+                source.Operation = DeviceInterruptSourceDisable;
+                break;
+            case InterruptProviderRelease:
+                source.Operation = DeviceInterruptSourceRelease;
+                break;
+            default:
+                return OS_EINVALPARAMS;
+        }
+
+        status = OSDeviceIOCtl(
+            interrupt->DeviceId,
+            OSIOCTLREQUEST_INTERRUPT_CONTROL,
+            &source,
+            sizeof(source)
+        );
+    } else {
+        status = __InterruptPciControl(interrupt, operation);
+    }
+
+    TRACE("__ProviderControl(device=%u, allocation=%u, operation=%u, platform=%d): %u",
+          interrupt->DeviceId, state->Handle, operation, state->PlatformSource, status);
+    if (status != OS_EOK && status != OS_EBUSY) {
+        ERROR("__ProviderControl: device %u allocation %u operation %u failed: %u",
+              interrupt->DeviceId, state->Handle, operation, status);
     }
     return status;
 }
 
 static oserr_t
-__ReservePciMessages(
+__ReserveProvider(
     _InOut_ DeviceInterrupt_t* interrupt)
 {
     struct DeviceInterruptState* state = interrupt->State;
-    DeviceInterruptMessage_t     message;
     oserr_t                      status;
-    uint32_t                     i;
-    struct PciInterruptRequest   request = {
-        .Operation = PciInterruptReserve,
-        .Allocation = state->Handle,
-        .Strategy = interrupt->Strategy,
-        .Count = interrupt->Count
-    };
 
-    TRACE("__ReservePciMessages(device=%u, allocation=%u, count=%u, request=0x%x)",
-          interrupt->DeviceId, state->Handle, interrupt->Count, state->ControlRequest);
-    // A lost reply can hide a successful reservation. Retain its cleanup duty.
-    state->PciReserved = 1;
-    status = OSDeviceIOCtl(
-        interrupt->DeviceId, state->ControlRequest, &request, sizeof(request)
-    );
+    // Record ownership before RPC: a lost reply can conceal a reservation.
+    // EBUSY alone promises that the provider was left untouched.
+    state->ProviderReserved = 1;
+    
+    status = __ProviderControl(interrupt, InterruptProviderReserve);
     if (status != OS_EOK) {
-        // Busy means another reservation owns the untouched function.
         if (status == OS_EBUSY) {
-            state->PciReserved = 0;
-            TRACE("__ReservePciMessages: device %u already reserved", interrupt->DeviceId);
-        } else {
-            ERROR("__ReservePciMessages: OSDeviceIOCtl Reserve device %u, allocation %u failed: %u",
-                  interrupt->DeviceId, state->Handle, status);
+            state->ProviderReserved = 0;
         }
         return status;
     }
-
-    request.Operation = PciInterruptProgram;
-    request.Count = 0;
     
-    for (i = 0; i < interrupt->Count; i++) {
-        status = Syscall_InterruptGetMessage(state->Handle, i, &message);
-        if (status != OS_EOK) {
-            ERROR("__ReservePciMessages: Syscall_InterruptGetMessage allocation %u, index %u failed: %u",
-                  state->Handle, i, status);
-            return status;
-        }
-
-        request.Index = i;
-        request.AddressLow = message.AddressLow;
-        request.AddressHigh = message.AddressHigh;
-        request.Data = message.Data;
-        status = OSDeviceIOCtl(
-            interrupt->DeviceId,
-            state->ControlRequest,
-            &request,
-            sizeof(struct PciInterruptRequest)
-        );
-        if (status != OS_EOK) {
-            ERROR("__ReservePciMessages: OSDeviceIOCtl Program device %u, allocation %u, index %u failed: %u",
-                  interrupt->DeviceId, state->Handle, i, status);
-            return status;
-        }
+    if (state->PlatformSource) {
+        // Platform reserve includes translation/programming under the provider's
+        // lease. The common lifecycle does not program its upstream hardware.
+        return OS_EOK;
     }
-    return OS_EOK;
+    return __InterruptPciProgram(interrupt);
 }
 
 void
 DeviceInterruptInitialize(
     _Out_ DeviceInterrupt_t* interrupt,
-    _In_  BusDevice_t*       device)
+    _In_  Device_t*          device)
 {
+    const BusDevice_t* bus;
+
     // Initialization allocates nothing, so even a driver without a bus device
     // can prepare a line descriptor before requesting its reservation.
     memset(interrupt, 0, sizeof(DeviceInterrupt_t));
@@ -158,31 +125,192 @@ DeviceInterruptInitialize(
     interrupt->Line.Pin = INTERRUPT_NONE;
     
     if (device != NULL) {
-        interrupt->DeviceId = device->Base.Id;
-        interrupt->IsPci = device->Type == BusTypePci;
-        interrupt->Line.Line = device->InterruptLine;
-        interrupt->Line.Pin = device->InterruptPin;
-        interrupt->Line.AcpiConform = device->InterruptAcpiConform;
+        interrupt->DeviceId = device->Id;
+        if (device->Length == sizeof(BusDevice_t)) {
+            bus = (const BusDevice_t*)device;
+            interrupt->IsPci = bus->Type == BusTypePci;
+            interrupt->Line.Line = bus->InterruptLine;
+            interrupt->Line.Pin = bus->InterruptPin;
+            interrupt->Line.AcpiConform = bus->InterruptAcpiConform;
+        }
     }
+}
+
+oserr_t
+DeviceInterruptSelectSource(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_ uint32_t index)
+{
+    if (interrupt == NULL || interrupt->IsPci) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (interrupt->State != NULL) {
+        return OS_EBUSY;
+    }
+
+    // The provider validates the firmware index at allocation, after any
+    // required device preparation. Selection itself takes no hardware lease.
+    interrupt->SourceIndex = index;
+    TRACE("DeviceInterruptSelectSource(device=%u, source=%u)", interrupt->DeviceId, index);
+    return OS_EOK;
 }
 
 static oserr_t
 __AllocateVectors(
     _InOut_ DeviceInterrupt_t* interrupt)
 {
-    uint32_t i;
-
     interrupt->Vectors = calloc(interrupt->Count, sizeof(DeviceInterruptVector_t));
     if (interrupt->Vectors == NULL) {
         ERROR("__AllocateVectors: device %u failed to allocate %u vectors", interrupt->DeviceId, interrupt->Count);
         return OS_EOOM;
     }
 
-    for (i = 0; i < interrupt->Count; i++) {
+    for (uint32_t i = 0; i < interrupt->Count; i++) {
         interrupt->Vectors[i].AffinityMask = UINT32_MAX;
         interrupt->Vectors[i].ResourceTable.HandleResource = UUID_INVALID;
     }
     return OS_EOK;
+}
+
+static oserr_t
+__ReserveSourceGroup(
+    _In_  DeviceInterrupt_t*      interrupt,
+    _In_  uint32_t                minimum,
+    _Out_ InterruptGroupResult_t* result,
+    _Out_ int*                    platformSource)
+{
+    struct DeviceInterruptSourceQuery source = {
+        .Index = interrupt->SourceIndex
+    };
+    
+    InterruptGroupRequest_t request = {
+        .Kind = InterruptSourceLine,
+        .Line = interrupt->Line,
+        .Flags = interrupt->Flags,
+        .Minimum = 1,
+        .Optimal = 1
+    };
+    oserr_t status;
+
+    if (minimum != 1) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    if (interrupt->DeviceId != UUID_INVALID && interrupt->Line.Line == INTERRUPT_NONE) {
+        // Select by firmware source, independently of whether its provider
+        // delivers a fixed line or translates that source into a message.
+        status = OSDeviceIOCtl(
+            interrupt->DeviceId,
+            OSIOCTLREQUEST_INTERRUPT_QUERY,
+            &source,
+            sizeof(source)
+        );
+        if (status != OS_EOK) {
+            WARNING("__ReserveSourceGroup: device %u source %u query failed: %u",
+                    interrupt->DeviceId, interrupt->SourceIndex, status);
+            return status;
+        }
+
+        if (source.Index != interrupt->SourceIndex) {
+            return OS_EPROTOCOL;
+        }
+
+        if (source.Kind != InterruptSourceFixedLine && source.Kind != InterruptSourceMessage) {
+            return OS_EPROTOCOL;
+        }
+
+        request.Kind = source.Kind;
+        request.ControllerID = source.ControllerID;
+        request.Line = source.Line;
+        
+        *platformSource = 1;
+    } else if (interrupt->SourceIndex != 0) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_InterruptAllocate(&request, result);
+}
+
+oserr_t
+__InterruptAllocate(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_    uint32_t           min,
+    _In_    uint32_t           optimal,
+    _In_    uint32_t           pciModes,
+    _Out_   uint32_t*          countOut)
+{
+    InterruptGroupResult_t       result;
+    struct DeviceInterruptState* state;
+    oserr_t                      status;
+    oserr_t                      cleanupStatus;
+
+    if (countOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    *countOut = 0;
+    
+    if (interrupt == NULL || min == 0 || min > optimal) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (interrupt->Flags & ~INTERRUPT_EXCLUSIVE) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (interrupt->State != NULL) {
+        return OS_EBUSY;
+    }
+    TRACE("__InterruptAllocate(device=%u, source=%u, count=%u/%u, pci=%u)",
+          interrupt->DeviceId, interrupt->SourceIndex, min, optimal, interrupt->IsPci);
+
+    // Allocate ownership storage first: rollback may itself fail after the
+    // kernel or provider has reserved resources, including lost RPC replies.
+    state = calloc(1, sizeof(struct DeviceInterruptState));
+    if (state == NULL) {
+        return OS_EOOM;
+    }
+
+    if (interrupt->IsPci) {
+        status = __InterruptPciReserve(interrupt, min, optimal, pciModes, &result, &state->PciMode);
+    } else {
+        status = __ReserveSourceGroup(interrupt, min, &result, &state->PlatformSource);
+    }
+    if (status != OS_EOK) {
+        TRACE("__InterruptAllocate: device %u reservation failed: %u", interrupt->DeviceId, status);
+        free(state);
+        return status;
+    }
+    
+    state->Handle = result.Handle;
+    interrupt->State = state;
+    interrupt->Count = result.Count;
+    interrupt->Kind = result.Kind;
+
+    status = __AllocateVectors(interrupt);
+    if (status != OS_EOK) {
+        goto rollback;
+    }
+    
+    if (state->PlatformSource || result.Kind == InterruptSourceMessage) {
+        status = __ReserveProvider(interrupt);
+        if (status != OS_EOK) {
+            goto rollback;
+        }
+    }
+    
+    state->Phase = InterruptPhaseReady;
+    
+    *countOut = result.Count;
+    return OS_EOK;
+
+rollback:
+    cleanupStatus = DeviceInterruptDestroy(interrupt);
+    if (cleanupStatus != OS_EOK) {
+        ERROR("__InterruptAllocate: device %u rollback failed: %u (setup %u); ownership retained",
+              interrupt->DeviceId, cleanupStatus, status);
+    }
+    return status;
 }
 
 oserr_t
@@ -190,148 +318,17 @@ DeviceInterruptAllocate(
     _InOut_ DeviceInterrupt_t* interrupt,
     _In_    uint32_t           min,
     _In_    uint32_t           optimal,
-    _In_    uint32_t           strategies,
     _Out_   uint32_t*          countOut)
 {
-    InterruptGroupRequest_t      request;
-    InterruptGroupResult_t       result;
-    struct PciInterruptSupport   support = { 0 };
-    enum OSIOCtlRequest          controlRequest = OSIOCTLREQUEST_PCI_INTERRUPT;
-    struct DeviceInterruptState* state;
-    oserr_t                      status;
-    oserr_t                      cleanupStatus;
-
-    TRACE("DeviceInterruptAllocate(interrupt=%p, min=%u, optimal=%u, strategies=0x%x)",
-          interrupt, min, optimal, strategies);
-    if (countOut == NULL) {
-        WARNING("DeviceInterruptAllocate: missing count output");
-        return OS_EINVALPARAMS;
-    }
-    
-    *countOut = 0;
-    
-    if (interrupt == NULL || min == 0 || min > optimal) {
-        WARNING("DeviceInterruptAllocate: missing interrupt or invalid counts %u/%u", min, optimal);
-        return OS_EINVALPARAMS;
-    }
-    if (strategies == 0 || (strategies & ~INTERRUPT_STRATEGY_ANY)) {
-        WARNING("DeviceInterruptAllocate: invalid strategies 0x%x", strategies);
-        return OS_EINVALPARAMS;
-    }
-    if (interrupt->Flags & ~INTERRUPT_EXCLUSIVE) {
-        WARNING("DeviceInterruptAllocate: unsupported flags 0x%x", interrupt->Flags);
-        return OS_EINVALPARAMS;
-    }
-    if (interrupt->State != NULL) {
-        TRACE("DeviceInterruptAllocate: device %u retains an allocation", interrupt->DeviceId);
-        return OS_EBUSY;
-    }
-    
-    if ((strategies & (INTERRUPT_STRATEGY_MSI | INTERRUPT_STRATEGY_MSIX)) && interrupt->IsPci) {
-        status = OSDeviceIOCtl(interrupt->DeviceId, OSIOCTLREQUEST_PCI_INTERRUPT_QUERY,
-                              &support, sizeof(support));
-        // Fall back only when a mode is absent or unsupported. Report broken
-        // configuration and transport errors to the caller.
-        if (status != OS_EOK && status != OS_ENOTSUPPORTED) {
-            ERROR("DeviceInterruptAllocate: OSDeviceIOCtl PCI interrupt query device %u failed: %u",
-                  interrupt->DeviceId, status);
-            return status;
-        }
-        if (status != OS_EOK) {
-            TRACE("DeviceInterruptAllocate: device %u does not support PCI messages; considering INTx",
-                  interrupt->DeviceId);
-            support.Strategies = 0;
-        }
-        strategies &= support.Strategies | INTERRUPT_STRATEGY_INTx;
-    } else if (!interrupt->IsPci && interrupt->DeviceId != UUID_INVALID &&
-               interrupt->Line.Line == INTERRUPT_NONE) {
-        status = OSDeviceIOCtl(interrupt->DeviceId, OSIOCTLREQUEST_INTERRUPT_QUERY,
-            &support, sizeof(support));
-        if (status != OS_EOK) {
-            WARNING("DeviceInterruptAllocate: OSDeviceIOCtl platform interrupt query device %u failed: %u",
-                    interrupt->DeviceId, status);
-            return status;
-        }
-        // A platform bus can deliver firmware sources through message interrupts.
-        // It returns the same capacity/controller information as PCI. The bus
-        // attaches any upstream acknowledgement callbacks during reservation.
-        controlRequest = OSIOCTLREQUEST_INTERRUPT_CONTROL;
-        strategies &= support.Strategies & INTERRUPT_STRATEGY_MSIX;
-    } else {
-        strategies &= INTERRUPT_STRATEGY_INTx;
-    }
-    if (min != 1) {
-        strategies &= INTERRUPT_STRATEGY_MSIX;
-    }
-    if (strategies & INTERRUPT_STRATEGY_MSIX) {
-        if (support.MsixCapacity < min) {
-            strategies &= ~INTERRUPT_STRATEGY_MSIX;
-        } else if (optimal > support.MsixCapacity) {
-            optimal = support.MsixCapacity;
-        }
-    }
-    
-    if (strategies == 0) {
-        TRACE("DeviceInterruptAllocate: device %u has no usable strategy for minimum %u", interrupt->DeviceId, min);
-        return OS_ENOTSUPPORTED;
-    }
-
-    // Keep a place for the handle before reserving. Vector storage is sized from
-    // the negotiated count; if it fails, State retains any cleanup obligation.
-    state = calloc(1, sizeof(struct DeviceInterruptState));
-    if (state == NULL) {
-        ERROR("DeviceInterruptAllocate: state allocation failed for device %u", interrupt->DeviceId);
-        return OS_EOOM;
-    }
-    
-    request.ControllerID = support.ControllerID;
-    request.Line = interrupt->Line;
-    request.Flags = interrupt->Flags;
-    request.Minimum = min;
-    request.Optimal = optimal;
-    request.Strategies = strategies;
-    
-    status = Syscall_InterruptAllocate(&request, &result);
-    if (status != OS_EOK) {
-        WARNING("DeviceInterruptAllocate: Syscall_InterruptAllocate device %u, controller %u failed: %u",
-                interrupt->DeviceId, request.ControllerID, status);
-        free(state);
-        return status;
-    }
-    
-    state->Handle = result.Handle;
-    state->ControlRequest = controlRequest;
-    
-    interrupt->State = state;
-    interrupt->Count = result.Count;
-    interrupt->Strategy = result.Strategy;
-
-    status = __AllocateVectors(interrupt);
-    if (status != OS_EOK) {
-        goto rollback;
-    }
-
-    if (result.Strategy != INTERRUPT_STRATEGY_INTx) {
-        status = __ReservePciMessages(interrupt);
-        if (status != OS_EOK) {
-            goto rollback;
-        }
-    }
-    state->Ready = 1;
-    
-    *countOut = result.Count;
-    TRACE("DeviceInterruptAllocate: device %u allocation %u, strategy 0x%x, count %u",
-          interrupt->DeviceId, state->Handle, result.Strategy, result.Count);
-    return OS_EOK;
-
-rollback:
-    // Destroy keeps the handle reachable if release itself fails.
-    cleanupStatus = DeviceInterruptDestroy(interrupt);
-    if (cleanupStatus != OS_EOK) {
-        ERROR("DeviceInterruptAllocate: DeviceInterruptDestroy device %u rollback failed: %u (setup status %u)",
-              interrupt->DeviceId, cleanupStatus, status);
-    }
-    return status;
+    // Generic drivers accept provider-selected delivery. PCI drivers that
+    // require a particular capability use the explicit PCI policy entry point.
+    return __InterruptAllocate(
+        interrupt,
+        min,
+        optimal,
+        INTERRUPT_STRATEGY_ANY,
+        countOut
+    );
 }
 
 oserr_t
@@ -346,10 +343,12 @@ DeviceInterruptGetMessage(
     if (interrupt == NULL || interrupt->State == NULL || messageOut == NULL) {
         return OS_EINVALPARAMS;
     }
+
     if (index >= interrupt->Count) {
         return OS_EINVALPARAMS;
     }
-    if (!interrupt->State->Ready) {
+
+    if (interrupt->State->Phase != InterruptPhaseReady) {
         return OS_EBUSY;
     }
 
@@ -360,7 +359,7 @@ DeviceInterruptGetMessage(
     return status;
 }
 
-// Ensures we don't vectors that are already bound
+// Resource edits are safe only while no kernel mapping or handler can use them.
 static oserr_t
 __GetEditableVector(
     _In_  DeviceInterrupt_t*        interrupt,
@@ -370,7 +369,12 @@ __GetEditableVector(
     if (interrupt == NULL || interrupt->State == NULL || index >= interrupt->Count) {
         return OS_EINVALPARAMS;
     }
-    if (!interrupt->State->Ready || interrupt->State->Bound || interrupt->State->Enabled) {
+
+    // A pending provider stop can exist even with no kernel mappings. Do not
+    // let resource edits bypass that obligation before a later enable retries it.
+    assert(!interrupt->State->Enabled || interrupt->State->Bound);
+    if (interrupt->State->Phase != InterruptPhaseReady ||
+        interrupt->State->Bound || interrupt->State->PendingCleanup) {
         return OS_EBUSY;
     }
     
@@ -393,9 +397,11 @@ DeviceInterruptSetAffinity(
     if (status != OS_EOK) {
         return status;
     }
+
     if (affinityMask == 0) {
         return OS_EINVALPARAMS;
     }
+
     if (affinityMask != UINT32_MAX) {
         return OS_ENOTSUPPORTED;
     }
@@ -418,6 +424,7 @@ DeviceInterruptSetHandler(
     if (status != OS_EOK) {
         return status;
     }
+
     if (handler == NULL) {
         return OS_EINVALPARAMS;
     }
@@ -441,6 +448,7 @@ DeviceInterruptSetDescriptor(
     if (status != OS_EOK) {
         return status;
     }
+
     if (descriptor < 0) {
         return OS_EINVALPARAMS;
     }
@@ -468,6 +476,7 @@ DeviceInterruptAddIoResource(
     if (status != OS_EOK) {
         return status;
     }
+
     if (ioSpace == NULL) {
         return OS_EINVALPARAMS;
     }
@@ -498,9 +507,11 @@ DeviceInterruptAddMemoryResource(
     if (status != OS_EOK) {
         return status;
     }
+
     if (address == 0 || length == 0) {
         return OS_EINVALPARAMS;
     }
+
     if (length > UINTPTR_MAX - address || (flags & ~INTERRUPT_RESOURCE_DISABLE_CACHE)) {
         return OS_EINVALPARAMS;
     }
@@ -517,6 +528,33 @@ DeviceInterruptAddMemoryResource(
     return OS_EOOM;
 }
 
+static oserr_t
+__StopKernel(
+    _InOut_ struct DeviceInterruptState* state)
+{
+    oserr_t status;
+
+    // Caller has either stopped the provider or has not enabled it yet. This
+    // is the only transition that discards kernel cleanup obligations, and only
+    // after the kernel confirms synchronization and complete unmapping.
+    assert(!state->Enabled || state->Bound);
+    
+    state->PendingCleanup = 1;
+    if (state->Bound) {
+        status = Syscall_InterruptDisable(state->Handle);
+        if (status != OS_EOK) {
+            ERROR("__StopKernel: allocation %u stop/unmap failed: %u; cleanup retained",
+                  state->Handle, status);
+            return status;
+        }
+    }
+
+    state->Bound = 0;
+    state->Enabled = 0;
+    state->PendingCleanup = 0;
+    return OS_EOK;
+}
+
 oserr_t
 DeviceInterruptEnable(
     _InOut_ DeviceInterrupt_t* interrupt)
@@ -525,7 +563,6 @@ DeviceInterruptEnable(
     struct DeviceInterruptState* state;
     oserr_t                      status;
     oserr_t                      cleanup;
-    uint32_t                     i;
 
     TRACE("DeviceInterruptEnable(interrupt=%p)", interrupt);
     if (interrupt == NULL || interrupt->State == NULL) {
@@ -534,11 +571,17 @@ DeviceInterruptEnable(
     }
 
     state = interrupt->State;
-    if (!state->Ready) {
-        TRACE("DeviceInterruptEnable: allocation %u is not ready", state->Handle);
+    if (state->Phase != InterruptPhaseReady) {
+        TRACE("DeviceInterruptEnable: allocation %u phase %u is not ready",
+              state->Handle, state->Phase);
         return OS_EBUSY;
     }
-    
+
+    // Failed bind, failed controller stop, and uncertain provider replies all
+    // converge on this recovery path. Never trust cached Enabled before it.
+    assert(!state->Enabled || state->Bound);
+    assert(!state->Bound || state->Enabled || state->PendingCleanup);
+
     if (state->PendingCleanup) {
         status = DeviceInterruptDisable(interrupt);
         if (status != OS_EOK) {
@@ -549,74 +592,59 @@ DeviceInterruptEnable(
     if (state->Enabled) {
         return OS_EOK;
     }
-    
-    // A previous enable may have failed partway through cleanup. Finish that
-    // cleanup before rebinding; some of its old mappings may already be gone.
-    if (state->Bound) {
-        status = DeviceInterruptDisable(interrupt);
-        if (status != OS_EOK) {
-            return status;
-        }
-    }
 
-    for (i = 0; i < interrupt->Count; i++) {
+    for (uint32_t i = 0; i < interrupt->Count; i++) {
         if (interrupt->Vectors[i].ResourceTable.Handler == NULL) {
             WARNING("DeviceInterruptEnable: allocation %u index %u has no handler", state->Handle, i);
             return OS_EINVALPARAMS;
         }
     }
-    
-    // Bind every vector before allowing dispatch.
-    for (i = 0; i < interrupt->Count; i++) {
+
+    // Register the cleanup duty before the first bind: even a failed bind may
+    // own partial mappings. At every return, Bound without Enabled therefore
+    // has PendingCleanup set until the shared stop helper confirms cleanup.
+    state->PendingCleanup = 1;
+    for (uint32_t i = 0; i < interrupt->Count; i++) {
         request.Index = i;
         request.Resources = interrupt->Vectors[i].ResourceTable;
         
+        state->Bound = 1;
+        
         status = Syscall_InterruptBind(state->Handle, &request);
         if (status != OS_EOK) {
-            ERROR("DeviceInterruptEnable: Syscall_InterruptBind allocation %u, index %u failed: %u",
+            ERROR("DeviceInterruptEnable: allocation %u bind index %u failed: %u",
                   state->Handle, i, status);
-            // A failed mapping may itself need cleanup. Preserve that obligation
-            // when unbinding fails so Disable and Destroy can finish it later.
-            cleanup = Syscall_InterruptUnbind(state->Handle);
-            if (cleanup != OS_EOK) {
-                ERROR("DeviceInterruptEnable: Syscall_InterruptUnbind allocation %u rollback failed: %u",
-                      state->Handle, cleanup);
-            }
-            state->Bound = cleanup != OS_EOK;
+            (void)__StopKernel(state);
             return status;
         }
-        state->Bound = 1;
     }
-    
+
     status = Syscall_InterruptEnable(state->Handle);
     if (status != OS_EOK) {
-        ERROR("DeviceInterruptEnable: Syscall_InterruptEnable allocation %u failed: %u", state->Handle, status);
-        cleanup = Syscall_InterruptUnbind(state->Handle);
-        if (cleanup != OS_EOK) {
-            ERROR("DeviceInterruptEnable: Syscall_InterruptUnbind allocation %u rollback failed: %u",
-                  state->Handle, cleanup);
-            return status;
-        }
-        state->Bound = 0;
+        ERROR("DeviceInterruptEnable: allocation %u kernel enable failed: %u", state->Handle, status);
+        (void)__StopKernel(state);
         return status;
     }
-    
+
     state->Enabled = 1;
-    if (state->PciReserved) {
-        state->PendingCleanup = 1;
-        status = __PciControl(interrupt, PciInterruptEnable);
+    
+    if (state->ProviderReserved) {
+        status = __ProviderControl(interrupt, InterruptProviderEnable);
         if (status != OS_EOK) {
-            // PCI delivery may be enabled even if the response failed. Stop it before
-            // unmapping handlers, and keep their resources if stopping fails.
+            // The provider may deliver despite a lost reply. Keep the handlers
+            // mapped until Disable confirms that upstream delivery is stopped.
             cleanup = DeviceInterruptDisable(interrupt);
             if (cleanup != OS_EOK) {
-                ERROR("DeviceInterruptEnable: DeviceInterruptDisable allocation %u rollback failed: %u",
+                ERROR("DeviceInterruptEnable: allocation %u rollback failed: %u",
                       state->Handle, cleanup);
             }
             return status;
         }
-        state->PendingCleanup = 0;
     }
+
+    // Both kernel and provider delivery are confirmed. No incomplete transition
+    // remains, so a repeated Enable can safely use the cached enabled state.
+    state->PendingCleanup = 0;
     return OS_EOK;
 }
 
@@ -637,40 +665,17 @@ DeviceInterruptDisable(
     if (state == NULL) {
         return OS_EOK;
     }
-    
-    if (state->PciReserved) {
-        // Make Enable retry an incomplete stop. Clear this only after PCI delivery
-        // and kernel dispatch are stopped and the handler mappings are removed.
-        state->PendingCleanup = 1;
 
-        status = __PciControl(interrupt, PciInterruptDisable);
+    // This marker belongs to every source, including manual/PCI INTx lines.
+    // A failed stop can invalidate cached delivery state before returning.
+    state->PendingCleanup = 1;
+    if (state->ProviderReserved) {
+        status = __ProviderControl(interrupt, InterruptProviderDisable);
         if (status != OS_EOK) {
             return status;
         }
     }
-    
-    // A successful disable waits for running handlers. Only then is it safe to
-    // release their mappings or allow setters to change the configuration.
-    if (state->Enabled || state->Bound) {
-        status = Syscall_InterruptDisable(state->Handle);
-        if (status != OS_EOK) {
-            ERROR("DeviceInterruptDisable: Syscall_InterruptDisable allocation %u failed: %u", state->Handle, status);
-            return status;
-        }
-        state->Enabled = 0;
-    }
-    
-    if (state->Bound) {
-        status = Syscall_InterruptUnbind(state->Handle);
-        if (status != OS_EOK) {
-            ERROR("DeviceInterruptDisable: Syscall_InterruptUnbind allocation %u failed: %u; mappings retained",
-                  state->Handle, status);
-            return status;
-        }
-        state->Bound = 0;
-    }
-    state->PendingCleanup = 0;
-    return OS_EOK;
+    return __StopKernel(state);
 }
 
 oserr_t
@@ -680,11 +685,11 @@ DeviceInterruptDestroy(
     oserr_t status;
 
     TRACE("DeviceInterruptDestroy(interrupt=%p)", interrupt);
-    if (interrupt != NULL && interrupt->State != NULL &&
-        interrupt->Strategy != INTERRUPT_STRATEGY_INTx) {
-        // Teardown may restore PCI state before failing. Block Enable until
-        // the caller finishes Destroy and allocates again.
-        interrupt->State->Ready = 0;
+    if (interrupt != NULL && interrupt->State != NULL) {
+        // Destroy is terminal for every source because either kernel or
+        // provider ownership may already be partly released on failure.
+        // Ordinary Disable leaves the phase unchanged and remains reusable.
+        interrupt->State->Phase = InterruptPhaseDestroying;
     }
 
     // Keep the handle and storage on any failure so a caller can retry teardown.
@@ -692,16 +697,17 @@ DeviceInterruptDestroy(
     if (status != OS_EOK) {
         return status;
     }
+
     if (interrupt->State == NULL) {
         return OS_EOK;
     }
     
-    if (interrupt->State->PciReserved) {
-        status = __PciControl(interrupt, PciInterruptRelease);
+    if (interrupt->State->ProviderReserved) {
+        status = __ProviderControl(interrupt, InterruptProviderRelease);
         if (status != OS_EOK) {
             return status;
         }
-        interrupt->State->PciReserved = 0;
+        interrupt->State->ProviderReserved = 0;
     }
     
     status = Syscall_InterruptRelease(interrupt->State->Handle);
@@ -716,6 +722,6 @@ DeviceInterruptDestroy(
     interrupt->State = NULL;
     interrupt->Vectors = NULL;
     interrupt->Count = 0;
-    interrupt->Strategy = 0;
+    interrupt->Kind = InterruptSourceInvalid;
     return OS_EOK;
 }

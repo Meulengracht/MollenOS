@@ -60,8 +60,11 @@ add_library(libddk
         device.c
         deviceio.c
         dma.c
+        dma_context.c
+        resources.c
         firmware.c
         interrupt.c
+        interrupt-pci.c
         interrupt-provider.c
         io.c
         mappings.c

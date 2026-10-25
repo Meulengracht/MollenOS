@@ -22,13 +22,13 @@
 
 // Which way data moves during a transfer. Cache handling and bounce copies use
 // this to skip work that cannot matter for that direction.
-enum SHMDeviceDirection {
+enum DMADirection {
     // The device only reads the memory, e.g. a USB OUT transfer.
-    SHMDeviceToDevice,
+    DMAToDevice,
     // The device only writes the memory, e.g. a USB IN transfer.
-    SHMDeviceFromDevice,
-    // The device both reads and writes, e.g. a controller's own structures.
-    SHMDeviceBidirectional
+    DMAFromDevice,
+    // The device may read and write the mapped transfer bytes.
+    DMABidirectional
 };
 
 /**
@@ -36,7 +36,7 @@ enum SHMDeviceDirection {
  * this always uses 64 bits because device addresses can exceed 4 GiB even on
  * 32-bit kernels, and they need not equal the physical address.
  */
-struct SHMDeviceSegment {
+struct DMASegment {
     uint64_t Address;
     uint64_t Length;
 };
@@ -45,7 +45,7 @@ struct SHMDeviceSegment {
  * What a device needs from memory it keeps using, such as a controller's rings.
  * Zero for Alignment or Boundary means no requirement.
  */
-struct SHMDeviceRequirements {
+struct DMARequirements {
     // Number of bytes needed; the allocation is rounded up to whole pages.
     size_t   Length;
     // The device address of the first byte must be a multiple of this power of two.

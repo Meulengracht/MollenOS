@@ -157,9 +157,9 @@ extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
 extern oserr_t ScDmaOpen(uuid_t, const struct OSDmaOpenParameters*, uuid_t*);
-extern oserr_t ScDmaAllocate(uuid_t, const struct SHMDeviceRequirements*, struct OSDmaAllocationResult*);
+extern oserr_t ScDmaAllocate(uuid_t, const struct DMARequirements*, struct OSDmaAllocationResult*);
 extern oserr_t ScDmaMapShm(uuid_t, uuid_t, const struct OSDmaMapParameters*, struct OSDmaMappingResult*);
-extern oserr_t ScDmaGetSegments(uuid_t, struct SHMDeviceSegment*, uint32_t, uint32_t*);
+extern oserr_t ScDmaGetSegments(uuid_t, struct DMASegment*, uint32_t, uint32_t*);
 extern oserr_t ScDmaSyncForDevice(uuid_t, size_t, size_t);
 extern oserr_t ScDmaSyncForCpu(uuid_t, size_t, size_t);
 extern oserr_t ScDmaUnmap(uuid_t);

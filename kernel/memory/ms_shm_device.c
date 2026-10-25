@@ -292,9 +292,9 @@ SHMDeviceContextTranslate(
  */
 static bool
 __ContinuesSegment(
-    _In_ const struct SHMDeviceSegment* previous,
-    _In_ uint64_t                       address,
-    _In_ uint64_t                       length)
+    _In_ const struct DMASegment* previous,
+    _In_ uint64_t                 address,
+    _In_ uint64_t                 length)
 {
     if (address < previous->Address || address - previous->Address != previous->Length) {
         return false;
@@ -315,15 +315,15 @@ __WalkSegments(
     _In_  const struct SHMDeviceContext* context,
     _In_  const SHMSG_t*                 extents,
     _In_  int                            extentCount,
-    _Out_ struct SHMDeviceSegment*       segmentsOut,
+    _Out_ struct DMASegment*             segmentsOut,
     _Out_ uint32_t*                      countOut)
 {
-    struct SHMDeviceSegment last = { 0 };
-    uint64_t                physical;
-    uint64_t                remaining;
-    uint64_t                address;
-    uint64_t                covered;
-    uint32_t                count = 0;
+    struct DMASegment last = { 0 };
+    uint64_t          physical;
+    uint64_t          remaining;
+    uint64_t          address;
+    uint64_t          covered;
+    uint32_t          count = 0;
 
     for (int i = 0; i < extentCount; i++) {
         physical = extents[i].Address;
@@ -351,7 +351,7 @@ __WalkSegments(
                 if (count == UINT32_MAX) {
                     return OS_ENOTSUPPORTED;
                 }
-                last = (struct SHMDeviceSegment){ address, covered };
+                last = (struct DMASegment){ address, covered };
                 count++;
             }
             if (segmentsOut != NULL) {
@@ -375,7 +375,7 @@ SHMDeviceContextBuildSegments(
     _In_    const SHMSG_t*                 extents,
     _In_    int                            extentCount,
     _InOut_ uint32_t*                      segmentCount,
-    _Out_   struct SHMDeviceSegment*       segmentsOut)
+    _Out_   struct DMASegment*             segmentsOut)
 {
     uint32_t required;
     oserr_t  status;
@@ -432,11 +432,11 @@ SHMDeviceContextBuildSegments(
  * so the sync calls can copy between them with plain memory copies.
  */
 struct SHMDeviceBounce {
-    vaddr_t            Source;       // Kernel view of the buffer's pages.
-    size_t             SourceLength;
-    size_t             SourceOffset; // Where the mapped range starts inside that view.
-    vaddr_t            Copy;         // Kernel view of the bounce pages; the range starts at 0.
-    struct SystemMemoryAllocation Allocation; // Owns the bounce backing.
+    vaddr_t                       Source;       // Kernel view of the buffer's pages.
+    size_t                        SourceLength;
+    size_t                        SourceOffset; // Where the mapped range starts inside that view.
+    vaddr_t                       Copy;         // Kernel view of the bounce pages; the range starts at 0.
+    struct SystemMemoryAllocation Allocation;   // Owns the bounce backing.
 };
 
 /**
@@ -452,13 +452,17 @@ struct SHMDeviceMapping {
     struct SHMDeviceContext* Context;
     size_t                   Offset;
     size_t                   Length;
-    enum SHMDeviceDirection  Direction;
+    enum DMADirection        Direction;
     bool                     DeviceOwned;
+    // Allocated controller memory is continuously shared, never handed off.
+    bool                     Shared;
+    // Describes the actual device backing, which may be cached bounce pages.
+    bool                     Cached;
     struct SHMDeviceBounce   Bounce;
     SHMSG_t*                 Extents;
     int                      ExtentCount;
     uint32_t                 SegmentCount;
-    struct SHMDeviceSegment  Segments[];
+    struct DMASegment        Segments[];
 };
 
 static oserr_t
@@ -473,14 +477,25 @@ __CheckBufferKind(
     return OS_EOK;
 }
 
+static bool
+__BufferHasCachedAlias(
+    _In_ const struct SHMBuffer* buffer)
+{
+    // Only pool allocations carry a cache policy shared by every alias,
+    // including the kernel identity map. Legacy SHM_DEVICE views are uncached,
+    // but their ordinary RAM can still have a cached kernel alias.
+    return buffer->Allocation.Owner == NULL || buffer->Allocation.Cached;
+}
+
 /**
  * @brief Tell whether cache work for the range would reach bytes outside it.
  *
  * When a device that cannot see the CPU cache writes memory, cached lines are
  * thrown away, always as whole lines. A line shared with bytes outside the
  * range could hold CPU changes to those bytes, which would be lost, so such a
- * range must be bounced. Coherent devices need no cache work, and a device
- * that only reads only causes write-backs, which never lose data.
+ * range must be bounced. Coherent devices and uncached pool memory need no
+ * cache work. A device that only reads only causes write-backs, which never
+ * lose data.
  */
 static bool
 __SharesCacheLines(
@@ -488,12 +503,15 @@ __SharesCacheLines(
     _In_ const struct SHMDeviceContext* context,
     _In_ size_t                         offset,
     _In_ size_t                         length,
-    _In_ enum SHMDeviceDirection        direction)
+    _In_ enum DMADirection              direction)
 {
     size_t line;
     size_t start;
 
-    if (context->CachePolicy == SHMDeviceCacheCoherent || direction == SHMDeviceToDevice) {
+    if (context->CachePolicy == SHMDeviceCacheCoherent || direction == DMAToDevice) {
+        return false;
+    }
+    if (!__BufferHasCachedAlias(buffer)) {
         return false;
     }
 
@@ -731,7 +749,7 @@ __CreateMapping(
     _In_  struct SHMDeviceContext*  context,
     _In_  size_t                    offset,
     _In_  size_t                    length,
-    _In_  enum SHMDeviceDirection   direction,
+    _In_  enum DMADirection         direction,
     _In_  bool                      allowBounce,
     _Out_ struct SHMDeviceMapping** mappingOut)
 {
@@ -792,18 +810,20 @@ __CreateMapping(
     }
 
     // Guard the size calculation, which could otherwise wrap on 32-bit kernels.
-    maxSegments = (SIZE_MAX - sizeof(struct SHMDeviceMapping)) / sizeof(struct SHMDeviceSegment);
+    maxSegments = (SIZE_MAX - sizeof(struct SHMDeviceMapping)) / sizeof(struct DMASegment);
     if (segmentCount > maxSegments) {
         status = OS_EOOM;
         goto cleanup;
     }
-    mapping = kmalloc(sizeof(struct SHMDeviceMapping) + segmentCount * sizeof(struct SHMDeviceSegment));
+    mapping = kmalloc(sizeof(struct SHMDeviceMapping) + segmentCount * sizeof(struct DMASegment));
     if (mapping == NULL) {
         status = OS_EOOM;
         goto cleanup;
     }
 
-    status = SHMDeviceContextBuildSegments(context, extents, extentCount, &segmentCount, mapping->Segments);
+    // The count pass validated these private extents against an immutable
+    // context. Fill directly instead of repeating validation and counting.
+    status = __WalkSegments(context, extents, extentCount, mapping->Segments, &segmentCount);
     if (status != OS_EOK) {
         goto cleanup;
     }
@@ -813,8 +833,10 @@ __CreateMapping(
     mapping->Offset = offset;
     mapping->Length = length;
     mapping->Direction = direction;
+    mapping->Cached = needsBounce ? bounce.Allocation.Cached : __BufferHasCachedAlias(buffer);
     // The caller built the mapping from the CPU side, so the CPU owns it first.
     mapping->DeviceOwned = false;
+    mapping->Shared = false;
     mapping->Bounce = bounce;
     mapping->Extents = extents;
     mapping->ExtentCount = extentCount;
@@ -837,7 +859,7 @@ __Map(
     _In_    uuid_t                    shmID,
     _In_    size_t                    offset,
     _In_    size_t                    length,
-    _In_    enum SHMDeviceDirection   direction,
+    _In_    enum DMADirection         direction,
     _In_    bool                      allowBounce,
     _InOut_ struct SHMDeviceMapping** mappingOut)
 {
@@ -855,8 +877,8 @@ __Map(
 
     // Later cache handling decides what to do from the direction, so an
     // unknown value must not slip through and be treated as one of them.
-    if (direction != SHMDeviceToDevice && direction != SHMDeviceFromDevice &&
-        direction != SHMDeviceBidirectional) {
+    if (direction != DMAToDevice && direction != DMAFromDevice &&
+        direction != DMABidirectional) {
         return OS_EINVALPARAMS;
     }
 
@@ -905,7 +927,7 @@ SHMDeviceMap(
     _In_    uuid_t                    shmID,
     _In_    size_t                    offset,
     _In_    size_t                    length,
-    _In_    enum SHMDeviceDirection   direction,
+    _In_    enum DMADirection         direction,
     _InOut_ struct SHMDeviceMapping** mappingOut)
 {
     return __Map(context, shmID, offset, length, direction, true, mappingOut);
@@ -926,7 +948,7 @@ __IsPowerOfTwoOrZero(
  */
 static bool
 __RequirementsValid(
-    _In_ const struct SHMDeviceRequirements* requirements)
+    _In_ const struct DMARequirements* requirements)
 {
     if (requirements->Length == 0) {
         return false;
@@ -951,10 +973,10 @@ __RequirementsValid(
  */
 static oserr_t
 __CheckRequirements(
-    _In_ const struct SHMDeviceMapping*      mapping,
-    _In_ const struct SHMDeviceRequirements* requirements)
+    _In_ const struct SHMDeviceMapping* mapping,
+    _In_ const struct DMARequirements*  requirements)
 {
-    const struct SHMDeviceSegment* segment;
+    const struct DMASegment*       segment;
     uint64_t                       last;
 
     if (requirements->Contiguous && mapping->SegmentCount != 1) {
@@ -980,10 +1002,10 @@ __CheckRequirements(
 
 oserr_t
 SHMDeviceAllocate(
-    _In_    struct SHMDeviceContext*            context,
-    _In_    const struct SHMDeviceRequirements* requirements,
-    _Out_   SHMHandle_t*                        bufferOut,
-    _InOut_ struct SHMDeviceMapping**           mappingOut)
+    _In_    struct SHMDeviceContext*      context,
+    _In_    const struct DMARequirements* requirements,
+    _Out_   SHMHandle_t*                  bufferOut,
+    _InOut_ struct SHMDeviceMapping**     mappingOut)
 {
     SHMHandle_t handle;
     size_t      pageSize = GetMemorySpacePageSize();
@@ -1018,7 +1040,7 @@ SHMDeviceAllocate(
 
     // The device keeps using this memory while the CPU does too, so it must
     // work on the buffer itself: a bounce copy would never be up to date.
-    status = __Map(context, handle.ID, 0, handle.Length, SHMDeviceBidirectional, false, mappingOut);
+    status = __Map(context, handle.ID, 0, handle.Length, DMABidirectional, false, mappingOut);
     if (status == OS_EOK) {
         status = __CheckRequirements(*mappingOut, requirements);
         if (status != OS_EOK) {
@@ -1030,6 +1052,7 @@ SHMDeviceAllocate(
         return status;
     }
 
+    (*mappingOut)->Shared = true;
     *bufferOut = handle;
     return OS_EOK;
 }
@@ -1114,6 +1137,7 @@ __MaintainRange(
         if (chunk > length) {
             chunk = length;
         }
+        
         operation(extent->Address + skip, chunk);
         length -= chunk;
         skip = 0;
@@ -1127,7 +1151,7 @@ SHMDeviceSyncForDevice(
     _In_ size_t                   length)
 {
     // Handing over nothing would leave the device with no bytes to use.
-    if (mapping == NULL || length == 0) {
+    if (mapping == NULL || mapping->Shared || length == 0) {
         return OS_EINVALPARAMS;
     }
     if (!__RangeInMapping(mapping, offset, length)) {
@@ -1142,7 +1166,7 @@ SHMDeviceSyncForDevice(
 
     // When bouncing, the device reads the copy, so the CPU's data must be put
     // there first. A device that only writes would overwrite it anyway.
-    if (mapping->Bounce.Copy != 0 && mapping->Direction != SHMDeviceFromDevice) {
+    if (mapping->Bounce.Copy != 0 && mapping->Direction != DMAFromDevice) {
         memcpy(
             (void*)(mapping->Bounce.Copy + offset),
             (const void*)(mapping->Bounce.Source + mapping->Bounce.SourceOffset + offset),
@@ -1157,8 +1181,10 @@ SHMDeviceSyncForDevice(
     // A device that cannot see the CPU cache reads memory directly. Before it
     // reads, write cached data back. Before it writes, also throw the lines
     // away, so no old cached line can later land on top of the device's data.
-    if (mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent) {
-        if (mapping->Direction == SHMDeviceToDevice) {
+    // Uncached backing still needs ordering and ownership, but has no dirty
+    // or stale cache lines to maintain. Bounce storage follows its own pool.
+    if (mapping->Cached && mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent) {
+        if (mapping->Direction == DMAToDevice) {
             __MaintainRange(mapping, offset, length, CpuDataCacheClean);
         } else {
             __MaintainRange(mapping, offset, length, CpuDataCacheCleanInvalidate);
@@ -1176,7 +1202,7 @@ SHMDeviceSyncForCpu(
 {
     // An empty completed range is valid: a transfer can stop before the device
     // wrote anything, and the CPU must still be able to take the range back.
-    if (mapping == NULL) {
+    if (mapping == NULL || mapping->Shared) {
         return OS_EINVALPARAMS;
     }
     if (!__RangeInMapping(mapping, offset, length)) {
@@ -1196,14 +1222,14 @@ SHMDeviceSyncForCpu(
     // While the device owned the memory, the CPU may have read ahead and
     // cached old values. Throw those away for the bytes the device wrote.
     // Map made sure this range's lines belong to the mapping alone.
-    if (mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent &&
-        mapping->Direction != SHMDeviceToDevice) {
+    if (mapping->Cached && mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent &&
+        mapping->Direction != DMAToDevice) {
         __MaintainRange(mapping, offset, length, CpuDataCacheInvalidate);
     }
 
     // When bouncing, the device wrote the copy. Bring back only the completed
     // bytes, so the rest of the buffer keeps whatever the CPU put there.
-    if (mapping->Bounce.Copy != 0 && mapping->Direction != SHMDeviceToDevice) {
+    if (mapping->Bounce.Copy != 0 && mapping->Direction != DMAToDevice) {
         memcpy(
             (void*)(mapping->Bounce.Source + mapping->Bounce.SourceOffset + offset),
             (const void*)(mapping->Bounce.Copy + offset),
@@ -1214,7 +1240,7 @@ SHMDeviceSyncForCpu(
     return OS_EOK;
 }
 
-const struct SHMDeviceSegment*
+const struct DMASegment*
 SHMDeviceMappingSegments(
     _In_  const struct SHMDeviceMapping* mapping,
     _Out_ uint32_t*                      countOut)

@@ -22,6 +22,7 @@
 #include <os/types/syslog.h>
 #include <os/types/shm.h>
 #include <os/types/dma.h>
+#include <os/types/dma_config.h>
 #include <os/types/time.h>
 #include <time.h> // for clock_t
 
@@ -59,15 +60,15 @@ typedef struct OSSHMConformParameters {
 } OSSHMConformParameters_t;
 
 struct OSDmaMapParameters {
-    size_t                  Offset;
-    size_t                  Length;
-    enum SHMDeviceDirection Direction;
+    size_t            Offset;
+    size_t            Length;
+    enum DMADirection Direction;
 };
 
 struct OSDmaMappingResult {
-    uuid_t                  Handle;
-    uint32_t                SegmentCount;
-    struct SHMDeviceSegment InlineSegment;
+    uuid_t            Handle;
+    uint32_t          SegmentCount;
+    struct DMASegment InlineSegment;
 };
 
 struct OSDmaAllocationResult {

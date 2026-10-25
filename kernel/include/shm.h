@@ -29,8 +29,8 @@
  */
 KERNELAPI oserr_t KERNELABI
 SHMCreate(
-        _In_ SHM_t*       shm,
-        _In_ SHMHandle_t* handle);
+    _In_ SHM_t*       shm,
+    _In_ SHMHandle_t* handle);
 
 /**
  * @brief Create a zeroed device buffer from reserved system memory.
@@ -49,10 +49,10 @@ SHMCreate(
  */
 KERNELAPI oserr_t KERNELABI
 SHMCreateDeviceBuffer(
-        _In_  size_t       size,
-        _In_  size_t       alignment,
-        _In_  size_t       boundary,
-        _Out_ SHMHandle_t* handle);
+    _In_  size_t       size,
+    _In_  size_t       alignment,
+    _In_  size_t       boundary,
+    _Out_ SHMHandle_t* handle);
 
 /**
  * @brief Exports an existing memory region that stretches over <Length>. Makes sure
@@ -65,11 +65,11 @@ SHMCreateDeviceBuffer(
  */
 KERNELAPI oserr_t KERNELABI
 SHMExport(
-        _In_  void*        memory,
-        _In_  size_t       size,
-        _In_  unsigned int flags,
-        _In_  unsigned int accessFlags,
-        _In_  SHMHandle_t* handle);
+    _In_  void*        memory,
+    _In_  size_t       size,
+    _In_  unsigned int flags,
+    _In_  unsigned int accessFlags,
+    _In_  SHMHandle_t* handle);
 
 /**
  * @brief Creates a conformed buffer clone from a source buffer. The buffer will automatically
@@ -86,13 +86,13 @@ SHMExport(
  */
 KERNELAPI oserr_t KERNELABI
 SHMConform(
-        _In_ uuid_t                  shmID,
-        _In_ SHMConformityOptions_t* conformity,
-        _In_ unsigned int            flags,
-        _In_ unsigned int            access,
-        _In_ size_t                  offset,
-        _In_ size_t                  length,
-        _In_ SHMHandle_t*            handle);
+    _In_ uuid_t                  shmID,
+    _In_ SHMConformityOptions_t* conformity,
+    _In_ unsigned int            flags,
+    _In_ unsigned int            access,
+    _In_ size_t                  offset,
+    _In_ size_t                  length,
+    _In_ SHMHandle_t*            handle);
 
 /**
  * @brief
@@ -102,17 +102,20 @@ SHMConform(
  */
 KERNELAPI oserr_t KERNELABI
 SHMAttach(
-        _In_ uuid_t       shmID,
-        _In_ SHMHandle_t* handle);
+    _In_ uuid_t       shmID,
+    _In_ SHMHandle_t* handle);
 
 /**
- * @brief
- * @param handle
- * @return
+ * @brief Release a CPU attachment, preserving unfinished stages on failure.
+ * Other attachments and device mappings retain their own references. A successful
+ * reference drop is complete even when the underlying storage remains live.
+ * 
+ * @param handle Attachment updated after each completed stage; retry on failure.
+ * @return OS_EOK on release, including empty attachments, or cleanup error.
  */
 KERNELAPI oserr_t KERNELABI
 SHMDetach(
-        _In_ SHMHandle_t* handle);
+    _InOut_ SHMHandle_t* handle);
 
 /**
  * @brief
@@ -124,10 +127,10 @@ SHMDetach(
  */
 KERNELAPI oserr_t KERNELABI
 SHMMap(
-        _In_ SHMHandle_t* handle,
-        _In_ size_t       offset,
-        _In_ size_t       length,
-        _In_ unsigned int flags);
+    _In_ SHMHandle_t* handle,
+    _In_ size_t       offset,
+    _In_ size_t       length,
+    _In_ unsigned int flags);
 
 /**
  *
@@ -139,9 +142,9 @@ SHMMap(
  */
 KERNELAPI oserr_t KERNELABI
 SHMUnmap(
-        _In_ SHMHandle_t* handle,
-        _In_ vaddr_t      address,
-        _In_ size_t       length);
+    _In_ SHMHandle_t* handle,
+    _In_ vaddr_t      address,
+    _In_ size_t       length);
 
 /**
  * Commits a certain area of a memory region.
@@ -153,10 +156,10 @@ SHMUnmap(
  */
 KERNELAPI oserr_t KERNELABI
 SHMCommit(
-        _In_ uuid_t handle,
-        _In_ void*  memoryBase,
-        _In_ void*  memory,
-        _In_ size_t length);
+    _In_ uuid_t handle,
+    _In_ void*  memoryBase,
+    _In_ void*  memory,
+    _In_ size_t length);
 
 /**
  * Retrieves a scatter gather list of the physical memory block
@@ -168,9 +171,9 @@ SHMCommit(
  */
 KERNELAPI oserr_t KERNELABI
 SHMBuildSG(
-        _In_  uuid_t   handle,
-        _Out_ int*     sgCountOut,
-        _Out_ SHMSG_t* sgOut);
+    _In_  uuid_t   handle,
+    _Out_ int*     sgCountOut,
+    _Out_ SHMSG_t* sgOut);
 
 /**
  * Retrieves the kernel memory mapping for a given memory region handle
@@ -180,7 +183,7 @@ SHMBuildSG(
  */
 KERNELAPI oserr_t KERNELABI
 SHMKernelMapping(
-        _In_  uuid_t handle,
-        _Out_ void** bufferOut);
+    _In_  uuid_t handle,
+    _Out_ void** bufferOut);
 
 #endif //!__SHM_H__

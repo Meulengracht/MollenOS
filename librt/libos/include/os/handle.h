@@ -26,6 +26,7 @@
  * properly shared. In most instances system handles are only used locally
  * for each process. If a handle needs to be shared, then read the relevant
  * documentation for each handle type on how to use and share.
+ * 
  * @param type The type of system handle that needs to be created.
  * @param payload An implementation specific payload that is paired with the handle.
  * @param handle An OSHandle structure that describes this system handle. This
@@ -41,6 +42,7 @@ OSHandleCreate(
 /**
  * @brief Constructs a new handle based on an existing system handle. This is useful
  * for wrapping some kernel API calls in a new OSHandle structure.
+ * 
  * @param id The global system handle ID.
  * @param type The type of the global system handle.
  * @param payload An implementation specific payload that is paired with the handle.
@@ -65,11 +67,28 @@ OSHandleWrap(
  * Some handles have multiple references to them in the global scope, and thus destroying
  * them through here will only reduce the reference, and allow the resources to continue
  * as long as there are remaining references.
- * @param id The global ID of the system handle.
+ * 
+ * This compatibility operation cannot report cleanup failure. It retains the
+ * owner and logs a warning on failure; use OSHandleRelease when retry is needed.
+ * @param handle Owning slot, cleared after successful release.
  */
 CRTDECL(void,
 OSHandleDestroy(
         _In_ struct OSHandle* handle));
+
+/**
+ * @brief Release one local reference, retaining ownership if final cleanup fails.
+ * Final cleanup runs outside the registry lock. Once it starts, find/acquire
+ * refuse this handle until cleanup succeeds; retry release using the same slot.
+ * Calls using an owning slot must be serialized. Copying a slot does not acquire
+ * another reference; use OSHandlesAcquire before releasing independent aliases.
+ * 
+ * @param handle Owning slot, cleared on success. NULL/empty slots are harmless.
+ * @return OS_EOK, OS_EBUSY during concurrent release, or cleanup/lookup error.
+ */
+CRTDECL(oserr_t,
+OSHandleRelease(
+        _InOut_ struct OSHandle* handle));
 
 /**
  * @brief Acquires an additional reference to a system handle.
@@ -81,10 +100,14 @@ OSHandlesAcquire(
         _In_ struct OSHandle* handle));
 
 /**
- * @brief Finds and wraps a system handle by its global identifier.
+ * @brief Find a borrowed local handle description by its global identifier.
+ * Independent SHM attachments may share an ID. This ID-only lookup reports
+ * OS_EEXISTS when ambiguous; use the owning slot returned by SHMAttach instead.
+ * SHM lookup scans the local registry; ordinary handles retain indexed lookup.
+ * 
  * @param id Global system handle identifier.
  * @param handle Receives the handle description.
- * @return OS_EOK when the handle is found; otherwise, an error code.
+ * @return OS_EOK, OS_EEXISTS, OS_EBUSY during cleanup, or OS_ENOENT.
  */
 CRTDECL(oserr_t,
 OSHandlesFind(

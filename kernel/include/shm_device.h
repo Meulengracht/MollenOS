@@ -21,30 +21,11 @@
 #include <os/osdefs.h>
 #include <os/types/shm.h>
 #include <os/types/dma.h>
+#include <os/types/dma_config.h>
 
 // This accepts all 64 ranges produced by deviced without 
 // making the kernel aware of firmware-specific details.
-#define SHM_DEVICE_MAX_RANGES 64
-
-enum SHMDeviceCachePolicy {
-    // An unknown policy cannot be used to create a context.
-    SHMDeviceCacheUnknown,
-    // CPU caches need explicit handling before memory changes hands.
-    SHMDeviceCacheNonCoherent,
-    // The complete device path provides hardware cache coherency.
-    SHMDeviceCacheCoherent
-};
-
-/**
- * These are address rules, not allocated pages. Length counts bytes from both
- * bases. Device blocks must not overlap; physical blocks may overlap because
- * hardware can expose several device addresses for the same physical memory.
- */
-struct SHMDeviceRange {
-    uint64_t PhysicalBase;
-    uint64_t DeviceBase;
-    uint64_t Length;
-};
+#define SHM_DEVICE_MAX_RANGES DMA_MAX_RANGES
 
 // Opaque types
 struct SHMDeviceContext;
@@ -55,8 +36,8 @@ struct SHMDeviceMapping;
  *
  * This call must only use kernel memory, never user pointers.
  * It does not register a device, retain a deviced lease, reserve RAM, configure
- * caches or enable hardware. The future registration caller must separately
- * keep the actual device path alive and exclude reset while using these rules.
+ * caches or enable hardware. The DDK DMA session retains the provider lease
+ * until all mappings and the kernel context have been released.
  *
  * @param ranges Unsorted or sorted ranges.
  * @param count Number of ranges; must be 1 through SHM_DEVICE_MAX_RANGES.
@@ -169,7 +150,7 @@ SHMDeviceContextBuildSegments(
     _In_    const SHMSG_t*                 extents,
     _In_    int                            extentCount,
     _InOut_ uint32_t*                      segmentCount,
-    _Out_   struct SHMDeviceSegment*       segmentsOut);
+    _Out_   struct DMASegment*             segmentsOut);
 
 /**
  * @brief Prepare part of an SHM buffer for a device and keep it alive.
@@ -189,6 +170,8 @@ SHMDeviceContextBuildSegments(
  * happens when part of the range is out of the device's reach, or when a
  * non-coherent device writes and the range does not start and end on a CPU
  * cache line boundary (cache work would otherwise erase neighbouring bytes).
+ * Uncached pool buffers need no cache-line isolation. Legacy SHM_DEVICE
+ * buffers retain it because a cached kernel alias may still exist.
  * The segments then describe the bounce pages.
  *
  * The new mapping starts out owned by the CPU. Hand it to the device with
@@ -214,7 +197,7 @@ SHMDeviceMap(
     _In_    uuid_t                    shmID,
     _In_    size_t                    offset,
     _In_    size_t                    length,
-    _In_    enum SHMDeviceDirection   direction,
+    _In_    enum DMADirection         direction,
     _InOut_ struct SHMDeviceMapping** mappingOut);
 
 /**
@@ -236,7 +219,7 @@ SHMDeviceMap(
  * SHMDeviceUnmap on the mapping and SHMDetach on the buffer, in that order.
  *
  * @param context Context held by the caller throughout this call.
- * @param requirements What the device needs; see SHMDeviceRequirements.
+ * @param requirements What the device needs; see DMARequirements.
  * @param bufferOut Receives the buffer handle, including the CPU pointer.
  * @param mappingOut Empty owning slot; receives the mapping on success.
  * @return OS_EOK; OS_EINVALPARAMS for NULL arguments or requirements no
@@ -247,10 +230,10 @@ SHMDeviceMap(
  */
 oserr_t
 SHMDeviceAllocate(
-    _In_    struct SHMDeviceContext*            context,
-    _In_    const struct SHMDeviceRequirements* requirements,
-    _Out_   SHMHandle_t*                        bufferOut,
-    _InOut_ struct SHMDeviceMapping**           mappingOut);
+    _In_    struct SHMDeviceContext*      context,
+    _In_    const struct DMARequirements* requirements,
+    _Out_   SHMHandle_t*                  bufferOut,
+    _InOut_ struct SHMDeviceMapping**     mappingOut);
 
 /**
  * @brief Hand a mapping to the device before starting a transfer.
@@ -259,16 +242,18 @@ SHMDeviceAllocate(
  * whole mapping as device-owned. When bouncing, the range is first copied to
  * the bounce pages (unless the device only writes). For a non-coherent
  * context, cached data in the range is written back, and for a device that
- * writes, also thrown away.
+ * writes, also thrown away. Cache work follows the actual backing, including
+ * bounce pages; uncached pool backing skips it but still requires ordering,
+ * copies and the ownership handoff.
  * Until SHMDeviceSyncForCpu, the CPU must not touch the mapping's bytes, and
  * the mapping cannot be released.
  *
- * @param mapping Mapping owned by the caller. Calls on one mapping must not
- *                overlap.
+ * @param mapping Streaming mapping from SHMDeviceMap, not SHMDeviceAllocate.
+ *                Calls on one mapping must not overlap.
  * @param offset First byte the device will use, counted from the mapping.
  * @param length Nonzero number of bytes; must lie inside the mapping.
- * @return OS_EOK; OS_EINVALPARAMS for NULL or a bad range; OS_EBUSY if the
- *         device already owns the mapping.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL, a shared allocation or a bad range;
+ *         OS_EBUSY if the device already owns the mapping.
  */
 oserr_t
 SHMDeviceSyncForDevice(
@@ -287,12 +272,12 @@ SHMDeviceSyncForDevice(
  * whole mapping to the CPU. Bytes outside the completed range must be treated
  * as unchanged.
  *
- * @param mapping Mapping owned by the caller. Calls on one mapping must not
- *                overlap.
+ * @param mapping Streaming mapping from SHMDeviceMap, not SHMDeviceAllocate.
+ *                Calls on one mapping must not overlap.
  * @param offset First completed byte, counted from the mapping.
  * @param length Completed bytes; zero is allowed when nothing was transferred.
- * @return OS_EOK; OS_EINVALPARAMS for NULL, a bad range, or a mapping the
- *         device does not own.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL, a shared allocation, a bad range,
+ *         or a mapping the device does not own.
  */
 oserr_t
 SHMDeviceSyncForCpu(
@@ -324,7 +309,7 @@ SHMDeviceUnmap(
  * @return The segment list, valid until the mapping is released, or NULL for
  *         NULL arguments.
  */
-const struct SHMDeviceSegment*
+const struct DMASegment*
 SHMDeviceMappingSegments(
     _In_  const struct SHMDeviceMapping* mapping,
     _Out_ uint32_t*                      countOut);
