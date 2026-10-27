@@ -46,48 +46,50 @@ if (VALI_ARCH STREQUAL "i386" OR VALI_ARCH STREQUAL "amd64")
 endif ()
 
 add_library(libddk
-        ${GENERATED_SOURCES}
-        ${ASM_SOURCES}
+    ${GENERATED_SOURCES}
+    ${ASM_SOURCES}
 
-        initrd/depacks.c
-        initrd/filter.c
-    
-        acsupport.c
-        bufferpool.c
-        bytepool.c
-        crc32.c
-        debug.c
-        device.c
-        deviceio.c
-        dma.c
-        dma_context.c
-        resources.c
-        firmware.c
-        interrupt.c
-        interrupt-pci.c
-        interrupt-provider.c
-        io.c
-        mappings.c
-        service.c
-        usb.c
-        utils.c
+    dma/context.c
+    dma/dma.c
+
+    initrd/depacks.c
+    initrd/filter.c
+
+    interrupts/interrupt.c
+    interrupts/pci.c
+    interrupts/provider.c
+
+    utils/bufferpool.c
+    utils/bytepool.c
+    utils/crc32.c
+
+    debug.c
+    device.c
+    deviceio.c
+    resources.c
+    firmware.c
+    io.c
+    mappings.c
+    service.c
+    usb.c
+    utils.c
 )
 add_dependencies(libddk service_clients contract_clients)
 target_include_directories(libddk
-        PUBLIC
-        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/../libusb/include>"
-        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>"
+    PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/../libusb/include>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>"
 )
 
 # avoid using target_link_libraries for the RT libraries as it could result
 # in cyclic dependencies, and most are static libraries and do not actually really
 # depend on each other
 target_include_directories(libddk PRIVATE
-        ../../tools/rd/libvafs/include
-        ../libgracht/include
-        ../libds/include
-        ../libos/include
-        ../libc/include
+    ../../tools/rd/libvafs/include
+    ../libgracht/include
+    ../libds/include
+    ../libos/include
+    ../libc/include
 )
 
 install(TARGETS libddk

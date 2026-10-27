@@ -26,7 +26,7 @@
 #define __DDK_USBDEVICE_H__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/device.h>
+#include <ddk/devices/device.h>
 #include <usb/usb.h>
 
 typedef struct UsbDevice {

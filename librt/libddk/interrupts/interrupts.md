@@ -44,7 +44,7 @@ read-only by contract, and callers must serialize operations on each object.
 
 ## Driver API
 
-`ddk/interrupt.h` exposes the lifecycle and common allocation results. `Kind`
+`ddk/interrupts/interrupt.h` exposes the lifecycle and common allocation results. `Kind`
 describes the kernel resource, not a PCI capability. Drivers must not modify
 `Kind`, `Count`, `Vectors` or `State` directly.
 
@@ -70,7 +70,7 @@ Manual line objects initialized with a null device retain the existing explicit
 
 ## PCI policy
 
-PCI-aware drivers include `ddk/pci-interrupt.h` and use
+PCI-aware drivers include `ddk/interrupts/pci.h` and use
 `DeviceInterruptAllocatePci` to constrain the modes they can configure. The
 generic allocator accepts all PCI modes by default. Both entry points return the
 same object and use the same enable/disable/destroy implementation.
@@ -92,7 +92,7 @@ requests remain unsupported because its resolver applies ACPI overrides.
 
 ## Provider API and wire contracts
 
-`ddk/interrupt-provider.h` exposes privileged resolution, attachment and completion
+`ddk/interrupts/provider.h` exposes privileged resolution, attachment and completion
 operations. Message-controller resolution accepts only a platform message fabric
 or a PCI host identity. Line-source resolution has a separate versioned identity
 with explicit firmware-controller and line fields. Neither operation allocates

@@ -22,7 +22,7 @@
 #define __APIC_H__
 
 #include <os/osdefs.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <component/ic.h>
 
 /* Local Apic Registers Definitions

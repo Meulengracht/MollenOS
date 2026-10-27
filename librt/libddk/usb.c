@@ -18,7 +18,7 @@
  */
 
 #include <ddk/service.h>
-#include <ddk/usbdevice.h>
+#include <ddk/devices/usb.h>
 #include <ddk/convert.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>

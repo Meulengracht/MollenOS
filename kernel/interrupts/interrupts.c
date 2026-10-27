@@ -32,7 +32,7 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <component/ic.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <deviceio.h>
 #include <debug.h>
 #include <heap.h>

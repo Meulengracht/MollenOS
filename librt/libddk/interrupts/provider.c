@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ddk/interrupt-provider.h>
+#include <ddk/interrupts/provider.h>
 #include <internal/_syscalls.h>
 
 oserr_t

@@ -20,7 +20,7 @@
 #include <os/types/syscall.h>
 #include <stdlib.h>
 
-#include "dma_private.h"
+#include "private.h"
 
 struct DMABuffer {
     struct __DmaResource Resource;

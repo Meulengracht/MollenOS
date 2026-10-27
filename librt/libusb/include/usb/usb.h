@@ -25,7 +25,7 @@
 
 #include <ddk/ddkdefs.h>
 #include <ddk/bufferpool.h>
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <ddk/service.h>
 #include <ds/mstring.h>
 #include <usb/definitions.h>

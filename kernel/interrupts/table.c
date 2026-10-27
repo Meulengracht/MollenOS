@@ -23,7 +23,7 @@
  */
 
 #include <arch/io.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
 #include <interrupts.h>

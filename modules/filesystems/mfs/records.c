@@ -167,6 +167,7 @@ __InitiateDirectory(
 /**
  * Finds an entry matching the name given, or returns a free entry. A guarantee of a free entry can only be made
  * if the <allowExpansion> is set to a non-zero value.
+ * 
  * @param fileSystem        [In] A pointer to an instance of the filesystem data.
  * @param mfs               [In] A pointer to an instance of the mfs data.
  * @param directory         [In] The directory that should be searched.

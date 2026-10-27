@@ -25,7 +25,7 @@
 #define __DDK_BUSDEVICE_H__
 
 #include <ddk/ddkdefs.h>
-#include <ddk/device.h>
+#include <ddk/devices/device.h>
 #include <ddk/io.h>
 
 #define __DEVICEMANAGER_MAX_IOSPACES 6

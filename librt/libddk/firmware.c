@@ -18,8 +18,11 @@
  */
 
 #include <internal/_syscalls.h>
+#include <ddk/acpi.h>
 #include <ddk/firmware.h>
 #include <os/memory.h>
+#include <stdlib.h>
+#include <string.h>
 
 oserr_t
 FirmwareQuery(
@@ -76,4 +79,79 @@ FirmwareTableUnmap(
         return OS_EINVALPARAMS;
     }
     return MemoryFree((void*)mapping, length);
+}
+
+oserr_t
+AcpiQueryStatus(
+    _In_ AcpiDescriptor_t* AcpiDescriptor)
+{
+    OSFirmwareInfo_t info;
+    oserr_t          oserr;
+
+    if (AcpiDescriptor == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = FirmwareQuery(&info);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    if (!(info.Available & OSFIRMWARE_ACPI)) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    AcpiDescriptor->Version      = info.Acpi.Revision;
+    AcpiDescriptor->Century      = info.Acpi.Century;
+    AcpiDescriptor->BootFlags    = info.Acpi.IaBootFlags;
+    AcpiDescriptor->ArmBootFlags = info.Acpi.ArmBootFlags;
+    return OS_EOK;
+}
+
+oserr_t
+AcpiQueryTable(
+    _In_  const char*         signature,
+    _Out_ ACPI_TABLE_HEADER** tableOut)
+{
+    OSFirmwareTableKey_t key = { .Source = OSFIRMWARE_ACPI };
+    OSFirmwareTable_t    table;
+    void*                buffer;
+    size_t               length;
+    oserr_t              oserr;
+
+    if (signature == NULL || tableOut == NULL || strlen(signature) != sizeof(key.Signature)) {
+        return OS_EINVALPARAMS;
+    }
+    memcpy(&key.Signature[0], signature, sizeof(key.Signature));
+
+    oserr = FirmwareTableLocate(&key, &table);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    buffer = malloc(table.Length);
+    if (!buffer) {
+        return OS_EOOM;
+    }
+
+    oserr = FirmwareTableRead(&key, buffer, table.Length, &length);
+    if (oserr != OS_EOK) {
+        free(buffer);
+        return oserr;
+    }
+
+    *tableOut = buffer;
+    return OS_EOK;
+}
+
+oserr_t AcpiQueryInterrupt(
+    _In_  unsigned int Bus,
+    _In_  unsigned int Device,
+    _In_  int       Pin,
+    _Out_ int*      Interrupt,
+    _Out_ unsigned int*  AcpiConform)
+{
+    if (Interrupt == NULL || AcpiConform == NULL) {
+        return OS_EUNKNOWN;
+    }
+    return Syscall_AcpiQueryInterrupt(Bus, Device, Pin, Interrupt, AcpiConform);
 }

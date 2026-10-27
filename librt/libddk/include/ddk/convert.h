@@ -26,10 +26,10 @@
 #define __DDK_CONVERT_H__
 
 #include <ddk/storage.h>
-#include <ddk/device.h>
-#include <ddk/usbdevice.h>
-#include <ddk/busdevice.h>
-#include <ddk/platformdevice.h>
+#include <ddk/devices/device.h>
+#include <ddk/devices/usb.h>
+#include <ddk/devices/bus.h>
+#include <ddk/devices/platform.h>
 #include <ddk/filesystem.h>
 
 #include <os/types/file.h>

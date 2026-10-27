@@ -33,7 +33,7 @@
 #include <arch/x86/apic.h>
 #include <arch/x86/pic.h>
 #include <assert.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <debug.h>
 #include <machine.h>
 

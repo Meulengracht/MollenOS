@@ -21,11 +21,10 @@
 //#define __TRACE
 
 #include <ddk/types/interrupt-group.h>
-#include <ddk/busdevice.h>
-#include <ddk/interrupt.h>
-#include <ddk/pci-interrupt.h>
-#include "interrupt-private.h"
 #include <ddk/types/interrupt-source.h>
+#include <ddk/devices/bus.h>
+#include <ddk/interrupts/interrupt.h>
+#include <ddk/interrupts/pci.h>
 #include <ddk/utils.h>
 #include <os/device.h>
 #include <internal/_syscalls.h>
@@ -33,6 +32,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "private.h"
 
 static oserr_t
 __ProviderControl(

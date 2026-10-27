@@ -22,7 +22,7 @@
 #ifndef __INTERRUPTS_CHAIN_H__
 #define __INTERRUPTS_CHAIN_H__
 
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 
 struct InterruptCompletion;
 

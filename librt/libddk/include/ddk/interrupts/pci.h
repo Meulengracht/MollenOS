@@ -19,7 +19,7 @@
 #define __DDK_PCI_INTERRUPT_H__
 
 #include <ddk/types/pci-interrupt.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 
 /**
  * @brief Reserve using only the PCI modes the driver knows how to configure.

@@ -24,7 +24,7 @@
 #include <threads.h>
 #include <stdlib.h>
 
-#include "dma_private.h"
+#include "private.h"
 
 // Only open, close and exceptional rollback touch this registry. Transfers and
 // child allocation use their context directly, without a global lookup or lock.

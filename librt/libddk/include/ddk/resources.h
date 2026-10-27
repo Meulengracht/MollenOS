@@ -21,21 +21,39 @@
 #ifndef __DDK_RESOURCES_H__
 #define __DDK_RESOURCES_H__
 
-#include <ddk/device.h>
+#include <ddk/devices/device.h>
 #include <ddk/io.h>
 
 _CODE_BEGIN
 
 #define DEVICE_MAX_REGISTERS 8
 
-/** Registered IO descriptors; acquiring a descriptor supplies its CPU mapping. */
+/**
+ * @brief Identity of a child's immediate PCI parent, supplied by its resource provider.
+ * VendorId zero means unavailable. This identifies the immediate PCI parent,
+ * not the device itself or whether a peripheral integration is supported.
+ */
+struct DeviceParentPciIdentity {
+    uint32_t VendorId;
+    uint32_t ProductId;
+    uint32_t Revision;
+};
+
+/**
+ * @brief Registered IO descriptors and parent identity.
+ * The provider supplies register mappings on request.
+ * ParentPci is zero when the provider cannot describe an immediate PCI parent.
+ * This is the DEVICE_RESOURCES ioctl layout; rebuild providers and clients
+ * together when changing it.
+ */
 struct DeviceResources {
-    uint32_t Count;
-    DeviceIo_t Registers[DEVICE_MAX_REGISTERS];
+    uint32_t                       Count;
+    DeviceIo_t                     Registers[DEVICE_MAX_REGISTERS];
+    struct DeviceParentPciIdentity ParentPci;
 };
 
 enum DeviceActivation {
-    // Enable register access and complete provider-specific peripheral setup.
+    // Enable register access and provider-owned bus or power dependencies.
     DevicePrepare,
     // Permit DMA after the driver has prepared buffers and interrupts.
     DeviceStart,
@@ -58,7 +76,7 @@ DeviceGetResources(
  * @brief Change the device activation stage through its provider.
  * @param device Registered device identity.
  * @param stage Prepare, start or stop; repeated requests are idempotent.
- * @return Provider status; failure retains the driver's cleanup obligation.
+ * @return Provider status; failure leaves the driver responsible for cleanup.
  */
 DDKDECL(oserr_t,
 DeviceActivate(

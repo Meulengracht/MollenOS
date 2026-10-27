@@ -15,13 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ddk/pci-interrupt.h>
+#include <ddk/interrupts/pci.h>
 #include <ddk/utils.h>
 #include <internal/_syscalls.h>
 #include <os/device.h>
 #include <string.h>
 
-#include "interrupt-private.h"
+#include "private.h"
 
 oserr_t
 __InterruptPciReserve(

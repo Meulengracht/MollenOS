@@ -2,7 +2,7 @@
 #ifndef __DDK_PLATFORMDEVICE_H__
 #define __DDK_PLATFORMDEVICE_H__
 
-#include <ddk/device.h>
+#include <ddk/devices/device.h>
 #include <string.h>
 
 #define PLATFORM_DEVICE_VERSION 1

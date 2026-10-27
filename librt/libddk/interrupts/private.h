@@ -18,7 +18,7 @@
 #ifndef __DDK_INTERRUPT_PRIVATE_H__
 #define __DDK_INTERRUPT_PRIVATE_H__
 
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/types/interrupt-group.h>
 
 enum __InterruptProviderOperation {
