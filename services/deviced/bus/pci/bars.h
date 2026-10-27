@@ -46,7 +46,7 @@ struct PciBar {
     enum PciBarState State;      // Whether the BAR is absent, unassigned, usable, outside the host window, or invalid.
 };
 
-// Resources supplied to a function handler, with borrowed firmware data.
+// Resources supplied to a function handler, with pointers into firmware data.
 struct PciFunctionResources {
     struct PciBar            Bars[6];
     const struct FdtPciHost* Firmware;
@@ -81,7 +81,7 @@ PciProbeBars(
  * asks the host to translate the bus address for CPU access when translation is
  * available. The state records whether the range is absent, unassigned,
  * successfully assigned, outside the host's address windows, or invalid due to
- * an overflowing extent. The original bus address is retained even if it
+ * an overflowing extent. The original bus address is kept even if it
  * cannot be translated; this function does not change the device's BAR.
  *
  * @param host PCI host used to translate the address, if it supports translation.

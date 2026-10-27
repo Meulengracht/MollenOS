@@ -53,7 +53,7 @@ struct MsixDeviceOperations {
     const struct PciBar*       Bars;
 
     /**
-     * @brief Map creates an uncached alias without claiming the driver's BAR
+     * @brief Map creates an uncached alias without taking ownership of the driver's BAR
      */
     oserr_t (*Map)(void* context, const struct PciMsixRegion* region, void** mapping);
     
@@ -126,7 +126,7 @@ PciMsixDeviceProbe(
  * 
  * @param device PCI function protected by the PCI lock.
  * @param request Operation and allocation owner. See PciInterruptRequest.
- * @return The engine's status. A failed operation can retain cleanup state.
+ * @return The engine's status. A failed operation can leave cleanup state for retry.
  */
 __EXTERN oserr_t
 PciMsixDeviceControl(

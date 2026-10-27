@@ -25,7 +25,7 @@
 #include <bus/pci/host-private.h>
 #include <bus/pci/config.h>
 #include <ddk/acpi.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 
 static inline void __UpdateInterruptLine(

@@ -28,7 +28,7 @@
 #include <bus/pci/bars.h>
 #include <bus/pci/host-private.h>
 #include <bus/pci/config.h>
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <string.h>
 
 uint64_t

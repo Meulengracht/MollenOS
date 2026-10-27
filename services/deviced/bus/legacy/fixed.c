@@ -20,12 +20,13 @@
 
 //#define __TRACE
 
-#include <bus/legacy/fixed.h>
-#include <devices.h>
-#include <ddk/busdevice.h>
-#include <ddk/interrupt.h>
+#include <ddk/devices/bus.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
+
+#include <bus/legacy/fixed.h>
+#include <devices.h>
 
 oserr_t
 __InstallFixedBusDevice(
