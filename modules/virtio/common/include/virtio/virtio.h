@@ -25,7 +25,7 @@
 #ifndef __VIRTIO_VIRTIO_H__
 #define __VIRTIO_VIRTIO_H__
 
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <os/spinlock.h>
 #include <stdint.h>
 

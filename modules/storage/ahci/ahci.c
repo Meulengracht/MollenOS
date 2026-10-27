@@ -25,7 +25,8 @@
 
 //#define __TRACE
 
-#include <ddk/busdevice.h>
+#include <ddk/interrupts/pci.h>
+#include <ddk/devices/bus.h>
 #include <ddk/utils.h>
 #include <os/device.h>
 #include <threads.h>
@@ -111,9 +112,9 @@ AhciControllerCreate(
     // Stop this device's source before preparing its interrupt handler.
     WRITE_VOLATILE(controller->Registers->GlobalHostControl,
         READ_VOLATILE(controller->Registers->GlobalHostControl) & ~AHCI_HOSTCONTROL_IE);
-    DeviceInterruptInitialize(&controller->Interrupt, busDevice);
+    DeviceInterruptInitialize(&controller->Interrupt, &busDevice->Base);
     
-    osStatus = DeviceInterruptAllocate(
+    osStatus = DeviceInterruptAllocatePci(
         &controller->Interrupt,
         1, // Min
         1, // Optimal

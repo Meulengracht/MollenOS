@@ -25,7 +25,7 @@
 
 #include <os/handle.h>
 #include <os/mollenos.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 #include <os/device.h>
 #include "ohci.h"
@@ -38,15 +38,20 @@ irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*
 
 UsbManagerController_t*
 HCIControllerCreate(
-    _In_ BusDevice_t* Device)
+    _In_ Device_t* description)
 {
+    BusDevice_t*      device = (BusDevice_t*)description;
     SHM_t             shm;
     DeviceIo_t*       ioBase  = NULL;
     OhciController_t* controller;
     oserr_t           oserr;
     int i;
 
-    controller = (OhciController_t*)UsbManagerCreateController(Device, USBCONTROLLER_KIND_UHCI, sizeof(OhciController_t));
+    if (description->Length != sizeof(BusDevice_t)) {
+        return NULL;
+    }
+
+    controller = (OhciController_t*)UsbManagerCreateController(&device->Base, USBCONTROLLER_KIND_UHCI, sizeof(OhciController_t));
     if (!controller) {
         return NULL;
     }
@@ -54,8 +59,8 @@ HCIControllerCreate(
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (controller->Base.Device->IoSpaces[i].Type == DeviceIoMemoryBased) {
-            ioBase = &controller->Base.Device->IoSpaces[i];
+        if (((BusDevice_t*)controller->Base.Device)->IoSpaces[i].Type == DeviceIoMemoryBased) {
+            ioBase = &((BusDevice_t*)controller->Base.Device)->IoSpaces[i];
             break;
         }
     }
@@ -136,7 +141,7 @@ HCIControllerCreate(
     // Enable device
     TRACE("... enabling device");
     oserr = OSDeviceIOCtl(
-            controller->Base.Device->Base.Id,
+            controller->Base.Device->Id,
             OSIOCTLREQUEST_BUS_CONTROL,
             &(struct OSIOCtlBusControl) {
                     .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
@@ -159,16 +164,19 @@ HCIControllerCreate(
     }
 }
 
-void
+oserr_t
 HCIControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
+    oserr_t status;
+
     WRITE_VOLATILE(((OhciController_t*)Controller)->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
     
     // Synchronize delivery before freeing queues, events or mapped handler state.
-    if (DeviceInterruptDestroy(&Controller->Interrupt) != OS_EOK) {
+    status = DeviceInterruptDestroy(&Controller->Interrupt);
+    if (status != OS_EOK) {
         ERROR("Failed to release controller interrupt; keeping its resources alive");
-        return;
+        return status;
     }
 
     // Unregister us with service
@@ -187,6 +195,7 @@ HCIControllerDestroy(
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
     free(Controller);
+    return OS_EOK;
 }
 
 void

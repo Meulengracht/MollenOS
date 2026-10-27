@@ -21,7 +21,7 @@
 #ifndef __USB_HID_H__
 #define __USB_HID_H__
 
-#include <ddk/usbdevice.h>
+#include <ddk/devices/usb.h>
 #include <ds/list.h>
 #include <os/osdefs.h>
 

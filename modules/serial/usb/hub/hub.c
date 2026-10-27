@@ -78,7 +78,7 @@ static void __UnsubscribeToController(uuid_t driverId)
 }
 
 static inline int __IsSupportedInterface(
-        _In_ usb_device_interface_setting_t* interface)
+    _In_ usb_device_interface_setting_t* interface)
 {
     TRACE("__IsSupportedInterface(interface=0x%" PRIxIN ")", interface);
 
@@ -92,8 +92,8 @@ static inline int __IsSupportedInterface(
 }
 
 static inline void __GetDeviceProtocol(
-        _In_ HubDevice_t*                    hubDevice,
-        _In_ usb_device_interface_setting_t* interface)
+    _In_ HubDevice_t*                    hubDevice,
+    _In_ usb_device_interface_setting_t* interface)
 {
     TRACE("__GetDeviceProtocol(hubDevice=0x%" PRIxIN ", interface=0x%" PRIxIN ")",
           hubDevice, interface);
@@ -107,7 +107,7 @@ static inline void __GetDeviceProtocol(
 }
 
 static oserr_t __GetDeviceConfiguration(
-        _In_ HubDevice_t* hubDevice)
+    _In_ HubDevice_t* hubDevice)
 {
     usb_device_configuration_t configuration;
     enum USBTransferCode        status;
@@ -147,7 +147,7 @@ static oserr_t __GetDeviceConfiguration(
 }
 
 static oserr_t __GetSuperSpeedHubDescriptor(
-        _In_ HubDevice_t* hubDevice)
+    _In_ HubDevice_t* hubDevice)
 {
     enum USBTransferCode     transferStatus;
     UsbHubSuperDescriptor_t descriptor;
@@ -170,7 +170,7 @@ static oserr_t __GetSuperSpeedHubDescriptor(
 }
 
 static oserr_t __GetHubDescriptor(
-        _In_ HubDevice_t* hubDevice)
+    _In_ HubDevice_t* hubDevice)
 {
     enum USBTransferCode transferStatus;
     UsbHubDescriptor_t  descriptor;
@@ -197,7 +197,7 @@ static oserr_t __GetHubDescriptor(
 }
 
 static HubDevice_t* __CreateHubDevice(
-        _In_ UsbDevice_t* usbDevice)
+    _In_ UsbDevice_t* usbDevice)
 {
     HubDevice_t* hubDevice;
     TRACE("__CreateHubDevice(usbDevice=0x%" PRIxIN ")", usbDevice);
@@ -211,12 +211,14 @@ static HubDevice_t* __CreateHubDevice(
     memset(hubDevice, 0, sizeof(HubDevice_t));
     ELEMENT_INIT(&hubDevice->Header, (uintptr_t)usbDevice->Base.Id, hubDevice);
     hubDevice->TransferId = UUID_INVALID;
+    hubDevice->Events.Job = UUID_INVALID;
     hubDevice->Base = usbDevice;
     return hubDevice;
 }
 
-static void __EnumeratePorts(
-        _In_ HubDevice_t* hubDevice)
+void
+HubEnumeratePorts(
+    _In_ HubDevice_t* hubDevice)
 {
     uint8_t i;
     TRACE("__EnumeratePorts(hubDevice=0x%" PRIxIN ")", hubDevice);
@@ -261,7 +263,7 @@ static void __EnumeratePorts(
 
 HubDevice_t*
 HubDeviceCreate(
-        _In_ UsbDevice_t* usbDevice)
+    _In_ UsbDevice_t* usbDevice)
 {
     HubDevice_t*         hubDevice;
     uint8_t              interruptEpAddress;
@@ -315,9 +317,6 @@ HubDeviceCreate(
         goto error_exit;
     }
 
-    // Enumerate the ports
-    __EnumeratePorts(hubDevice);
-
     // Install interrupt pipe
     UsbTransferInitialize(
             &hubDevice->Transfer,
@@ -348,8 +347,10 @@ error_exit:
 
 void
 HubDeviceDestroy(
-        _In_ HubDevice_t* hubDevice)
+    _In_ HubDevice_t* hubDevice)
 {
+    HubEventsStop(hubDevice);
+
     // Destroy the interrupt channel
     if (hubDevice->TransferId != UUID_INVALID) {
         UsbTransferDequeuePeriodic(&hubDevice->Base->DeviceContext, hubDevice->TransferId);
@@ -368,15 +369,15 @@ HubDeviceDestroy(
 }
 
 static void __HandleConnectionChange(
-        _In_ HubDevice_t*  hubDevice,
-        _In_ uint8_t       portIndex)
+    _In_ HubDevice_t* hubDevice,
+    _In_ uint8_t      portIndex)
 {
     HubPortClearChange(hubDevice, portIndex, HUB_FEATURE_C_PORT_CONNECTION);
     UsbEventPort(hubDevice->Base->Base.Id, portIndex);
 }
 
 static void __HandleHubOverCurrentEvent(
-        _In_ HubDevice_t* hubDevice)
+    _In_ HubDevice_t* hubDevice)
 {
     // unregister all devices
     for (uint8_t i = 1; i <= hubDevice->PortCount; i++) {
@@ -401,12 +402,12 @@ static void __HandleHubOverCurrentEvent(
         }
     }
 
-    __EnumeratePorts(hubDevice);
+    HubEnumeratePorts(hubDevice);
 }
 
 static void __EnumerateSinglePort(
-        _In_ HubDevice_t* hubDevice,
-        _In_ uint8_t      portIndex)
+    _In_ HubDevice_t* hubDevice,
+    _In_ uint8_t      portIndex)
 {
     PortStatus_t portStatus;
     oserr_t   osStatus = HubPowerOnPort(hubDevice, portIndex);
@@ -435,8 +436,8 @@ static void __EnumerateSinglePort(
 }
 
 static void __HandlePortOverCurrentEvent(
-        _In_ HubDevice_t* hubDevice,
-        _In_ uint8_t      portIndex)
+    _In_ HubDevice_t* hubDevice,
+    _In_ uint8_t      portIndex)
 {
     UsbPortError(hubDevice->Base->Base.Id, portIndex);
 
@@ -462,13 +463,11 @@ static void __HandlePortOverCurrentEvent(
 
 void
 HubInterrupt(
-        _In_ HubDevice_t* hubDevice,
-        _In_ size_t       dataIndex)
+    _In_ HubDevice_t*   hubDevice,
+    _In_ const uint8_t* changeMap)
 {
     PortStatus_t portStatus;
-    uint8_t*     changeMap = &((uint8_t*)hubDevice->Buffer)[dataIndex];
-    TRACE("HubInterrupt(hubDevice=0x%" PRIxIN ", dataIndex=%" PRIuIN ")",
-          hubDevice, dataIndex);
+    TRACE("HubInterrupt(hubDevice=0x%" PRIxIN ")", hubDevice);
 
     // If the first bit is set - there was an hub event
     if (changeMap[0] & 0x1) {

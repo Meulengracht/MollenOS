@@ -22,7 +22,7 @@
  */
 //#define __TRACE
 
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include "../common/manager.h"

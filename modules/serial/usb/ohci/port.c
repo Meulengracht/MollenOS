@@ -117,7 +117,7 @@ __CheckPortStatus(
     
     // We only care about connection events currently
     if (portStatus & OHCI_PORT_CONNECT_EVENT) {
-        oserr = UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
+        oserr = UsbEventPort(Controller->Base.Device->Id, (uint8_t)(Index & 0xFF));
     }
     return oserr;
 }

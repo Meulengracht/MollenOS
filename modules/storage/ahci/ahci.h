@@ -26,9 +26,9 @@
 #ifndef _AHCI_H_
 #define _AHCI_H_
 
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <ddk/storage.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ds/list.h>
 #include <os/types/handle.h>
 #include <os/types/shm.h>

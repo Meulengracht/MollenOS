@@ -88,7 +88,12 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
         ERROR("ctt_driver_register_device_invocation failed to create hub device");
         return;
     }
+    
     list_append(&g_devices, &hubDevice->Header);
+
+    // Port notifications can immediately cause rpc events, so we start
+    // listening for events
+    HubEventsStart(hubDevice);
 }
 
 oserr_t OnUnregister(
@@ -127,17 +132,7 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
     }
 
     if (hubDevice) {
-        if (status == CTT_USB_TRANSFER_STATUS_STALL) {
-            WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
-            // we must clear stall condition and reset endpoint
-            UsbClearFeature(&hubDevice->Base->DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
-                            USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address), USB_FEATURE_HALT);
-            UsbEndpointReset(&hubDevice->Base->DeviceContext,
-                             USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address));
-            UsbTransferResetPeriodic(&hubDevice->Base->DeviceContext, hubDevice->TransferId);
-        } else {
-            HubInterrupt(hubDevice, dataIndex);
-        }
+        HubEventsQueue(hubDevice, status == CTT_USB_TRANSFER_STATUS_STALL, dataIndex);
     }
 }
 

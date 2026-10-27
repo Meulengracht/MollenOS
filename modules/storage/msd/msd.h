@@ -26,7 +26,7 @@
 #include "../scsi/scsi.h"
 #include <ds/list.h>
 
-#include <ddk/usbdevice.h>
+#include <ddk/devices/usb.h>
 #include <ddk/storage.h>
 
 /* MSD Subclass Definitions 

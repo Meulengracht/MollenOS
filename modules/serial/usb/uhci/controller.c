@@ -24,7 +24,7 @@
 
 //#define __TRACE
 
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 #include <os/device.h>
 #include "uhci.h"
@@ -58,8 +58,8 @@ __AcquireIOSpace(
     // Get I/O Base, and for UHCI it'll be the first address we encounter
     // of type IO
     for (int i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (controller->Base.Device->IoSpaces[i].Type == DeviceIoPortBased) {
-            ioBase = &controller->Base.Device->IoSpaces[i];
+        if (((BusDevice_t*)controller->Base.Device)->IoSpaces[i].Type == DeviceIoPortBased) {
+            ioBase = &((BusDevice_t*)controller->Base.Device)->IoSpaces[i];
             break;
         }
     }
@@ -95,8 +95,9 @@ __InitializeInterrupt(
 
 UsbManagerController_t*
 HCIControllerCreate(
-    _In_ BusDevice_t* busDevice)
+    _In_ Device_t* description)
 {
+    BusDevice_t*      busDevice = (BusDevice_t*)description;
     UhciController_t* controller;
     size_t            ioctlValue = 0;
     oserr_t           oserr;
@@ -105,10 +106,14 @@ HCIControllerCreate(
     TRACE("UhciControllerCreate(device=0x%" PRIxIN ", device->Length=%u, device->Id=%u)",
           busDevice, LODWORD(busDevice->Base.Length), busDevice->Base.Id);
 
+    if (description->Length != sizeof(BusDevice_t)) {
+        return NULL;
+    }
+
     controller = (UhciController_t*)UsbManagerCreateController(
-            busDevice,
-            USBCONTROLLER_KIND_OHCI,
-            sizeof(UhciController_t)
+        &busDevice->Base,
+        USBCONTROLLER_KIND_UHCI,
+        sizeof(UhciController_t)
     );
     if (!controller) {
         return NULL;
@@ -122,9 +127,9 @@ HCIControllerCreate(
     }
 
     TRACE(
-            "UhciControllerCreate: io-space: type=%u, physical=0x%x, size=0x%x",
-            controller->Base.IoBase->Type, controller->Base.IoBase->Access.Memory.PhysicalBase,
-            controller->Base.IoBase->Access.Memory.Length
+        "UhciControllerCreate: io-space: type=%u, physical=0x%x, size=0x%x",
+        controller->Base.IoBase->Type, controller->Base.IoBase->Access.Port.Base,
+        controller->Base.IoBase->Access.Port.Length
     );
 
     oserr = __InitializeInterrupt(controller);
@@ -136,12 +141,12 @@ HCIControllerCreate(
 
     // Enable the underlying bus device
     oserr = OSDeviceIOCtl(
-            controller->Base.Device->Base.Id,
-            OSIOCTLREQUEST_BUS_CONTROL,
-            &(struct OSIOCtlBusControl) {
-                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE |
-                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
-            }, sizeof(struct OSIOCtlBusControl)
+        controller->Base.Device->Id,
+        OSIOCTLREQUEST_BUS_CONTROL,
+        &(struct OSIOCtlBusControl) {
+            .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE |
+                        __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+        }, sizeof(struct OSIOCtlBusControl)
     );
     if (oserr != OS_EOK) {
         ERROR("UhciControllerCreate: failed to enable PCI device");
@@ -149,18 +154,30 @@ HCIControllerCreate(
         return NULL;
     }
 
-    // Claim the BIOS ownership and enable pci interrupts
+    // Take ownership from the BIOS and enable PCI interrupts.
     ioctlValue = 0x2000;
-    if (IoctlDeviceEx(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE,
-                      UHCI_USBLEGEACY, &ioctlValue, 2) != OS_EOK) {
+    oserr = IoctlDeviceEx(
+        controller->Base.Device->Id,
+        __DEVICEMANAGER_IOCTL_EXT_WRITE,
+        UHCI_USBLEGEACY,
+        &ioctlValue,
+        2
+    );
+    if (oserr != OS_EOK) {
         return NULL;
     }
 
     // If vendor is Intel we null out the intel register
-    if (controller->Base.Device->Base.VendorId == 0x8086) {
+    if (controller->Base.Device->VendorId == 0x8086) {
         ioctlValue = 0x00;
-        if (IoctlDeviceEx(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE,
-                          UHCI_USBRES_INTEL, &ioctlValue, 1) != OS_EOK) {
+        oserr = IoctlDeviceEx(
+            controller->Base.Device->Id,
+            __DEVICEMANAGER_IOCTL_EXT_WRITE,
+            UHCI_USBRES_INTEL,
+            &ioctlValue,
+            1
+        );
+        if (oserr != OS_EOK) {
             return NULL;
         }
     }
@@ -175,15 +192,18 @@ HCIControllerCreate(
     return &controller->Base;
 }
 
-void
+oserr_t
 HCIControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
+    oserr_t status;
+
     // Stop this device before leaving a line which may still serve other devices.
     UhciWrite16((UhciController_t*)Controller, UHCI_REGISTER_INTR, 0);
-    if (DeviceInterruptDestroy(&Controller->Interrupt) != OS_EOK) {
+    status = DeviceInterruptDestroy(&Controller->Interrupt);
+    if (status != OS_EOK) {
         ERROR("Failed to release controller interrupt; keeping its resources alive");
-        return;
+        return status;
     }
 
     // Unregister, then destroy
@@ -197,6 +217,7 @@ HCIControllerDestroy(
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
     free(Controller);
+    return OS_EOK;
 }
 
 void

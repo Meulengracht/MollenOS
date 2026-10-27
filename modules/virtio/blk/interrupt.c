@@ -15,8 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* Interrupt event registration and teardown; callbacks live in main.c. */
 #define __TRACE
+
+#include <ddk/interrupts/pci.h>
 #include "private.h"
 
 #include <ddk/utils.h>
@@ -68,9 +69,9 @@ VirtioBlkRegisterInterrupt(
         device->Transport.Regions[VIRTIO_PCI_CAP_ISR_CFG - 1].Offset;
 
     atomic_init(&device->InterruptResource.PendingStatus, 0);
-    DeviceInterruptInitialize(&device->Interrupt, device->BusDevice);
+    DeviceInterruptInitialize(&device->Interrupt, &device->BusDevice->Base);
     
-    oserr = DeviceInterruptAllocate(
+    oserr = DeviceInterruptAllocatePci(
         &device->Interrupt,
         1, // Min
         1, // Optimal
@@ -81,7 +82,7 @@ VirtioBlkRegisterInterrupt(
         goto cleanup;
     }
     
-    device->InterruptResource.MsixEnabled = device->Interrupt.Strategy == INTERRUPT_STRATEGY_MSIX;
+    device->InterruptResource.MsixEnabled = DeviceInterruptGetPciMode(&device->Interrupt) == INTERRUPT_STRATEGY_MSIX;
     oserr = DeviceInterruptSetDescriptor(&device->Interrupt, 0, device->EventDescriptor);
     if (oserr != OS_EOK) {
         goto cleanup;
@@ -116,7 +117,7 @@ VirtioBlkRegisterInterrupt(
     return OS_EOK;
 
 cleanup:
-    // Retain the event if handler cleanup fails; it may still be referenced.
+    // Keep the event if handler cleanup fails; it may still be referenced.
     VirtioBlkUnregisterInterrupt(device);
     return oserr;
 }

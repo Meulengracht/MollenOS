@@ -28,8 +28,8 @@
 #ifndef __VIRTIO_BLOCK_H__
 #define __VIRTIO_BLOCK_H__
 
-#include <ddk/busdevice.h>
-#include <ddk/interrupt.h>
+#include <ddk/devices/bus.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/storage.h>
 #include <ds/list.h>
 #include <gracht/server.h>

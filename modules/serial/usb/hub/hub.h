@@ -23,7 +23,7 @@
 #ifndef __USB_HUB_H__
 #define __USB_HUB_H__
 
-#include <ddk/usbdevice.h>
+#include <ddk/devices/usb.h>
 #include <ds/list.h>
 #include <os/osdefs.h>
 
@@ -167,11 +167,26 @@ PACKED_TYPESTRUCT(PortStatus, {
 #define HUB_PORT_CHANGE_OVERCURRENT 0x8 // Over-Current Indicator has changed.
 #define HUB_PORT_CHANGE_RESET       0x10 // Reset complete.
 
+enum HubEventsState {
+    HUB_EVENTS_INITIAL_SCAN,
+    HUB_EVENTS_RUNNING,
+    HUB_EVENTS_STOPPING
+};
+
+typedef struct HubEvents {
+    uuid_t              Job;
+    uint8_t             Changes[32];
+    enum HubEventsState State;
+    bool                Pending;
+    bool                Stalled;
+} HubEvents_t;
+
 typedef struct HubDevice {
     UsbDevice_t*  Base;
     element_t     Header;
     USBTransfer_t Transfer;
     uuid_t        TransferId;
+    HubEvents_t   Events;
 
     uint8_t       PortCount;
     uint8_t       DescriptorLength;
@@ -191,6 +206,15 @@ typedef struct HubDevice {
 __EXTERN HubDevice_t*
 HubDeviceCreate(
     _In_ UsbDevice_t *usbDevice);
+
+/**
+ * @brief Power and discover ports after publishing the hub's local lookup entry.
+ * 
+ * @param hubDevice Initialized hub that can answer incoming port queries.
+ */
+__EXTERN void
+HubEnumeratePorts(
+    _In_ HubDevice_t* hubDevice);
 
 /**
  *
@@ -273,7 +297,38 @@ HubResetPort(
 __EXTERN void
 HubInterrupt(
     _In_ HubDevice_t* hubDevice,
+    _In_ const uint8_t* changeMap);
+
+/**
+ * @brief Copy a periodic status report and schedule its blocking port work.
+ * 
+ * @param hubDevice Published hub owning the periodic buffer.
+ * @param stalled Whether the interrupt endpoint needs stall recovery.
+ * @param dataIndex Completed packet's offset in the periodic buffer.
+ */
+__EXTERN void
+HubEventsQueue(
+    _In_ HubDevice_t* hubDevice,
+    _In_ bool         stalled,
     _In_ size_t       dataIndex);
+
+/**
+ * @brief Schedule initial enumeration after publishing the hub locally.
+ * 
+ * @param hubDevice Initialized hub that can answer incoming port queries.
+ */
+__EXTERN void
+HubEventsStart(
+    _In_ HubDevice_t* hubDevice);
+
+/**
+ * @brief Stop accepting status events and join port work before freeing the hub.
+ * 
+ * @param hubDevice Hub being removed from the local device lookup.
+ */
+__EXTERN void
+HubEventsStop(
+    _In_ HubDevice_t* hubDevice);
 
 
 static inline int __IsHubPortsPoweredGlobal(

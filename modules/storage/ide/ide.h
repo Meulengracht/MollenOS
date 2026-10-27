@@ -25,7 +25,7 @@
 #ifndef _IDE_H_
 #define _IDE_H_
 
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <ddk/storage.h>
 #include <ds/list.h>
 #include <os/osdefs.h>

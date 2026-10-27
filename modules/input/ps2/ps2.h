@@ -24,8 +24,8 @@
 #ifndef _DRIVER_PS2_CONTROLLER_H_
 #define _DRIVER_PS2_CONTROLLER_H_
 
-#include <ddk/busdevice.h>
-#include <ddk/interrupt.h>
+#include <ddk/devices/bus.h>
+#include <ddk/interrupts/interrupt.h>
 #include <gracht/link/socket.h>
 #include <os/osdefs.h>
 #include <ddk/io.h>

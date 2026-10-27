@@ -20,7 +20,7 @@
  */
 //#define __TRACE
 
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <string.h>
