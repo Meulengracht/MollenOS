@@ -27,7 +27,14 @@
 struct PciDevice;
 
 /**
- * @brief Reads a 32 bit value from the pci-bus at the specified location bus, slot, function and register.
+ * @brief Reads a 32-bit PCI configuration register.
+ *
+ * @param Io Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Slot Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @param Register Byte offset within configuration space, aligned to 4 bytes.
+ * @return Register value, or all bits set if the access is invalid.
  */
 __EXTERN uint32_t
 PciRead32(
@@ -38,7 +45,14 @@ PciRead32(
     _In_ size_t       Register);
 
 /**
- * @brief Reads a 8/16 bit value from the pci-bus at the specified location bus, device, function and register.
+ * @brief Reads a 16-bit PCI configuration register.
+ *
+ * @param Io Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @param Register Byte offset within configuration space, aligned to 2 bytes.
+ * @return Register value, or all bits set if the access is invalid.
  */
 __EXTERN uint16_t
 PciRead16(
@@ -47,6 +61,17 @@ PciRead16(
     _In_ unsigned int Device,
     _In_ unsigned int Function,
     _In_ size_t       Register);
+
+/**
+ * @brief Reads an 8-bit PCI configuration register.
+ *
+ * @param Io Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @param Register Byte offset within configuration space.
+ * @return Register value, or all bits set if the access is invalid.
+ */
 __EXTERN uint8_t
 PciRead8(
     _In_ PciHost_t*   Io,
@@ -56,7 +81,15 @@ PciRead8(
     _In_ size_t       Register);
 
 /**
- * @brief Writes a 8/16/32 bit value to the pci-bus at the specified location bus, device, function and register.
+ * @brief Writes a 32-bit PCI configuration register.
+ *
+ * @param Io Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @param Register Byte offset within configuration space, aligned to 4 bytes.
+ * @param Value Value to write.
+ * @return No value. Invalid accesses leave configuration space unchanged.
  */
 __EXTERN void
 PciWrite32(
@@ -66,6 +99,18 @@ PciWrite32(
     _In_ unsigned int Function,
     _In_ size_t       Register,
     _In_ uint32_t     Value);
+
+/**
+ * @brief Writes a 16-bit PCI configuration register.
+ *
+ * @param Io Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @param Register Byte offset within configuration space, aligned to 2 bytes.
+ * @param Value Value to write.
+ * @return No value. Invalid accesses leave configuration space unchanged.
+ */
 __EXTERN void
 PciWrite16(
     _In_ PciHost_t*   Io,
@@ -74,6 +119,18 @@ PciWrite16(
     _In_ unsigned int Function,
     _In_ size_t       Register,
     _In_ uint16_t     Value);
+
+/**
+ * @brief Writes an 8-bit PCI configuration register.
+ *
+ * @param Io Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @param Register Byte offset within configuration space.
+ * @param Value Value to write.
+ * @return No value. Invalid accesses leave configuration space unchanged.
+ */
 __EXTERN void
 PciWrite8(
     _In_ PciHost_t*   Io,
@@ -84,13 +141,28 @@ PciWrite8(
     _In_ uint8_t      Value);
 
 /**
- * @brief Read or writes a value of the given length from the given register of the specified PCI device.
+ * @brief Reads a configuration register using the device host and bus address.
+ *
+ * @param Device Device with an initialized host and bus address.
+ * @param Register Byte offset within configuration space, aligned to Length.
+ * @param Length Access size in bytes. Callers must pass 1, 2, or 4.
+ * @return Register value, or all bits set in the selected width for an invalid access.
  */
 __EXTERN uint32_t
 PciDeviceRead(
     _In_ struct PciDevice* Device,
     _In_ size_t            Register,
     _In_ size_t            Length);
+
+/**
+ * @brief Writes a configuration register using the device host and bus address.
+ *
+ * @param Device Device with an initialized host and bus address.
+ * @param Register Byte offset within configuration space, aligned to Length.
+ * @param Value Value to write. Only the selected width is written.
+ * @param Length Access size in bytes. Callers must pass 1, 2, or 4.
+ * @return No value. Invalid accesses leave configuration space unchanged.
+ */
 __EXTERN void
 PciDeviceWrite(
     _In_ struct PciDevice* Device,
@@ -99,7 +171,13 @@ PciDeviceWrite(
     _In_ size_t            Length);
 
 /**
- * @brief Reads the vendor id at given bus/device/function location.
+ * @brief Reads the vendor ID at the selected PCI address.
+ *
+ * @param Host Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @return Vendor ID, or 0xFFFF if the access is invalid or no function responds.
  */
 __EXTERN uint16_t
 PciReadVendorId(
@@ -109,7 +187,14 @@ PciReadVendorId(
     _In_ unsigned int Function);
 
 /**
- * @brief Reads in the pci header that exists at the given location and fills out the information into <Pcs>.
+ * @brief Copies the first 64 bytes of configuration space into the native header.
+ *
+ * @param Pcs Header storage. Unchanged when the vendor ID is zero or 0xFFFF.
+ * @param Host Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @return No value.
  */
 __EXTERN void
 PciReadFunction(
@@ -120,7 +205,15 @@ PciReadFunction(
     _In_    unsigned int       Function);
 
 /**
- * @brief Reads the secondary bus number at given pci device location. This can be used to get the bus-number behind a bridge.
+ * @brief Reads the bus number on the secondary side of a PCI bridge.
+ *
+ * The selected function must use a bridge header.
+ *
+ * @param Host Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @return Secondary bus number, or 0xFF when the vendor ID is zero or 0xFFFF.
  */
 __EXTERN uint8_t
 PciReadSecondaryBusNumber(
@@ -130,10 +223,16 @@ PciReadSecondaryBusNumber(
     _In_ unsigned int Function);
 
 /**
- * @brief Reads the sub class at given location.
- * Bit 7 - MultiFunction, Lower 4 bits is type.
- * Type 0 is standard, Type 1 is PCI-PCI Bridge,
- * Type 2 is CardBus Bridge.
+ * @brief Reads the header type and multifunction flag.
+ *
+ * Bit 7 indicates a multifunction device. Bits 6 through 0 give the header
+ * type: 0 for a standard device, 1 for a PCI-to-PCI bridge, or 2 for CardBus.
+ *
+ * @param Host Initialized host containing the selected bus.
+ * @param Bus Bus number within the host bus range.
+ * @param Device Device slot number from 0 through 31.
+ * @param Function Function number from 0 through 7.
+ * @return Header type byte, or 0xFF when the vendor ID is zero or 0xFFFF.
  */
 __EXTERN uint8_t
 PciReadHeaderType(

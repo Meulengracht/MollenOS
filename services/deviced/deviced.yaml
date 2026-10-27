@@ -6,8 +6,6 @@ service:
     - ramdisk-access
     - deviceio-management
     - interrupt-control
-  
-  # The service API path, for other instances to expect connection through.
-  # These API paths are registered upon startup of the service, and allows an
-  # easy way to recognize system services.
+
+  # Service API path registered at startup. Clients use this path to connect.
   path: /service/device

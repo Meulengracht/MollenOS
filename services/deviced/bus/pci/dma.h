@@ -22,38 +22,56 @@
 #include <bus/pci/host.h>
 #include <device-dma.h>
 
+struct PciDmaDescription;
+
 /**
  * @brief Copied address ranges and cache policy for a host or its RP1 child.
  *
  * Host identifies the PCI controller. Each range's DeviceBase is a PCI address
  * for a host query and an RP1 address for a child query. PhysicalBase means a CPU
  * physical address. These are addressable regions, not allocated buffers or a
- * measurement of installed RAM. The structure contains no borrowed pointers.
+ * measurement of installed RAM. All values are stored directly in the structure.
  */
 struct PciDmaDescription {
     struct PciHostIdentification Host;
     enum DmDmaCachePolicy        CachePolicy;
-    struct FdtDmaMap             Map;
+    struct DmDmaMap              Map;
 };
 
 /**
  * @brief Describe the DMA translation that this host has successfully configured.
  *
- * Keeping this query on the host prevents callers from treating firmware's
- * requested settings as configured hardware, or from interpreting private
- * controller data. It does not enable device bus mastering or clear DMA pending.
+ * The host reports configured hardware settings. Firmware requests alone do not
+ * establish a DMA translation. This query does not enable device bus mastering
+ * or clear DMA pending.
  *
  * @param host Live host. The owner must exclude setup, reset and destruction
  *             while querying and using the result, as for other host operations.
- * @param description Complete copy on success; unchanged on failure. HostId is
+ * @param description Complete copy on success. Unchanged on failure. HostId is
  *                    UUID_INVALID until PciHostRegister succeeds. A saved copy
- *                    does not retain the host or remain valid after reset.
+ *                    does not keep the host alive or remain valid after reset.
  * @return OS_EOK, OS_ENOTSUPPORTED if the backend supplies no DMA policy,
  *         OS_EBUSY while translation is unavailable, OS_ENOENT for no RAM,
  *         or an error describing invalid arguments or ranges.
  */
 __EXTERN oserr_t
 PciHostGetDmaDescription(
+    _In_  PciHost_t*                host,
+    _Out_ struct PciDmaDescription* description);
+
+/**
+ * @brief Describe the coherent, untranslated DMA address range of x86 PCI hosts.
+ *
+ * @param host Host using this backend callback. Currently unused.
+ * @param description Must be non-NULL. Receives coherent cache policy and one
+ *                    range with equal device and CPU physical addresses.
+ *                    Host identification is left zero for the common wrapper
+ *                    to fill in. This range does not describe installed RAM.
+ * @return OS_EOK on x86, or OS_ENOTSUPPORTED on other architectures with
+ *         description unchanged.
+ */
+__EXTERN oserr_t
+PciHostGetIdentityDma(
     _In_  PciHost_t*                host,
     _Out_ struct PciDmaDescription* description);
 

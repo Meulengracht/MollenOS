@@ -57,23 +57,22 @@ PciValidateBarSize(
 
 void
 PciDescribeBar(
-    PciHost_t*     host,
-    uint32_t       space,
-    uint32_t       attributes,
-    uint64_t       address,
-    uint64_t       size,
-    struct PciBar* bar)
+    _In_  PciHost_t*     host,
+    _In_  uint32_t       space,
+    _In_  uint32_t       attributes,
+    _In_  uint64_t       address,
+    _In_  uint64_t       size,
+    _Out_ struct PciBar* bar)
 {
     oserr_t oserr;
 
-    // Always clear the structure and set initial values
+    // A zero-sized BAR stays in the initial, absent state.
     memset(bar, 0, sizeof(*bar));
     bar->BusAddress = address;
     bar->Size = size;
     bar->Space = space;
     bar->Attributes = attributes;
     
-    // Next thing we do is classify the bar
     if (!size) {
         return;
     }
@@ -83,7 +82,7 @@ PciDescribeBar(
         return;
     }
     
-    // Validate that we have a valid BAR address
+    // The last byte of the bus range must fit in a 64-bit address.
     if (size - 1 > UINT64_MAX - address) {
         bar->State = PciBarInvalid;
         return;
@@ -91,8 +90,13 @@ PciDescribeBar(
     
     bar->CpuAddress = address;
     if (host->Operations->Translate != NULL) {
-        // Translate the bus address to a CPU address
-        oserr = host->Operations->Translate(host, space, address, size, &bar->CpuAddress);
+        oserr = host->Operations->Translate(
+            host,
+            space,
+            address,
+            size,
+            &bar->CpuAddress
+        );
         if (oserr != OS_EOK) {
             TRACE("PciDescribeBar translation failed for space %u at 0x%llx+0x%llx: %u",
                 space, (unsigned long long)address, (unsigned long long)size, oserr);
@@ -102,7 +106,7 @@ PciDescribeBar(
         }
     }
     
-    // Validate that we have a valid CPU address range for the BAR
+    // Translation must also leave the last byte within the CPU address range.
     if (size - 1 > UINT64_MAX - bar->CpuAddress) {
         bar->State = PciBarInvalid;
         return;
@@ -112,12 +116,12 @@ PciDescribeBar(
 
 void
 PciProbeBars(
-    _In_ PciHost_t*         bus,
-    _In_ const BusDevice_t* device,
-    _In_ uint32_t           headerType,
-    _Out_ struct PciBar*    bars)
+    _In_  PciHost_t*         bus,
+    _In_  const BusDevice_t* device,
+    _In_  uint32_t           headerType,
+    _Out_ struct PciBar*     bars)
 {
-    // Buses have 2 io spaces, devices have 6
+    // Bridge headers have two BARs. Device headers have six.
     int      count = (headerType & 0x1) == 0x1 ? 2 : 6;
     uint16_t command;
 
@@ -144,13 +148,13 @@ PciProbeBars(
         // Calculate the initial mask 
         mask32 = (headerType & 0x1) == 0x1 ? ~0x7FF : 0xFFFFFFFF;
 
-        // Read both space and size
+        // Save the address, read the size mask, then restore the address.
         space32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
         PciWrite32(bus, device->Bus, device->Slot, device->Function, offset, space32 | mask32);
         size32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
         PciWrite32(bus, device->Bus, device->Slot, device->Function, offset, space32);
 
-        // Sanitize bounds of values
+        // Clear all-ones values before decoding the address and size mask.
         if (size32 == 0xFFFFFFFF) {
             size32 = 0;
         }
@@ -160,18 +164,15 @@ PciProbeBars(
 
         attributes = space32 & ((space32 & 1) ? 3 : 15);
 
-        // Which kind of io-space is it, if bit 0 is set, it's io and not mmio 
+        // Bit 0 selects port I/O space.
         if (space32 & 0x1) {
-            // Update mask to reflect IO space
             mask64  = 0xFFFFFFFC;
             size64  = size32;
             space64 = space32 & 0xFFFFFFFC;
 
-            // Correctly update the size of the io
             size64 = PciValidateBarSize(space64, size64, mask64);
         }
-        // Ok, its memory, but is it 64 bit or 32 bit? 
-        // Bit 2 is set for 64 bit memory space
+        // Bit 2 selects a 64-bit memory BAR, which uses two registers.
         else if (space32 & 0x4) {
             if (i + 1 >= count) {
                 bars[i].State = PciBarInvalid;
@@ -184,7 +185,7 @@ PciProbeBars(
             size64  = size32 & 0xFFFFFFF0;
             mask64  = 0xFFFFFFFFFFFFFFF0;
             
-            // Calculate a new 64 bit offset
+            // The next BAR register stores the upper address bits.
             i++;
             offset = 0x10 + (i << 2);
 
@@ -192,7 +193,7 @@ PciProbeBars(
             PciWrite32(bus, device->Bus, device->Slot, device->Function,
                 offset - 4, 0xFFFFFFFFU);
 
-            // Read both space and size for 64 bit
+            // Save the upper address bits before probing the complete BAR.
             space32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
             PciWrite32(bus, device->Bus, device->Slot, device->Function, offset, 0xFFFFFFFF);
             size32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
@@ -202,10 +203,9 @@ PciProbeBars(
             PciWrite32(bus, device->Bus, device->Slot, device->Function,
                 offset - 4, (uint32_t)space64 | attributes);
 
-            // Set the upper 32 bit of the space
+            // Combine both halves before converting the mask to a byte count.
             space64 |= ((uint64_t)space32 << 32);
             size64  |= ((uint64_t)size32 << 32);
-            // Correct the size and validate
             size64 = PciValidateBarSize(space64, size64, mask64);
         } else {
             memorySpace = 2;
@@ -213,7 +213,6 @@ PciProbeBars(
             size64  = size32 & 0xFFFFFFF0;
             mask64  = 0xFFFFFFF0;
 
-            // Correct the size and validate
             size64 = PciValidateBarSize(space64, size64, mask64);
         }
         

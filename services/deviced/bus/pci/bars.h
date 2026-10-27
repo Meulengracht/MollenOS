@@ -29,16 +29,18 @@ struct BusDevice;
 struct FdtPciHost;
 
 enum PciBarState {
-    PciBarAbsent,
-    PciBarUnassigned,
-    PciBarAssigned,
-    PciBarOutsideWindow,
-    PciBarInvalid
+    PciBarAbsent,        // No resource size was reported.
+    PciBarUnassigned,    // A resource exists, but its bus address is zero.
+    PciBarAssigned,      // The bus range has a valid CPU address.
+    PciBarOutsideWindow, // The host could not translate the bus range.
+    PciBarInvalid        // The BAR encoding or address range is invalid.
 };
 
-// One PCI address range and whether the host can make it available.
+/**
+ * @brief One PCI address range, its CPU address, and its current usability state.
+ */
 struct PciBar {
-    uint64_t         BusAddress; // Address the PCI device uses to access this resource.
+    uint64_t         BusAddress; // PCI bus address decoded by this BAR.
     uint64_t         CpuAddress; // Host CPU address corresponding to BusAddress, if translatable.
     uint64_t         Size;       // Size of the resource in bytes.
     uint32_t         Space;      // Resource type: PCI I/O (1), 32-bit memory (2), or 64-bit memory (3).
@@ -46,33 +48,35 @@ struct PciBar {
     enum PciBarState State;      // Whether the BAR is absent, unassigned, usable, outside the host window, or invalid.
 };
 
-// Resources supplied to a function handler, with pointers into firmware data.
+/**
+ * @brief BAR descriptions supplied to a function handler and the host's firmware data.
+ */
 struct PciFunctionResources {
     struct PciBar            Bars[6];
     const struct FdtPciHost* Firmware;
 };
-
 
 /**
  * @brief Determine the size, type, and current assignment of a device's BARs.
  *
  * Temporarily disables memory and I/O decoding while it probes BAR masks, then
  * restores the device's original BAR values and command setting. The resulting
- * descriptions are written to all six entries in @p bars; header types with
- * fewer BARs leave the unused entries absent. This function only describes the
- * resources: it does not assign addresses or create device I/O resources.
+ * descriptions are written to all six entries in @p bars. Unused entries remain
+ * absent. Call this for a device or bridge header before registering device I/O
+ * resources. Existing BAR addresses are preserved.
  *
  * @param host PCI host that provides configuration access and address translation.
  * @param device PCI device whose BARs are being examined.
  * @param headerType PCI header type, used to determine how many BARs to probe.
  * @param bars Output array receiving the six BAR descriptions.
+ * @return None.
  */
 __EXTERN void
 PciProbeBars(
-    _In_ struct PciHost*         host,
-    _In_ const struct BusDevice* device,
-    _In_ uint32_t                headerType,
-    _In_ struct PciBar           bars[6]);
+    _In_  struct PciHost*         host,
+    _In_  const struct BusDevice* device,
+    _In_  uint32_t                headerType,
+    _Out_ struct PciBar           bars[6]);
 
 /**
  * @brief Turn an existing address range into a BAR description.
@@ -81,8 +85,9 @@ PciProbeBars(
  * asks the host to translate the bus address for CPU access when translation is
  * available. The state records whether the range is absent, unassigned,
  * successfully assigned, outside the host's address windows, or invalid due to
- * an overflowing extent. The original bus address is kept even if it
- * cannot be translated; this function does not change the device's BAR.
+ * an overflowing bus or CPU range. If the host has no translation operation,
+ * the bus address is used as the CPU address. The original bus address is kept
+ * even if translation fails. The device's BAR is unchanged.
  *
  * @param host PCI host used to translate the address, if it supports translation.
  * @param space Resource type: PCI I/O, 32-bit memory, or 64-bit memory.
@@ -90,15 +95,16 @@ PciProbeBars(
  * @param address Existing address assigned to the resource on the PCI bus.
  * @param size Length of the resource in bytes.
  * @param bar Output structure receiving the description and usability state.
+ * @return None.
  */
 __EXTERN void
 PciDescribeBar(
-    _In_ struct PciHost* host,
-    _In_ uint32_t        space,
-    _In_ uint32_t        attributes,
-    _In_ uint64_t        address,
-    _In_ uint64_t        size,
-    _In_ struct PciBar*  bar);
+    _In_  struct PciHost* host,
+    _In_  uint32_t        space,
+    _In_  uint32_t        attributes,
+    _In_  uint64_t        address,
+    _In_  uint64_t        size,
+    _Out_ struct PciBar*  bar);
 
 /**
  * @brief Log warnings for BAR descriptions that cannot currently be used.
@@ -112,6 +118,7 @@ PciDescribeBar(
  * @param device PCI device used to identify the function in diagnostic messages.
  * @param bars Six BAR descriptions to check, typically produced by
  *             PciProbeBars.
+ * @return None.
  */
 __EXTERN void
 PciDiagnoseBars(
@@ -134,6 +141,7 @@ PciDiagnoseBars(
  * @param host PCI host whose I/O resource policy determines how BARs are exposed.
  * @param device Device whose I/O resource entries are populated.
  * @param bars Six BAR descriptions, typically produced by PciProbeBars.
+ * @return None.
  */
 __EXTERN void
 PciRegisterBars(
@@ -142,7 +150,15 @@ PciRegisterBars(
     _In_ const struct PciBar bars[6]);
 
 /**
- * @brief Reads and publishes a function's BAR resources.
+ * @brief Probe a function's BARs, report unusable ranges, and register I/O resources.
+ *
+ * Call this for a device or bridge header. BAR probing temporarily disables
+ * memory and I/O decoding, then restores the original configuration.
+ *
+ * @param bus PCI host used for configuration access and resource registration.
+ * @param device Device whose I/O resource entries are populated.
+ * @param headerType PCI header type selecting the number of BARs to probe.
+ * @return None.
  */
 __EXTERN void
 PciReadBars(

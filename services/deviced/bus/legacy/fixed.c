@@ -30,8 +30,8 @@
 
 oserr_t
 __InstallFixedBusDevice(
-    _In_ BusDevice_t* device,
-    _In_ const char*  Description)
+    _InOut_ BusDevice_t* device,
+    _In_    const char*  Description)
 {
     uuid_t  Id;
     oserr_t oserr;
@@ -41,7 +41,7 @@ __InstallFixedBusDevice(
     device->Base.Length   = sizeof(BusDevice_t);
     device->Base.VendorId = PCI_FIXED_VENDORID;
 
-    // Set more magic constants to ignore class and subclass
+    // Fixed devices use vendor and product IDs for driver matching.
     device->Base.Class    = 0xFF0F;
     device->Base.Subclass = 0xFF0F;
     device->Base.Identification.Description = strdup(Description);
@@ -50,7 +50,7 @@ __InstallFixedBusDevice(
         WARNING("__InstallFixedBusDevice: failed to copy description for %s", Description);
     }
 
-    // Invalidate irqs, this must be set by fixed drivers
+    // The fixed device driver must configure its interrupt routing.
     device->InterruptPin         = INTERRUPT_NONE;
     device->InterruptLine        = INTERRUPT_NONE;
     device->InterruptAcpiConform = 0;
@@ -77,13 +77,11 @@ __InstallPS2Controller(void)
     }
     memset(device, 0, sizeof(BusDevice_t));
 
-    // Set default ps2 device settings
+    // Identify the fixed PS/2 controller when matching its driver.
     device->Base.ProductId = PCI_PS2_DEVICEID;
 
-    // Register io-spaces for the ps2 controller, it has two ports
-    // Data port - 0x60
-    // oserr/Command port - 0x64
-    // one byte each
+    // The PS/2 controller uses two one-byte I/O ports:
+    // data at 0x60 and status/command at 0x64.
     oserr = CreateDevicePortIo(&device->IoSpaces[0], 0x60, 1);
     if (oserr != OS_EOK) {
         ERROR("__InstallPS2Controller: failed to initialize data port 0x60: %u", oserr);

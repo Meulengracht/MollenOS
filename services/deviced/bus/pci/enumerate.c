@@ -27,26 +27,33 @@
 #include <bus/pci/config.h>
 #include <bus/pci/interrupts.h>
 #include <bus/pci/strings.h>
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 
 #define DEVICE_IS_PCI_BRIDGE(device) ((device)->Header->Class == PCI_CLASS_BRIDGE && (device)->Header->Subclass == PCI_BRIDGE_SUBCLASS_PCI)
 
-unsigned int PciToDevClass(uint32_t Class, uint32_t SubClass) {
+unsigned int
+PciToDevClass(
+    _In_ uint32_t Class,
+    _In_ uint32_t SubClass)
+{
     return ((Class & 0xFFFF) << 16 | (SubClass & 0xFFFF));
 }
 
-unsigned int PciToDevSubClass(uint32_t Interface) {
+unsigned int
+PciToDevSubClass(
+    _In_ uint32_t Interface)
+{
     return ((Interface & 0xFFFF) << 16 | 0);
 }
 
 static oserr_t
 __GetPciDeviceNativeHeader(
     _In_  PciDevice_t*        parent,
-    _In_  int                 bus,
-    _In_  int                 slot,
-    _In_  int                 function,
+    _In_  int                bus,
+    _In_  int                slot,
+    _In_  int                function,
     _Out_ PciNativeHeader_t** headerOut)
 {
     PciNativeHeader_t* nativeHeader;
@@ -57,25 +64,42 @@ __GetPciDeviceNativeHeader(
         return OS_EOOM;
     }
 
-    // Read entire function information
-    PciReadFunction(nativeHeader, parent->Host, (unsigned int)bus, (unsigned int)slot, (unsigned int)function);
+    // The device owns this header after the function returns successfully.
+    PciReadFunction(
+        nativeHeader,
+        parent->Host,
+        (unsigned int)bus,
+        (unsigned int)slot,
+        (unsigned int)function
+    );
 
     *headerOut = nativeHeader;
     return OS_EOK;
 }
 
 static oserr_t
-PciCheckFunction(
+__PciCheckFunction(
     _In_ PciDevice_t* parent,
-    _In_ int          bus,
-    _In_ int          slot,
-    _In_ int          function)
+    _In_ int         bus,
+    _In_ int         slot,
+    _In_ int         function)
 {
     oserr_t      oserr;
     PciDevice_t* device;
-    int          secondBus;
-    uint16_t     settings;
-    BusDevice_t  resources = { 0 };
+    int         secondBus;
+    uint16_t    settings;
+    uint16_t    pciSettings;
+    BusDevice_t resources = { 0 };
+
+    // A failed scan retries missing functions without probing live BARs again.
+    device = PciFindDevice(parent->Host->Identification.Segment, bus, slot, function);
+    if (device != NULL) {
+        if (device->Parent == parent && device->IsBridge) {
+            secondBus = PciReadSecondaryBusNumber(device->Host, bus, slot, function);
+            PciCheckBus(device, secondBus);
+        }
+        return OS_EOK;
+    }
 
     device = calloc(1, sizeof(PciDevice_t));
     if (!device) {
@@ -89,32 +113,30 @@ PciCheckFunction(
         return oserr;
     }
 
-    device->Handler = NULL;
-    device->Attachment = NULL;
-    device->Parent      = parent;
-    device->Host       = parent->Host;
-    device->Bus         = bus;
-    device->Slot        = slot;
-    device->Function    = function;
-    device->AcpiConform = 0;
+    device->Handler       = NULL;
+    device->Attachment    = NULL;
+    device->Parent        = parent;
+    device->Host          = parent->Host;
+    device->Bus           = bus;
+    device->Slot          = slot;
+    device->Function      = function;
+    device->AcpiConform   = 0;
     device->InterruptLine = device->Header->InterruptLine;
-    device->IsBridge    = DEVICE_IS_PCI_BRIDGE(device) ? 1 : 0; // this relies on device->Header
-    ELEMENT_INIT(&device->list_header, 0, device);
-    ELEMENT_INIT(&device->child_header, (uintptr_t)device->IsBridge, device);
-    list_construct(&device->children);
+    device->IsBridge      = DEVICE_IS_PCI_BRIDGE(device) ? 1 : 0;
+    ELEMENT_INIT(&device->ListHeader, 0, device);
+    ELEMENT_INIT(&device->ChildHeader, (uintptr_t)device->IsBridge, device);
+    list_construct(&device->Children);
 
-    // Trace Information about device 
-    // Ignore the spam of device_id 0x7a0 in VMWare
-    // This is VIRTIO devices
+    // Suppress repeated VMware device traces for device ID 0x7a0.
     if (device->Header->DeviceId != 0x7a0) {
         TRACE(" - [%x:%x:%x] %s", bus, slot, function,
               PciToString(device->Header->Class, device->Header->Subclass, device->Header->Interface));
     }
 
-    // Do some disabling, but NOT on the video or bridge
+    // Disable INTx interrupts for devices outside the bridge and video classes.
     if ((device->Header->Class != PCI_CLASS_BRIDGE)
         && (device->Header->Class != PCI_CLASS_VIDEO)) {
-        uint16_t pciSettings = PciRead16(device->Host, bus, slot, function, 0x04);
+        pciSettings = PciRead16(device->Host, bus, slot, function, 0x04);
         PciWrite16(device->Host, bus, slot, function, 0x04, pciSettings | PCI_COMMAND_INTDISABLE);
     }
     
@@ -143,18 +165,19 @@ PciCheckFunction(
         TRACE("PciCheckFunction attaching handler to %u:%u:%u.%u",
             device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
         oserr = device->Handler->Attach(device, &device->Resources, &device->Attachment);
+        device->AttachmentStatus = oserr;
         if (oserr != OS_EOK) {
             WARNING("PCI %u:%u:%u.%u function attachment failed (%u)",
                 device->Host->Identification.Segment, device->Bus, device->Slot, device->Function, oserr);
         }
     }
 
-    // add device to lists
-    list_append(&g_pciDevices, &device->list_header);
-    list_append(&parent->children, &device->child_header);
+    // Add the device to the global list and its parent's child list.
+    list_append(&g_pciDevices, &device->ListHeader);
+    list_append(&parent->Children, &device->ChildHeader);
 
     if (DEVICE_IS_PCI_BRIDGE(device)) {
-        // Extract secondary bus
+        // The bridge's secondary bus contains its child devices.
         secondBus = PciReadSecondaryBusNumber(device->Host, bus, slot, function);
         PciCheckBus(device, secondBus);
     } else {
@@ -166,16 +189,15 @@ PciCheckFunction(
 void
 PciCheckDevice(
     _In_ PciDevice_t* parent,
-    _In_ int          bus,
-    _In_ int          slot)
+    _In_ int         bus,
+    _In_ int         slot)
 {
     uint16_t vendorId;
     uint8_t  headerType;
     int      function = 0;
     oserr_t  status;
 
-    // Validate the vendor id, it's invalid only
-    // if there is no device on that location
+    // Probe function zero before checking the slot's other functions.
     vendorId = PciReadVendorId(
         parent->Host,
         (unsigned int)bus,
@@ -183,19 +205,18 @@ PciCheckDevice(
         (unsigned int)function
     );
 
-    // Sanitize if device is present
+    // A vendor ID of 0xFFFF indicates that the function is absent.
     if (vendorId == 0xFFFF) {
         return;
     }
 
-    // Check base function
-    status = PciCheckFunction(parent, bus, slot, function);
+    status = __PciCheckFunction(parent, bus, slot, function);
     if (status != OS_EOK) {
         ERROR("PciCheckDevice failed to enumerate %i:%i.%i: %u", bus, slot, function, status);
+        parent->Host->ScanStatus = status;
     }
 
-    // Multi-function or single? 
-    // If it is a multi-function device, check remaining functions
+    // Header bit 7 must be set before probing functions 1 through 7.
     headerType = PciReadHeaderType(
         parent->Host,
         (unsigned int)bus,
@@ -205,8 +226,9 @@ PciCheckDevice(
     if (headerType & 0x80) {
         for (function = 1; function < 8; function++) {
             if (PciReadVendorId(parent->Host, bus, slot, function) != 0xFFFF) {
-                status = PciCheckFunction(parent, bus, slot, function);
+                status = __PciCheckFunction(parent, bus, slot, function);
                 if (status != OS_EOK) {
+                    parent->Host->ScanStatus = status;
                     ERROR("PciCheckDevice failed to enumerate %i:%i.%i: %u",
                         bus, slot, function, status);
                 }
@@ -218,7 +240,7 @@ PciCheckDevice(
 void
 PciCheckBus(
     _In_ PciDevice_t* parent,
-    _In_ int          bus)
+    _In_ int         bus)
 {
     int device;
 
@@ -244,10 +266,36 @@ PciCheckBus(
     TRACE("PciCheckBus(segment=%u, bus=%i)", parent->Host->Identification.Segment, bus);
     parent->Host->ScannedBuses[bus / 8] |= 1U << (bus % 8);
 
-    // Iterate all possible 32 devices on the pci-bus
+    // A PCI bus has 32 possible device slots.
     for (device = 0; device < 32; device++) {
         PciCheckDevice(parent, bus, device);
     }
+}
+
+oserr_t
+PciRecoverScan(
+    _In_ PciHost_t* host)
+{
+    if (host->Removing) {
+        return OS_EBUSY;
+    }
+    if (host->ScanStatus == OS_EOK) {
+        return OS_EOK;
+    }
+
+    memset(host->ScannedBuses, 0, sizeof(host->ScannedBuses));
+    host->ScanStatus = OS_EOK;
+
+#ifdef __OSCONFIG_HAS_LEGACY_PCI
+    if (host->LegacyScan) {
+        PciScanLegacyRoots(host);
+    } else {
+        PciCheckBus(host->RootDevice, host->Identification.BusStart);
+    }
+#else
+    PciCheckBus(host->RootDevice, host->Identification.BusStart);
+#endif
+    return host->ScanStatus;
 }
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI

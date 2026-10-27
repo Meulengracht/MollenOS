@@ -19,8 +19,30 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <string.h>
+
 #include <bus/pci/dma.h>
 #include <bus/pci/host-private.h>
+
+oserr_t
+PciHostGetIdentityDma(
+    _In_  PciHost_t*                host,
+    _Out_ struct PciDmaDescription* description)
+{
+    (void)host;
+
+#if defined(__amd64__) || defined(__i386__)
+    memset(description, 0, sizeof(*description));
+
+    description->CachePolicy = DmDmaCacheCoherent;
+    description->Map.Count = 1;
+    description->Map.Ranges[0].Length = UINT64_MAX;
+    return OS_EOK;
+#else
+    (void)description;
+    return OS_ENOTSUPPORTED;
+#endif
+}
 
 oserr_t
 PciHostGetDmaDescription(
@@ -32,17 +54,17 @@ PciHostGetDmaDescription(
 
     TRACE("PciHostGetDmaDescription(host=%p)", host);
 
-    // Dispatch through the existing host operations so callers never need to
-    // know the controller type. No callback means no established DMA support.
     if (host == NULL || description == NULL) {
         WARNING("PciHostGetDmaDescription missing host or output");
         return OS_EINVALPARAMS;
     }
+
+    // The controller must supply a DMA query callback before DMA can be used.
     if (host->Operations == NULL || host->Operations->GetDmaDescription == NULL) {
         TRACE("PciHostGetDmaDescription host has no established DMA support");
         return OS_ENOTSUPPORTED;
     }
-   
+
     status = host->Operations->GetDmaDescription(host, &result);
     if (status != OS_EOK) {
         WARNING("PciHostGetDmaDescription host %u query failed: %u",
@@ -50,10 +72,10 @@ PciHostGetDmaDescription(
         return status;
     }
 
-    // Identity belongs to PCI registration, not the backend. Commit it together
-    // with the ranges so a failed query cannot leave a partly updated result.
+    // Use the identity assigned during PCI registration. Update the caller's
+    // description only after the controller query succeeds.
     result.Host = *PciHostGetIdentification(host);
-    
+
     *description = result;
     return OS_EOK;
 }

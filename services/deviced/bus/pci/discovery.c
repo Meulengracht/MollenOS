@@ -20,26 +20,116 @@
 
 //#define __TRACE
 
+#include <ddk/acpi.h>
+#include <ddk/firmware.h>
+#include <ddk/utils.h>
+#include <stdlib.h>
+
 #include <bus/pci/discovery.h>
 #include <bus/pci/host-private.h>
+#include <bus/pci/device.h>
 #include <bus/pci/enumerate.h>
 #include <bus/pci/interrupts.h>
 #include <bus/pci/publish.h>
 #include <bus/pci/hosts/ecam.h>
 #include <bus/pci/hosts/legacy.h>
 #include <bus/pci/hosts/broadcom/bcm.h>
-#include <ddk/acpi.h>
-#include <ddk/firmware.h>
-#include <ddk/utils.h>
+
 #include <firmware/pci.h>
-#include <stdlib.h>
+#include <firmware/tree.h>
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
 #include <bus/legacy/fixed.h>
 #endif
 
-static int g_acpiAvailable;
-static int g_msiDisabled;
+static int        g_acpiAvailable;
+static int        g_msiDisabled;
+static int        g_hostsDiscovered;
+static int        g_policyInitialized;
+static oserr_t    g_discoveryStatus;
+static oserr_t    g_discoveryFailure;
+static PciHost_t* g_hostCleanup;
+
+static void
+__RecordDiscoveryError(
+    _In_ oserr_t status)
+{
+    // Retry only errors classified as temporary. Invalid firmware stays invalid
+    // across startup attempts.
+    if (__DmStartupFromStatus(status).Outcome != DmStartupRetry) {
+        return;
+    }
+    if (g_discoveryStatus == OS_EOK) {
+        g_discoveryStatus = status;
+    }
+}
+
+static int
+__HostExists(
+    _In_ uint32_t segment,
+    _In_ uint8_t  busStart,
+    _In_ uint8_t  busEnd)
+{
+    element_t* element;
+    PciHost_t* host;
+
+    _foreach(element, &g_pciRoots) {
+        host = ((struct PciDevice*)element->value)->Host;
+        if (host->Identification.Segment == segment &&
+            host->Identification.BusStart == busStart &&
+            host->Identification.BusEnd == busEnd) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void
+__DiscardHost(
+    _In_ PciHost_t*      host,
+    _In_ struct FdtTree* tree)
+{
+    oserr_t status;
+
+    if (host == NULL) {
+        return;
+    }
+    // If construction failed before attachment, keep the firmware tree alive
+    // until controller cleanup succeeds.
+    if (tree != NULL && host->FirmwareTree == NULL) {
+        FdtTreeAddReference(tree);
+        host->FirmwareTree = tree;
+    }
+    status = PciHostDestroy(host);
+    if (status != OS_EOK) {
+        host->CleanupNext = g_hostCleanup;
+        g_hostCleanup = host;
+        g_discoveryStatus = status;
+    }
+}
+
+static oserr_t
+__FinishHostCleanup(void)
+{
+    PciHost_t** link = &g_hostCleanup;
+    PciHost_t*  host;
+    PciHost_t*  next;
+    oserr_t     status;
+    oserr_t     result = OS_EOK;
+
+    while (*link != NULL) {
+        host = *link;
+        next = host->CleanupNext;
+        status = PciHostDestroy(host);
+        if (status == OS_EOK) {
+            *link = next;
+        } else {
+            result = status;
+            link = &host->CleanupNext;
+        }
+    }
+    return result;
+}
 
 int
 PciIsMsiAvailable(void)
@@ -68,16 +158,16 @@ __EnumerateLegacy(void)
     status = PciLegacyHostCreate(&host);
     if (status != OS_EOK) {
         ERROR("__EnumerateLegacy failed to create host: %u", status);
+        __RecordDiscoveryError(status);
+        __DiscardHost(host, NULL);
         return;
     }
     
     status = PciHostAttach(host, NULL);
     if (status != OS_EOK) {
         ERROR("__EnumerateLegacy failed to attach host: %u", status);
-        status = PciHostDestroy(host);
-        if (status != OS_EOK) {
-            ERROR("__EnumerateLegacy failed to destroy unattached host: %u", status);
-        }
+        __RecordDiscoveryError(status);
+        __DiscardHost(host, NULL);
         return;
     }
     
@@ -85,15 +175,15 @@ __EnumerateLegacy(void)
 }
 #endif
 
-// <base> is the ECAM address of <busStart>, each bus decodes 1MB.
+// base must address busStart. Each bus occupies 1 MiB of ECAM space.
 static void
 __EnumerateEcamWindow(
-    _In_ uint32_t                   segment,
-    _In_ uint8_t                    busStart,
-    _In_ uint8_t                    busEnd,
-    _In_ uint64_t                   base,
-    _In_ const struct FdtPciHost*   firmwareHost,
-    _In_ struct PciFirmwareMapping* mapping)
+    _In_ uint32_t                  segment,
+    _In_ uint8_t                   busStart,
+    _In_ uint8_t                   busEnd,
+    _In_ uint64_t                  base,
+    _In_ const struct FdtPciHost*  firmwareHost,
+    _In_ struct FdtTree*           tree)
 {
     PciHost_t*                      host;
     oserr_t                         status;
@@ -111,6 +201,10 @@ __EnumerateEcamWindow(
     TRACE("__EnumerateEcamWindow(segment=%u, buses=%u-%u, base=0x%llx)",
         segment, busStart, busEnd, (unsigned long long)base);
 
+    if (__HostExists(segment, busStart, busEnd)) {
+        return;
+    }
+
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
     if (firmwareHost == NULL) {
         configuration.IoResourcePolicy = PciIoResourcePorts;
@@ -120,16 +214,16 @@ __EnumerateEcamWindow(
     status = PciEcamHostCreate(&configuration, &host);
     if (status != OS_EOK) {
         ERROR("__EnumerateEcamWindow failed to create segment %u: %u", segment, status);
+        __RecordDiscoveryError(status);
+        __DiscardHost(host, tree);
         return;
     }
     
-    status = PciHostAttach(host, mapping);
+    status = PciHostAttach(host, tree);
     if (status != OS_EOK) {
         ERROR("__EnumerateEcamWindow failed to attach segment %u: %u", segment, status);
-        status = PciHostDestroy(host);
-        if (status != OS_EOK) {
-            ERROR("__EnumerateEcamWindow failed to destroy unattached host: %u", status);
-        }
+        __RecordDiscoveryError(status);
+        __DiscardHost(host, tree);
         return;
     }
     PciCheckBus(host->RootDevice, busStart);
@@ -148,6 +242,7 @@ __EnumerateMcfg(void)
     status = AcpiQueryTable(ACPI_SIG_MCFG, &header);
     if (status != OS_EOK) {
         TRACE("__EnumerateMcfg MCFG unavailable: %u; legacy fallback may be used", status);
+        __RecordDiscoveryError(status);
         return;
     }
 
@@ -170,10 +265,14 @@ __EnumerateMcfg(void)
             continue;
         }
 
-        // MCFG addresses are relative to bus 0
+        // MCFG gives the address of bus 0. Advance to the first described bus.
         __EnumerateEcamWindow(
-            entry->PciSegment, entry->StartBusNumber, entry->EndBusNumber,
-            entry->Address + ((uint64_t)entry->StartBusNumber << 20), NULL, NULL
+            entry->PciSegment,
+            entry->StartBusNumber,
+            entry->EndBusNumber,
+            entry->Address + ((uint64_t)entry->StartBusNumber << 20),
+            NULL,
+            NULL
         );
     }
     free(header);
@@ -184,14 +283,15 @@ __OnFdtPciHost(
     _In_ const struct FdtPciHost* host,
     _In_ void*                    context)
 {
-    PciHost_t*                  bus;
-    struct BcmPciHost*          controller;
-    const struct BcmPciVariant* variant;
-    oserr_t                     status;
-    oserr_t                     cleanup;
+    PciHost_t* bus;
+    oserr_t    status;
 
     TRACE("__OnFdtPciHost(segment=%u, buses=%u-%u, type=%u)",
         host->Segment, host->BusStart, host->BusEnd, host->Type);
+
+    if (__HostExists(host->Segment, host->BusStart, host->BusEnd)) {
+        return;
+    }
 
     if (host->Type == FdtPciHostEcam) {
         __EnumerateEcamWindow(
@@ -205,71 +305,19 @@ __OnFdtPciHost(
         return;
     }
     
-    variant = BcmPciGetVariant(host->Type);
-    if (variant == NULL) {
-        WARNING("PCI host segment %u requires its own controller variant (type %u)",
-            host->Segment, host->Type);
-        return;
-    }
-    
-    if (host->EcamBase > UINTPTR_MAX || host->EcamLength < variant->RegisterLength ||
-        host->EcamLength > SIZE_MAX || host->EcamLength - 1 > UINTPTR_MAX - host->EcamBase) {
-        ERROR("__OnFdtPciHost segment %u has an unusable register window 0x%llx+0x%llx",
-            host->Segment, (unsigned long long)host->EcamBase,
-            (unsigned long long)host->EcamLength);
-        return;
-    }
-    
-    bus = calloc(1, sizeof(PciHost_t) + sizeof(struct BcmPciHost));
-    if (bus == NULL) {
-        ERROR("__OnFdtPciHost failed to allocate segment %u", host->Segment);
-        return;
-    }
-    
-    controller = (struct BcmPciHost*)(bus + 1);
-    status = CreateDeviceMemoryIo(
-        &bus->IoSpace,
-        (uintptr_t)host->EcamBase,
-        (size_t)host->EcamLength
-    );
+    status = BcmPciHostCreate(host, &bus);
     if (status != OS_EOK) {
-        ERROR("__OnFdtPciHost failed to create register I/O: %u", status);
-        free(bus);
+        ERROR("__OnFdtPciHost failed to create segment %u: %u", host->Segment, status);
+        __RecordDiscoveryError(status);
+        __DiscardHost(bus, context);
         return;
     }
-    
-    status = AcquireDeviceIo(&bus->IoSpace);
-    if (status != OS_EOK) {
-        ERROR("__OnFdtPciHost failed to acquire register I/O: %u", status);
-        cleanup = DestroyDeviceIo(&bus->IoSpace);
-        if (cleanup != OS_EOK) {
-            ERROR("__OnFdtPciHost failed to destroy register I/O: %u", cleanup);
-        }
-        free(bus);
-        return;
-    }
-    
-    status = BcmPciInitialize(bus, controller, host);
-    if (status != OS_EOK) {
-        ERROR("Broadcom PCIe segment %u initialization failed: %u", host->Segment, status);
-        cleanup = ReleaseDeviceIo(&bus->IoSpace);
-        if (cleanup != OS_EOK) {
-            ERROR("__OnFdtPciHost failed to release register I/O: %u", cleanup);
-        }
-        cleanup = DestroyDeviceIo(&bus->IoSpace);
-        if (cleanup != OS_EOK) {
-            ERROR("__OnFdtPciHost failed to destroy register I/O: %u", cleanup);
-        }
-        free(bus);
-        return;
-    }
+
     status = PciHostAttach(bus, context);
     if (status != OS_EOK) {
         ERROR("__OnFdtPciHost failed to attach segment %u: %u", host->Segment, status);
-        status = PciHostDestroy(bus);
-        if (status != OS_EOK) {
-            ERROR("__OnFdtPciHost failed to destroy unattached host: %u", status);
-        }
+        __RecordDiscoveryError(status);
+        __DiscardHost(bus, context);
         return;
     }
     
@@ -280,68 +328,39 @@ __OnFdtPciHost(
 static void
 __EnumerateDeviceTree(void)
 {
-    OSFirmwareTableKey_t       key = { .Source = OSFIRMWARE_DEVICETREE };
-    const void*                blob;
-    size_t                     length;
-    struct PciFirmwareMapping* mapping;
-    oserr_t                    oserr;
+    struct FdtTree* tree = FirmwareGetTree();
+    oserr_t         status;
 
-    TRACE("__EnumerateDeviceTree()");
-
-    oserr = FirmwareTableMap(&key, &blob, &length);
-    if (oserr != OS_EOK) {
-        ERROR("BusEnumerate failed to map the device tree: %u", oserr);
-        return;
-    }
-
-    mapping = calloc(1, sizeof(struct PciFirmwareMapping));
-    if (mapping == NULL) {
-        ERROR("__EnumerateDeviceTree failed to allocate firmware mapping");
-        oserr = FirmwareTableUnmap(blob, length);
-        if (oserr != OS_EOK) {
-            ERROR("__EnumerateDeviceTree failed to unmap firmware: %u", oserr);
+    if (tree == NULL) {
+        // Retry only while firmware startup can still produce a usable tree.
+        if (FirmwareGetStartupResult().Outcome == DmStartupRetry) {
+            __RecordDiscoveryError(OS_EBUSY);
         }
         return;
     }
-    
-    mapping->Blob = blob;
-    mapping->Length = length;
-    mapping->References = 1;
-    
-    oserr = FdtEnumeratePciHosts(blob, length, __OnFdtPciHost, mapping);
-    if (oserr != OS_EOK) {
-        ERROR("BusEnumerate malformed device tree: %u", oserr);
-    } else if (mapping->References == 1) {
-        WARNING("BusEnumerate could not initialize any device tree PCI hosts");
+
+    status = FdtEnumeratePciHosts(tree, __OnFdtPciHost, tree);
+    if (status != OS_EOK) {
+        ERROR("__EnumerateDeviceTree: PCI discovery failed (%u)", status);
+        __RecordDiscoveryError(status);
     }
-    
-    PciFirmwareRelease(mapping);
 }
 
-void
-BusEnumerate(void)
+static oserr_t
+__InitializeDiscoveryPolicy(void)
 {
     AcpiDescriptor_t acpi = { 0 };
-    OSFirmwareInfo_t firmware = { 0 };
-    element_t*       element;
     oserr_t          status;
 
-    TRACE("BusEnumerate()");
-
-    PciInitialize();
-    
-    // This entry point discovers at startup; it is not a hot-plug rescan.
-    // In particular, do not reinitialize a live Broadcom controller.
-    if (g_pciRoots.head != NULL) {
-        TRACE("BusEnumerate hosts already enumerated");
-        return;
+    if (g_policyInitialized) {
+        return OS_EOK;
     }
-    g_acpiAvailable = 0;
-    g_msiDisabled = 0;
-
     status = AcpiQueryStatus(&acpi);
+    if (__DmStartupFromStatus(status).Outcome == DmStartupRetry) {
+        return status;
+    }
     if (status != OS_EOK) {
-        TRACE("BusEnumerate ACPI unavailable: %u", status);
+        TRACE("__InitializeDiscoveryPolicy: ACPI unavailable: %u", status);
     } else {
         TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)",
               acpi.Version, acpi.BootFlags);
@@ -350,15 +369,40 @@ BusEnumerate(void)
     }
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
-    // Without ACPI we assume all 8042 devices are present
+    // Assume an 8042 controller is present when ACPI is unavailable or its
+    // boot flags are zero.
+    // Otherwise, require the firmware's 8042 flag.
     if (!g_acpiAvailable || (acpi.BootFlags & ACPI_IA_8042) || acpi.BootFlags == 0) {
         __InstallPS2Controller();
     }
 #endif
+    // Keep the policy fixed once hosts can use it, including discovery retries.
+    g_policyInitialized = 1;
+    return OS_EOK;
+}
+
+static oserr_t
+__DiscoverHosts(void)
+{
+    OSFirmwareInfo_t firmware = { 0 };
+    oserr_t          status;
+
+    // Retry only unfinished startup. Registered hosts are skipped before any
+    // controller writes, and completed discovery does not rescan for hot-plug.
+    if (g_hostsDiscovered) {
+        return OS_EOK;
+    }
+
+    g_discoveryStatus = OS_EOK;
+    status = __InitializeDiscoveryPolicy();
+    if (status != OS_EOK) {
+        return status;
+    }
 
     status = FirmwareQuery(&firmware);
     if (status != OS_EOK) {
-        WARNING("BusEnumerate firmware query failed: %u; continuing bus fallback", status);
+        WARNING("__DiscoverHosts: firmware query failed: %u", status);
+        return status;
     }
     switch (firmware.Primary) {
         case OSFIRMWARE_ACPI:
@@ -372,20 +416,67 @@ BusEnumerate(void)
     }
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
-    if (g_pciRoots.head == NULL) {
+    if (g_pciRoots.head == NULL && g_discoveryStatus == OS_EOK) {
         __EnumerateLegacy();
     }
 #endif
 
     if (g_pciRoots.head == NULL) {
-        WARNING("BusEnumerate no usable PCI configuration hosts");
+        WARNING("__DiscoverHosts: no usable PCI configuration hosts");
     }
+    g_hostsDiscovered = g_discoveryStatus == OS_EOK;
+    return g_discoveryStatus;
+}
 
-    // we do not need to take a lock here
-    _foreach(element, &g_pciRoots) {
-        status = PciPublishDevice(element->value);
-        if (status != OS_EOK) {
-            ERROR("PCI publication failed: %u", status);
+struct DmStartupResult
+BusRecoverAndRepublish(void)
+{
+    element_t*             element;
+    PciHost_t*             host;
+    oserr_t                status;
+    struct DmStartupResult result;
+    struct DmStartupResult next;
+
+    // Finish releasing failed hosts before another discovery attempt, even if
+    // their setup error prevents further startup attempts.
+    status = __FinishHostCleanup();
+    result = __DmStartupRetryResult(status);
+    if (status == OS_EOK) {
+        if (g_discoveryFailure != OS_EOK) {
+            result = __DmStartupFromStatus(g_discoveryFailure);
+        } else {
+            result = __DmStartupFromStatus(__DiscoverHosts());
+            if (g_hostCleanup != NULL) {
+                result.Outcome = DmStartupRetry;
+            } else if (result.Outcome == DmStartupFailed) {
+                g_discoveryFailure = result.Status;
+            }
         }
     }
+
+    // Continue startup for other hosts after one fails. A host with a permanent
+    // startup error must not be restarted on later attempts.
+    _foreach(element, &g_pciRoots) {
+        host = ((struct PciDevice*)element->value)->Host;
+        if (host->StartupFailure != OS_EOK) {
+            next = (struct DmStartupResult) {
+                .Status = host->StartupFailure,
+                .Outcome = DmStartupFailed
+            };
+        } else {
+            next = __DmStartupFromStatus(PciRecoverScan(host));
+            if (next.Outcome == DmStartupComplete) {
+                next = PciPublishDevice(element->value);
+            }
+            if (next.Outcome == DmStartupFailed) {
+                host->StartupFailure = next.Status;
+            }
+            if (next.Outcome != DmStartupComplete) {
+                ERROR("PCI startup failed for host %u: %u (outcome %u)",
+                    host->Identification.HostId, next.Status, next.Outcome);
+            }
+        }
+        __DmStartupMerge(&result, next);
+    }
+    return result;
 }

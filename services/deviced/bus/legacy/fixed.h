@@ -23,15 +23,17 @@
 
 #include <os/osdefs.h>
 
-// Fixed device-id and vendor-id values for loading non-dynamic devices
+// Vendor and device IDs used to match drivers for fixed legacy devices.
 #define PCI_FIXED_VENDORID    0xFFEF
 #define PCI_CMOS_RTC_DEVICEID 0x0010
 #define PCI_PIT_DEVICEID      0x0020
 #define PCI_PS2_DEVICEID      0x0030
 
 /**
- * @brief Registers the fixed keyboard and mouse controller on legacy systems.
- * @return OS_EOK on success, or an allocation or I/O registration error.
+ * @brief Registers the fixed PS/2 keyboard and mouse controller for driver loading.
+ *
+ * @return OS_EOK on success, OS_EOOM if allocation fails, OS_EUNKNOWN if I/O
+ *         port setup fails, or the device registration error.
  */
 __EXTERN oserr_t
 __InstallPS2Controller(void);
