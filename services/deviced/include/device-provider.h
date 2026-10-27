@@ -21,7 +21,7 @@
 #ifndef __DEVICED_DEVICE_PROVIDER_H__
 #define __DEVICED_DEVICE_PROVIDER_H__
 
-#include <ddk/device.h>
+#include <ddk/devices/device.h>
 #include <os/types/device.h>
 
 // Forward declarations
@@ -38,24 +38,36 @@ enum DmDeviceDescriptionKind {
  * @brief Handles requests for a device owned by a bus or another service module.
  * The operations must remain valid until Release returns. All callbacks run
  * without the device registry lock. Control, AccessRegister and PrepareDma are
- * optional. Retain and Release are required when a provider is supplied.
+ * optional. Both reference callbacks are required when Operations is supplied.
  */
 struct DmDeviceProviderOperations {
     /**
      * @brief Adds one owner reference. Failure must leave ownership unchanged.
+     *
+     * @param context Owner state to keep alive for the registry.
+     * @return OS_EOK on success, or an owner error without adding a reference.
      */
-    oserr_t (*Retain)(
+    oserr_t (*AddReference)(
         _In_ void* context);
 
     /**
      * @brief Drops the registry's reference after its last request has ended.
+     *
+     * @param context Owner state from the matching reference increment.
      */
     void (*Release)(
         _In_ void* context);
 
     /**
      * @brief Handles a control request, or returns OS_ENOTSUPPORTED.
+     *
+     * @param context Owner state for the target device.
      * @param principal Process identity verified by the transport, or UUID_INVALID.
+     * @param request Control operation to perform.
+     * @param buffer Request and result storage, interpreted according to request.
+     * @param length Buffer size in bytes.
+     * @return OS_EOK on success, OS_ENOTSUPPORTED for an unsupported operation,
+     *         or an error from the device owner.
      */
     oserr_t (*Control)(
         _In_    void*               context,
@@ -65,7 +77,14 @@ struct DmDeviceProviderOperations {
         _In_    size_t              length);
 
     /**
-     * @brief Reads or writes a register. The provider validates the operation.
+     * @brief Reads or writes a register. The device owner validates the operation.
+     *
+     * @param context Owner state for the target device.
+     * @param direction Read or write operation from the device request.
+     * @param reg Register offset.
+     * @param value Value to write, or storage for the value read.
+     * @param width Access size in bytes.
+     * @return OS_EOK on success, or a validation or register-access error.
      */
     oserr_t (*AccessRegister)(
         _In_    void*        context,
@@ -75,17 +94,40 @@ struct DmDeviceProviderOperations {
         _In_    size_t       width);
 
     /**
-     * @brief Copy the configured DMA path for this exact retained device.
+     * @brief Copies the configured DMA path for this device.
      *
-     * Describe only: do not allocate provider-owned resources, enable hardware,
-     * or change pending flags. That keeps failure and removal rollback a simple
-     * discard of copied values. Supply validated RAM ranges, a registered host
-     * identity and an established cache policy; DeviceId is assigned by the core.
+     * Do not allocate hardware resources, enable hardware or change pending
+     * flags. When ReleaseDma is supplied, this callback may hold an activation
+     * guard on success. Failed preparation must leave no guard. Supply RAM ranges,
+     * a registered host identity and an established cache policy. The core assigns DeviceId.
      * The owning bus must exclude reset while preparing and using this result.
+     * If activation requires an owner, check a supplied principal before taking
+     * the guard.
+     *
+     * @param context Owner state kept alive by the registry request.
+     * @param principal Process identity verified by the transport, or UUID_INVALID
+     *                  for a trusted internal query.
+     * @param description Receives configured DMA ranges, host and cache policy.
+     * @return OS_EOK on success, or an owner error with no activation guard held.
      */
     oserr_t (*PrepareDma)(
         _In_  void*                    context,
+        _In_  uuid_t                   principal,
         _Out_ struct DmDmaDescription* description);
+
+    /**
+     * @brief Releases a guard acquired by a successful PrepareDma, if supplied.
+     * Called exactly once after each successful PrepareDma, even when the registry
+     * cannot record the lease. Runs outside the registry lock while a request or
+     * DMA lease keeps the device alive. Must not fail or perform hardware teardown.
+     * Consumers must stop DMA before releasing their lease. Leave this callback
+     * NULL when PrepareDma only describes the DMA path and holds no guard.
+     * The callback must not call back into device removal.
+     *
+     * @param context Owner state from the matching PrepareDma call.
+     */
+    void (*ReleaseDma)(
+        _In_ void* context);
 };
 
 /**
@@ -97,10 +139,10 @@ struct DmDeviceProvider {
 };
 
 /**
- * @brief Supplies a description and an optional provider for registration.
+ * @brief Supplies a description and optional request callbacks for registration.
  * The registry copies this structure. It owns Description only on success and
- * retains its own provider reference. On failure, the caller keeps both.
- * A provider is absent when Operations and Context are both NULL.
+ * holds its own reference to the device owner. On failure, the caller keeps both.
+ * Request callbacks are absent when Operations and Context are both NULL.
  */
 struct DmDeviceRegistration {
     Device_t*                     Description;

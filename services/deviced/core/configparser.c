@@ -14,9 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * Device Manager - Bootstrapper
- * Provides system bootstrap functionality, parses ramdisk for additional system
- * drivers and loads them if any matching device is present.
+ * Device Manager - Driver Configuration
+ * Parses driver matching data, resources and capabilities from YAML.
  */
 
 //#define __TRACE
@@ -25,18 +24,19 @@
 #include <discover.h>
 #include <ddk/utils.h>
 #include <ddk/capabilities.h>
-#include <ddk/platformdevice.h>
+#include <ddk/devices/platform.h>
 #include <ds/list.h>
 #include <yaml/yaml.h>
 
 /**
- * driver configuration format
- * 
+ * Driver configuration format. Each type entry contains one class or subclass
+ * field. Vendor keys and product IDs are integers. Resource types are numeric.
+ *
  * driver:
  *   capabilities:
  *   - deviceio-access
  *   - interrupt-control
- * 
+ *
  *   compatibles:
  *   - brcm,bcm2711-genet-v5
  *   - brcm,genet-v5
@@ -59,27 +59,27 @@
  *
  */
 enum state {
-    STATE_START,    /* start state */
-    STATE_STREAM,   /* start/end stream */
-    STATE_DOCUMENT, /* start/end document */
-    STATE_SECTION,  /* top level */
+    STATE_START,    // Before the stream starts.
+    STATE_STREAM,   // Between documents in the stream.
+    STATE_DOCUMENT, // Before or after the top-level mapping.
+    STATE_SECTION,  // Top-level mapping keys.
 
-    STATE_DRIVER,          // 4, driver object discovered
-    STATE_DRIVERKEY,       // driver key discovered, followed by scalar
-    STATE_DRIVERTYPE,      // driver type mapping
-    STATE_DRIVERVENDORS,   // driver vendors mapping
-    STATE_DRIVERRESOURCES, // 8, driver resource mappings
+    STATE_DRIVER,          // Before or after the driver mapping.
+    STATE_DRIVERKEY,       // Keys within the driver mapping.
+    STATE_DRIVERTYPE,      // Sequence of class and subclass mappings.
+    STATE_DRIVERVENDORS,   // Sequence of vendor mappings.
+    STATE_DRIVERRESOURCES, // Sequence of resource mappings.
 
-    STATE_TYPECLASS,       // inside driver.type.class
-    STATE_TYPESUBCLASS,    // inside driver.type.subclass
+    STATE_TYPECLASS,       // Class value and its mapping end.
+    STATE_TYPESUBCLASS,    // Subclass value and its mapping end.
 
-    STATE_VENDOR,          // 11, found key/value pair inside driver.vendors
-    STATE_VENDORPRODUCT,   // 12, vendor product list
+    STATE_VENDOR,          // Vendor ID and product sequence boundaries.
+    STATE_VENDORPRODUCT,   // Product IDs for the current vendor.
 
-    STATE_RESOURCE,       // new resource entry found
-    STATE_RESOURCETYPE,   // resource.type found
-    STATE_RESOURCEBASE,   // resource.base found
-    STATE_RESOURCELENGTH, // resource.length found
+    STATE_RESOURCE,       // Keys within a resource mapping.
+    STATE_RESOURCETYPE,   // Resource type value.
+    STATE_RESOURCEBASE,   // Resource base address value.
+    STATE_RESOURCELENGTH, // Resource length value.
 
     STATE_COMPATIBLES_LIST,
     STATE_COMPATIBLES,
@@ -90,17 +90,22 @@ enum state {
     STATE_STOP
 };
 
-struct parser_state {
-    enum state                 state;
-    struct DriverConfiguration driver;
-    struct DriverVendor*       vendor;
-    struct DriverResource*     resource;
+/**
+ * @brief YAML parsing position and the configuration being assembled.
+ * Vendor and Resource point to entries under construction. Completed entries
+ * are added to Driver's lists when their YAML mappings end.
+ */
+struct __ParserState {
+    enum state                 State;
+    struct DriverConfiguration Driver;
+    struct DriverVendor*       Vendor;
+    struct DriverResource*     Resource;
 };
 
 static oserr_t
 __AddProduct(
-    _In_ struct DriverVendor* vendor,
-    _In_ uint32_t             productId)
+    _InOut_ struct DriverVendor* vendor,
+    _In_    uint32_t             productId)
 {
     struct DriverProduct* product;
 
@@ -118,8 +123,8 @@ __AddProduct(
 
 static int
 __AddCompatible(
-    _InOut_ struct parser_state* state,
-    _In_ const yaml_event_t*     event)
+    _InOut_ struct __ParserState* state,
+    _In_    const yaml_event_t*   event)
 {
     struct DriverCompatible* compatible;
     size_t                   length = event->data.scalar.length;
@@ -129,13 +134,13 @@ __AddCompatible(
         WARNING("__AddCompatible: invalid compatible length %zu", length);
         return -1;
     }
-    
+
     compatible = calloc(1, sizeof(*compatible));
     if (compatible == NULL) {
         ERROR("__AddCompatible: failed to allocate compatible entry");
         return -1;
     }
-    
+
     ELEMENT_INIT(&compatible->ListHeader, 0, compatible);
     compatible->Name = strdup(value);
     if (compatible->Name == NULL) {
@@ -143,8 +148,8 @@ __AddCompatible(
         free(compatible);
         return -1;
     }
-    
-    list_append(&state->driver.Compatibles, &compatible->ListHeader);
+
+    list_append(&state->Driver.Compatibles, &compatible->ListHeader);
     return 0;
 }
 
@@ -153,18 +158,18 @@ __ParseBoolean(
     _In_  const char* string,
     _Out_ int*        value)
 {
-    char*  t[] = {"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON", NULL};
-    char*  f[] = {"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF", NULL};
-    char** p;
+    char*  trueValues[] = {"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON", NULL};
+    char*  falseValues[] = {"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF", NULL};
+    char** current;
 
-    for (p = t; *p; p++) {
-        if (strcmp(string, *p) == 0) {
+    for (current = trueValues; *current; current++) {
+        if (strcmp(string, *current) == 0) {
             *value = 1;
             return 0;
         }
     }
-    for (p = f; *p; p++) {
-        if (strcmp(string, *p) == 0) {
+    for (current = falseValues; *current; current++) {
+        if (strcmp(string, *current) == 0) {
             *value = 0;
             return 0;
         }
@@ -174,8 +179,8 @@ __ParseBoolean(
 
 static int
 __ConsumeEvent(
-    _In_ struct parser_state* s,
-    _In_ yaml_event_t*        event)
+    _InOut_ struct __ParserState* s,
+    _In_    yaml_event_t*         event)
 {
     char*          value;
     char*          end;
@@ -184,14 +189,14 @@ __ConsumeEvent(
     oserr_t        osStatus;
     int            status;
 
-    switch (s->state) {
+    switch (s->State) {
         case STATE_START:
             switch (event->type) {
                 case YAML_STREAM_START_EVENT:
-                    s->state = STATE_STREAM;
+                    s->State = STATE_STREAM;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -199,13 +204,13 @@ __ConsumeEvent(
         case STATE_STREAM:
             switch (event->type) {
                 case YAML_DOCUMENT_START_EVENT:
-                    s->state = STATE_DOCUMENT;
+                    s->State = STATE_DOCUMENT;
                     break;
                 case YAML_STREAM_END_EVENT:
-                    s->state = STATE_STOP;
+                    s->State = STATE_STOP;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -213,13 +218,13 @@ __ConsumeEvent(
         case STATE_DOCUMENT:
             switch (event->type) {
                 case YAML_MAPPING_START_EVENT:
-                    s->state = STATE_SECTION;
+                    s->State = STATE_SECTION;
                     break;
                 case YAML_DOCUMENT_END_EVENT:
-                    s->state = STATE_STREAM;
+                    s->State = STATE_STREAM;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -227,18 +232,19 @@ __ConsumeEvent(
         case STATE_SECTION:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    value = (char *)event->data.scalar.value;
+                    value = (char*)event->data.scalar.value;
                     if (strcmp(value, "driver") == 0) {
-                        s->state = STATE_DRIVER;
+                        s->State = STATE_DRIVER;
                     } else {
                         ERROR("__ConsumeEvent Unexpected scalar: %s, expected 'driver'", value);
                         return -1;
-                    } break;
+                    }
+                    break;
                 case YAML_DOCUMENT_END_EVENT:
-                    s->state = STATE_STREAM;
+                    s->State = STATE_STREAM;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -246,13 +252,13 @@ __ConsumeEvent(
         case STATE_DRIVER:
             switch (event->type) {
                 case YAML_MAPPING_START_EVENT:
-                    s->state = STATE_DRIVERKEY;
+                    s->State = STATE_DRIVERKEY;
                     break;
                 case YAML_MAPPING_END_EVENT:
-                    s->state = STATE_SECTION;
+                    s->State = STATE_SECTION;
                     break;
                 default:
-                    ERROR("Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -260,56 +266,55 @@ __ConsumeEvent(
         case STATE_DRIVERKEY:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    value = (char *)event->data.scalar.value;
+                    value = (char*)event->data.scalar.value;
                     if (strcmp(value, "capabilities") == 0) {
-                        s->state = STATE_CAPABILITIES_LIST;
+                        s->State = STATE_CAPABILITIES_LIST;
                     } else if (strcmp(value, "compatibles") == 0) {
-                        s->state = STATE_COMPATIBLES_LIST;
+                        s->State = STATE_COMPATIBLES_LIST;
                     } else if (strcmp(value, "type") == 0) {
-                        s->state = STATE_DRIVERTYPE;
+                        s->State = STATE_DRIVERTYPE;
                     } else if (strcmp(value, "vendors") == 0) {
-                        s->state = STATE_DRIVERVENDORS;
+                        s->State = STATE_DRIVERVENDORS;
                     } else if (strcmp(value, "resources") == 0) {
-                        s->state = STATE_DRIVERRESOURCES;
+                        s->State = STATE_DRIVERRESOURCES;
                     } else {
                         ERROR("__ConsumeEvent Unexpected key: %s", value);
                         return -1;
-                    } break;
+                    }
+                    break;
                 case YAML_MAPPING_END_EVENT:
-                    // end of driver structure
-                    s->state = STATE_DRIVER;
+                    s->State = STATE_DRIVER;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
 
-        // Handle events when inside driver.type
         case STATE_DRIVERTYPE:
             switch (event->type) {
                 case YAML_SEQUENCE_START_EVENT:
                 case YAML_MAPPING_START_EVENT:
-                    // The type will start with a sequence event, then a mapping event
+                    // Each class or subclass field has its own mapping in the sequence.
                     break;
 
                 case YAML_SEQUENCE_END_EVENT:
-                    // we are done parsing driver.type
-                    s->state = STATE_DRIVERKEY;
+                    s->State = STATE_DRIVERKEY;
                     break;
 
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
                     if (strcmp(value, "class") == 0) {
-                        s->state = STATE_TYPECLASS;
+                        s->State = STATE_TYPECLASS;
                     } else if (strcmp(value, "subclass") == 0) {
-                        s->state = STATE_TYPESUBCLASS;
+                        s->State = STATE_TYPESUBCLASS;
                     } else {
                         ERROR("__ConsumeEvent Unexpected key: %s", value);
                         return -1;
-                    } break;
+                    }
+                    break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -318,17 +323,17 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
-                    s->driver.Class = (uint32_t)strtol(value, &end, 0);
+                    s->Driver.Class = (uint32_t)strtol(value, &end, 0);
                     if (end == value || *end != '\0') {
                         WARNING("__ConsumeEvent: invalid class value %s; keeping conversion result", value);
                     }
                     break;
 
                 case YAML_MAPPING_END_EVENT:
-                    s->state = STATE_DRIVERTYPE;
+                    s->State = STATE_DRIVERTYPE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -337,17 +342,17 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
-                    s->driver.Subclass = (uint32_t)strtol(value, &end, 0);
+                    s->Driver.Subclass = (uint32_t)strtol(value, &end, 0);
                     if (end == value || *end != '\0') {
                         WARNING("__ConsumeEvent: invalid subclass value %s; keeping conversion result", value);
                     }
                     break;
 
                 case YAML_MAPPING_END_EVENT:
-                    s->state = STATE_DRIVERTYPE;
+                    s->State = STATE_DRIVERTYPE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -355,21 +360,18 @@ __ConsumeEvent(
         case STATE_DRIVERVENDORS:
             switch (event->type) {
                 case YAML_SEQUENCE_START_EVENT:
-                    // list start of vendors
                     break;
 
                 case YAML_SEQUENCE_END_EVENT:
-                    // list end
-                    s->state = STATE_DRIVERKEY;
+                    s->State = STATE_DRIVERKEY;
                     break;
 
                 case YAML_MAPPING_START_EVENT:
-                    // new list entry.
-                    s->state = STATE_VENDOR;
+                    s->State = STATE_VENDOR;
                     break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -377,34 +379,34 @@ __ConsumeEvent(
         case STATE_VENDOR:
             switch (event->type) {
                 case YAML_MAPPING_END_EVENT:
-                    list_append(&s->driver.Vendors, &s->vendor->ListHeader);
-                    s->vendor = NULL;
-                    s->state = STATE_DRIVERVENDORS;
+                    // The vendor and its products now belong to the configuration.
+                    list_append(&s->Driver.Vendors, &s->Vendor->ListHeader);
+                    s->Vendor = NULL;
+                    s->State = STATE_DRIVERVENDORS;
                     break;
 
                 case YAML_SEQUENCE_START_EVENT:
-                    // start of products
-                    s->state = STATE_VENDORPRODUCT;
+                    s->State = STATE_VENDORPRODUCT;
                     break;
 
                 case YAML_SCALAR_EVENT:
-                    // Occurs on a new vendor entry
-                    s->vendor = malloc(sizeof(struct DriverVendor));
-                    if (!s->vendor) {
+                    // The scalar key supplies the vendor ID for the product sequence.
+                    s->Vendor = malloc(sizeof(struct DriverVendor));
+                    if (!s->Vendor) {
                         ERROR("__ConsumeEvent out of memory allocating yaml vendor");
                         return -1;
                     }
-                    ELEMENT_INIT(&s->vendor->ListHeader, 0, s->vendor);
-                    list_construct(&s->vendor->Products);
+                    ELEMENT_INIT(&s->Vendor->ListHeader, 0, s->Vendor);
+                    list_construct(&s->Vendor->Products);
                     value = (char*)event->data.scalar.value;
-                    s->vendor->Id = (uint32_t)strtol(value, &end, 0);
+                    s->Vendor->Id = (uint32_t)strtol(value, &end, 0);
                     if (end == value || *end != '\0') {
                         WARNING("__ConsumeEvent: invalid vendor value %s; keeping conversion result", value);
                     }
                     break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -412,8 +414,7 @@ __ConsumeEvent(
         case STATE_VENDORPRODUCT:
             switch (event->type) {
                 case YAML_SEQUENCE_END_EVENT:
-                    // end of products, go back to vendor
-                    s->state = STATE_VENDOR;
+                    s->State = STATE_VENDOR;
                     break;
 
                 case YAML_SCALAR_EVENT:
@@ -425,18 +426,17 @@ __ConsumeEvent(
                     if (!productId) {
                         WARNING("__ConsumeEvent failed to parse product id: %s",
                                 (const char*)event->data.scalar.value);
-                    }
-                    else {
-                        osStatus = __AddProduct(s->vendor, productId);
+                    } else {
+                        osStatus = __AddProduct(s->Vendor, productId);
                         if (osStatus != OS_EOK) {
                             ERROR("__ConsumeEvent: adding product 0x%x to vendor 0x%x failed: %u",
-                                  productId, s->vendor->Id, osStatus);
+                                  productId, s->Vendor->Id, osStatus);
                             return -1;
                         }
                     }
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -444,28 +444,26 @@ __ConsumeEvent(
         case STATE_DRIVERRESOURCES:
             switch (event->type) {
                 case YAML_SEQUENCE_START_EVENT:
-                    // start of list
                     break;
 
                 case YAML_MAPPING_START_EVENT:
-                    // Occurs on a new resource entry
-                    s->resource = malloc(sizeof(struct DriverResource));
-                    if (!s->resource) {
+                    // Keep the entry separate until its mapping has been parsed.
+                    s->Resource = malloc(sizeof(struct DriverResource));
+                    if (!s->Resource) {
                         ERROR("__ConsumeEvent out of memory allocating yaml resource");
                         return -1;
                     }
-                    memset(s->resource, 0, sizeof(struct DriverResource));
-                    ELEMENT_INIT(&s->resource->ListHeader, 0, s->resource);
-                    s->state = STATE_RESOURCE;
+                    memset(s->Resource, 0, sizeof(struct DriverResource));
+                    ELEMENT_INIT(&s->Resource->ListHeader, 0, s->Resource);
+                    s->State = STATE_RESOURCE;
                     break;
 
                 case YAML_SEQUENCE_END_EVENT:
-                    // end of resource list
-                    s->state = STATE_DRIVERKEY;
+                    s->State = STATE_DRIVERKEY;
                     break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->State);
                     return -1;
             }
             break;
@@ -473,27 +471,28 @@ __ConsumeEvent(
         case STATE_RESOURCE:
             switch (event->type) {
                 case YAML_MAPPING_END_EVENT:
-                    // end of resource
-                    list_append(&s->driver.Resources, &s->resource->ListHeader);
-                    s->resource = NULL;
-                    s->state = STATE_DRIVERRESOURCES;
+                    // The completed resource now belongs to the configuration.
+                    list_append(&s->Driver.Resources, &s->Resource->ListHeader);
+                    s->Resource = NULL;
+                    s->State = STATE_DRIVERRESOURCES;
                     break;
 
                 case YAML_SCALAR_EVENT:
-                    value = (char *)event->data.scalar.value;
+                    value = (char*)event->data.scalar.value;
                     if (strcmp(value, "type") == 0) {
-                        s->state = STATE_RESOURCETYPE;
+                        s->State = STATE_RESOURCETYPE;
                     } else if (strcmp(value, "base") == 0) {
-                        s->state = STATE_RESOURCEBASE;
+                        s->State = STATE_RESOURCEBASE;
                     } else if (strcmp(value, "length") == 0) {
-                        s->state = STATE_RESOURCELENGTH;
+                        s->State = STATE_RESOURCELENGTH;
                     } else {
                         ERROR("__ConsumeEvent Unexpected key: %s", value);
                         return -1;
-                    } break;
+                    }
+                    break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->State);
                     return -1;
             }
             break;
@@ -502,14 +501,14 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
-                    s->resource->Type = (int)strtol(value, &end, 0);
+                    s->Resource->Type = (int)strtol(value, &end, 0);
                     if (end == value || *end != '\0') {
                         WARNING("__ConsumeEvent: invalid resource type %s; keeping conversion result", value);
                     }
-                    s->state = STATE_RESOURCE;
+                    s->State = STATE_RESOURCE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -518,14 +517,14 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
-                    s->resource->Base = (uintptr_t)strtoll(value, &end, 0);
+                    s->Resource->Base = (uintptr_t)strtoll(value, &end, 0);
                     if (end == value || *end != '\0') {
                         WARNING("__ConsumeEvent: invalid resource base %s; keeping conversion result", value);
                     }
-                    s->state = STATE_RESOURCE;
+                    s->State = STATE_RESOURCE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -534,14 +533,14 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
-                    s->resource->Length = (size_t)strtoll(value, &end, 0);
+                    s->Resource->Length = (size_t)strtoll(value, &end, 0);
                     if (end == value || *end != '\0') {
                         WARNING("__ConsumeEvent: invalid resource length %s; keeping conversion result", value);
                     }
-                    s->state = STATE_RESOURCE;
+                    s->State = STATE_RESOURCE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -549,10 +548,10 @@ __ConsumeEvent(
         case STATE_COMPATIBLES_LIST:
             switch (event->type) {
                 case YAML_SEQUENCE_START_EVENT:
-                    s->state = STATE_COMPATIBLES;
+                    s->State = STATE_COMPATIBLES;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -569,12 +568,12 @@ __ConsumeEvent(
                         return 0;
                     }
                     break;
-                
+
                 case YAML_SEQUENCE_END_EVENT:
-                    s->state = STATE_DRIVERKEY;
+                    s->State = STATE_DRIVERKEY;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -584,27 +583,27 @@ __ConsumeEvent(
                 ERROR("Driver capabilities must be a sequence");
                 return -1;
             }
-            s->state = STATE_CAPABILITIES;
+            s->State = STATE_CAPABILITIES;
             break;
 
         case STATE_CAPABILITIES:
             if (event->type == YAML_SEQUENCE_END_EVENT) {
-                s->state = STATE_DRIVERKEY;
+                s->State = STATE_DRIVERKEY;
                 break;
             }
-            
+
             if (event->type != YAML_SCALAR_EVENT) {
                 ERROR("Driver capability must be a name");
                 return -1;
             }
-            
+
             capability = CapabilityParse((const char*)event->data.scalar.value);
             if (capability == 0) {
                 ERROR("Unknown driver capability: %s", event->data.scalar.value);
                 return -1;
             }
-            
-            s->driver.Capabilities |= capability;
+
+            s->Driver.Capabilities |= capability;
             break;
 
         case STATE_STOP:
@@ -628,6 +627,7 @@ __CleanupVendor(
     _In_ void*      context)
 {
     struct DriverVendor* vendor = item->value;
+
     _CRT_UNUSED(context);
     list_clear(&vendor->Products, __CleanupProduct, NULL);
     free(vendor);
@@ -639,6 +639,7 @@ __CleanupResource(
     _In_ void*      context)
 {
     struct DriverResource* resource = item->value;
+
     _CRT_UNUSED(context);
     free(resource);
 }
@@ -646,7 +647,7 @@ __CleanupResource(
 static void
 __CleanupCompatible(
     _In_ element_t* item,
-    _In_ void* context)
+    _In_ void*      context)
 {
     struct DriverCompatible* compatible = item->value;
 
@@ -657,7 +658,7 @@ __CleanupCompatible(
 
 static void
 __CleanupDriverConfiguration(
-    _In_ struct DriverConfiguration* driverConfig)
+    _InOut_ struct DriverConfiguration* driverConfig)
 {
     list_clear(&driverConfig->Compatibles, __CleanupCompatible, NULL);
     list_clear(&driverConfig->Vendors, __CleanupVendor, NULL);
@@ -670,10 +671,10 @@ DmDriverConfigParseYaml(
     _In_  size_t                      length,
     _Out_ struct DriverConfiguration* driverConfig)
 {
-    yaml_parser_t       parser;
-    yaml_event_t        event;
-    struct parser_state state;
-    int                 status;
+    yaml_parser_t        parser;
+    yaml_event_t         event;
+    struct __ParserState state;
+    int                  status;
 
     TRACE("DmDriverConfigParseYaml(length=%zu)", length);
     if (!yaml || !length || !driverConfig) {
@@ -682,10 +683,10 @@ DmDriverConfigParseYaml(
     }
 
     memset(&state, 0, sizeof(state));
-    state.state = STATE_START;
-    list_construct(&state.driver.Vendors);
-    list_construct(&state.driver.Compatibles);
-    list_construct(&state.driver.Resources);
+    state.State = STATE_START;
+    list_construct(&state.Driver.Vendors);
+    list_construct(&state.Driver.Compatibles);
+    list_construct(&state.Driver.Resources);
 
     status = yaml_parser_initialize(&parser);
     if (!status) {
@@ -697,8 +698,8 @@ DmDriverConfigParseYaml(
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
             ERROR("DmDriverConfigParseYaml: YAML parser failed in state %i: %s",
-                  state.state, parser.problem != NULL ? parser.problem : "unknown error");
-            __CleanupDriverConfiguration(&state.driver);
+                  state.State, parser.problem != NULL ? parser.problem : "unknown error");
+            __CleanupDriverConfiguration(&state.Driver);
             yaml_parser_delete(&parser);
             return OS_EUNKNOWN;
         }
@@ -706,18 +707,19 @@ DmDriverConfigParseYaml(
         status = __ConsumeEvent(&state, &event);
         if (status) {
             ERROR("DmDriverConfigParseYaml: event %i rejected in state %i: %i",
-                  event.type, state.state, status);
-            __CleanupDriverConfiguration(&state.driver);
+                  event.type, state.State, status);
+            __CleanupDriverConfiguration(&state.Driver);
             yaml_event_delete(&event);
             yaml_parser_delete(&parser);
             return OS_EUNKNOWN;
         }
         yaml_event_delete(&event);
-    } while (state.state != STATE_STOP);
+    } while (state.State != STATE_STOP);
 
     yaml_parser_delete(&parser);
 
-    memcpy(driverConfig, &state.driver, sizeof(struct DriverConfiguration));
+    // Transfer the completed lists to the caller's configuration storage.
+    memcpy(driverConfig, &state.Driver, sizeof(struct DriverConfiguration));
     TRACE("DmDriverConfigParseYaml: parsed class %u, subclass %u, capabilities 0x%x",
           driverConfig->Class, driverConfig->Subclass, driverConfig->Capabilities);
     return OS_EOK;
@@ -725,7 +727,7 @@ DmDriverConfigParseYaml(
 
 void
 DmDriverConfigDestroy(
-        _In_ struct DriverConfiguration* driverConfig)
+    _In_ struct DriverConfiguration* driverConfig)
 {
     if (!driverConfig) {
         return;

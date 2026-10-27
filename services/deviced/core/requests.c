@@ -28,11 +28,11 @@
 
 #include <sys_device_service_server.h>
 
-extern void DmHandleNotify(uuid_t driverId, uuid_t driverHandle);
-extern void DmHandleGetDevicesByProtocol(struct gracht_message* message, uint8_t protocolID);
+extern void DmHandleNotify(uuid_t, uuid_t);
+extern void DmHandleGetDevicesByProtocol(struct gracht_message*, uint8_t);
 extern oserr_t DmHandleIoctl(uuid_t, uuid_t, enum OSIOCtlRequest, void*, size_t);
-extern oserr_t DmHandleIoctl2(uuid_t device_id, int direction, unsigned int command, size_t value, unsigned int width, size_t*);
-extern void DmHandleRegisterProtocol(uuid_t deviceID, const char* protocolName, uint8_t protocolID);
+extern oserr_t DmHandleIoctl2(uuid_t, int, unsigned int, size_t, unsigned int, size_t*);
+extern void DmHandleRegisterProtocol(uuid_t, const char*, uint8_t);
 
 void
 sys_device_notify_invocation(
@@ -56,8 +56,8 @@ sys_device_register_invocation(
     int       responseStatus;
     TRACE("sys_device_register_invocation(type=%i, flags=0x%x)", sysDevice->content_type, flags);
 
-    // Firmware platform identities are published by the bus, not supplied by
-    // arbitrary driver registrations claiming another controller's resources.
+    // Platform identities must come from the bus that owns the firmware resources.
+    // Accepting them from a driver would allow it to use another controller's resources.
     if (sysDevice->content_type == SYS_DEVICE_CONTENT_PLATFORM) {
         WARNING("sys_device_register_invocation: rejecting driver-supplied platform identity");
         status = OS_ENOTSUPPORTED;
@@ -125,26 +125,30 @@ sys_device_ioctl_invocation(
         message->security.principal <= UINT32_MAX) {
         principal = (uuid_t)message->security.principal;
     }
+
     TRACE("sys_device_ioctl_invocation: resolved principal %u for device %u", principal, deviceId);
     if (request == OSIOCTLREQUEST_INTERRUPT_CONTROL && principal == UUID_INVALID) {
         WARNING("sys_device_ioctl_invocation: interrupt control for device %u has no valid kernel-supplied principal",
                 deviceId);
     }
 
-    // assert maximum request size
+    // Input requests return device data in the response buffer.
     if (request & __IOCTL_IN) {
         uint8_t out[data_count];
+        memset(out, 0, data_count);
+
         oserr = DmHandleIoctl(
-                principal,
-                deviceId,
-                (enum OSIOCtlRequest)request,
-                &out[0],
-                data_count
+            principal,
+            deviceId,
+            (enum OSIOCtlRequest)request,
+            &out[0],
+            data_count
         );
         if (oserr != OS_EOK) {
             WARNING("sys_device_ioctl_invocation: device %u input request 0x%x failed: %u",
                     deviceId, request, oserr);
         }
+
         status = sys_device_ioctl_response(message, &out[0], data_count, oserr);
         if (status != 0) {
             WARNING("sys_device_ioctl_invocation: input response for device %u failed: %i",
@@ -152,16 +156,17 @@ sys_device_ioctl_invocation(
         }
     } else {
         oserr = DmHandleIoctl(
-                principal,
-                deviceId,
-                (enum OSIOCtlRequest)request,
-                (void*)&data[0],
-                data_count
+            principal,
+            deviceId,
+            (enum OSIOCtlRequest)request,
+            (void*)&data[0],
+            data_count
         );
         if (oserr != OS_EOK) {
             WARNING("sys_device_ioctl_invocation: device %u output request 0x%x failed: %u",
                     deviceId, request, oserr);
         }
+
         status = sys_device_ioctl_response(message, NULL, 0, oserr);
         if (status != 0) {
             WARNING("sys_device_ioctl_invocation: output response for device %u failed: %i",

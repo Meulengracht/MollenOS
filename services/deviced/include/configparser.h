@@ -24,32 +24,38 @@
 #define __RAMDISK_H__
 
 /**
- * @brief Maps the ramdisk in to memory space and parses it for all available drivers
+ * @brief Maps the ramdisk and discovers the drivers stored in it.
  */
 extern void
 DmRamdiskDiscover(void);
 
 /**
- * @brief Parses a yaml configuration file and if valid, registers a new driver object.
+ * @brief Parses YAML into caller-supplied driver configuration storage.
  *
- * @param[In]  yaml   The yaml file content.
- * @param[In]  length The length of the file content.
- * @param[Out] driverConfig The driver configuration instance to store the parsed data.
- * @return     Returns OS_EOK if the yaml configuration was valid, otherwise OS_EUNKNOWN
+ * The output storage must have no allocated configuration data. On success,
+ * the caller owns the parsed configuration. On failure, the output is unchanged.
+ *
+ * @param[In]  yaml         The YAML file content.
+ * @param[In]  length       The file content length in bytes. Must be nonzero.
+ * @param[Out] driverConfig Storage for the parsed configuration.
+ * @return OS_EOK on success, OS_EINVALPARAMS for missing input or output,
+ *         OS_EOOM if parser initialization fails, or OS_EUNKNOWN for invalid
+ *         YAML or rejected configuration data.
  */
 extern oserr_t
 DmDriverConfigParseYaml(
-        _In_  const uint8_t*              yaml,
-        _In_  size_t                      length,
-        _Out_ struct DriverConfiguration* driverConfig);
+    _In_  const uint8_t*              yaml,
+    _In_  size_t                      length,
+    _Out_ struct DriverConfiguration* driverConfig);
 
 /**
- * @brief Cleans up a previously allocated driver configuration structure.
+ * @brief Frees the configuration data and the configuration structure itself.
  *
- * @param[In] driverConfig A pointer to the driver configuration class that should be freed.
+ * @param[In] driverConfig A heap-allocated configuration initialized by a
+ *                        successful parse, or NULL.
  */
 extern void
 DmDriverConfigDestroy(
-        _In_ struct DriverConfiguration* driverConfig);
+    _In_ struct DriverConfiguration* driverConfig);
 
 #endif //!__RAMDISK_H__

@@ -3,7 +3,9 @@ add_library(deviced-core STATIC
     discover.c
     match.c
     initrd.c
+    io.c
     devices.c
+    dma.c
     publication.c
     requests.c
 )

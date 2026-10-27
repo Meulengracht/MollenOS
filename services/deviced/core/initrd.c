@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Device Manager - Bootstrapper
- * Provides system bootstrap functionality, parses ramdisk for additional system
- * drivers and loads them if any matching device is present.
+ * Reads driver configurations from the ramdisk's /modules directory and
+ * registers the drivers for matching with devices.
  */
 
 //#define __TRACE
@@ -41,13 +41,13 @@ __EndsWith(
     size_t lenstr;
     size_t lensuffix;
 
-    if (!str || !suffix){
+    if (!str || !suffix) {
         return 0;
     }
 
     lenstr = strlen(str);
     lensuffix = strlen(suffix);
-    if (lensuffix >  lenstr) {
+    if (lensuffix > lenstr) {
         return 0;
     }
 
@@ -70,7 +70,6 @@ __ReadFile(
     uint64_t                 length;
     TRACE("__ReadFile(filename=%s)", filename);
 
-    // now lets access the file
     status = vafs_directory_reader_open_object_in(directoryHandle, filename, &fileHandle);
     if (status) {
         WARNING("__ReadFile: opening file %s failed: %i (errno %i)", filename, status, errno);
@@ -101,7 +100,7 @@ __ReadFile(
 
     fileSize = (size_t)length;
     TRACE("__ReadFile: file %s has %zu bytes", filename, fileSize);
-    
+
     if (bufferOut == NULL) {
         if (lengthOut != NULL) {
             *lengthOut = fileSize;
@@ -110,6 +109,7 @@ __ReadFile(
         return OS_EOK;
     }
 
+    // Empty files still return an allocated buffer that the caller can free.
     fileBuffer = malloc(fileSize ? fileSize : 1);
     if (!fileBuffer) {
         ERROR("__ReadFile: failed to allocate %zu bytes for file %s", fileSize, filename);
@@ -148,21 +148,20 @@ __ParseModuleConfiguration(
     size_t                      length;
     TRACE("__ParseModuleConfiguration(name=%s)", name);
 
-    // build the path for the config first
     path = mstr_new_u8(name);
     if (!path) {
         ERROR("__ParseModuleConfiguration: failed to allocate path for %s", name);
         return OS_EOOM;
     }
 
-    // we make an assumption here that .dll exists as that was what triggered this function
+    // The caller selects .dll entries. Each module's configuration uses .yaml.
     yamlPath = mstr_replace_u8(path, ".dll", ".yaml");
     if (yamlPath == NULL) {
         ERROR("__ParseModuleConfiguration: failed to build configuration path for %s", name);
         mstr_delete(path);
         return OS_EOOM;
     }
-    
+
     yamlPathu8 = mstr_u8(yamlPath);
     if (yamlPathu8 == NULL) {
         ERROR("__ParseModuleConfiguration: failed to encode configuration path for %s", name);
@@ -197,7 +196,7 @@ __ParseModuleConfiguration(
     free(buffer);
     mstr_delete(path);
 
-    // now we build the actual path to the file itself
+    // The loader accesses the module through the mounted initfs filesystem.
     path = mstr_fmt("/initfs/modules/%s", name);
     if (path == NULL) {
         ERROR("__ParseModuleConfiguration: failed to allocate executable path for %s", name);
@@ -266,7 +265,7 @@ __ParseRamdisk(
         }
     }
 
-    // close the directory and cleanup
+    // Close the directory reader before the filesystem reader it depends on.
     status = vafs_directory_reader_close(directoryHandle);
     if (status != 0) {
         WARNING("__ParseRamdisk: closing /modules reader failed: %i", status);
@@ -287,7 +286,7 @@ DmRamdiskDiscover(void)
     size_t  ramdiskSize;
     TRACE("DmRamdiskDiscover()");
 
-    // Let's map in the ramdisk and discover various service modules
+    // The VaFs memory reader requires the ramdisk to stay mapped during discovery.
     oserr = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
     if (oserr != OS_EOK) {
         ERROR("DmRamdiskDiscover: failed to map ramdisk into address space: %u", oserr);
@@ -300,7 +299,7 @@ DmRamdiskDiscover(void)
         return;
     }
 
-    // cleanup the memory immediately as we no longer need it
+    // Discovery has finished reading the mapped image.
     oserr = MemoryFree(ramdisk, ramdiskSize);
     if (oserr != OS_EOK) {
         WARNING("DmRamdiskDiscover: failed to free %zu bytes of ramdisk memory: %u", ramdiskSize, oserr);

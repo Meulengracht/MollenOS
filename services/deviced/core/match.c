@@ -21,18 +21,12 @@
 
 //#define __TRACE
 
-#include <discover.h>
-#include <ddk/platformdevice.h>
+#include <ddk/devices/platform.h>
 #include <ddk/utils.h>
 #include <string.h>
 
-/**
- * @brief Matches a platform device against the driver's firmware compatibles.
- *
- * The device list is ordered by firmware preference. Its position is therefore
- * the match score: the first compatible in the device list that the driver
- * supports is the strongest match.
- */
+#include <discover.h>
+
 static unsigned int
 __MatchPlatformDevice(
     _In_ const struct DriverConfiguration*  configuration,
@@ -55,6 +49,8 @@ __MatchPlatformDevice(
         return 0;
     }
 
+    // Validate the whole list even after a match. A malformed later item
+    // invalidates the descriptor and must also reject the earlier match.
     while (offset < identification->CompatibleLength) {
         entry = identification->Compatibles + offset;
 
@@ -71,8 +67,8 @@ __MatchPlatformDevice(
         foreach (i, &configuration->Compatibles) {
             compatible = i->value;
 
-            // Compare lengths first for an exact match without reading past
-            // either string; preserve the earliest firmware-preferred match.
+            // Compare lengths before comparing bytes to avoid reading past
+            // either string. Keep the earliest match in firmware order.
             if (!best && strlen(compatible->Name) == length &&
                 !memcmp(compatible->Name, entry, length)) {
                 best = rank;
@@ -92,12 +88,8 @@ __MatchBusDevice(
     struct DriverVendor*  vendor;
     struct DriverProduct* product;
 
-    // Compatible strings identify platform devices. Do not let such a
-    // configuration bind a different device through unset numeric fields.
-    if (configuration->Compatibles.count) {
-        return 0;
-    }
-
+    // For bus devices, use the driver's numeric IDs even when the driver also
+    // lists firmware compatible strings.
     // Vendor ID zero means no vendor identity was supplied, so it cannot
     // establish a vendor/product match. Products are scoped to their vendor.
     if (identification->VendorId) {
@@ -136,6 +128,7 @@ DmDriverMatchScore(
     _In_ const struct DriverIdentification* identification)
 {
     unsigned int score;
+
     TRACE("DmDriverMatchScore(platform=%i)", identification->IsPlatform);
 
     // IsPlatform means the device was enumerated from firmware as a

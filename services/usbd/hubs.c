@@ -24,7 +24,7 @@
 
 #define __TRACE
 
-#include <ddk/usbdevice.h>
+#include <ddk/devices/usb.h>
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include "manager.h"

@@ -24,7 +24,7 @@
 
 #define __TRACE
 
-#include <ddk/usbdevice.h>
+#include <ddk/devices/usb.h>
 #include <ddk/utils.h>
 #include "manager.h"
 #include <stdlib.h>
@@ -32,8 +32,8 @@
 #include "sys_usb_service_server.h"
 
 void __HandlePortEvent(
-        _In_ uuid_t  hubDeviceId,
-        _In_ uint8_t portAddress)
+    _In_ uuid_t  hubDeviceId,
+    _In_ uint8_t portAddress)
 {
     UsbController_t*      controller = NULL;
     USBPortDescriptor_t portDescriptor;

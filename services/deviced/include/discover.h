@@ -54,6 +54,8 @@ struct DriverCompatible {
 /**
  * @brief Driver matching data, resources and requested initial capabilities
  * parsed from trusted installed driver configuration.
+ * The configuration owns the entries in Vendors, Compatibles and Resources,
+ * including the product lists and compatible strings.
  */
 struct DriverConfiguration {
     Capabilities_t Capabilities;
@@ -64,6 +66,11 @@ struct DriverConfiguration {
     list_t         Resources;
 };
 
+/**
+ * @brief Device identifiers used to select a driver. IsPlatform selects firmware
+ * compatible matching or numeric bus matching. Compatibles must remain valid
+ * while the identification is used for matching.
+ */
 struct DriverIdentification {
     // Set when this identity came from a firmware-enumerated PlatformDevice_t
     // (for example, a device described by ACPI or a device tree). Such devices
@@ -117,15 +124,17 @@ DmDiscoverForgetDevice(
     _In_ uuid_t deviceId);
 
 /**
- * @brief Starts driver discovery and checks existing devices for matching drivers.
- * Driver discovery reads the available drivers and then tries to match them
- * with devices already known to the system.
+ * @brief Initializes discovery and queues ramdisk discovery and device matching.
+ * Call once before using the discovery list. Both jobs run asynchronously.
  */
 __EXTERN void
 DmDiscoverInitialize(void);
 
 /**
  * @brief Adds a driver to the list of drivers that can be matched with devices.
+ * Discovery must be initialized. The path is copied, and discovery owns
+ * driverConfig on success. If copying the path fails, driverConfig is destroyed.
+ * Failure to allocate the driver entry leaves driverConfig with the caller.
  *
  * @param driverPath The path to the driver's program.
  * @param driverConfig The settings that describe which devices the driver supports.

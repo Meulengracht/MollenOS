@@ -25,7 +25,6 @@
 #include <devices.h>
 #include <stdlib.h>
 
-// Tracks a registered ID and whether binding remains pending across retries.
 struct __DmPublicationEntry {
     struct __DmPublicationEntry* Previous;
     struct __DmPublicationEntry* Next;
@@ -37,15 +36,16 @@ oserr_t
 DmPublicationAdd(
     _InOut_ struct DmPublicationGroup*         group,
     _In_    const struct DmDeviceRegistration* registration,
-    _In_    int                               allowBinding,
-    _InOut_ uuid_t*                           deviceId)
+    _In_    int                                allowBinding,
+    _InOut_ uuid_t*                            deviceId)
 {
     struct __DmPublicationEntry* entry;
-    oserr_t                     status;
+    oserr_t                      status;
+
     TRACE("DmPublicationAdd(group=%p, state=%i, binding=%i)", group, group->State, allowBinding);
 
-    // A finished set may already have drivers using it. Do not extend that set
-    // or replace an ID that still belongs to a registered device.
+    // Additions require a collecting group and an unused ID location. Once the
+    // group is finished, drivers may already be using its devices.
     if (group->State != DmPublicationCollecting || *deviceId != UUID_INVALID) {
         WARNING("DmPublicationAdd: group %p cannot accept device %u in state %i",
                 group, *deviceId, group->State);
@@ -71,7 +71,7 @@ DmPublicationAdd(
     entry->DeviceId = deviceId;
     entry->BindingPending = allowBinding;
     entry->Previous = group->Last;
-    
+
     // The first entry has no predecessor whose next pointer can be updated.
     if (group->Last == NULL) {
         group->First = entry;
@@ -89,6 +89,7 @@ DmPublicationFinish(
     _InOut_ struct DmPublicationGroup* group)
 {
     TRACE("DmPublicationFinish(group=%p, state=%i)", group, group->State);
+
     // Finishing must not reopen a group that is binding or being removed.
     if (group->State != DmPublicationCollecting) {
         WARNING("DmPublicationFinish: group %p cannot finish in state %i", group, group->State);
@@ -103,28 +104,29 @@ DmPublicationEnableBinding(
     _InOut_ struct DmPublicationGroup* group)
 {
     struct __DmPublicationEntry* entry;
-    oserr_t                     status;
+    oserr_t                      status;
+
     TRACE("DmPublicationEnableBinding(group=%p, state=%i)", group, group->State);
 
     // Drivers need the complete set, and must never start during removal.
-    if (group->State != DmPublicationReady && group->State != DmPublicationBinding) {
+    if (group->State != DmPublicationReady) {
         WARNING("DmPublicationEnableBinding: group %p is not ready in state %i",
                 group, group->State);
         return OS_EBUSY;
     }
-    group->State = DmPublicationBinding;
 
     for (entry = group->First; entry != NULL; entry = entry->Next) {
         // Skip entries excluded by the bus and successes from earlier attempts.
         if (!entry->BindingPending) {
             continue;
         }
-        
+
         status = DmDeviceEnableDriverBinding(*entry->DeviceId);
         if (status != OS_EOK) {
-            WARNING("DmPublicationEnableBinding: device %u binding failed: %u; retaining group for retry",
+            WARNING("DmPublicationEnableBinding: device %u binding failed: %u; keeping group for retry",
                     *entry->DeviceId, status);
-            // Earlier drivers may be running; leave their entries intact for retry.
+            // Earlier drivers may be running. Keep their entries for removal
+            // and retry only entries whose binding is still pending.
             return status;
         }
         entry->BindingPending = 0;
@@ -138,25 +140,26 @@ DmPublicationRemove(
     _InOut_ struct DmPublicationGroup* group)
 {
     struct __DmPublicationEntry* entry;
-    oserr_t                     status;
+    oserr_t                      status;
+
     TRACE("DmPublicationRemove(group=%p, state=%i)", group, group->State);
 
     group->State = DmPublicationRemoving;
     while (group->Last != NULL) {
         entry = group->Last;
-        
+
         status = DmDeviceDestroy(*entry->DeviceId);
         if (status != OS_EOK) {
-            WARNING("DmPublicationRemove: device %u removal failed: %u; retaining remaining entries",
+            WARNING("DmPublicationRemove: device %u removal failed: %u; keeping remaining entries",
                     *entry->DeviceId, status);
-            // A busy child still needs its parent and provider. Keep this entry and
-            // all earlier entries until their users have finished.
+            // A busy child still needs its parent and bus resources. Keep this
+            // entry and all earlier entries until their users have finished.
             return status;
         }
-        
+
         TRACE("DmPublicationRemove: removed device %u", *entry->DeviceId);
         *entry->DeviceId = UUID_INVALID;
-        
+
         group->Last = entry->Previous;
         if (group->Last != NULL) {
             // The tail must not point at the entry being freed.
@@ -166,20 +169,7 @@ DmPublicationRemove(
         }
         free(entry);
     }
-    group->State = DmPublicationRemoved;
-    return OS_EOK;
-}
-
-oserr_t
-DmPublicationReset(
-    _InOut_ struct DmPublicationGroup* group)
-{
-    TRACE("DmPublicationReset(group=%p, state=%i)", group, group->State);
-    // Reuse is safe only after every old ID and provider reference is released.
-    if (group->State != DmPublicationRemoved) {
-        WARNING("DmPublicationReset: group %p cannot reset in state %i", group, group->State);
-        return OS_EBUSY;
-    }
+    // All devices are removed and their saved IDs cleared. The group can be reused.
     group->State = DmPublicationCollecting;
     return OS_EOK;
 }

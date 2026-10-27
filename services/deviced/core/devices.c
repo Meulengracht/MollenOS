@@ -28,7 +28,7 @@
 #include <limits.h>
 #include <devices.h>
 #include <discover.h>
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
@@ -41,18 +41,18 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-struct DmDeviceProtocol {
-    element_t header;
-    char*     name;
+struct __DmDeviceProtocol {
+    element_t Header;
+    char*     Name;
 };
 
-struct DMDevice {
-    element_t                    header;
-    uuid_t                       driver_id;
-    bool                         has_driver;
-    unsigned int                 flags;
-    Device_t*                    device;
-    list_t                       Protocols;   // list<struct DmDeviceProtocol>
+struct __DmDevice {
+    element_t                    Header;
+    uuid_t                       DriverId;
+    bool                         HasDriver; // A driver search is pending or succeeded.
+    unsigned int                 Flags;
+    Device_t*                    Device;
+    list_t                       Protocols; // list<struct __DmDeviceProtocol>
     enum DmDeviceDescriptionKind Kind;
     struct DmDeviceProvider      Provider;
     unsigned int                 ActiveRequests;
@@ -60,11 +60,12 @@ struct DMDevice {
     int                          Removing;
 };
 
-// Describes a DMA lease associated with a device.
-// These are not time-bound leases, they rather just inhibit
-// destruction of the device while a lease is active.
+/**
+ * @brief A device reference and a copy of its configured DMA description.
+ * The lease prevents device destruction until released. It has no timeout.
+ */
 struct DmDmaLease {
-    struct DMDevice*        Device;
+    struct __DmDevice*      Device;
     struct DmDmaDescription Description;
 };
 
@@ -77,16 +78,21 @@ DmDevicesInitialize(void)
 {
     TRACE("DmDevicesInitialize()");
     usched_mtx_init(&g_devicesLock, USCHED_MUTEX_PLAIN);
+    DmDmaSessionsInitialize();
 }
 
-static struct DMDevice*
+// Requires g_devicesLock. The returned entry is valid while that lock is held
+// or while a request or DMA lease prevents destruction.
+static struct __DmDevice*
 __GetDeviceUnsafe(
     _In_ uuid_t deviceId)
 {
-    struct DMDevice* result = NULL;
+    struct __DmDevice* result = NULL;
+    struct __DmDevice* device;
+
     foreach (i, &g_devices) {
-        struct DMDevice* device = i->value;
-        if (device->device->Id == deviceId) {
+        device = i->value;
+        if (device->Device->Id == deviceId) {
             result = device;
             break;
         }
@@ -101,39 +107,39 @@ DmDevicesRegister(
     _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
-    struct DMDevice*         device;
+    struct __DmDevice*       device;
     struct sys_device        protoDevice;
     oserr_t                  status;
     int                      sent;
     TRACE("DmDevicesRegister(driver=%u, device=%u)", driverHandle, deviceId);
 
-    // Copy the description while publication owns it. The wire copy is detached
-    // from the registry before any driver message can yield to another task.
+    // Copy the description under the registry lock. Sending a driver message
+    // may yield, so the message must use its own copy after the lock is released.
     usched_mtx_lock(&g_devicesLock);
 
     device = __GetDeviceUnsafe(deviceId);
-    if (device == NULL || device->Removing || !(device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
+    if (device == NULL || device->Removing || !(device->Flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
         TRACE("DmDevicesRegister: device %u is not available for binding", deviceId);
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
 
-    if (device->driver_id != UUID_INVALID) {
-        TRACE("DmDevicesRegister: device %u already has driver %u", deviceId, device->driver_id);
+    if (device->DriverId != UUID_INVALID) {
+        TRACE("DmDevicesRegister: device %u already has driver %u", deviceId, device->DriverId);
         usched_mtx_unlock(&g_devicesLock);
         return OS_EEXISTS;
     }
 
-    status = to_sys_device(device->device, &protoDevice);
+    status = to_sys_device(device->Device, &protoDevice);
     if (status != OS_EOK) {
         ERROR("DmDevicesRegister: failed to serialize device %u for driver %u: %u",
               deviceId, driverHandle, status);
-        device->has_driver = false;
+        device->HasDriver = false;
         usched_mtx_unlock(&g_devicesLock);
         return status;
     }
 
-    device->driver_id = driverHandle;
+    device->DriverId = driverHandle;
     usched_mtx_unlock(&g_devicesLock);
 
     sent = ctt_driver_register_device(GetGrachtClient(), &msg.base, &protoDevice);
@@ -144,8 +150,8 @@ DmDevicesRegister(
         usched_mtx_lock(&g_devicesLock);
         device = __GetDeviceUnsafe(deviceId);
         if (device != NULL) {
-            device->driver_id = UUID_INVALID;
-            device->has_driver = false;
+            device->DriverId = UUID_INVALID;
+            device->HasDriver = false;
         }
         usched_mtx_unlock(&g_devicesLock);
         return OS_EUNKNOWN;
@@ -172,28 +178,28 @@ DmHandleGetDevicesByProtocol(
     TRACE("DmHandleGetDevicesByProtocol(protocol=%u)", protocolID);
 
     usched_mtx_lock(&g_devicesLock);
-    foreach(node, &g_devices) {
-        struct DMDevice* device = node->value;
-        
+    foreach (node, &g_devices) {
+        struct __DmDevice* device = node->value;
+
         if (device->Removing) {
             continue;
         }
-        
-        foreach(protoNode, &device->Protocols) {
-            struct DmDeviceProtocol* protocol = protoNode->value;
-            uint8_t                  id = (uint8_t)(uintptr_t)protocol->header.key;
-            
+
+        foreach (protoNode, &device->Protocols) {
+            struct __DmDeviceProtocol* protocol = protoNode->value;
+            uint8_t                    id = (uint8_t)(uintptr_t)protocol->Header.key;
+
             if (id == protocolID) {
                 status = sys_device_event_protocol_device_single(
                     __crt_get_service_server(),
                     message->client,
-                    device->device->Id,
-                    device->driver_id,
+                    device->Device->Id,
+                    device->DriverId,
                     protocolID
                 );
                 if (status != 0) {
                     WARNING("DmHandleGetDevicesByProtocol: sending device %u for protocol %u failed: %i",
-                            device->device->Id, protocolID, status);
+                            device->Device->Id, protocolID, status);
                 }
             }
         }
@@ -202,28 +208,30 @@ DmHandleGetDevicesByProtocol(
     usched_mtx_unlock(&g_devicesLock);
 }
 
+// On success, release the request with __ReleaseDeviceRequest or replace it
+// with a counted DMA lease. The count protects the entry without g_devicesLock.
 static oserr_t
 __AcquireDeviceRequest(
-    _In_  uuid_t            deviceId,
-    _Out_ struct DMDevice** deviceOut)
+    _In_  uuid_t              deviceId,
+    _Out_ struct __DmDevice** deviceOut)
 {
-    struct DMDevice* device;
+    struct __DmDevice* device;
 
     usched_mtx_lock(&g_devicesLock);
-    
+
     device = __GetDeviceUnsafe(deviceId);
     if (device == NULL) {
         TRACE("__AcquireDeviceRequest: device %u was not found", deviceId);
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
-    
+
     if (device->Removing) {
         TRACE("__AcquireDeviceRequest: device %u is being removed", deviceId);
         usched_mtx_unlock(&g_devicesLock);
         return OS_EBUSY;
     }
-    
+
     // Wrapping the request count could allow removal during a live callback.
     if (device->ActiveRequests == UINT_MAX) {
         WARNING("__AcquireDeviceRequest: active request count overflow for device %u", deviceId);
@@ -231,7 +239,7 @@ __AcquireDeviceRequest(
         return OS_EOVERFLOW;
     }
     device->ActiveRequests++;
-    
+
     *deviceOut = device;
     usched_mtx_unlock(&g_devicesLock);
     return OS_EOK;
@@ -239,25 +247,26 @@ __AcquireDeviceRequest(
 
 static void
 __ReleaseDeviceRequest(
-    _In_ struct DMDevice* device)
+    _In_ struct __DmDevice* device)
 {
     usched_mtx_lock(&g_devicesLock);
     device->ActiveRequests--;
     usched_mtx_unlock(&g_devicesLock);
 }
 
-oserr_t
-DmDevicePrepareDma(
+static oserr_t
+__DevicePrepareDma(
     _In_    uuid_t              deviceId,
+    _In_    uuid_t              principal,
     _InOut_ struct DmDmaLease** leaseOut)
 {
-    struct DMDevice*                         device;
+    struct __DmDevice*                       device;
     const struct DmDeviceProviderOperations* operations;
     struct DmDmaLease*                       lease;
     oserr_t                                  status;
     TRACE("DmDevicePrepareDma(device=%u)", deviceId);
 
-    // Require an empty owning slot so preparing twice cannot lose an earlier
+    // Require an empty output slot so preparing twice cannot lose an earlier
     // lease and permanently prevent the device from being removed.
     if (leaseOut == NULL) {
         WARNING("DmDevicePrepareDma: missing lease output for device %u", deviceId);
@@ -288,10 +297,14 @@ DmDevicePrepareDma(
         return OS_EOOM;
     }
 
-    // The request guard keeps the entry and its registry-owned provider
-    // reference alive. Bus callbacks may acquire their own locks or fail, so
-    // run them without the registry lock and keep their result private.
-    status = operations->PrepareDma(device->Provider.Context, &lease->Description);
+    // The request count keeps the entry and its callback context alive.
+    // Bus callbacks may take their own locks or fail. Run them without the
+    // registry lock and keep their result private until the lease is counted.
+    status = operations->PrepareDma(
+        device->Provider.Context,
+        principal,
+        &lease->Description
+    );
     if (status != OS_EOK) {
         WARNING("DmDevicePrepareDma: provider for device %u failed: %u", deviceId, status);
         __ReleaseDeviceRequest(device);
@@ -299,8 +312,8 @@ DmDevicePrepareDma(
         return status;
     }
 
-    // Commit the lease before dropping request protection. Removal may have
-    // started during the callback; in that case it wins and no lease escapes.
+    // Count the lease before releasing the request. If removal started during
+    // the callback, undo DMA preparation and leave the output slot empty.
     usched_mtx_lock(&g_devicesLock);
     if (device->Removing) {
         WARNING("DmDevicePrepareDma: device %u removal started during preparation", deviceId);
@@ -312,11 +325,18 @@ DmDevicePrepareDma(
         device->DmaLeases++;
         lease->Device = device;
         lease->Description.DeviceId = deviceId;
+        device->ActiveRequests--;
     }
-    device->ActiveRequests--;
     usched_mtx_unlock(&g_devicesLock);
 
     if (status != OS_EOK) {
+        // Keep the request count until DMA cleanup finishes. Otherwise
+        // concurrent removal could free its context before ReleaseDma runs.
+        if (operations->ReleaseDma != NULL) {
+            operations->ReleaseDma(device->Provider.Context);
+        }
+
+        __ReleaseDeviceRequest(device);
         free(lease);
         return status;
     }
@@ -326,11 +346,31 @@ DmDevicePrepareDma(
     return OS_EOK;
 }
 
+oserr_t
+DmDevicePrepareDma(
+    _In_    uuid_t              deviceId,
+    _InOut_ struct DmDmaLease** leaseOut)
+{
+    return __DevicePrepareDma(deviceId, UUID_INVALID, leaseOut);
+}
+
+oserr_t
+DmDevicePrepareDmaForPrincipal(
+    _In_    uuid_t              deviceId,
+    _In_    uuid_t              principal,
+    _InOut_ struct DmDmaLease** leaseOut)
+{
+    if (principal == UUID_INVALID) {
+        return OS_EPERMISSIONS;
+    }
+    return __DevicePrepareDma(deviceId, principal, leaseOut);
+}
+
 const struct DmDmaDescription*
 DmDmaLeaseGetDescription(
     _In_ const struct DmDmaLease* lease)
 {
-    // Borrow the copy rather than expose the registry or provider's context.
+    // The copy remains valid until this lease is released.
     return lease == NULL ? NULL : &lease->Description;
 }
 
@@ -340,17 +380,22 @@ DmDmaLeaseRelease(
 {
     struct DmDmaLease* owned;
 
-    // Clearing the owning slot makes repeated cleanup on that slot harmless.
+    // Clearing the caller's slot makes repeated cleanup on that slot harmless.
     // No request lookup is needed: releasing must work after removal starts.
     if (lease == NULL || *lease == NULL) {
         return;
     }
-    
+
     owned = *lease;
     *lease = NULL;
 
+    // The outstanding lease still prevents registry removal during this call.
+    if (owned->Device->Provider.Operations->ReleaseDma != NULL) {
+        owned->Device->Provider.Operations->ReleaseDma(owned->Device->Provider.Context);
+    }
+
     usched_mtx_lock(&g_devicesLock);
-    TRACE("DmDmaLeaseRelease: releasing lease for device %u", owned->Device->device->Id);
+    TRACE("DmDmaLeaseRelease: releasing lease for device %u", owned->Device->Device->Id);
     owned->Device->DmaLeases--;
     usched_mtx_unlock(&g_devicesLock);
 
@@ -366,12 +411,16 @@ DmHandleIoctl(
     _In_ void*               buffer,
     _In_ size_t              length)
 {
-    struct DMDevice*                         device;
+    struct __DmDevice*                       device;
     const struct DmDeviceProviderOperations* operations;
     uuid_t                                   driverId;
     oserr_t                                  status;
     TRACE("DmHandleIoctl(principal=%u, device=%u, request=0x%x, length=%zu)",
           principal, deviceId, request, length);
+
+    if (request == OSIOCTLREQUEST_DMA_QUERY || request == OSIOCTLREQUEST_DMA_RELEASE) {
+        return DmDmaControl(principal, deviceId, request, buffer, length);
+    }
 
     status = __AcquireDeviceRequest(deviceId, &device);
     if (status != OS_EOK) {
@@ -383,7 +432,7 @@ DmHandleIoctl(
 
     // Driver selection may change independently of an active request.
     usched_mtx_lock(&g_devicesLock);
-    driverId = device->driver_id;
+    driverId = device->DriverId;
     usched_mtx_unlock(&g_devicesLock);
 
     if (request == OSIOCTLREQUEST_BUS_CONTROL &&
@@ -397,7 +446,13 @@ DmHandleIoctl(
                     driverId, request, deviceId, status);
         }
     } else if (operations != NULL && operations->Control != NULL) {
-        status = operations->Control(device->Provider.Context, principal, request, buffer, length);
+        status = operations->Control(
+            device->Provider.Context,
+            principal,
+            request,
+            buffer,
+            length
+        );
         if (status != OS_EOK) {
             WARNING("DmHandleIoctl: provider failed request 0x%x for device %u, principal %u: %u",
                     request, deviceId, principal, status);
@@ -420,7 +475,7 @@ DmHandleIoctl2(
     _In_  unsigned int width,
     _Out_ size_t*      valueOut)
 {
-    struct DMDevice*                         device;
+    struct __DmDevice*                       device;
     const struct DmDeviceProviderOperations* operations;
     oserr_t                                  status;
     TRACE("DmHandleIoctl2(device=%u, direction=%i, command=0x%x, width=%u)",
@@ -433,7 +488,7 @@ DmHandleIoctl2(
                 deviceId, command, status);
         return status;
     }
-    
+
     operations = device->Provider.Operations;
     if (operations == NULL || operations->AccessRegister == NULL) {
         TRACE("DmHandleIoctl2: device %u has no register provider", deviceId);
@@ -456,18 +511,19 @@ DmHandleIoctl2(
     return status;
 }
 
+// Requires g_devicesLock and a device that is still accepting protocols.
 static oserr_t
 __AddProtocolToDevice(
-    _In_ const char*      protocolName,
-    _In_ uint8_t          protocolID,
-    _In_ struct DMDevice* device)
+    _In_ const char*        protocolName,
+    _In_ uint8_t            protocolID,
+    _In_ struct __DmDevice* device)
 {
-    struct DmDeviceProtocol* protocol;
+    struct __DmDeviceProtocol* protocol;
 
-    // Check if the protocol is already added to the device.
+    // Protocol IDs must be unique within a device.
     foreach (node, &device->Protocols) {
         protocol = node->value;
-        if ((uint8_t)(uintptr_t)protocol->header.key == protocolID) {
+        if ((uint8_t)(uintptr_t)protocol->Header.key == protocolID) {
             return OS_EEXISTS;
         }
     }
@@ -475,20 +531,20 @@ __AddProtocolToDevice(
     protocol = malloc(sizeof(*protocol));
     if (protocol == NULL) {
         ERROR("__AddProtocolToDevice: failed to allocate protocol %u for device %u",
-              protocolID, device->device->Id);
+              protocolID, device->Device->Id);
         return OS_EOOM;
     }
 
-    protocol->name = strdup(protocolName);
-    if (protocol->name == NULL) {
+    protocol->Name = strdup(protocolName);
+    if (protocol->Name == NULL) {
         ERROR("__AddProtocolToDevice: failed to copy protocol %u name for device %u",
-              protocolID, device->device->Id);
+              protocolID, device->Device->Id);
         free(protocol);
         return OS_EOOM;
     }
 
-    ELEMENT_INIT(&protocol->header, (uintptr_t)protocolID, protocol);
-    list_append(&device->Protocols, &protocol->header);
+    ELEMENT_INIT(&protocol->Header, (uintptr_t)protocolID, protocol);
+    list_append(&device->Protocols, &protocol->Header);
     return OS_EOK;
 }
 
@@ -498,22 +554,21 @@ DmHandleRegisterProtocol(
     _In_ const char* protocolName,
     _In_ uint8_t     protocolID)
 {
-    struct DMDevice* device;
-    oserr_t          oserr;
-    int              status;
+    struct __DmDevice* device;
+    oserr_t            oserr;
+    int                status;
     TRACE("DmHandleRegisterProtocol(device=%u, protocol=%u, name=%s)",
           deviceID, protocolID, protocolName);
 
     usched_mtx_lock(&g_devicesLock);
-    
+
     device = __GetDeviceUnsafe(deviceID);
-    if (device == NULL || device->Removing || device->driver_id == UUID_INVALID) {
+    if (device == NULL || device->Removing || device->DriverId == UUID_INVALID) {
         TRACE("DmHandleRegisterProtocol: device %u has no active driver", deviceID);
         usched_mtx_unlock(&g_devicesLock);
         return;
     }
 
-    // Attempt to add the protocol to the device.
     oserr = __AddProtocolToDevice(protocolName, protocolID, device);
     if (oserr != OS_EOK) {
         if (oserr == OS_EEXISTS) {
@@ -530,7 +585,7 @@ DmHandleRegisterProtocol(
     status = sys_device_event_protocol_device_all(
         __crt_get_service_server(),
         deviceID,
-        device->driver_id,
+        device->DriverId,
         protocolID
     );
     if (status != 0) {
@@ -544,7 +599,7 @@ static void
 __TryLocateDriver(
     _In_ uuid_t deviceId)
 {
-    struct DMDevice*            device;
+    struct __DmDevice*          device;
     struct DriverIdentification identification = { 0 };
     PlatformDevice_t*           platform;
     char                        compatibles[PLATFORM_DEVICE_MAX_COMPATIBLES];
@@ -553,30 +608,33 @@ __TryLocateDriver(
 
     usched_mtx_lock(&g_devicesLock);
     device = __GetDeviceUnsafe(deviceId);
-    if (device == NULL || device->Removing || device->has_driver ||
-        !(device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
+    if (device == NULL || device->Removing) {
         usched_mtx_unlock(&g_devicesLock);
         return;
     }
-    
-    identification.VendorId = device->device->VendorId;
-    identification.ProductId = device->device->ProductId;
-    identification.Class = device->device->Class;
-    identification.Subclass = device->device->Subclass;
-    
+    if (device->HasDriver || !(device->Flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
+        usched_mtx_unlock(&g_devicesLock);
+        return;
+    }
+
+    identification.VendorId = device->Device->VendorId;
+    identification.ProductId = device->Device->ProductId;
+    identification.Class = device->Device->Class;
+    identification.Subclass = device->Device->Subclass;
+
     if (device->Kind == DmDeviceDescriptionPlatform) {
-        platform = (PlatformDevice_t*)device->device;
+        platform = (PlatformDevice_t*)device->Device;
         memcpy(compatibles, platform->Compatibles, platform->CompatibleLength);
         identification.IsPlatform = 1;
         identification.Compatibles = compatibles;
         identification.CompatibleLength = platform->CompatibleLength;
     }
-    
+
     // Reserve this attempt, then release the registry lock. A ready driver can
     // call back into DmDevicesRegister, which acquires that same lock.
-    device->has_driver = true;
+    device->HasDriver = true;
     usched_mtx_unlock(&g_devicesLock);
-    
+
     status = DmDiscoverFindDriver(deviceId, &identification);
     if (status != OS_EOK) {
         if (status == OS_ENOENT) {
@@ -586,8 +644,8 @@ __TryLocateDriver(
         }
         usched_mtx_lock(&g_devicesLock);
         device = __GetDeviceUnsafe(deviceId);
-        if (device != NULL && device->driver_id == UUID_INVALID) {
-            device->has_driver = false;
+        if (device != NULL && device->DriverId == UUID_INVALID) {
+            device->HasDriver = false;
         }
         usched_mtx_unlock(&g_devicesLock);
     }
@@ -597,16 +655,16 @@ int
 DmDeviceIsBindable(
     _In_ uuid_t deviceId)
 {
-    struct DMDevice* device;
-    int bindable;
+    struct __DmDevice* device;
+    int                bindable;
 
     usched_mtx_lock(&g_devicesLock);
-   
+
     device = __GetDeviceUnsafe(deviceId);
     bindable = device != NULL && !device->Removing &&
-        (device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER);
-    
-        usched_mtx_unlock(&g_devicesLock);
+        (device->Flags & DEVICE_REGISTER_FLAG_LOADDRIVER);
+
+    usched_mtx_unlock(&g_devicesLock);
     return bindable;
 }
 
@@ -614,25 +672,25 @@ oserr_t
 DmDeviceEnableDriverBinding(
     _In_ uuid_t deviceId)
 {
-    struct DMDevice* device;
+    struct __DmDevice* device;
     TRACE("DmDeviceEnableDriverBinding(device=%u)", deviceId);
 
     usched_mtx_lock(&g_devicesLock);
-    
+
     device = __GetDeviceUnsafe(deviceId);
     if (device == NULL) {
         TRACE("DmDeviceEnableDriverBinding: device %u was not found", deviceId);
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
-    
+
     if (device->Removing) {
         WARNING("DmDeviceEnableDriverBinding: device %u is being removed", deviceId);
         usched_mtx_unlock(&g_devicesLock);
         return OS_EBUSY;
     }
 
-    device->flags |= DEVICE_REGISTER_FLAG_LOADDRIVER;
+    device->Flags |= DEVICE_REGISTER_FLAG_LOADDRIVER;
     usched_mtx_unlock(&g_devicesLock);
 
 #ifndef __OSCONFIG_NODRIVERS
@@ -653,7 +711,7 @@ __ValidDeviceRegistration(
     }
 
     if (operations != NULL) {
-        if (operations->Retain == NULL || operations->Release == NULL) {
+        if (operations->AddReference == NULL || operations->Release == NULL) {
             return 0;
         }
     } else if (registration->Provider.Context != NULL) {
@@ -678,17 +736,17 @@ __ValidDeviceRegistration(
 oserr_t
 DmDeviceCreateWithProvider(
     _In_  const struct DmDeviceRegistration* registration,
-    _In_  unsigned int                       flags,
-    _Out_ uuid_t*                            idOut)
+    _In_  unsigned int                      flags,
+    _Out_ uuid_t*                           idOut)
 {
-    struct DMDevice* deviceNode;
-    struct DMDevice* parent;
-    Device_t*        description;
-    oserr_t          status;
+    struct __DmDevice* deviceNode;
+    struct __DmDevice* parent;
+    Device_t*          description;
+    oserr_t            status;
     TRACE("DmDeviceCreateWithProvider(kind=%i, flags=0x%x)", registration->Kind, flags);
 
     *idOut = UUID_INVALID;
-    
+
     if (!__ValidDeviceRegistration(registration)) {
         WARNING("DmDeviceCreateWithProvider: invalid registration for description kind %i",
                 registration->Kind);
@@ -700,23 +758,23 @@ DmDeviceCreateWithProvider(
         ERROR("DmDeviceCreateWithProvider: failed to allocate device registry entry");
         return OS_EOOM;
     }
-    
+
     deviceNode->Provider = registration->Provider;
     if (deviceNode->Provider.Operations != NULL) {
-        status = deviceNode->Provider.Operations->Retain(deviceNode->Provider.Context);
+        status = deviceNode->Provider.Operations->AddReference(deviceNode->Provider.Context);
         if (status != OS_EOK) {
-            WARNING("DmDeviceCreateWithProvider: failed to retain provider: %u", status);
+            WARNING("DmDeviceCreateWithProvider: failed to add provider reference: %u", status);
             free(deviceNode);
             return status;
         }
     }
 
     description = registration->Description;
-    ELEMENT_INIT(&deviceNode->header, 0, deviceNode);
-    deviceNode->driver_id = UUID_INVALID;
-    deviceNode->device = description;
+    ELEMENT_INIT(&deviceNode->Header, 0, deviceNode);
+    deviceNode->DriverId = UUID_INVALID;
+    deviceNode->Device = description;
     deviceNode->Kind = registration->Kind;
-    deviceNode->flags = flags;
+    deviceNode->Flags = flags;
     list_construct(&deviceNode->Protocols);
 
     usched_mtx_lock(&g_devicesLock);
@@ -735,8 +793,9 @@ DmDeviceCreateWithProvider(
     }
 
     description->Id = g_nextDeviceId++;
-    deviceNode->header.key = (void*)(uintptr_t)description->Id;
-    list_append(&g_devices, &deviceNode->header);
+    deviceNode->Header.key = (void*)(uintptr_t)description->Id;
+    // Once listed, the registry owns the description and its allocated strings.
+    list_append(&g_devices, &deviceNode->Header);
 
     *idOut = description->Id;
     TRACE("DmDeviceCreateWithProvider: registered device %u, parent %u, kind %i",
@@ -764,8 +823,8 @@ DmDeviceCreate(
     oserr_t status;
     TRACE("DmDeviceCreate(flags=0x%x)", flags);
 
-    // Older callers provide only the description. They get no provider merely
-    // by supplying a bus address in that description.
+    // Older callers provide only the description. Registering a bus address
+    // without callbacks gives them no access to bus operations.
     if (device != NULL) {
         if (device->Length == sizeof(BusDevice_t)) {
             registration.Kind = DmDeviceDescriptionBus;
@@ -787,12 +846,14 @@ void
 DmDeviceRefreshDrivers(void)
 {
 #ifndef __OSCONFIG_NODRIVERS
-    uuid_t* ids;
-    size_t count = 0;
-    size_t index;
-    struct DMDevice* device;
+    struct __DmDevice* device;
+    uuid_t*            ids;
+    size_t             count = 0;
+    size_t             index;
     TRACE("DmDeviceRefreshDrivers()");
 
+    // Driver discovery may call back into the registry. Copy IDs under the
+    // lock and let __TryLocateDriver check each entry again after unlocking.
     usched_mtx_lock(&g_devicesLock);
     ids = malloc(g_devices.count * sizeof(*ids));
     if (ids == NULL) {
@@ -803,8 +864,8 @@ DmDeviceRefreshDrivers(void)
     }
     foreach (i, &g_devices) {
         device = i->value;
-        if (!device->Removing && !device->has_driver && (device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
-            ids[count++] = device->device->Id;
+        if (!device->Removing && !device->HasDriver && (device->Flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
+            ids[count++] = device->Device->Id;
         }
     }
     usched_mtx_unlock(&g_devicesLock);
@@ -819,64 +880,66 @@ oserr_t
 DmDeviceDestroy(
     _In_ uuid_t deviceId)
 {
-    struct DMDevice* device;
-    struct DmDeviceProtocol* protocol;
-    DeviceIdentification_t* identification;
+    struct __DmDevice*         device;
+    struct __DmDeviceProtocol* protocol;
+    DeviceIdentification_t*    identification;
     TRACE("DmDeviceDestroy(device=%u)", deviceId);
 
     usched_mtx_lock(&g_devicesLock);
-    
+
     device = __GetDeviceUnsafe(deviceId);
     if (device == NULL) {
         TRACE("DmDeviceDestroy: device %u was not found", deviceId);
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
-    
+
+    // Stop new users before checking existing ones. On OS_EBUSY, the caller
+    // must wait for requests, release DMA leases and remove children, then retry.
     device->Removing = 1;
-    
+
     if (device->ActiveRequests != 0 || device->DmaLeases != 0) {
         WARNING("DmDeviceDestroy: device %u still has %u requests and %u DMA leases",
                 deviceId, device->ActiveRequests, device->DmaLeases);
         usched_mtx_unlock(&g_devicesLock);
         return OS_EBUSY;
     }
-    
+
     foreach (i, &g_devices) {
-        if (((struct DMDevice*)i->value)->device->ParentId == deviceId) {
+        if (((struct __DmDevice*)i->value)->Device->ParentId == deviceId) {
             WARNING("DmDeviceDestroy: device %u still has child %u",
-                    deviceId, ((struct DMDevice*)i->value)->device->Id);
+                    deviceId, ((struct __DmDevice*)i->value)->Device->Id);
             usched_mtx_unlock(&g_devicesLock);
             return OS_EBUSY;
         }
     }
-    
-    list_remove(&g_devices, &device->header);
+
+    list_remove(&g_devices, &device->Header);
     usched_mtx_unlock(&g_devicesLock);
-    
+
     // Do not hold the registry lock while cancelling discovery work. A driver
     // completing startup must see either the live device or ENOENT.
     DmDiscoverForgetDevice(deviceId);
-    
+
     while (device->Protocols.head != NULL) {
         protocol = device->Protocols.head->value;
-        list_remove(&device->Protocols, &protocol->header);
-        free(protocol->name);
+        list_remove(&device->Protocols, &protocol->Header);
+        free(protocol->Name);
         free(protocol);
     }
-    
+
     if (device->Provider.Operations != NULL) {
         device->Provider.Operations->Release(device->Provider.Context);
     }
-    
-    identification = &device->device->Identification;
-    
+
+    identification = &device->Device->Identification;
+
     free(identification->Description);
     free(identification->Manufacturer);
     free(identification->Product);
     free(identification->Revision);
     free(identification->Serial);
-    free(device->device);
+    free(device->Device);
     free(device);
     TRACE("DmDeviceDestroy: removed device %u", deviceId);
     return OS_EOK;

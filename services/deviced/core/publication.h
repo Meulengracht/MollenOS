@@ -26,20 +26,23 @@
 struct __DmPublicationEntry;
 
 enum DmPublicationState {
+    // Descriptions may be added, but no drivers may bind yet.
     DmPublicationCollecting,
+    // All descriptions are registered; each entry tracks its pending binding.
     DmPublicationReady,
-    DmPublicationBinding,
-    DmPublicationRemoving,
-    DmPublicationRemoved
+    // Entries are being removed; no additions or binding until the group is empty.
+    DmPublicationRemoving
 };
 
 /**
  * @brief Keeps related device entries in the order they were added.
  * Start with a zeroed group. Add parents before their children, then finish the
  * group before enabling driver binding. Removal follows the opposite order.
- * The owner must keep saved ID locations and provider objects alive until removal
- * finishes, and must not change IDs or remove these entries independently.
- * Calls for one group must be made one at a time, without holding provider locks.
+ * Successful removal returns the empty group to Collecting for reuse.
+ * The owner must keep saved ID locations and device callback state alive until
+ * removal finishes, and must not change IDs or remove these entries independently.
+ * Calls for one group must be made one at a time, without holding locks used by
+ * the device callbacks.
  */
 struct DmPublicationGroup {
     struct __DmPublicationEntry* First;
@@ -53,7 +56,7 @@ struct DmPublicationGroup {
  * location and clears it after successful removal; keep that location alive.
  *
  * @param group Group still accepting descriptions.
- * @param registration Description and optional provider to register.
+ * @param registration Description and optional request callbacks to register.
  * @param allowBinding Whether this entry may be matched to a driver later.
  * @param deviceId Receives the ID. Must contain UUID_INVALID before adding.
  * @return OS_EOK on success; failure leaves ownership and the saved ID unchanged.
@@ -67,6 +70,7 @@ DmPublicationAdd(
 
 /**
  * @brief Marks the complete set of descriptions as ready for driver matching.
+ *
  * @param group Group that has received every description.
  * @return OS_EOK on success, or OS_EBUSY if adding descriptions has ended.
  */
@@ -76,7 +80,7 @@ DmPublicationFinish(
 
 /**
  * @brief Enables eligible entries, remembering each success for later retries.
- * 
+ *
  * @param group Finished group. Removal must not have started.
  * @return OS_EOK on success, OS_EBUSY for an unfinished or removing group, or the
  *         first binding error. An error leaves every description registered.
@@ -88,23 +92,14 @@ DmPublicationEnableBinding(
 /**
  * @brief Removes entries in reverse order, clearing IDs only after success.
  * Stop clients first. On failure, keep the group and its owner alive for retry.
- * Once removal starts, adding descriptions and enabling drivers are forbidden.
+ * While removal is incomplete, adding descriptions and enabling drivers are
+ * forbidden. Successful removal leaves an empty Collecting group for reuse.
  *
  * @param group Group to remove, including an incomplete or already removed group.
  * @return OS_EOK when empty, or the first removal error.
  */
 __EXTERN oserr_t
 DmPublicationRemove(
-    _InOut_ struct DmPublicationGroup* group);
-
-/**
- * @brief Allows an entirely removed group to be used again.
- * 
- * @param group Empty group whose previous removal finished successfully.
- * @return OS_EOK on success, or OS_EBUSY while the previous group still exists.
- */
-__EXTERN oserr_t
-DmPublicationReset(
     _InOut_ struct DmPublicationGroup* group);
 
 #endif

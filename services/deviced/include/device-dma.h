@@ -15,38 +15,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Device descriptions and the service code that handles their requests.
+ * DMA address ranges and cache policy passed from bus code to the device core.
  */
 
 #ifndef __DEVICED_DEVICE_DMA_H__
 #define __DEVICED_DEVICE_DMA_H__
 
-#include <firmware/dma.h>
+#include <dma-types.h>
 
 enum DmDmaCachePolicy {
-    // No policy has been established; this does not permit using cached RAM.
+    // Cached RAM cannot be used until a cache policy has been established.
     DmDmaCacheUnknown,
-    // Software must arrange visibility before handing memory to the other side.
+    // Software must synchronize caches before the CPU or device uses DMA data.
     DmDmaCacheNonCoherent,
-    // A provider must establish this guarantee for the complete device path.
+    // Bus code must verify cache coherency for the complete device path.
     DmDmaCacheCoherent
 };
 
 /**
- * @brief Copied DMA description shared by providers and the device core.
+ * @brief Copied DMA description passed from bus code to the device core.
  *
- * DeviceId is filled by the core, so a provider cannot select another registry
- * entry. HostId identifies the registered bus owner within this service lifetime;
- * it is not a kernel handle or a driver permission. Map reuses the existing plain
- * range values: CPU physical base, device address base, and length. Despite its
- * firmware name, FdtDmaMap contains no firmware pointers or parsing operations.
+ * DeviceId is filled by the core, so bus code cannot select another registry
+ * entry. HostId identifies the registered bus owner within this service lifetime.
+ * It is not a kernel handle or a driver permission. Map stores plain range
+ * values: CPU physical base, device address base, and length.
  * These ranges describe addressability, not installed or allocated memory.
  */
 struct DmDmaDescription {
     uuid_t                DeviceId;
     uuid_t                HostId;
     enum DmDmaCachePolicy CachePolicy;
-    struct FdtDmaMap      Map;
+    struct DmDmaMap       Map;
 };
 
 #endif
