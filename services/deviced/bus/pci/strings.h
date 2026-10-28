@@ -28,7 +28,12 @@
 #include <os/osdefs.h>
 
 /**
- * @brief Converts the given class, subclass and interface into descriptive string to give the pci-entry a description.
+ * @brief Gets a device description from its PCI class codes.
+ *
+ * @param Class The base class from the PCI configuration header.
+ * @param SubClass The subclass within the base class.
+ * @param Interface The programming interface within the subclass.
+ * @return A static string describing the device. The caller must not free it.
  */
 __EXTERN const char*
 PciToString(
@@ -36,14 +41,24 @@ PciToString(
     _In_ uint8_t SubClass,
     _In_ uint8_t Interface);
 
-
 /**
- * @brief Converts PCI class codes to device-manager identifiers.
+ * @brief Packs the PCI class and subclass into a device-manager class identifier.
+ *
+ * @param Class The PCI base class. Only the low 16 bits are used.
+ * @param SubClass The PCI subclass. Only the low 16 bits are used.
+ * @return The class in bits 16 through 31 and the subclass in bits 0 through 15.
  */
 __EXTERN unsigned int
 PciToDevClass(
     _In_ uint32_t Class,
     _In_ uint32_t SubClass);
+
+/**
+ * @brief Packs the PCI programming interface into a device-manager subclass identifier.
+ *
+ * @param Interface The PCI programming interface. Only the low 16 bits are used.
+ * @return The interface in bits 16 through 31, with bits 0 through 15 set to zero.
+ */
 __EXTERN unsigned int
 PciToDevSubClass(
     _In_ uint32_t Interface);

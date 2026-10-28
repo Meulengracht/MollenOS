@@ -20,17 +20,18 @@
 
 //#define __TRACE
 
+#include <bus/pci/dma.h>
 #include <bus/pci/hosts/legacy.h>
 #include <bus/pci/host-private.h>
 #include <ddk/utils.h>
+#include <core/io.h>
 #include <stdlib.h>
 #include <string.h>
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
 
-// To be able to access bus data we need io-space
-// access, so lets define the io-ports neccessary
-// for accessing PCI (legacy), not PCIe
+// Legacy PCI configuration access uses the address port at 0xCF8 and the
+// data port at 0xCFC. The host must acquire both ports before accessing them.
 #define PCI_IO_BASE                     0xCF8
 #define PCI_IO_LENGTH                   8
 #define PCI_REGISTER_SELECT             0x00
@@ -44,9 +45,13 @@ __LegacySelect(
     _In_ unsigned int Function,
     _In_ size_t       Register)
 {
-    size_t address = 0x80000000 | (Bus << 16) | (Device << 11) | (Function << 8) | (Register & 0xFC);
+    size_t  address;
     oserr_t status;
 
+    // Bit 31 enables configuration access. The data port selects the byte
+    // within the aligned 32-bit register.
+    address = 0x80000000 | (Bus << 16) | (Device << 11) |
+              (Function << 8) | (Register & 0xFC);
     status = WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, address, 4);
     if (status != OS_EOK) {
         ERROR("__LegacySelect %u:%u.%u register 0x%x selection failed: %u",
@@ -91,6 +96,7 @@ __LegacyWrite(
 }
 
 static const struct PciHostOperations g_pciLegacyOperations = {
+    .GetDmaDescription = PciHostGetIdentityDma,
     .Read = __LegacyRead,
     .Write = __LegacyWrite
 };
@@ -130,14 +136,19 @@ PciLegacyHostCreate(
     oserr = AcquireDeviceIo(&bus->IoSpace);
     if (oserr != OS_EOK) {
         ERROR("PciLegacyHostCreate failed to acquire configuration ports: %u", oserr);
-        cleanup = DestroyDeviceIo(&bus->IoSpace);
+        cleanup = DmIoRelease(&bus->IoSpace, &bus->IoAcquired);
         if (cleanup != OS_EOK) {
             ERROR("PciLegacyHostCreate failed to destroy configuration ports: %u", cleanup);
+            // Return the host so the caller can retry cleanup with PciHostDestroy.
+            *hostOut = bus;
+        } else {
+            free(bus);
         }
-        free(bus);
         return oserr;
     }
-    
+    bus->IoAcquired = 1;
+    bus->LegacyScan = 1;
+
     *hostOut = bus;
     return OS_EOK;
 }

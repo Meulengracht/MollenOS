@@ -22,7 +22,7 @@
 #include <ddk/utils.h>
 #include <string.h>
 
-// shared pci register values
+// Shared PCI register values.
 #include "registers.h"
 
 // Message Control Register
@@ -107,13 +107,13 @@ __WriteAndVerify(
 
 static oserr_t
 __VerifyPciDeviceType(
-    _In_  const struct PciConfigOperations* access)
+    _In_ const struct PciConfigOperations* access)
 {
     uint32_t headerType;
     uint32_t status;
 
     headerType = access->Read(access->Context, PCI_HEADER_TYPE_OFFSET, 1);
-    // MSI is supported on ordinary PCI functions, not PCI-to-PCI bridges.
+    // This implementation requires an ordinary PCI function header.
     if ((headerType & PCI_HEADER_TYPE_MASK) != PCI_HEADER_TYPE_NORMAL) {
         TRACE("__VerifyPciDeviceType header type 0x%x is not an ordinary function",
               headerType);
@@ -134,12 +134,12 @@ static oserr_t
 __IsValidCapabilityLink(
     _In_ uint32_t nextOffset)
 {
-    // Verify that the pointer is inside bounds
+    // The capability header must fit inside conventional configuration space.
     if (nextOffset < PCI_CAPABILITY_LIST_MIN_OFFSET || nextOffset > PCI_CAPABILITY_LAST_START) {
         return OS_EINVALPARAMS;
     }
     
-    // Verify that it's properly aligned
+    // Capability links must be aligned to four bytes.
     if ((nextOffset & PCI_CAPABILITY_LIST_ALIGNMENT_MASK) != 0) {
         return OS_EINVALPARAMS;
     }
@@ -152,8 +152,7 @@ __MsiCapabilityLength(
 {
     size_t length;
 
-    // MSI's data and optional mask registers change the capability
-    // length.
+    // The address width and optional mask registers determine the full length.
     if (control & MSI_MASK) {
         if (control & MSI_64) {
             length = MSI_64_BIT_MASKED_CAPABILITY_LENGTH;
@@ -184,8 +183,8 @@ PciInterruptProbe(
 
     TRACE("PciInterruptProbe()");
 
-    // MSI is supported on ordinary PCI functions, not bridges. Require a
-    // capability list before following its pointer.
+    // Require an ordinary function header with a capability list before reading
+    // the pointer at the header's capability-list offset.
     oserr = __VerifyPciDeviceType(access);
     if (oserr != OS_EOK) {
         return oserr;
@@ -227,16 +226,15 @@ PciInterruptProbe(
                 return OS_EINVALPARAMS;
             }
             
-            // Length varies based on capabilities here of the msi capability.
-            // Ensure we get the full length and reserve that.
+            // Include the address, data, and optional mask registers when
+            // checking bounds and overlap with other capabilities.
             length = __MsiCapabilityLength(control);
             if (length > PCI_CONFIG_SPACE_SIZE - next) {
                 ERROR("PciInterruptProbe MSI capability at 0x%x extends past configuration space", next);
                 return OS_EINVALPARAMS;
             }
             
-            // This should *not* happen, however if the MSI is already enabled
-            // then we should not attempt to modify it.
+            // MSI must be disabled before this code can save and change its state.
             if (control & MSI_ENABLE) {
                 WARNING("PciInterruptProbe MSI at 0x%x is already enabled by someone else", next);
                 return OS_EBUSY;
@@ -249,14 +247,12 @@ PciInterruptProbe(
                 return OS_EINVALPARAMS;
             }
             
-            // store the msi capability information
             result.MsiOffset   = (uint16_t)next;
             result.MsiCapacity = 1U << exponent;
         } else if (id == PCI_CAPABILITY_ID_MSIX) {
             length = MSIX_CAPABILITY_LENGTH;
 
-            // MSI-X has a fixed 12-byte capability. 
-            // If the offset is invalid or a duplicate, error out.
+            // The fixed 12-byte MSI-X capability must fit in configuration space.
             if (next > PCI_CONFIG_SPACE_SIZE - MSIX_CAPABILITY_LENGTH) {
                 ERROR("PciInterruptProbe MSI-X capability at 0x%x extends past configuration space", next);
                 return OS_EINVALPARAMS;
@@ -267,18 +263,16 @@ PciInterruptProbe(
                 return OS_EINVALPARAMS;
             }
             
-            // This should *not* happen, however if the MSI-X is already enabled
-            // then we should not attempt to modify it.
+            // MSI-X must also be disabled before reserving message interrupts.
             if (control & MSIX_CONTROL_ENABLE) {
                 WARNING("PciInterruptProbe MSI-X at 0x%x is already enabled by someone else", next);
                 return OS_EBUSY;
             }
             
-            // store the msi-x capability information
             result.MsixOffset   = (uint16_t)next;
             result.MsixCapacity = (control & MSIX_CONTROL_TABLE_SIZE_MASK) + 1U;
         } else {
-            // Treat this as a standard capability with only the header length.
+            // For other capability types, only the common header length is known.
             length = PCI_CAPABILITY_HEADER_LENGTH;
         }
 
@@ -292,8 +286,7 @@ PciInterruptProbe(
             occupied[next + i] = 1;
         }
 
-        // The first byte of each capability points to the next one; zero ends
-        // the list.
+        // The second byte points to the next capability. Zero ends the list.
         next = access->Read(access->Context, next + PCI_CAPABILITY_NEXT_OFFSET, 1);
     }
 
@@ -337,10 +330,11 @@ PciMsiProbe(
 
 static size_t
 __DataOffset(
-    _In_ const struct PciMsiState *state)
+    _In_ const struct PciMsiState* state)
 {
     // The 64-bit layout places message data after the upper address dword.
-    return state->Capability + ((state->Control & MSI_64) ? MSI_DATA_OFFSET_64_BIT : MSI_DATA_OFFSET_32_BIT);
+    return state->Capability +
+        ((state->Control & MSI_64) ? MSI_DATA_OFFSET_64_BIT : MSI_DATA_OFFSET_32_BIT);
 }
 
 static oserr_t
@@ -469,7 +463,7 @@ __MsiReserve(
     TRACE("__MsiReserve(allocation=%u)", allocation);
 
     if (state->Prepared) {
-        // Keep the current state as is; no need to reinitialize.
+        // Repeated reservations use the settings saved by the first attempt.
         return OS_EOK;
     }
 
@@ -482,11 +476,15 @@ __MsiReserve(
         
         // Save every field that Release must restore before touching hardware.
         state->Capability = capability;
-        state->Control = (uint16_t)access->Read(access->Context, capability + PCI_CAPABILITY_CONTROL_OFFSET, 2);
+        state->Control = (uint16_t)access->Read(
+            access->Context,
+            capability + PCI_CAPABILITY_CONTROL_OFFSET,
+            2
+        );
         state->Command = (uint16_t)access->Read(access->Context, PCI_COMMAND_OFFSET, 2);
         state->Data = (uint16_t)access->Read(access->Context, __DataOffset(state), 2);
         
-        // Handle both 32 and 64 bit MSI address registers
+        // Read the upper address only when the 64-bit register layout is present.
         state->AddressLow = access->Read(access->Context, capability + MSI_ADDRESS_LOW_OFFSET, 4);
         if (state->Control & MSI_64) {
             state->AddressHigh = access->Read(access->Context, capability + MSI_ADDRESS_HIGH_OFFSET, 4);
@@ -494,7 +492,7 @@ __MsiReserve(
             state->AddressHigh = 0;
         }
 
-        // Handle mask register if supported
+        // The mask register exists only when per-vector masking is supported.
         if (state->Control & MSI_MASK) {
             state->Mask = access->Read(
                 access->Context,
@@ -506,7 +504,8 @@ __MsiReserve(
         }
         state->Allocation = allocation;
 
-        // Just set active here so we don't have to regather information
+        // Mark the saved state valid before writes begin. A failed write must
+        // leave the original settings available for a retry or release.
         state->Active = 1;
     }
 
@@ -516,7 +515,7 @@ __MsiReserve(
         return status;
     }
     
-    // Prevent INTx irqs while the MSI message is reserved.
+    // Disable INTx interrupts while the MSI message is reserved.
     command = access->Read(access->Context, PCI_COMMAND_OFFSET, 2) | PCI_COMMAND_INTDISABLE;
     status = __WriteAndVerify(access, PCI_COMMAND_OFFSET, command, 2);
     if (status != OS_EOK) {
@@ -579,14 +578,24 @@ __MsiProgram(
           request->AddressHigh, request->AddressLow, request->Data);
     
     // Verify each field before advancing so a retry can safely repeat the writes.
-    status = __WriteAndVerify(access, state->Capability + MSI_ADDRESS_LOW_OFFSET, request->AddressLow, 4);
+    status = __WriteAndVerify(
+        access,
+        state->Capability + MSI_ADDRESS_LOW_OFFSET,
+        request->AddressLow,
+        4
+    );
     if (status != OS_EOK) {
         ERROR("__MsiProgram failed to write the lower message address: %u", status);
         return status;
     }
 
     if (state->Control & MSI_64) {
-        status = __WriteAndVerify(access, state->Capability + MSI_ADDRESS_HIGH_OFFSET, request->AddressHigh, 4);
+        status = __WriteAndVerify(
+            access,
+            state->Capability + MSI_ADDRESS_HIGH_OFFSET,
+            request->AddressHigh,
+            4
+        );
         if (status != OS_EOK) {
             ERROR("__MsiProgram failed to write the upper message address: %u", status);
             return status;
@@ -606,22 +615,32 @@ __MsiProgram(
 static oserr_t
 __RestoreConfiguration(
     _In_ const struct PciConfigOperations* access,
-    _In_ struct PciMsiState*        state)
+    _In_ struct PciMsiState*               state)
 {
     uint32_t command;
     oserr_t  status;
 
     TRACE("__RestoreConfiguration(capability=0x%x)", state->Capability);
 
-    // Restore the saved message address, data, and mask.
-    status = __WriteAndVerify(access, state->Capability + MSI_ADDRESS_LOW_OFFSET, state->AddressLow, 4);
+    // Delivery must be stopped before restoring the saved address, data, and mask.
+    status = __WriteAndVerify(
+        access,
+        state->Capability + MSI_ADDRESS_LOW_OFFSET,
+        state->AddressLow,
+        4
+    );
     if (status != OS_EOK) {
         ERROR("__RestoreConfiguration failed to restore the lower message address: %u", status);
         return status;
     }
 
     if (state->Control & MSI_64) {
-        status = __WriteAndVerify(access, state->Capability + MSI_ADDRESS_HIGH_OFFSET, state->AddressHigh, 4);
+        status = __WriteAndVerify(
+            access,
+            state->Capability + MSI_ADDRESS_HIGH_OFFSET,
+            state->AddressHigh,
+            4
+        );
         if (status != OS_EOK) {
             ERROR("__RestoreConfiguration failed to restore the upper message address: %u", status);
             return status;
@@ -717,7 +736,7 @@ PciMsiControl(
 {
     oserr_t status;
 
-    // Validate direct callers too, even if the provider already checked.
+    // Direct callers must meet the same request requirements as the bus interface.
     if (!PciInterruptRequestIsValid(request) || request->Strategy != INTERRUPT_STRATEGY_MSI) {
         ERROR("PciMsiControl invalid request (operation %u, strategy %u)",
               request->Operation, request->Strategy);

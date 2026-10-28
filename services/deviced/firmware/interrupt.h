@@ -21,7 +21,7 @@
 
 #include <os/osdefs.h>
 
-/** 
+/**
  * @brief An interrupt handled by an Arm Generic Interrupt Controller (GIC).
  */
 struct FdtInterrupt {
@@ -29,7 +29,7 @@ struct FdtInterrupt {
     uint32_t     Controller;
     // Line is the GIC interrupt number.
     int          Line;
-    // Flags describes how the interrupt signal is triggered.
+    // Common INTERRUPT_ACPICONFORM_* flags for trigger mode and polarity.
     unsigned int Flags;
 };
 
@@ -39,9 +39,11 @@ struct FdtResources;
  * @brief Read a shared peripheral interrupt (SPI) description for an Arm GIC.
  *
  * @param provider Resources for the interrupt controller referenced by firmware.
- * @param cells Three 32-bit device-tree values: interrupt type, number, and trigger
- *              settings. The caller must check that all 12 bytes are available.
+ * @param cells Three big-endian 32-bit device-tree values: interrupt type, number,
+ *              and trigger settings. The caller must check that all 12 bytes are
+ *              available.
  * @param interrupt Receives the controller ID, GIC line, and settings on success.
+ *                  Unchanged on failure.
  * @return OS_EOK on success, or OS_ENOTSUPPORTED for an unsupported controller,
  *         interrupt type, number, or trigger setting.
  */

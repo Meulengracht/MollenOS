@@ -37,7 +37,8 @@ struct __Bcm2712ResetProvider;
  * resets the controller and sets up its electrical interface (PHY).
  * ProgramInbound sets the address ranges that devices can use to reach system
  * memory or registers. Start applies connection settings and allows the
- * connected device to start. Stop must also handle an incomplete Prepare.
+ * connected device to start. Stop must also handle an incomplete Prepare and
+ * preserve unfinished resources on error so it can be called again.
  * RegisterLength is in bytes; ConfigIndex and ConfigData are register offsets
  * used to select a PCI device and access its configuration.
  */
@@ -47,11 +48,21 @@ struct BcmPciVariant {
     size_t              ConfigIndex;
     size_t              ConfigData;
     
-    oserr_t (*Validate)(const struct FdtPciHost*, unsigned int*);
-    oserr_t (*Prepare)(PciHost_t*, const struct FdtPciHost*);
-    oserr_t (*ProgramInbound)(PciHost_t*, const struct FdtPciHost*, unsigned int);
-    oserr_t (*Start)(PciHost_t*, const struct FdtPciHost*);
-    void    (*Stop)(PciHost_t*);
+    oserr_t (*Validate)(
+        _In_  const struct FdtPciHost* firmware,
+        _Out_ unsigned int*           dmaOrder);
+    oserr_t (*Prepare)(
+        _In_ PciHost_t*               bus,
+        _In_ const struct FdtPciHost* firmware);
+    oserr_t (*ProgramInbound)(
+        _In_ PciHost_t*               bus,
+        _In_ const struct FdtPciHost* firmware,
+        _In_ unsigned int            dmaOrder);
+    oserr_t (*Start)(
+        _In_ PciHost_t*               bus,
+        _In_ const struct FdtPciHost* firmware);
+    oserr_t (*Stop)(
+        _In_ PciHost_t* bus);
 };
 
 /**
@@ -61,7 +72,7 @@ struct BcmPciVariant {
  * devices at the same time. Ready means the connection is active and callers
  * can access device configuration registers. Firmware contains pointers into
  * the original device-tree data; the caller must keep that data unchanged and
- * mapped, along with the main controller registers, until BcmPciDestroy returns.
+ * mapped, along with the main controller registers, until BcmPciDestroy succeeds.
  * InboundConfigured records successful installation of device-to-system address
  * ranges. It does not certify safe buffers, cache handling or driver readiness.
  */
@@ -71,6 +82,11 @@ struct BcmPciHost {
     mtx_t                       ConfigLock;
     int                         Ready;
     int                         InboundConfigured;
+    int                         Stopped;
+    // Calibration cleanup must survive a failed release during initialization.
+    DeviceIo_t                  RescalIo;
+    int                         RescalAcquired;
+    int                         RescalPendingClear;
 
     // Hosts using the same reset registers keep one mapping alive together.
     // BridgeResetId still selects only this host's signal within those registers.
@@ -93,16 +109,35 @@ BcmPciGetVariant(
     _In_ enum FdtPciHostType type);
 
 /**
+ * @brief Construct and initialize a Broadcom host without registering or scanning it.
+ *
+ * @param firmware Validated host description. Keep its tree alive until the host
+ *                 is attached with PciHostAttach or destroyed with PciHostDestroy.
+ * @param hostOut Receives the unregistered host on success. On failure, receives
+ *                NULL unless cleanup also failed. A non-NULL failed host must
+ *                only be passed to PciHostDestroy until cleanup succeeds.
+ * @return OS_EOK on success, or a range, allocation, mapping or setup error.
+ *         Any non-NULL output transfers ownership to the caller, including failure.
+ */
+__EXTERN oserr_t
+BcmPciHostCreate(
+    _In_  const struct FdtPciHost* firmware,
+    _Out_ PciHost_t**             hostOut);
+
+/**
  * @brief Set up a controller and make configuration access available once connected.
  *
  * @param bus Host with its main registers already mapped and acquired. Operations
  *            and OpContext must be NULL. Device drivers remain blocked after setup.
- * @param controller Receives the host state; keep it available until Destroy returns.
+ * @param controller Receives the host state. Keep it available until BcmPciDestroy
+ *                   succeeds.
  * @param firmware Settings and resources to use. Its referenced device-tree data
  *                 must remain mapped and unchanged while the host is in use.
  * @return OS_EOK when the connection is active, or an error for invalid inputs,
  *         unsupported settings, failed allocation or hardware setup, or a timeout.
  *         Hardware setup failures call the chip's Stop function before returning.
+ *         Failed cleanup keeps OpContext installed. Keep controller and firmware
+ *         alive and retry BcmPciDestroy before reinitializing or releasing registers.
  */
 __EXTERN oserr_t
 BcmPciInitialize(
@@ -115,10 +150,11 @@ BcmPciInitialize(
  *
  * @param bus Host to stop. All callers must finish using it before this call.
  * @param controller State previously attached to bus by BcmPciInitialize.
- *                   The caller releases the main register mapping afterward.
+ *                   The caller releases the main register mapping after success.
  *                   NULL arguments or a controller not attached to bus are ignored.
+ * @return OS_EOK after cleanup, or an error preserving unfinished state for retry.
  */
-__EXTERN void
+__EXTERN oserr_t
 BcmPciDestroy(
     _InOut_ PciHost_t*         bus,
     _InOut_ struct BcmPciHost* controller);
@@ -147,7 +183,7 @@ BcmPciDmaAddress(
 /**
  * @brief Sleep while hardware completes an operation.
  *
- * @param milliseconds Sleep duration. This does not check hardware status.
+ * @param milliseconds Nonnegative sleep duration. This does not check hardware status.
  *                     Sleep errors are logged and do not fail the caller.
  */
 __EXTERN void
@@ -184,16 +220,19 @@ BcmPciLinkUp(
 /**
  * @brief Make a physical register range accessible to this service.
  *
- * @param io Receives the created and acquired mapping on success. The caller
- *           must later call ReleaseDeviceIo and DestroyDeviceIo.
+ * @param io Initially zeroed slot. Receives the registration even if mapping fails.
+ * @param acquired Initially zero. Set when mapping succeeds. Keep both slots
+ *                 until DmIoRelease completes, including on failure.
  * @param base CPU physical address of the first register byte.
  * @param length Size in bytes; the entire range must fit this build's address size.
  * @return OS_EOK on success, OS_ENOTSUPPORTED for an empty or out-of-range
- *         region, or an error from creating or acquiring the mapping.
+ *         region, or an error from creating or acquiring the mapping. The caller
+ *         owns any registration left in io after failure.
  */
 __EXTERN oserr_t
 BcmPciMapRegisters(
     _Out_ DeviceIo_t* io,
+    _Out_ int*        acquired,
     _In_  uint64_t    base,
     _In_  uint64_t    length);
 
@@ -203,17 +242,20 @@ BcmPciMapRegisters(
  * RESCAL is the hardware block that calibrates the electrical interface's
  * resistors. Check it up to ten times, with a 1 ms pause between checks.
  *
+ * @param controller Keeps unfinished calibration cleanup until BcmPciDestroy succeeds.
+ *                   Calibration slots must be empty before starting.
  * @param dependencies Firmware description of the calibration registers. If
  *                     ResetLength is zero, return success without doing anything.
  * @param reuseCompleted Nonzero to keep an already completed result. Pi 5 ports
  *                       share calibration, so restarting it can affect another port.
  * @return OS_EOK if calibration completes, is reused, or is absent; otherwise
- *         a mapping, register-write, or timeout error. Release failures are
- *         logged without replacing the calibration result.
+ *         a mapping, register-write, timeout or cleanup error. Keep any unfinished
+ *         mapping or clear operation in controller for teardown.
  */
 __EXTERN oserr_t
 BcmPciRescal(
+    _In_ struct BcmPciHost*               controller,
     _In_ const struct FdtPciDependencies* dependencies,
-    _In_ int                              reuseCompleted);
+    _In_ int                             reuseCompleted);
 
 #endif

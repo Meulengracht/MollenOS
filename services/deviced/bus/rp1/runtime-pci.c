@@ -63,8 +63,8 @@ __Rp1MapIo(
 
     TRACE("__Rp1MapIo(address=0x%llx, length=%zu)", (unsigned long long)address, length);
     
-    // Check the whole address range before converting its start address.
-    // The end of the range must fit too.
+    // The caller supplies a nonzero length. Both ends of the range must fit
+    // in uintptr_t before converting the start address.
     if (address > UINTPTR_MAX || length - 1 > UINTPTR_MAX - address) {
         WARNING("__Rp1MapIo: unsupported address 0x%llx, length %zu", (unsigned long long)address, length);
         return OS_ENOTSUPPORTED;
@@ -83,7 +83,7 @@ __Rp1MapIo(
     
     status = AcquireDeviceIo(io);
     if (status != OS_EOK) {
-        ERROR("__Rp1MapIo: AcquireDeviceIo id %u failed: %u; registered range retained", io->Id, status);
+        ERROR("__Rp1MapIo: AcquireDeviceIo id %u failed: %u; registered range kept", io->Id, status);
     }
     return status;
 }
@@ -162,14 +162,13 @@ __Rp1TableWrite(
 {
     oserr_t status;
 
-    // MSI-X writes do not report errors. The caller checks the table by reading
-    // it back.
+    // The write callback has no error result. The MSI-X code checks the value
+    // with a separate read after this callback returns.
     status = WriteDeviceIo(mapping, offset, value, 4);
     if (status != OS_EOK) {
         ERROR("__Rp1TableWrite: WriteDeviceIo offset 0x%zx, value 0x%x failed: %u", offset, value, status);
     }
-    // This callback cannot report errors. The MSI-X code checks the value by
-    // reading it back.
+    // Complete the posted PCI write before returning.
     (void)ReadDeviceIo(mapping, offset, 4);
 }
 
@@ -182,6 +181,7 @@ Rp1PciMessagesStart(
     uint16_t                 originalCommand;
     uint16_t                 command;
     uint32_t                 actualCommand;
+    unsigned int             i;
     oserr_t                  status;
 
     struct PciInterruptRequest request = {
@@ -217,7 +217,7 @@ Rp1PciMessagesStart(
         return OS_ENOTSUPPORTED;
     }
     
-    // Keep device interrupts and bus mastering off while setting up the shared
+    // Disable legacy interrupts and bus mastering while setting up the shared
     // messages and RP1 registers.
     originalCommand = (uint16_t)__Rp1ConfigRead(runtime, 4, 2);
     runtime->Pci.CommandTouched = 1;
@@ -260,7 +260,7 @@ Rp1PciMessagesStart(
     }
     
     // Disable every RP1 interrupt before allowing MSI-X messages to be sent.
-    for (unsigned int i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
+    for (i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
         status = WriteDeviceIo(
             &runtime->Pci.Apbs,
             RP1_IRQ_CLEAR + RP1_IRQ_CFG(i),
@@ -304,7 +304,7 @@ Rp1PciMessagesStart(
         return status;
     }
     
-    for (unsigned int i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
+    for (i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
         status = Rp1SourceSetTableMask(runtime, i, 1);
         if (status != OS_EOK) {
             ERROR("Rp1PciMessagesStart: Rp1SourceSetTableMask source %u failed: %u", i, status);
@@ -341,8 +341,8 @@ Rp1PciMessagesQuiesce(
 
     TRACE("Rp1PciMessagesQuiesce(bus=%p, allocation=%u)", runtime->Bus, runtime->Pci.Allocation);
     if (runtime->Pci.CommandTouched) {
-        // Stop new interrupt writes and DMA before disabling MSI-X or removing
-        // mappings used by its table.
+        // Disable legacy interrupts and bus mastering before disabling MSI-X
+        // or removing its table mapping.
         command = (uint16_t)__Rp1ConfigRead(runtime, 4, 2);
         command = (command & ~PCI_COMMAND_BUSMASTER) | PCI_COMMAND_INTDISABLE;
         __Rp1ConfigWrite(runtime, 4, command, 2);

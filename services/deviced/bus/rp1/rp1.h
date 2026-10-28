@@ -24,8 +24,13 @@
 #ifndef __DEVICED_RP1_H__
 #define __DEVICED_RP1_H__
 
-#include <firmware/rp1.h>
+#include <ddk/resources.h>
+#include <os/types/device.h>
+#include <os/usched/mutex.h>
 #include <stdatomic.h>
+
+#include <firmware/rp1.h>
+#include <bus/pci/bars.h>
 
 #define RP1_VENDOR_ID        0x1de4
 #define RP1_DEVICE_ID        0x0001
@@ -49,17 +54,28 @@ struct Rp1Runtime;
 extern const struct PciFunctionHandler g_rp1PciHandler;
 
 /**
- * @brief One hardware block inside RP1, plus the state deviced needs to list it.
- * The firmware description contains names and other data that point into the
- * device tree. Bus identifies the owning inventory. A provider reference keeps
- * that inventory and its PCI parent alive; the parent keeps firmware mapped.
- * Without a reference, the caller must keep the inventory and host alive itself.
+ * @brief Registered memory resources and activation state for one RP1 child.
+ * Published records resources already created, including partial setup after an
+ * error. Prepared records whether the child has completed DevicePrepare.
+ */
+struct Rp1ChildResources {
+    struct DeviceResources Published;
+    int                    Prepared;
+};
+
+/**
+ * @brief One hardware block inside RP1 and its device-manager state.
+ * Firmware contains names and other data that point into the device tree.
+ * Bus owns this child. Each resource reference keeps the bus and its PCI parent
+ * alive, and the parent keeps firmware mapped. Without a resource reference,
+ * the caller must keep the bus and host alive while accessing the child.
  */
 struct Rp1Child {
-    struct Rp1Child*    Next;
-    struct Rp1Bus*      Bus;
-    uuid_t              DeviceId;
-    struct FdtRp1Device Firmware;
+    struct Rp1Child*         Next;
+    struct Rp1Bus*           Bus;
+    uuid_t                   DeviceId;
+    struct FdtRp1Device      Firmware;
+    struct Rp1ChildResources Resources;
 };
 
 /**
@@ -71,31 +87,37 @@ struct Rp1Child {
  * available and mapped while this object exists.
  */
 struct Rp1Bus {
+    // Protects Ready, Runtime and every child's Resources. When both are needed,
+    // take the PCI lock before this lock. Child requests take only this lock
+    // and must not enter PCI or registry locking paths while holding it. PCI
+    // access may take the host's configuration lock last during setup/teardown.
+    struct usched_mtx Lock;
+
     // The PCI host owns this description; do not free it when releasing the bus.
     const struct FdtPciHost* Host;
-    // Set by PCI attachment. Borrowed unless a child provider holds a reference.
-    struct PciDevice* Parent;
-    // Each child provider reference also retains Parent. Atomic because registry
+    // Set by PCI attachment. Child resource callbacks take their own parent references.
+    struct PciDevice*        Parent;
+    // Each child resource reference also keeps Parent alive. Atomic because registry
     // callbacks for different children may run concurrently.
-    atomic_uint ProviderReferences;
+    atomic_uint              ProviderReferences;
 
     struct Rp1Child* Children;
     unsigned int     ChildCount;
 
     // Copies of the six PCI address ranges used to check that each child's
     // registers fit within memory assigned to RP1.
-    struct PciBar    Bars[6];
+    struct PciBar      Bars[6];
     // Owns messages and mappings, including unfinished startup/shutdown.
     struct Rp1Runtime* Runtime;
-    int               Ready;
+    int                Ready;
 };
 
 /**
  * @brief Adds device-manager entries for RP1's firmware-described hardware blocks.
  * Each entry is placed below the RP1 PCI device. This does not ask the device
- * manager to find drivers yet; the PCI code requests that after adding all
- * device entries. RP1 driver startup remains blocked until DMA and interrupts
- * are ready.
+ * manager to find drivers or prepare hardware yet. PCI prepares DMA and interrupts
+ * separately after adding all device entries, then enables driver binding.
+ * Preparation failure leaves these descriptions registered for retry.
  * If adding an entry fails, the group remembers entries already added so PCI
  * can remove them. The group clears each saved child ID after successful removal.
  *
@@ -136,19 +158,47 @@ Rp1BusCreate(
 
 /**
  * @brief Free the list after all of its device-manager entries have been removed.
- * Published IDs and outstanding provider references both keep the list alive.
+ * Published IDs and outstanding resource references both keep the list alive.
  * The group still needs the stored IDs while removing entries, even after the
- * registry has released its provider. Release callbacks therefore never free it.
+ * registry has released its resource reference. Release callbacks never free it.
  *
  * @param bus List to release. NULL is allowed.
  *            The owner must exclude publication, removal of registry entries,
- *            and new reference acquisition while calling this function.
+ *            and new resource references while calling this function.
+ *            Hold the PCI lock if a runtime exists; this function takes bus->Lock.
  * @return OS_EOK after freeing the list (or for NULL), OS_EBUSY without freeing
- *         anything while IDs or provider references remain. The caller must
+ *         anything while IDs or resource references remain. The caller must
  *         preserve the parent and retry, rather than continue enclosing cleanup.
  */
 __EXTERN oserr_t
 Rp1BusDestroy(
     _In_ struct Rp1Bus* bus);
+
+/**
+ * @brief Supply register resources or handle a child's activation request.
+ * 
+ * @param child Child kept alive by a resource reference. Caller holds Bus->Lock.
+ * @param request Resource query or activation request.
+ * @param buffer Request/result storage.
+ * @param length Size of the request buffer.
+ * @return OS_EOK on success or the request error. Resources created before an
+ *         error remain recorded in the child for retry or destruction.
+ */
+__EXTERN oserr_t
+Rp1ChildResourceControl(
+    _InOut_ struct Rp1Child*     child,
+    _In_    enum OSIOCtlRequest request,
+    _InOut_ void*               buffer,
+    _In_    size_t              length);
+
+/**
+ * @brief Release registered resources after all child users have stopped.
+ * 
+ * @param child Unpublished child whose hardware has stopped.
+ * @return Cleanup status; failure leaves the remaining resources owned for retry.
+ */
+__EXTERN oserr_t
+Rp1ChildResourcesDestroy(
+    _InOut_ struct Rp1Child* child);
 
 #endif

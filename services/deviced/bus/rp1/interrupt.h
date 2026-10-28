@@ -36,8 +36,9 @@
  *
  * Mask blocks new PCI messages. Unmask allows delivery again. The child driver
  * synchronizes its kernel group after Mask, before releasing handler resources.
- * Both return a status. Failure retains controller ownership for a disable or
- * destroy retry; an unsuccessful Unmask may already have allowed delivery.
+ * Both return a status. On failure, keep the controller and its resources
+ * available for a disable or destroy retry. A failed Unmask may already have
+ * allowed delivery.
  *
  * The controller copies this structure. Keep the callback context and allocated
  * interrupt entries available until Rp1InterruptDestroy succeeds.
@@ -53,7 +54,8 @@ struct Rp1InterruptParent {
 /**
  * @brief Register access, callbacks, and settings for one RP1 interrupt controller.
  *
- * Types and Enabled record the settings for each source, indexed from 0 to 60.
+ * Types and Enabled record the saved settings for each source, indexed from
+ * 0 to 60. A failed control call may leave hardware in a different state.
  * Ready means initialization completed. Registers points to memory supplied by
  * the caller; keep it mapped and keep this object available until Destroy
  * succeeds. Run setup and control calls one at a time, without overlapping them.
@@ -78,7 +80,7 @@ struct Rp1InterruptController {
  *               configured, and blocked from delivery (masked).
  * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs,
  *         OS_ENOTSUPPORTED for missing parent callbacks or too few interrupt
- *         entries, or a register-write error.
+ *         entries, or an error from Mask or a register write.
  */
 __EXTERN oserr_t
 Rp1InterruptInitialize(
@@ -99,8 +101,8 @@ Rp1InterruptInitialize(
 __EXTERN oserr_t
 Rp1InterruptConfigure(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_    unsigned int                   source,
-    _In_    unsigned int                   type);
+    _In_    unsigned int                  source,
+    _In_    unsigned int                  type);
 
 /**
  * @brief Allow a configured RP1 source to deliver interrupts.
@@ -109,26 +111,29 @@ Rp1InterruptConfigure(
  * @param source RP1 source number, 0 through 60; configure it before enabling it.
  *               Its handler may run immediately when delivery is allowed.
  * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs, an unconfigured
- *         or already enabled source, or a register-write error.
+ *         or already enabled source, or an error from Unmask or a register write.
+ *         If Unmask fails, the source stays marked enabled and delivery may be
+ *         active. Disable it successfully before releasing handler resources.
  */
 __EXTERN oserr_t
 Rp1InterruptEnable(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_    unsigned int                   source);
+    _In_    unsigned int                  source);
 
 /**
  * @brief Mask PCI delivery and disable the RP1 source.
  *
  * @param controller Controller with its register mapping and PCI callbacks set.
  * @param source RP1 source number, 0 through 60.
- * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs, or a register-write
- *         error. If the write fails, PCI delivery remains blocked; keep the
- *         mapping available so shutdown can be retried.
+ * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs, or an error from
+ *         Mask or a register write. If Mask fails, delivery may still be active.
+ *         If the write fails after Mask succeeds, PCI delivery stays blocked.
+ *         Keep the controller and its resources available for a shutdown retry.
  */
 __EXTERN oserr_t
 Rp1InterruptDisable(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_    unsigned int                   source);
+    _In_    unsigned int                  source);
 
 /**
  * @brief Stop all interrupt delivery and clear the controller's saved state.
@@ -140,7 +145,7 @@ Rp1InterruptDisable(
  *
  * @param controller Controller to shut down, including one only partly initialized.
  * @return OS_EOK if shutdown succeeds or no register mapping is set,
- *         OS_EINVALPARAMS for NULL, or a register-write error.
+ *         OS_EINVALPARAMS for NULL, or an error from Mask or a register write.
  */
 __EXTERN oserr_t
 Rp1InterruptDestroy(

@@ -28,7 +28,8 @@
 #include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 
-static inline void __UpdateInterruptLine(
+static inline void
+__UpdateInterruptLine(
     _In_ PciDevice_t* parent,
     _In_ int          bus,
     _In_ int          slot,
@@ -48,8 +49,12 @@ static inline void __UpdateInterruptLine(
     pciDevice->InterruptLine = interruptLine;
 }
 
-static inline int 
-__SwizzleInterruptPin(int device, int pin) {
+static inline int
+__SwizzleInterruptPin(
+    _In_ int device,
+    _In_ int pin)
+{
+    // The pin must be in the range 1 (INTA) through 4 (INTD).
     return (((pin - 1) + device) % 4) + 1;
 }
 
@@ -72,21 +77,21 @@ PciResolveInterruptLineAndPin(
 
     pciDevice->InterruptLine = pciDevice->Header->InterruptLine;
     if (parent->Host->Operations->ResolveInterrupt != NULL) {
-        
         pciDevice->InterruptLine = INTERRUPT_NONE;
         pin = pciDevice->Header->InterruptPin;
         iterator = pciDevice;
-        
+
         if (pin == 0 || pin > 4) {
             TRACE("PciResolveInterruptLineAndPin no usable INTx pin (%u)", pin);
             return;
         }
-        
+
+        // Convert the pin at each bridge to the pin seen on the root bus.
         while (iterator->Parent != parent->Host->RootDevice) {
             pin = __SwizzleInterruptPin((int)iterator->Slot, (int)pin);
             iterator = iterator->Parent;
         }
-        
+
         status = parent->Host->Operations->ResolveInterrupt(
             parent->Host,
             iterator->Bus,
@@ -101,38 +106,33 @@ PciResolveInterruptLineAndPin(
                 bus, slot, function, pin, status);
             return;
         }
-        
+
         pciDevice->InterruptLine = line;
         pciDevice->AcpiConform = flags;
         TRACE("PciResolveInterruptLineAndPin resolved line=%i, flags=0x%x", line, flags);
         return;
     }
 
-    // We do need acpi for this to query acpi interrupt information for device
+    // ACPI routing is used when the host has no interrupt resolver.
     if (PciIsAcpiAvailable()) {
-        PciDevice_t* iterator      = pciDevice;
         unsigned int acpiConform   = 0;
         int          interruptLine = pciDevice->Header->InterruptLine;
         int          interruptPin  = pciDevice->Header->InterruptPin;
         oserr_t      hasRouting    = OS_ENOENT;
         TRACE("PciResolveInterruptLineAndPin initial line=%i, pin=%i", interruptLine, interruptPin);
 
-        // Sanitize legals
+        iterator = pciDevice;
+        
+        // Pin values above INTD are invalid. Use INTA for the routing query.
         if (interruptPin > 4) {
             WARNING("PciResolveInterruptLineAndPin invalid INTx pin %i, using INTA", interruptPin);
             interruptPin = 1;
         }
 
-        // Does device even use interrupts?
+        // A zero pin means the device does not use INTx interrupts.
         if (interruptPin != 0) {
-            // Swizzle till we reach root
-            // Case 1 - Query device for ACPI filter
-            //        -> 1.1: It has an routing for our Dev/Pin
-            //             -> Exit
-            //          -> 1.2: It does not have an routing
-            //           -> Swizzle-pin
-            //           -> Get parent device
-            //           -> Go-To 1
+            // Query the device first. If no route is found, convert the pin
+            // for the parent bridge and query again until the root is reached.
             while (iterator && iterator != parent->Host->RootDevice) {
                 hasRouting = AcpiQueryInterrupt(
                     iterator->Bus,
@@ -150,16 +150,22 @@ PciResolveInterruptLineAndPin(
                 TRACE("PciResolveInterruptLineAndPin ACPI route absent at %u:%u pin %i: %u",
                     iterator->Bus, iterator->Slot, interruptPin, hasRouting);
 
-                // Nope, swizzle pin, move up the ladder
                 interruptPin = __SwizzleInterruptPin((int) iterator->Slot, interruptPin);
                 iterator     = iterator->Parent;
                 TRACE("PciResolveInterruptLineAndPin derived pin %i", interruptPin);
             }
 
-            // Update the irq-line if we found a new line
+            // Keep the firmware line unless ACPI supplies a route.
             if (hasRouting == OS_EOK) {
                 TRACE("PciResolveInterruptLineAndPin updating device, line=%i, pin=%i", interruptLine, interruptPin);
-                __UpdateInterruptLine(parent, bus, slot, function, interruptLine, pciDevice);
+                __UpdateInterruptLine(
+                    parent,
+                    bus,
+                    slot,
+                    function,
+                    interruptLine,
+                    pciDevice
+                );
                 pciDevice->AcpiConform = acpiConform;
             } else {
                 TRACE("PciResolveInterruptLineAndPin retaining firmware line %i", interruptLine);

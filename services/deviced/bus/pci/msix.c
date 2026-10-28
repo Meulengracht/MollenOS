@@ -31,34 +31,33 @@
 #define MSIX_COMMAND_BITS  0x0402U
 #define MSIX_ENTRY_SIZE    16U
 
-/** @brief Saved entry plus an immutable requested payload for retry validation. */
 struct __PciMsixEntry {
     uint32_t Original[4];
     uint32_t Message[3];
-    int Supplied;
-    int Programmed;
+    int      Supplied;
+    int      Programmed;
 };
 
 /**
- * @brief One function's reservation, including progress through partial cleanup.
+ * @brief One PCI function's MSI-X reservation and cleanup progress.
  *
- * Entries are snapshotted once before any table write. TableRestored means table
- * access is finished, even if unmapping or final config restoration needs retry.
+ * The full table is saved once before any table write. TableRestored means table
+ * access is finished, even if unmapping or configuration restoration needs retry.
  */
 struct PciMsixState {
-    struct PciMsixLayout Layout;
+    struct PciMsixLayout   Layout;
     struct __PciMsixEntry* Entries;
-    void* Mapping;
-    uuid_t Allocation;
-    uint32_t Count;
-    uint16_t Command;
-    int ConfigurationTouched;
-    int Snapshot;
-    int Prepared;
-    int MayDeliver;
-    int Enabled;
-    int Releasing;
-    int TableRestored;
+    void*                  Mapping;
+    uuid_t                 Allocation;
+    uint32_t               Count;
+    uint16_t               Command;
+    int                    ConfigurationTouched;
+    int                    Snapshot;
+    int                    Prepared;
+    int                    MayDeliver;
+    int                    Enabled;
+    int                    Releasing;
+    int                    TableRestored;
 };
 
 static oserr_t
@@ -68,7 +67,7 @@ __VerifyRegionBar(
 {
     const struct PciBar* bar = &access->Bars[barIndex];
 
-    // Only firmware-assigned BARs have a usable window to map.
+    // The BAR must have an assigned address range before it can be mapped.
     if (bar->State != PciBarAssigned) {
         ERROR("__VerifyRegionBar BAR%u is not assigned (state %u)", barIndex, bar->State);
         return OS_EINVALPARAMS;
@@ -101,8 +100,8 @@ __ReadRawBarAddress(
 
     low = access->Config.Read(access->Config.Context, 0x10 + barIndex * 4, 4);
 
-    // The raw encoding must still agree with the recorded BAR type, otherwise
-    // the window we were handed no longer describes this register.
+    // The current register encoding must match the recorded BAR type before its
+    // address can be checked against the saved BAR information.
     if (low & 1U) {
         ERROR("__ReadRawBarAddress BAR%u now decodes as io space (0x%x)", barIndex, low);
         return OS_EINVALPARAMS;
@@ -186,8 +185,8 @@ __MsixRegion(
         return OS_EINVALPARAMS;
     }
 
-    // The window must be reachable by this platform's pointer width before we
-    // can hand it to the mapping layer.
+    // The translated address range must fit this platform's pointer width before
+    // it can be passed to the mapping layer.
     if (bar->CpuAddress > UINTPTR_MAX || offset > UINTPTR_MAX - bar->CpuAddress) {
         ERROR("__MsixRegion BAR%u is not addressable by the cpu", barIndex);
         return OS_ENOTSUPPORTED;
@@ -275,7 +274,7 @@ static oserr_t
 __MsixConfigWrite(
     _In_ const struct MsixDeviceOperations* access,
     _In_ size_t                             offset,
-    _In_ uint32_t                           value) 
+    _In_ uint32_t                           value)
 {
     uint32_t readback;
 
@@ -325,8 +324,7 @@ __MsixStop(
 
     TRACE("__MsixStop(capability=0x%x)", state->Layout.Capability);
 
-    // Function Mask stops delivery for every entry at once, which is what makes
-    // table access safe again.
+    // Function Mask must stop delivery for every entry before the table changes.
     status = __MsixConfigWrite(access, state->Layout.Capability + 2,
         state->Layout.Control | MSIX_ENABLE | MSIX_FUNCTION_MASK);
     if (status != OS_EOK) {
@@ -500,8 +498,8 @@ __MsixProgram(
         request->Data
     };
 
-    // A message can only be programmed after reservation has masked the table.
-    // Once delivery may start, reject rewrites.
+    // Reservation must have masked the table before a message can be programmed.
+    // Reject writes until delivery is confirmed stopped.
     if (!state->Prepared || state->MayDeliver) {
         WARNING("__MsixProgram rejected, prepared=%i, delivering=%i",
                 state->Prepared, state->MayDeliver);
@@ -670,7 +668,7 @@ __RestoreTable(
         }
     }
 
-    // Without a snapshot nothing was ever written, so there is nothing to undo.
+    // Without a snapshot, no table entries were changed.
     if (state->Snapshot) {
         for (uint32_t i = 0; i < state->Layout.Count; i++) {
             status = __RestoreEntry(access, state, i);
@@ -733,8 +731,8 @@ __MsixRelease(
         }
     }
 
-    // Table access is finished at this point, so the mapping can go even if the
-    // remaining configuration writes need another attempt.
+    // Table access is finished. Unmap it before restoring configuration, which
+    // may disable memory access to the BAR.
     if (state->Mapping != NULL) {
         status = access->Unmap(access->Config.Context, state->Mapping, state->Layout.Table.Length);
         if (status != OS_EOK) {
@@ -807,7 +805,7 @@ PciMsixControl(
         case PciInterruptEnable:
             return __MsixEnable(access, *state);
         case PciInterruptDisable:
-            // Nothing was enabled, or the table has already been handed back.
+            // No configuration was changed, or table restoration is complete.
             if (!(*state)->ConfigurationTouched || (*state)->TableRestored) {
                 return OS_EOK;
             }

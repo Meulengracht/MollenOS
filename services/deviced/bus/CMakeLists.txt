@@ -2,3 +2,4 @@
 add_subdirectory(pci)
 add_subdirectory(legacy)
 add_subdirectory(rp1)
+add_subdirectory(platform)

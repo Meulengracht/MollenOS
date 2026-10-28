@@ -44,6 +44,8 @@ __MsixDeviceWriteConfig(
     PciDeviceWrite(context, offset, value, width);
 }
 
+// The MSI-X layout code must validate the BAR index before this check.
+// Mapping also requires a published resource with the same CPU address.
 static oserr_t
 __ValidateMsixRegion(
     _In_ PciDevice_t*                device,
@@ -71,7 +73,7 @@ __ValidateMsixRegion(
 static oserr_t
 __MsixDeviceMap(
     _In_  void*                       context,
-    _In_  const struct PciMsixRegion* region,
+    _In_  const struct PciMsixRegion*  region,
     _Out_ void**                      mapping)
 {
     PciDevice_t* device = context;
@@ -111,6 +113,8 @@ __MsixDeviceUnmap(
     (void)context;
     TRACE("__MsixDeviceUnmap(mapping=%p, length=%llu)", mapping, (unsigned long long)length);
 
+    // The region may start within a page. Free from the page boundary and
+    // include the bytes before the region in the mapping length.
     status = MemoryFree((void*)(address - offset), length + offset);
     if (status != OS_EOK) {
         ERROR("__MsixDeviceUnmap MemoryFree failed: %u", status);

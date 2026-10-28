@@ -28,6 +28,8 @@ __DmaExtentValid(
     _In_ uint64_t length,
     _In_ uint64_t limit)
 {
+    // Compare the remaining address space without calculating base + length,
+    // which can wrap when the range ends at UINT64_MAX.
     return length != 0 && base <= limit && length - 1 <= limit - base;
 }
 
@@ -44,8 +46,8 @@ __DmaOverlaps(
 static oserr_t
 __DmaAddressLimit(
     _In_  enum FdtDmaAddressFormat format,
-    _In_  uint32_t                  cells,
-    _Out_ uint64_t*                 limit)
+    _In_  uint32_t                 cells,
+    _Out_ uint64_t*                limit)
 {
     if (format == FdtDmaAddressSimple && (cells == 1 || cells == 2)) {
         *limit = cells == 1 ? UINT32_MAX : UINT64_MAX;
@@ -74,10 +76,9 @@ __DmaDecodeAddress(
         *attributes = FdtReadBe32(bytes);
         space = FDT_PCI_SPACE_FROM_ATTRIBUTES(*attributes);
         
-        // The first PCI value contains flags as well as the address type. Accept
-        // memory addresses, including the supported prefetch and relocation
-        // flags, but reject other PCI address types. Those types need different
-        // rules and cannot be used to describe the physical-memory paths here.
+        // The first PCI cell contains the address type and flags. DMA windows
+        // must describe memory addresses. Allow the prefetch and relocation
+        // flags, but reject I/O and configuration addresses.
         if ((space != FdtPciSpaceMemory32 && space != FdtPciSpaceMemory64) ||
             (*attributes & ~0xc3000000U)) {
             return OS_ENOTSUPPORTED;
@@ -96,15 +97,13 @@ __DmaCheckChild(
     _In_ const struct FdtDmaRanges* child)
 {
     const struct FdtDmaWindow* window;
-    uint32_t i;
-    uint32_t j;
 
     if (child->Count > FDT_DMA_MAX_WINDOWS) {
         WARNING("__DmaCheckChild: %u windows exceed capacity", child->Count);
         return OS_ENOTSUPPORTED;
     }
 
-    for (i = 0; i < child->Count; i++) {
+    for (uint32_t i = 0; i < child->Count; i++) {
         window = &child->Windows[i];
         if (!__DmaExtentValid(window->ChildBase, window->Length, child->ChildLimit) ||
             !__DmaExtentValid(window->ParentBase, window->Length, UINT64_MAX)) {
@@ -112,7 +111,7 @@ __DmaCheckChild(
             return OS_EINVALPARAMS;
         }
         
-        for (j = 0; j < i; j++) {
+        for (uint32_t j = 0; j < i; j++) {
             if (__DmaOverlaps(window->ChildBase, window->Length,
                     child->Windows[j].ChildBase, child->Windows[j].Length)) {
                 ERROR("__DmaCheckChild: windows %u and %u overlap", i, j);
@@ -135,7 +134,6 @@ FdtDecodeDmaRanges(
     const uint8_t*       bytes;
     uint64_t             parentLimit;
     uint32_t             stride;
-    uint32_t             i;
     oserr_t              status;
 
     TRACE("FdtDecodeDmaRanges(bus=%p, childFormat=%u, parentFormat=%u)",
@@ -144,8 +142,8 @@ FdtDecodeDmaRanges(
         ERROR("FdtDecodeDmaRanges: missing bus or output");
         return OS_EINVALPARAMS;
     }
-    if (bus->Malformed || bus->AncestorMalformed) {
-        ERROR("FdtDecodeDmaRanges: node %u has malformed ancestry", bus->NodeOffset);
+    if (bus->Malformed || bus->ParentMalformed) {
+        ERROR("FdtDecodeDmaRanges: node %u has malformed parent nodes", bus->NodeOffset);
         return OS_EINVALPARAMS;
     }
     
@@ -193,7 +191,7 @@ FdtDecodeDmaRanges(
             return OS_ENOTSUPPORTED;
         }
 
-        for (i = 0; i < result.Count; i++) {
+        for (uint32_t i = 0; i < result.Count; i++) {
             bytes = bus->DmaRanges + i * stride;
             window = &result.Windows[i];
             
@@ -247,18 +245,16 @@ FdtDecodeDmaRanges(
 
 static oserr_t
 __DmaCheckParent(
-    _In_ const struct FdtDmaMap* parent)
+    _In_ const struct DmDmaMap* parent)
 {
-    const struct FdtDmaRange* range;
-    uint32_t                  i;
-    uint32_t                  j;
+    const struct DmDmaRange* range;
 
-    if (parent->Count > FDT_DMA_MAX_RANGES) {
+    if (parent->Count > DM_DMA_MAX_RANGES) {
         WARNING("__DmaCheckParent: %u ranges exceed capacity", parent->Count);
         return OS_ENOTSUPPORTED;
     }
 
-    for (i = 0; i < parent->Count; i++) {
+    for (uint32_t i = 0; i < parent->Count; i++) {
         range = &parent->Ranges[i];
         if (!__DmaExtentValid(range->DeviceBase, range->Length, UINT64_MAX) ||
             !__DmaExtentValid(range->PhysicalBase, range->Length, UINT64_MAX)) {
@@ -266,7 +262,7 @@ __DmaCheckParent(
             return OS_EINVALPARAMS;
         }
 
-        for (j = 0; j < i; j++) {
+        for (uint32_t j = 0; j < i; j++) {
             if (__DmaOverlaps(range->DeviceBase, range->Length,
                     parent->Ranges[j].DeviceBase, parent->Ranges[j].Length)) {
                 ERROR("__DmaCheckParent: ranges %u and %u overlap", i, j);
@@ -279,13 +275,13 @@ __DmaCheckParent(
 
 static oserr_t
 __DmaAppend(
-    _InOut_ struct FdtDmaMap*        map,
-    _In_    const struct FdtDmaRange* range)
+    _InOut_ struct DmDmaMap*         map,
+    _In_    const struct DmDmaRange* range)
 {
     uint32_t index;
 
-    if (map->Count == FDT_DMA_MAX_RANGES) {
-        WARNING("__DmaAppend: composed map exceeds %u ranges", FDT_DMA_MAX_RANGES);
+    if (map->Count == DM_DMA_MAX_RANGES) {
+        WARNING("__DmaAppend: composed map exceeds %u ranges", DM_DMA_MAX_RANGES);
         return OS_ENOTSUPPORTED;
     }
     
@@ -305,18 +301,16 @@ __DmaAppend(
 oserr_t
 FdtComposeDmaRanges(
     _In_  const struct FdtDmaRanges* child,
-    _In_  const struct FdtDmaMap*    parent,
-    _Out_ struct FdtDmaMap*          map)
+    _In_  const struct DmDmaMap*     parent,
+    _Out_ struct DmDmaMap*           map)
 {
-    struct FdtDmaMap           result = { 0 };
-    struct FdtDmaRange         range;
-    const struct FdtDmaRange*  source;
+    struct DmDmaMap            result = { 0 };
+    struct DmDmaRange          range;
+    const struct DmDmaRange*   source;
     const struct FdtDmaWindow* window;
     uint64_t                   parentEnd;
     uint64_t                   start;
     uint64_t                   end;
-    uint32_t                   i;
-    uint32_t                   j;
     oserr_t                    status;
 
     TRACE("FdtComposeDmaRanges(child=%p, parent=%p)", child, parent);
@@ -354,7 +348,7 @@ FdtComposeDmaRanges(
         return status;
     }
     
-    for (i = 0; i < parent->Count; i++) {
+    for (uint32_t i = 0; i < parent->Count; i++) {
         source = &parent->Ranges[i];
         parentEnd = source->DeviceBase + (source->Length - 1);
         
@@ -375,9 +369,11 @@ FdtComposeDmaRanges(
             continue;
         }
         
-        for (j = 0; j < child->Count; j++) {
+        for (uint32_t j = 0; j < child->Count; j++) {
             window = &child->Windows[j];
             
+            // Both ranges use the parent bus address space here. Only their
+            // intersection can be translated from child addresses to memory.
             start = source->DeviceBase > window->ParentBase ? source->DeviceBase : window->ParentBase;
             end = window->ParentBase + (window->Length - 1);
             if (parentEnd < end) {
@@ -417,20 +413,19 @@ FdtComposeDmaRanges(
 oserr_t
 FdtPciDmaMap(
     _In_  const struct FdtPciHost* host,
-    _Out_ struct FdtDmaMap*        parent)
+    _Out_ struct DmDmaMap*         parent)
 {
     const struct FdtPciWindow* window;
-    struct FdtDmaMap           all = { 0 };
-    struct FdtDmaMap           ram = { 0 };
+    struct DmDmaMap            all = { 0 };
+    struct DmDmaMap            ram = { 0 };
     struct FdtDmaRanges        identity = {
         .State = FdtDmaPropertyIdentity,
         .ChildLimit = UINT64_MAX
     };
     oserr_t  status;
-    uint32_t i;
 
     TRACE("FdtPciDmaMap(host=%p)", host);
-    // This is also used before hardware setup; reject an incomplete request.
+    // The DMA map can be requested before hardware setup.
     if (host == NULL || parent == NULL) {
         ERROR("FdtPciDmaMap: missing host or output");
         return OS_EINVALPARAMS;
@@ -442,7 +437,7 @@ FdtPciDmaMap(
         return OS_ENOTSUPPORTED;
     }
     
-    for (i = 0; i < host->DmaWindowCount; i++) {
+    for (uint32_t i = 0; i < host->DmaWindowCount; i++) {
         window = &host->DmaWindows[i];
         if (window->Space != FdtPciSpaceMemory32 && window->Space != FdtPciSpaceMemory64) {
             WARNING("FdtPciDmaMap: domain %u window %u is not memory", host->Segment, i);
@@ -456,7 +451,7 @@ FdtPciDmaMap(
             return OS_ENOTSUPPORTED;
         }
         
-        all.Ranges[all.Count++] = (struct FdtDmaRange) {
+        all.Ranges[all.Count++] = (struct DmDmaRange) {
             .DeviceBase = window->BusBase,
             .PhysicalBase = window->PhysicalBase,
             .Length = window->Length
@@ -471,12 +466,12 @@ FdtPciDmaMap(
         return status;
     }
     
-    for (i = 0; i < host->DmaWindowCount; i++) {
+    for (uint32_t i = 0; i < host->DmaWindowCount; i++) {
         window = &host->DmaWindows[i];
         if (window->Kind != FdtDmaWindowRam) {
             continue;
         }
-        ram.Ranges[ram.Count++] = (struct FdtDmaRange) {
+        ram.Ranges[ram.Count++] = (struct DmDmaRange) {
             .DeviceBase = window->BusBase,
             .PhysicalBase = window->PhysicalBase,
             .Length = window->Length

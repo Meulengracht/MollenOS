@@ -18,6 +18,7 @@
 
 //#define __TRACE
 
+#include <ddk/types/interrupt-group.h>
 #include <bus/rp1/dma.h>
 #include <bus/pci/device.h>
 #include <bus/pci/host-private.h>
@@ -31,14 +32,14 @@ static oserr_t
 __Rp1ValidateChildren(
     _In_ struct Rp1Bus* bus)
 {
-    uint8_t claimed[FDT_RP1_INTERRUPT_COUNT] = { 0 };
+    const struct FdtRp1Interrupt* interrupt;
+    struct PciDmaDescription      dma;
+    struct Rp1Child*              child;
+    oserr_t                       status;
+    uint8_t                       used[FDT_RP1_INTERRUPT_COUNT] = { 0 };
 
     TRACE("__Rp1ValidateChildren(bus=%p, children=%u)", bus, bus->ChildCount);
-    for (struct Rp1Child* child = bus->Children; child != NULL; child = child->Next) {
-        const struct FdtRp1Interrupt* interrupt;
-        struct PciDmaDescription      dma;
-        oserr_t                       status;
-        
+    for (child = bus->Children; child != NULL; child = child->Next) {
         status = Rp1GetDmaDescription(bus->Parent, child->Firmware.NodeOffset, &dma);
         if (status != OS_EOK) {
             ERROR("__Rp1ValidateChildren: Rp1GetDmaDescription node %u failed: %u",
@@ -61,6 +62,7 @@ __Rp1ValidateChildren(
         
         for (unsigned int i = 0; i < child->Firmware.InterruptCount; i++) {
             interrupt = &child->Firmware.Interrupts[i];
+            
             // Check that this interrupt belongs to the RP1 controller and fits
             // its interrupt table before allocating runtime state.
             if (interrupt->Controller != child->Firmware.Controller ||
@@ -77,7 +79,7 @@ __Rp1ValidateChildren(
                 return OS_ENOTSUPPORTED;
             }
             
-            if (claimed[interrupt->Number]) {
+            if (used[interrupt->Number]) {
                 // Each RP1 interrupt can belong to only one child. Reject
                 // duplicates so two children cannot configure or release it.
                 WARNING("__Rp1ValidateChildren: node %u duplicates source %u",
@@ -85,7 +87,7 @@ __Rp1ValidateChildren(
                 return OS_ENOTSUPPORTED;
             }
             
-            claimed[interrupt->Number] = 1;
+            used[interrupt->Number] = 1;
         }
     }
     return OS_EOK;
@@ -95,15 +97,17 @@ oserr_t
 Rp1RuntimePrepareRemoval(
     _InOut_ struct Rp1Bus* bus)
 {
+    unsigned int i;
+
     TRACE("Rp1RuntimePrepareRemoval(bus=%p)", bus);
     if (bus->Runtime == NULL) {
         return OS_EOK;
     }
-    // Block new interrupt reservations before checking whether a child still
-    // owns one.
-    for (unsigned int i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
+    // Every child must release its interrupts before removal can block new
+    // reservations.
+    for (i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
         if (bus->Runtime->Sources[i].Owner != NULL) {
-            TRACE("Rp1RuntimePrepareRemoval: source %u retained by device %u, allocation %u, principal %u",
+            TRACE("Rp1RuntimePrepareRemoval: source %u kept by device %u, allocation %u, principal %u",
                   i, bus->Runtime->Sources[i].Owner->DeviceId,
                   bus->Runtime->Sources[i].Allocation, bus->Runtime->Sources[i].Principal);
             return OS_EBUSY;
@@ -125,8 +129,8 @@ Rp1RuntimeStop(
         return OS_EOK;
     }
 
-    // Stop new reservations first. If a child still owns a source, keep the
-    // runtime active so the child can release it.
+    // If a child still owns a source, keep the runtime active so the child can
+    // release it. Otherwise, block new reservations before stopping delivery.
     status = Rp1RuntimePrepareRemoval(bus);
     if (status != OS_EOK) {
         TRACE("Rp1RuntimeStop: Rp1RuntimePrepareRemoval bus %p failed: %u", bus, status);
@@ -179,16 +183,19 @@ oserr_t
 Rp1RuntimeStart(
     _InOut_ struct Rp1Bus* bus)
 {
-    InterruptGroupResult_t    result;
-    struct Rp1InterruptParent parent;
-    struct Rp1Runtime*        runtime;
-    oserr_t                   status;
-    oserr_t                   cleanup;
+    const struct FdtRp1Interrupt*interrupt;
+    InterruptGroupResult_t       result;
+    struct Rp1InterruptParent    parent;
+    struct Rp1Runtime*           runtime;
+    struct Rp1Child*             child;
+    oserr_t                      status;
+    oserr_t                      cleanup;
+    unsigned int                 i;
 
     InterruptGroupRequest_t request = {
         .Minimum = 1,
         .Optimal = 1,
-        .Strategies = INTERRUPT_STRATEGY_MSIX
+        .Kind = InterruptSourceMessage
     };
     
     TRACE("Rp1RuntimeStart(bus=%p, ready=%d)", bus, bus->Ready);
@@ -263,13 +270,17 @@ Rp1RuntimeStart(
         goto error;
     }
 
-    for (struct Rp1Child* child = bus->Children; child != NULL; child = child->Next) {
-        for (unsigned int i = 0; i < child->Firmware.InterruptCount; i++) {
-            const struct FdtRp1Interrupt* interrupt = &child->Firmware.Interrupts[i];
+    for (child = bus->Children; child != NULL; child = child->Next) {
+        for (i = 0; i < child->Firmware.InterruptCount; i++) {
+            interrupt = &child->Firmware.Interrupts[i];
             
             // Set up all child interrupts before marking the runtime ready, so
             // drivers cannot use it while setup is still in progress.
-            status = Rp1InterruptConfigure(&runtime->Controller, interrupt->Number, interrupt->Type);
+            status = Rp1InterruptConfigure(
+                &runtime->Controller,
+                interrupt->Number,
+                interrupt->Type
+            );
             if (status != OS_EOK) {
                 ERROR("Rp1RuntimeStart: Rp1InterruptConfigure node %u, source %u, type %u failed: %u",
                       child->Firmware.NodeOffset, interrupt->Number, interrupt->Type, status);
@@ -297,7 +308,7 @@ Rp1RuntimeStart(
 error:
     cleanup = Rp1RuntimeStop(bus);
     if (cleanup != OS_EOK) {
-        ERROR("Rp1RuntimeStart: Rp1RuntimeStop bus %p failed during rollback: %u (setup status %u); runtime retained",
+        ERROR("Rp1RuntimeStart: Rp1RuntimeStop bus %p failed during rollback: %u (setup status %u); runtime kept",
               bus, cleanup, status);
     }
     return status;

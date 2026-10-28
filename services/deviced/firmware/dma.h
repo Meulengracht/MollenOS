@@ -19,13 +19,10 @@
 #ifndef __FIRMWARE_DMA_H__
 #define __FIRMWARE_DMA_H__
 
-#include <os/osdefs.h>
+#include <dma-types.h>
 
 // Maximum number of address windows accepted from one bus.
 #define FDT_DMA_MAX_WINDOWS 16
-
-// Maximum number of resulting device-to-physical-memory ranges.
-#define FDT_DMA_MAX_RANGES 64
 
 struct FdtPciHost;
 struct FdtResources;
@@ -38,7 +35,7 @@ enum FdtDmaAddressFormat {
     FdtDmaAddressPci
 };
 
-// Tells whether a bus has no DMA mapping, a direct mapping, or listed windows.
+// Distinguishes a missing dma-ranges property from an empty one or listed windows.
 enum FdtDmaPropertyState {
     // No dma-ranges property was supplied.
     FdtDmaPropertyAbsent,
@@ -54,7 +51,7 @@ enum FdtDmaPropertyState {
  * The window maps a continuous block of addresses used by a child device to
  * the same-sized block of addresses on its parent bus. It describes only this
  * one step in the path; the parent address is not necessarily a physical RAM
- * address. A FdtDmaRange is different: it is produced after bus mappings have
+ * address. A DmDmaRange is different: it is produced after bus mappings have
  * been followed far enough to identify the physical memory reachable by a
  * device.
  *
@@ -72,8 +69,8 @@ struct FdtDmaWindow {
 /**
  * @brief Decoded description of one bus's DMA address rules.
  *
- * This structure owns the decoded values; it does not refer back to the
- * firmware property's bytes. State distinguishes a missing property from an
+ * This structure stores the decoded values independently of the firmware
+ * property's bytes. State distinguishes a missing property from an
  * empty property and from a property containing mappings. Count is the number
  * of entries in Windows. ChildLimit is the largest address the child's
  * address format can represent, further limited when the property says
@@ -84,35 +81,6 @@ struct FdtDmaRanges {
     uint64_t                 ChildLimit;
     uint32_t                 Count;
     struct FdtDmaWindow      Windows[FDT_DMA_MAX_WINDOWS];
-};
-
-/**
- * @brief One continuous device-address block that maps to physical memory.
- *
- * Unlike FdtDmaWindow, this is not just one bus-to-parent mapping. It is a
- * result of following the bus mappings and matching them with the parent map:
- * DeviceBase is an address the device can use, and PhysicalBase is the
- * corresponding address in physical memory. Length gives the number of bytes
- * covered. This describes where DMA could reach; it does not say that memory
- * has been allocated, that the full buffer fits, or that DMA hardware is ready.
- */
-struct FdtDmaRange {
-    uint64_t PhysicalBase;
-    uint64_t DeviceBase;
-    uint64_t Length;
-};
-
-/**
- * @brief List of device-to-physical-memory ranges available for DMA.
- *
- * The ranges are copied into this structure and sorted by DeviceBase. Their
- * device-address blocks do not overlap. Two different device-address blocks
- * can still refer to some or all of the same physical memory. Adjacent entries
- * are kept separate when the address mapping changes at their boundary.
- */
-struct FdtDmaMap {
-    uint32_t           Count;
-    struct FdtDmaRange Ranges[FDT_DMA_MAX_RANGES];
 };
 
 /**
@@ -148,7 +116,7 @@ FdtDecodeDmaRanges(
  * on its parent. The parent map says which of the parent's addresses reach
  * physical memory. This function combines those steps and returns only the
  * portions that reach physical memory. The result is a list of
- * FdtDmaRange entries, not a list of the original bus windows. A missing
+ * DmDmaRange entries, not a list of the original bus windows. A missing
  * dma-ranges property is not treated as a direct mapping; an empty property is.
  *
  * @param child Decoded address rules for the child bus.
@@ -168,25 +136,26 @@ FdtDecodeDmaRanges(
 oserr_t
 FdtComposeDmaRanges(
     _In_  const struct FdtDmaRanges* child,
-    _In_  const struct FdtDmaMap*    parent,
-    _Out_ struct FdtDmaMap*          map);
+    _In_  const struct DmDmaMap*     parent,
+    _Out_ struct DmDmaMap*           map);
 
 /**
  * @brief Copy a PCI host's RAM windows into the common DMA range format.
  *
- * Both firmware inspection and host drivers need the same filtering. Check all
- * windows before removing peer-register and interrupt destinations, because an
- * overlap with RAM would make a device address ambiguous. Preserve the original
- * lengths: hardware rounding must not enlarge the memory we report as usable.
+ * All windows are validated before peer-register and interrupt destinations
+ * are removed, because an overlap with RAM would make a device address
+ * ambiguous. The original lengths are preserved so hardware rounding does
+ * not enlarge the memory reported as usable.
  *
- * @param host Decoded host; this helper does not check hardware setup.
- * @param map Receives sorted RAM ranges only on success; otherwise unchanged.
+ * @param host Host with decoded DMA windows. Hardware setup is not required
+ *             and is not checked by this helper.
+ * @param map Receives sorted RAM ranges on success. Unchanged on failure.
  * @return OS_EOK, OS_ENOENT for no RAM, OS_EINVALPARAMS for invalid ranges or
  *         arguments, or OS_ENOTSUPPORTED for unsupported encodings or capacity.
  */
 oserr_t
 FdtPciDmaMap(
     _In_  const struct FdtPciHost* host,
-    _Out_ struct FdtDmaMap*        map);
+    _Out_ struct DmDmaMap*         map);
 
 #endif

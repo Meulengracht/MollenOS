@@ -22,64 +22,72 @@
 #define __DEVICED_BUS_PCI_FUNCTION_H__
 
 #include <bus/pci/bars.h>
+#include <startup.h>
 
 struct PciDevice;
 struct DmPublicationGroup;
 
 /**
- * @brief Handles a PCI function that has child devices of its own.
- * A match keeps a generic driver from claiming the function, even if Attach fails.
+ * @brief Callbacks and activation policy for a PCI function with child devices.
+ *
+ * A match keeps a generic driver from taking control of the function, even if Attach fails.
  * When BlockActivation is set, requests to change the function's PCI settings are
- * rejected. Attach must leave its output NULL and free partial state on failure;
- * on success, PCI owns the attachment. Copy resources that must outlive Attach.
- * Attach records child devices; Publish adds them after scanning, without starting
- * their drivers. Destroy runs after the publication group is removed and before
- * host resources are released. A failed Destroy leaves the attachment and its
- * parent alive for retry. Destroy runs under the PCI lock; it must not acquire
- * that lock again or release provider references from inside the callback.
+ * rejected. Attach must leave its output NULL and free partial state on failure.
+ * On success, PCI owns the attachment. Copy resources that must outlive Attach.
+ * A transient Attach failure is retried with the saved probe before publication.
+ * Unsupported descriptions remain blocked from generic binding and are not retried.
+ * Attach records child devices; Publish adds their descriptions after scanning.
+ * PrepareHardware readies shared resources after all descriptions are registered,
+ * before PCI enables any driver binding. Destroy runs after the group is removed
+ * and before host resources are released. A failed Destroy leaves the attachment
+ * and its parent alive for retry. Destroy runs under the PCI lock. It must not take
+ * that lock again or release references to device operation interfaces in the callback.
  */
 struct PciFunctionHandler {
     int BlockActivation;
 
     /**
-     * @brief Determine if a function handler exists for this PCI device.
+     * @brief Check whether this handler supports the PCI function.
      *
      * @param device The PCI device to check for a match.
      * @return Non-zero if the handler matches the device, zero otherwise.
      */
     int (*Match)(
-        const struct PciDevice* device);
+        _In_ const struct PciDevice* device);
 
     /**
      * @brief Attach a function handler to the given PCI device.
      *
-     * @param device The PCI device to attach to. Attachments may keep this owner
-     *               pointer so their later providers can retain the exact device.
-     * @param resources The resources allocated for the function.
-     * @param attachmentOut Output parameter for the attachment.
+     * @param device The PCI device to attach to. Attachments may keep this parent
+     *               pointer so child operation interfaces can later reference it.
+     * @param resources Function resources, valid for the duration of this call.
+     * @param attachmentOut Receives the attachment owned by PCI, or NULL on failure.
      * @return An error code indicating the result of the attachment.
      */
     oserr_t (*Attach)(
-        struct PciDevice*                  device,
-        const struct PciFunctionResources* resources,
-        void**                             attachmentOut);
+        _In_  struct PciDevice*                  device,
+        _In_  const struct PciFunctionResources* resources,
+        _Out_ void**                            attachmentOut);
 
     /**
      * @brief Destroy the attachment associated with the function handler.
      *
      * @param attachment The attachment to destroy.
-     * @return OS_EOK after freeing it. On failure, keep the attachment valid;
+     * @return OS_EOK after freeing it. On failure, keep the attachment valid.
      *         PCI preserves the parent and host so destruction can be retried.
      */
-    oserr_t (*Destroy)(void* attachment);
+    oserr_t (*Destroy)(
+        _In_ void* attachment);
 
     /**
-     * @brief Exclude new child activity before publication removal, under the PCI lock.
-     * @param attachment Owned attachment.
-     * @return OS_EBUSY while clients still need their providers for cleanup.
+     * @brief Block new child activity before removing descriptions, under the PCI lock.
+     *
+     * @param attachment The attachment owned by PCI.
+     * @return OS_EBUSY while clients still need device operation interfaces for cleanup.
      *         On success, block new subscriptions until Destroy or republish.
      */
-    oserr_t (*PrepareRemoval)(void* attachment);
+    oserr_t (*PrepareRemoval)(
+        _In_ void* attachment);
 
     /**
      * @brief Adds child descriptions to the host's group beneath this function.
@@ -91,13 +99,40 @@ struct PciFunctionHandler {
      * @return OS_EOK on success, or the first error adding a child.
      */
     oserr_t (*Publish)(
-        void*                      attachment,
-        const struct PciDevice*    device,
-        struct DmPublicationGroup* group);
+        _In_ void*                      attachment,
+        _In_ const struct PciDevice*     device,
+        _In_ struct DmPublicationGroup*  group);
+
+    /**
+     * @brief Prepare shared hardware after description publication, under the PCI lock.
+     * Called again on publication retries, including after successful binding.
+     * An already prepared attachment must leave active resources unchanged.
+     *
+     * @param attachment The attachment whose children need shared resources.
+     * @return Complete when ready for binding, retry for unfinished setup or cleanup,
+     *         or failed for unsupported hardware. Every failure blocks host binding.
+     */
+    struct DmStartupResult (*PrepareHardware)(
+        _In_ void* attachment);
 };
 
 /**
- * @brief Check if we have a function-handler registered for the pci device.
+ * @brief Store the service's function handlers before scanning any devices.
+ * Called only by the first PciInitialize. The list and handlers have service lifetime.
+ *
+ * @param handlers Ordered handler list, or NULL when count is zero.
+ * @param count Number of handlers in the list.
+ */
+__EXTERN void
+PciFunctionHandlersInitialize(
+    _In_ const struct PciFunctionHandler* const* handlers,
+    _In_ size_t                                count);
+
+/**
+ * @brief Find a function handler that matches the PCI device.
+ *
+ * @param device PCI device to match.
+ * @return Matching handler, or NULL if no handler accepts the device.
  */
 __EXTERN const struct PciFunctionHandler*
 PciFunctionHandlerFind(

@@ -21,13 +21,14 @@
 
 /**
  * Registers for the BCM2711 and BCM2712 PCI Express (PCIe) controllers.
- * A host controller connects the CPU to PCI devices. Its CPU-side connection
- * is called the root port; a connected device is called an endpoint.
+ * A host controller connects the CPU to PCI devices. The root port is the
+ * bridge at the host end of the PCIe link. Devices such as network adapters
+ * and storage controllers are endpoints.
  *
  * Offsets count bytes from the start of the mapped controller registers, except
  * where comments identify separate reset registers or electrical-interface
  * (PHY) register numbers. Masks select bits in their final register positions.
- * Most values are already shifted into position too. SHIFT names a bit count,
+ * Most values are already shifted into position. SHIFT names a bit count,
  * ORDER is an exponent (a size of 2^ORDER bytes), and BIAS is an adjustment
  * used to turn a size into the code expected by hardware.
  *
@@ -75,8 +76,8 @@
 #define BCM_PCIE_SECONDARY_BUS_SHIFT             8
 #define BCM_PCIE_SUBORDINATE_BUS_SHIFT           16
 
-// Link control bits 1:0 enable automatic link power saving. Zero keeps the link
-// active. Control 2 bits 3:0 select the speed to try when connecting a device.
+// Link control bits 1:0 enable automatic link power saving (ASPM). Clear both
+// bits to disable ASPM. Control 2 bits 3:0 select the speed to try on the link.
 #define BCM_PCIE_LINK_CONTROL                    0x00BC
 #define BCM_PCIE_LINK_CONTROL_ASPM_MASK          0x0003U
 #define BCM_PCIE_LINK_CONTROL2                   0x00DC
@@ -291,8 +292,7 @@
 #define BCM2712_READ_ERROR_VALUE                 BCM_PCIE_READ_FAILED
 
 // Timeouts count controller clocks at 750 MHz, not CPU clocks. The general
-// bus timeout is about 250 ms; configuration retries expire slightly earlier,
-// at about 240 ms. Neither kind of wait should stall device discovery forever.
+// bus timeout is about 250 ms. Configuration retries expire at about 240 ms.
 #define BCM2712_UBUS_TIMEOUT                     0x40A8
 #define BCM2712_UBUS_TIMEOUT_250MS               0x0B2D0000U
 #define BCM2712_RETRY_TIMEOUT                    0x405C

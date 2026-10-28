@@ -29,10 +29,10 @@
 #include <string.h>
 
 #define RP1_IRQ_CFG(source) (0x8U + 4U * (source))
-#define RP1_IRQ_SET 0x800U
-#define RP1_IRQ_CLEAR 0xc00U
-#define RP1_IRQ_ENABLE 1U
-#define RP1_IRQ_IACK (1U << 2)
+#define RP1_IRQ_SET          0x800U
+#define RP1_IRQ_CLEAR        0xc00U
+#define RP1_IRQ_ENABLE       1U
+#define RP1_IRQ_IACK        (1U << 2)
 #define RP1_IRQ_IACK_ENABLE (1U << 3)
 
 static oserr_t
@@ -45,8 +45,8 @@ __Rp1InterruptWrite(
     oserr_t status;
 
     // A successful PCI write may still be waiting at a bridge. Read the source's
-    // normal register to make sure the change reached RP1 before the caller
-    // allows interrupt delivery or returns to code that depends on the change.
+    // normal register before returning so callers can depend on the change
+    // having reached RP1 before they allow interrupt delivery.
     status = WriteDeviceIo(controller->Registers, alias + RP1_IRQ_CFG(source), bits, 4);
     if (status != OS_EOK) {
         ERROR("__Rp1InterruptWrite: source %u offset 0x%x bits 0x%x failed (%u)",
@@ -54,7 +54,7 @@ __Rp1InterruptWrite(
         return status;
     }
 
-    // Read the normal register to flush the posted write; its value is unused.
+    // The register value is unused. This read completes the posted write.
     (void)ReadDeviceIo(controller->Registers, RP1_IRQ_CFG(source), 4);
     return OS_EOK;
 }
@@ -69,8 +69,9 @@ Rp1InterruptInitialize(
     oserr_t      status;
 
     TRACE("Rp1InterruptInitialize(controller=%p, registers=%p)", controller, registers);
-    // The controller needs mapped registers, all 61 PCI interrupt entries, and
-    // callbacks that can mask and unmask their PCI table entries.
+    // The controller must be zero-initialized. Registers must be mapped, and
+    // all 61 PCI interrupt entries must be allocated and masked by the caller.
+    // Parent callbacks must be able to mask and unmask those entries.
     if (controller == NULL || registers == NULL || parent == NULL) {
         ERROR("Rp1InterruptInitialize: missing controller, registers or parent");
         return OS_EINVALPARAMS;
@@ -80,6 +81,7 @@ Rp1InterruptInitialize(
         WARNING("Rp1InterruptInitialize: controller already owns registers");
         return OS_EINVALPARAMS;
     }
+
     if (registers->Type != DeviceIoMemoryBased || !registers->Access.Memory.VirtualBase ||
         registers->Access.Memory.Length < RP1_PCIE_APBS_LENGTH) {
         ERROR("Rp1InterruptInitialize: invalid APBS register mapping");
@@ -97,8 +99,8 @@ Rp1InterruptInitialize(
     controller->Registers = registers;
     controller->Parent = *parent;
     
-    // Stop delivery before touching any source so no handler can run while only
-    // part of the controller has been initialized.
+    // Mask every PCI entry before changing RP1 sources so a handler cannot
+    // run while the controller is only partly initialized.
     for (source = 0; source < FDT_RP1_INTERRUPT_COUNT; source++) {
         status = parent->Mask(parent->Context, source);
         if (status != OS_EOK) {
@@ -111,8 +113,12 @@ Rp1InterruptInitialize(
     // delivery stays blocked and we keep the register pointer so Destroy can
     // retry shutdown. The caller must keep those registers mapped.
     for (source = 0; source < FDT_RP1_INTERRUPT_COUNT; source++) {
-        status = __Rp1InterruptWrite(controller, source, RP1_IRQ_CLEAR,
-            RP1_IRQ_ENABLE | RP1_IRQ_IACK_ENABLE);
+        status = __Rp1InterruptWrite(
+            controller,
+            source,
+            RP1_IRQ_CLEAR,
+            RP1_IRQ_ENABLE | RP1_IRQ_IACK_ENABLE
+        );
         if (status != OS_EOK) {
             ERROR("Rp1InterruptInitialize: source %u shutdown failed (%u); registers retained",
                 source, status);
@@ -167,7 +173,7 @@ Rp1InterruptConfigure(
 oserr_t
 Rp1InterruptEnable(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_    unsigned int                   source)
+    _In_    unsigned int                  source)
 {
     oserr_t status;
 
@@ -212,7 +218,7 @@ Rp1InterruptEnable(
 oserr_t
 Rp1InterruptDisable(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_    unsigned int                   source)
+    _In_    unsigned int                  source)
 {
     oserr_t status;
 
@@ -223,12 +229,15 @@ Rp1InterruptDisable(
         ERROR("Rp1InterruptDisable: invalid controller or source %u", source);
         return OS_EINVALPARAMS;
     }
+
     status = controller->Parent.Mask(controller->Parent.Context, source);
     if (status != OS_EOK) {
         ERROR("Rp1InterruptDisable: parent Mask source %u failed: %u", source, status);
         return status;
     }
+
     controller->Enabled[source] = 0;
+    
     status = __Rp1InterruptWrite(controller, source, RP1_IRQ_CLEAR, RP1_IRQ_ENABLE);
     if (status != OS_EOK) {
         ERROR("Rp1InterruptDisable: source %u disable failed (%u); parent remains masked", source, status);
@@ -241,9 +250,8 @@ oserr_t
 Rp1InterruptDestroy(
     _InOut_ struct Rp1InterruptController* controller)
 {
-    unsigned int source;
-    oserr_t      status;
-    oserr_t      result = OS_EOK;
+    oserr_t status;
+    oserr_t result = OS_EOK;
 
     TRACE("Rp1InterruptDestroy(controller=%p)", controller);
     // If any source cannot be shut down, keep its saved state so we can retry.
@@ -258,7 +266,7 @@ Rp1InterruptDestroy(
     
     // Try to disable every source even if one fails, so shutdown can make as
     // much progress as possible before returning an error.
-    for (source = 0; source < FDT_RP1_INTERRUPT_COUNT; source++) {
+    for (unsigned int source = 0; source < FDT_RP1_INTERRUPT_COUNT; source++) {
         status = Rp1InterruptDisable(controller, source);
         if (status != OS_EOK) {
             ERROR("Rp1InterruptDestroy: Rp1InterruptDisable source %u failed: %u", source, status);
@@ -272,7 +280,7 @@ Rp1InterruptDestroy(
         return result;
     }
 
-    memset(controller, 0, sizeof(*controller));
+    memset(controller, 0, sizeof(struct Rp1InterruptController));
     TRACE("Rp1InterruptDestroy: all sources disabled");
     return OS_EOK;
 }

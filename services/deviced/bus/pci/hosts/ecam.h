@@ -28,9 +28,10 @@
 struct FdtPciHost;
 
 /**
- * @brief Base is the physical address of BusStart; each bus uses 1 MiB of
- * configuration space. Firmware is optional. If supplied, its data must stay
- * mapped until host registration takes its own reference.
+ * @brief Identifies an ECAM host, its configuration space, and I/O resource policy.
+ * Base is the physical address of Identification.BusStart. Each bus uses 1 MiB
+ * of configuration space. Firmware is optional. If supplied, the data it
+ * references must stay mapped until host registration takes its own reference.
  */
 struct PciEcamHostConfiguration {
     struct PciHostIdentification Identification;
@@ -40,9 +41,16 @@ struct PciEcamHostConfiguration {
 };
 
 /**
- * @brief Creates a host and acquires its I/O mapping, but does not register it
- * or scan its buses. On failure, leaves hostOut NULL and frees partial resources.
- * The caller owns the new host until registration succeeds.
+ * @brief Creates a host and maps its ECAM configuration space.
+ * Registration and bus scanning are separate steps. The caller owns the new
+ * host until registration succeeds.
+ *
+ * @param configuration Host settings. Identification.HostId must be UUID_INVALID
+ *                      and BusStart must not exceed BusEnd.
+ * @param hostOut Receives the host, or NULL on failure unless cleanup also fails.
+ *                A non-NULL host returned on failure must only be passed to
+ *                PciHostDestroy until cleanup succeeds.
+ * @return OS_EOK on success, or an error from validation, allocation, or I/O setup.
  */
 __EXTERN oserr_t
 PciEcamHostCreate(

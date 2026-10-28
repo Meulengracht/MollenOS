@@ -24,7 +24,8 @@
 #include <bus/pci/device.h>
 #include <bus/pci/function.h>
 #include <bus/pci/publish.h>
-#include <ddk/firmware.h>
+#include <firmware/tree.h>
+#include <core/io.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <threads.h>
@@ -38,7 +39,9 @@ static uuid_t g_nextPciHostId = 1;
 static int g_pciInitialized;
 
 void
-PciInitialize(void)
+PciInitialize(
+    _In_ const struct PciFunctionHandler* const* handlers,
+    _In_ size_t                                handlerCount)
 {
     int status;
 
@@ -52,6 +55,8 @@ PciInitialize(void)
     if (status != thrd_success) {
         ERROR("PciInitialize failed to initialize the device lock: %i", status);
     }
+    
+    PciFunctionHandlersInitialize(handlers, handlerCount);
     g_pciInitialized = 1;
 }
 
@@ -95,28 +100,14 @@ PciFindDevice(
 
     foreach (element, &g_pciDevices) {
         device = element->value;
-        if ((unsigned int)device->Host->Identification.Segment == segment &&
-            device->Bus == bus && device->Slot == slot && device->Function == function) {
+        if ((unsigned int)device->Host->Identification.Segment != segment) {
+            continue;
+        }
+        if (device->Bus == bus && device->Slot == slot && device->Function == function) {
             return device;
         }
     }
     return NULL;
-}
-
-void
-PciFirmwareRelease(
-    _In_ struct PciFirmwareMapping* mapping)
-{
-    oserr_t status;
-
-    if (mapping != NULL && --mapping->References == 0) {
-        TRACE("PciFirmwareRelease releasing the last firmware mapping reference");
-        status = FirmwareTableUnmap(mapping->Blob, mapping->Length);
-        if (status != OS_EOK) {
-            ERROR("PciFirmwareRelease failed to unmap firmware: %u", status);
-        }
-        free(mapping);
-    }
 }
 
 static oserr_t
@@ -128,10 +119,10 @@ __PciDestroyDevice(
     TRACE("__PciDestroyDevice(%u:%u:%u.%u)", device->Host->Identification.Segment,
         device->Bus, device->Slot, device->Function);
 
-    // Remove descendants first; a busy attachment keeps its enclosing objects
-    // alive. Earlier successful removals stay removed when the owner retries.
-    while (device->children.head != NULL) {
-        status = __PciDestroyDevice(device->children.head->value);
+    // Remove child devices first. If an attachment is busy, leave that device
+    // and its parents allocated. A retry resumes after earlier removals.
+    while (device->Children.head != NULL) {
+        status = __PciDestroyDevice(device->Children.head->value);
         if (status != OS_EOK) {
             WARNING("__PciDestroyDevice child teardown incomplete: %u", status);
             return status;
@@ -146,8 +137,8 @@ __PciDestroyDevice(
         }
     }
     
-    list_remove(&device->Parent->children, &device->child_header);
-    list_remove(&g_pciDevices, &device->list_header);
+    list_remove(&device->Parent->Children, &device->ChildHeader);
+    list_remove(&g_pciDevices, &device->ListHeader);
     free(device->Header);
     free(device);
     return OS_EOK;
@@ -161,7 +152,7 @@ __PciHasProviderReferences(
         return 1;
     }
     
-    foreach (element, &device->children) {
+    foreach (element, &device->Children) {
         if (__PciHasProviderReferences(element->value)) {
             return 1;
         }
@@ -181,19 +172,19 @@ PciHostDestroy(
         return OS_EOK;
     }
     
-    // Removing device-manager entries can cancel pending discovery requests.
-    // Do not hold the PCI lookup lock while those callbacks run. Callers must
-    // stop this host's clients before teardown.
-    if (bus->RootDevice != NULL) {
+    // Callers must stop this host's clients before teardown. Removing device
+    // manager entries can cancel pending discovery requests, so the PCI lookup
+    // lock must be released while those callbacks run.
+    if (bus->RootDevice != NULL && !bus->Removing) {
         status = PciUnpublishDevice(bus->RootDevice);
         if (status != OS_EOK) {
             WARNING("PciHostDestroy host %u remains published: %u",
                 bus->Identification.HostId, status);
             return status;
         }
+        bus->Removing = 1;
     }
 
-    // Callers have stopped this host's clients before its tree is removed.
     PciCriticalSectionEnter();
     
     if (bus->RootDevice != NULL) {
@@ -204,32 +195,35 @@ PciHostDestroy(
             return OS_EBUSY;
         }
         
-        while (bus->RootDevice->children.head != NULL) {
-            status = __PciDestroyDevice(bus->RootDevice->children.head->value);
+        while (bus->RootDevice->Children.head != NULL) {
+            status = __PciDestroyDevice(bus->RootDevice->Children.head->value);
             if (status != OS_EOK) {
                 PciCriticalSectionLeave();
                 return status;
             }
         }
-        
-        list_remove(&g_pciRoots, &bus->RootDevice->list_header);
-        free(bus->RootDevice);
-        bus->RootDevice = NULL;
     }
     
     if (bus->Operations != NULL && bus->Operations->Destroy != NULL) {
-        bus->Operations->Destroy(bus);
+        status = bus->Operations->Destroy(bus);
+        if (status != OS_EOK) {
+            PciCriticalSectionLeave();
+            return status;
+        }
     }
-    
-    status = ReleaseDeviceIo(&bus->IoSpace);
+    bus->Operations = NULL;
+
+    status = DmIoRelease(&bus->IoSpace, &bus->IoAcquired);
     if (status != OS_EOK) {
-        ERROR("PciHostDestroy failed to release configuration I/O: %u", status);
+        PciCriticalSectionLeave();
+        return status;
     }
-    status = DestroyDeviceIo(&bus->IoSpace);
-    if (status != OS_EOK) {
-        ERROR("PciHostDestroy failed to destroy configuration I/O: %u", status);
+    // Keep the host's bus range reserved until every owned resource is gone.
+    if (bus->RootDevice != NULL) {
+        list_remove(&g_pciRoots, &bus->RootDevice->ListHeader);
+        free(bus->RootDevice);
     }
-    PciFirmwareRelease(bus->FirmwareMapping);
+    FdtTreeRelease(bus->FirmwareTree);
     free(bus);
 
     PciCriticalSectionLeave();
@@ -300,13 +294,13 @@ PciHostRegister(
     // not reused when a host is removed, including across discovery passes.
     host->Identification.HostId = g_nextPciHostId++;
     
-    list_construct(&root->children);
-    ELEMENT_INIT(&root->list_header, (uintptr_t)identification->HostId, root);
+    list_construct(&root->Children);
+    ELEMENT_INIT(&root->ListHeader, (uintptr_t)identification->HostId, root);
     root->Host = host;
     root->Bus = identification->BusStart;
     root->IsBridge = 1;
     host->RootDevice = root;
-    list_append(&g_pciRoots, &root->list_header);
+    list_append(&g_pciRoots, &root->ListHeader);
     
     PciCriticalSectionLeave();
     return OS_EOK;
@@ -314,24 +308,24 @@ PciHostRegister(
 
 oserr_t
 PciHostAttach(
-    _In_ PciHost_t*                 bus,
-    _In_ struct PciFirmwareMapping* mapping)
+    _In_ PciHost_t*      bus,
+    _In_ struct FdtTree* tree)
 {
     oserr_t status;
 
     TRACE("PciHostAttach(segment=%u, buses=%u-%u)", bus->Identification.Segment,
         bus->Identification.BusStart, bus->Identification.BusEnd);
 
-    if (bus->Identification.HostId != UUID_INVALID || bus->FirmwareMapping != NULL) {
+    if (bus->Identification.HostId != UUID_INVALID || bus->FirmwareTree != NULL) {
         WARNING("PciHostAttach host is already attached");
         return OS_EEXISTS;
     }
 
-    // The constructor borrows the discovery mapping. Establish the host's
-    // reference before registration transfers ownership to the PCI subsystem.
-    bus->FirmwareMapping = mapping;
-    if (mapping != NULL) {
-        mapping->References++;
+    // The constructor uses the common firmware tree without adding a reference.
+    // Add the host's reference before registration transfers ownership to PCI.
+    bus->FirmwareTree = tree;
+    if (tree != NULL) {
+        FdtTreeAddReference(tree);
     }
     
     status = PciHostRegister(bus);
@@ -339,8 +333,8 @@ PciHostAttach(
         ERROR("PCI host registration failed for segment %u buses %u-%u: %u",
             bus->Identification.Segment, bus->Identification.BusStart,
             bus->Identification.BusEnd, status);
-        bus->FirmwareMapping = NULL;
-        PciFirmwareRelease(mapping);
+        bus->FirmwareTree = NULL;
+        FdtTreeRelease(tree);
     }
     return status;
 }

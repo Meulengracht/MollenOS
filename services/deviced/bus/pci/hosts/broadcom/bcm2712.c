@@ -24,32 +24,39 @@
 #include <bus/pci/hosts/broadcom/registers.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
+#include <core/io.h>
 
 /**
  * @brief Keep one register mapping for all hosts using the same reset hardware.
  *
  * The kernel rejects a second registration of an overlapping physical range,
- * even from this service. References counts hosts, not reset signals: each host
- * keeps its own signal number and writes only that signal's bit. The list and
- * reference counts are protected by g_bcm2712ResetLock.
+ * even from this service. References counts hosts using this mapping. Each
+ * host keeps its own signal number and writes only that signal's bit.
+ * Acquired records whether register access is available. Removing blocks new
+ * users while cleanup is unfinished. g_bcm2712ResetLock protects the list and
+ * reference counts.
  */
 struct __Bcm2712ResetProvider {
     element_t    Header;
     DeviceIo_t   Io;
     unsigned int References;
+    int          Acquired;
+    int          Removing;
 };
 
 static list_t g_bcm2712ResetProviders = LIST_INIT;
 static mtx_t  g_bcm2712ResetLock = MUTEX_INIT(mtx_plain);
 
 /**
- * @brief Retain an existing reset mapping instead of registering it twice.
+ * @brief Reuse an existing reset mapping instead of registering it twice.
  *
  * Physical address and length identify the actual registers, even if separate
  * firmware descriptions use different names. Hold a separate lock through
  * registration so simultaneous callers cannot both create the same mapping.
  * The PCI list lock cannot be used here because host teardown already holds it.
- * A failed first mapping leaves no record or reference for Stop to release.
+ * If mapping fails after registration, result receives the registered object
+ * so Stop can finish cleanup.
+ * A mapping with unfinished cleanup cannot be shared with another host.
  */
 static oserr_t
 __Bcm2712AcquireResetProvider(
@@ -69,10 +76,17 @@ __Bcm2712AcquireResetProvider(
     }
     foreach (element, &g_bcm2712ResetProviders) {
         provider = element->value;
+        
         if (provider->Io.Access.Memory.PhysicalBase != dependencies->BridgeResetBase ||
             provider->Io.Access.Memory.Length != dependencies->BridgeResetLength) {
             continue;
         }
+        
+        if (provider->Removing) {
+            mtx_unlock(&g_bcm2712ResetLock);
+            return OS_EBUSY;
+        }
+
         if (provider->References == UINT_MAX) {
             ERROR("__Bcm2712AcquireResetProvider reference count exhausted");
             lockStatus = mtx_unlock(&g_bcm2712ResetLock);
@@ -105,10 +119,11 @@ __Bcm2712AcquireResetProvider(
 
     status = BcmPciMapRegisters(
         &provider->Io,
+        &provider->Acquired,
         dependencies->BridgeResetBase,
         dependencies->BridgeResetLength
     );
-    if (status != OS_EOK) {
+    if (status != OS_EOK && provider->Io.Type == DeviceIoInvalid) {
         ERROR("__Bcm2712AcquireResetProvider BcmPciMapRegisters failed: %u", status);
         free(provider);
         lockStatus = mtx_unlock(&g_bcm2712ResetLock);
@@ -119,6 +134,7 @@ __Bcm2712AcquireResetProvider(
     }
 
     provider->References = 1;
+    provider->Removing = status != OS_EOK;
     ELEMENT_INIT(&provider->Header, 0, provider);
     list_append(&g_bcm2712ResetProviders, &provider->Header);
 
@@ -128,23 +144,23 @@ __Bcm2712AcquireResetProvider(
     if (lockStatus != thrd_success) {
         ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
     }
-    return OS_EOK;
+    return status;
 }
 
 /**
  * @brief Drop one host's reference without removing another host's registers.
  *
- * Stop calls this only after finishing its reset writes. Keep the mapping
- * acquired until the last host stops, including when a sibling fails setup.
+ * Call after this host finishes its reset writes. Keep the mapping available
+ * until the last host stops, including when another host fails setup.
  * Removing and destroying it under the same lock also prevents a new host
  * from trying to register the range before the old registration is gone.
  */
-static void
+static oserr_t
 __Bcm2712ReleaseResetProvider(
     _In_ struct __Bcm2712ResetProvider* provider)
 {
     int     lockStatus;
-    oserr_t status;
+    oserr_t status = OS_EOK;
 
     TRACE("__Bcm2712ReleaseResetProvider(provider=%p)", provider);
 
@@ -152,22 +168,23 @@ __Bcm2712ReleaseResetProvider(
     if (lockStatus != thrd_success) {
         ERROR("__Bcm2712ReleaseResetProvider failed to lock providers: %i", lockStatus);
     }
-    if (--provider->References == 0) {
-        list_remove(&g_bcm2712ResetProviders, &provider->Header);
-        status = ReleaseDeviceIo(&provider->Io);
-        if (status != OS_EOK) {
-            ERROR("__Bcm2712ReleaseResetProvider failed to release mapping: %u", status);
+
+    if (provider->References == 1) {
+        provider->Removing = 1;
+        status = DmIoRelease(&provider->Io, &provider->Acquired);
+        if (status == OS_EOK) {
+            list_remove(&g_bcm2712ResetProviders, &provider->Header);
+            free(provider);
         }
-        status = DestroyDeviceIo(&provider->Io);
-        if (status != OS_EOK) {
-            ERROR("__Bcm2712ReleaseResetProvider failed to destroy mapping: %u", status);
-        }
-        free(provider);
+    } else {
+        provider->References--;
     }
+
     lockStatus = mtx_unlock(&g_bcm2712ResetLock);
     if (lockStatus != thrd_success) {
         ERROR("__Bcm2712ReleaseResetProvider failed to unlock providers: %i", lockStatus);
     }
+    return status;
 }
 
 /**
@@ -178,7 +195,7 @@ __Bcm2712ReleaseResetProvider(
  * These numbers select PHY registers, rather than byte offsets in CPU memory.
  */
 struct __Bcm2712PhySetting {
-    uint8_t Register;
+    uint8_t  Register;
     uint16_t Value;
 };
 
@@ -231,6 +248,7 @@ __Bcm2712Validate(
         WARNING("__Bcm2712Validate bridge reset range is not CPU-addressable");
         return OS_ENOTSUPPORTED;
     }
+
     if (dependencies.ResetBase > UINTPTR_MAX ||
         dependencies.ResetLength - 1 > UINTPTR_MAX - dependencies.ResetBase) {
         WARNING("__Bcm2712Validate calibration range is not CPU-addressable");
@@ -251,6 +269,7 @@ __Bcm2712Validate(
         WARNING("__Bcm2712Validate link speed exceeds Gen3");
         return OS_ENOTSUPPORTED;
     }
+    
     if (firmware->Link.Lanes != 0) {
         if (firmware->Link.Lanes != BCM_PCIE_LINK_LANES_X1 &&
             firmware->Link.Lanes != BCM_PCIE_LINK_LANES_X2 &&
@@ -322,7 +341,7 @@ __Bcm2712Validate(
 static oserr_t
 __Bcm2712BridgeReset(
     _In_ struct BcmPciHost* controller,
-    _In_ int assert)
+    _In_ int                assert)
 {
     size_t       bank = (controller->BridgeResetId / BCM2712_RESET_LINES_PER_BANK) *
             BCM2712_RESET_BANK_STRIDE;
@@ -354,8 +373,8 @@ __Bcm2712BridgeReset(
         value = (uint32_t)ReadDeviceIo(&controller->BridgeReset->Io,
                 bank + BCM2712_RESET_STATUS, sizeof(uint32_t));
 
-        // A failed read returns all bits set; that does not prove reset is active.
-        // Compare just our bit; other hosts are allowed to remain in reset.
+        // An all-ones read can mean the access failed. Require a valid read
+        // and compare only this host's bit, since other hosts may be in reset.
         if (value != BCM_PCIE_READ_FAILED && !!(value & bit) == !!assert) {
             BcmPciDelay(BCM_PCIE_RESET_SETTLE_MS);
             return OS_EOK;
@@ -372,7 +391,8 @@ __Bcm2712BridgeReset(
  *
  * The PHY uses a separate setup interface named MDIO. Select its register,
  * start the write, and wait for hardware to clear the busy bit. Each setting
- * must complete before another starts; an unresponsive PHY must not hang boot.
+ * must complete before another starts. Limit the wait so an unresponsive PHY
+ * cannot hang boot.
  */
 static oserr_t
 __Bcm2712MdioWrite(
@@ -403,7 +423,7 @@ __Bcm2712MdioWrite(
     // starts the transfer. The returned selection is not completion status.
     (void)ReadDeviceIo(&bus->IoSpace, BCM2712_MDIO_ADDRESS, sizeof(uint32_t));
 
-    // Bit 31 starts the transfer; the lower value is the complete PHY setting.
+    // Bit 31 starts the transfer. The lower value is the complete PHY setting.
     status = WriteDeviceIo(
         &bus->IoSpace,
         BCM2712_MDIO_WRITE,
@@ -591,12 +611,13 @@ __Bcm2712Setup(
 }
 
 /**
- * @brief Map Pi 5 reset controls and establish a known controller state.
+ * @brief Map Pi 5 reset controls and prepare the controller for address setup.
  *
+ * Call after Validate succeeds and the main controller registers are mapped.
  * Let the host run for calibration, then briefly reset it. Keep the connected
- * device in reset while later setup stages install address mappings. Record
- * the retained reset-provider reference immediately so Stop can drop it if
- * a later setup step fails, without unmapping another host's reset registers.
+ * device in reset while later setup stages install address mappings. Save the
+ * shared reset mapping immediately so Stop can release this host's reference
+ * if setup fails, while other hosts can continue using those registers.
  */
 static oserr_t
 __Bcm2712Prepare(
@@ -635,7 +656,7 @@ __Bcm2712Prepare(
 
     // Pi 5 hosts share calibration. Reuse an already-completed result so
     // initializing this host does not disturb another host that is already in use.
-    status = BcmPciRescal(&dependencies, 1);
+    status = BcmPciRescal(controller, &dependencies, 1);
     if (status != OS_EOK) {
         ERROR("__Bcm2712Prepare calibration failed: %u", status);
         return OS_EUNKNOWN;
@@ -732,15 +753,16 @@ __Bcm2712Prepare(
 /**
  * @brief Find the lower 32-bit register for a device-to-system mapping slot.
  *
- * Slots are numbered from zero. The first three and the remaining seven use
- * separate register blocks. Select either the PCI address registers or the CPU
- * physical destination registers. Treating all ten as one continuous block
- * would write into unrelated registers, including interrupt settings.
+ * The index must be below BCM2712_INBOUND_COUNT. Slots are numbered from zero.
+ * The first three and the remaining seven use separate register blocks.
+ * Select the PCI address registers or the CPU physical destination registers
+ * according to remap. Treating all ten as one continuous block would write
+ * into unrelated registers, including interrupt settings.
  */
 static size_t
 __Bcm2712InboundRegister(
-        _In_ unsigned int index,
-        _In_ int remap)
+    _In_ unsigned int index,
+    _In_ int          remap)
 {
     if (index < BCM2712_INBOUND_FIRST_BLOCK_COUNT) {
         return (remap ? BCM2712_INBOUND_REMAP1 : BCM_PCIE_INBOUND_BAR1) +
@@ -753,10 +775,11 @@ __Bcm2712InboundRegister(
 /**
  * @brief Install exactly the device-to-system mappings declared by firmware.
  *
- * Pi 5 describes RAM, other devices' registers, and the address used to send
- * interrupts to the Broadcom MIP controller separately. Each gets a PCI address,
- * CPU physical address, and size. BcmPciDmaAddress only accepts buffers in
- * ranges that the firmware reader identified as RAM.
+ * Call after Validate accepts all ranges and Prepare holds the device in
+ * reset. Pi 5 describes RAM, other devices' registers, and the interrupt
+ * destination in the Broadcom MIP controller separately. Each range has a PCI
+ * address, CPU physical address, and size. BcmPciDmaAddress only accepts buffers
+ * in ranges that the firmware reader identified as RAM.
  */
 static oserr_t
 __Bcm2712Inbound(
@@ -775,7 +798,7 @@ __Bcm2712Inbound(
     TRACE("__Bcm2712Inbound(segment=%u, windows=%u)",
         firmware->Segment, firmware->DmaWindowCount);
 
-    // Pi 4 uses this shared size parameter; Pi 5 sets a size for each mapping.
+    // Pi 4 uses this shared size parameter. Pi 5 sets a size for each mapping.
     (void)dmaOrder;
     for (index = 0; index < BCM2712_INBOUND_COUNT; index++) {
         bar = __Bcm2712InboundRegister(index, 0);
@@ -830,9 +853,9 @@ __Bcm2712Inbound(
         bar = __Bcm2712InboundRegister(index, 0);
         remap = __Bcm2712InboundRegister(index, 1);
 
-        // Earlier checks confirmed a power-of-two length. Here, order means
-        // the exponent: 4 KiB = 2^12 gives 12. Sizes 4..32 KiB use codes
-        // 0x1c..0x1f; sizes from 64 KiB use the exponent minus 15.
+        // Validate checked that the length is a power of two. The order is
+        // its exponent: 4 KiB = 2^12 gives 12. Sizes 4..32 KiB use codes
+        // 0x1c..0x1f. Sizes from 64 KiB use the exponent minus 15.
         order = BCM_PCIE_INBOUND_MIN_ORDER;
         while ((1ULL << order) < window->Length) {
             order++;
@@ -857,8 +880,8 @@ __Bcm2712Inbound(
             return status;
         }
 
-        // The physical destination has its own upper half; it need not match
-        // the address the device uses for the same mapping.
+        // The CPU physical address has its own upper half. It may differ
+        // from the PCI address the device uses for the same mapping.
         status = WriteDeviceIo(
             &bus->IoSpace,
             remap + BCM_PCIE_REGISTER_HIGH_OFFSET,
@@ -906,9 +929,10 @@ __Bcm2712Inbound(
 /**
  * @brief Set Pi 5 connection settings and let the device start after address setup.
  *
- * Honor firmware speed and lane limits. Keep clocks running and link sleep
- * disabled until drivers can coordinate power management. This function waits
- * for reset recovery; the shared initializer then checks whether the connection is ready.
+ * Call after the address mappings are installed. Honor firmware speed and lane
+ * limits. Keep clocks running and link sleep disabled until drivers can
+ * coordinate power management. Wait for reset recovery before the shared
+ * initializer checks whether the connection is ready.
  */
 static oserr_t
 __Bcm2712Start(
@@ -1085,7 +1109,7 @@ __Bcm2712Start(
         return status;
     }
 
-    // Set the release bit to let the connected device start; Pi 4 clears a bit instead.
+    // Set the release bit to let the connected device start. Pi 4 clears a bit instead.
     status = BcmPciUpdate(
         bus,
         BCM2712_PCIE_CONTROL,
@@ -1107,43 +1131,50 @@ __Bcm2712Start(
 }
 
 /**
- * @brief Stop this Pi 5 connection and drop its reset-provider reference.
+ * @brief Stop this Pi 5 connection and release its shared reset mapping.
  *
  * Prepare may have failed before acquiring the mapping. If it was acquired,
  * hold the connected device in reset but let the host controller run. Keeping
  * a Pi 5 host in reset can disturb calibration used by another active host.
  */
-static void
+static oserr_t
 __Bcm2712Stop(
     _In_ PciHost_t* bus)
 {
     struct BcmPciHost* controller = bus->OpContext;
     oserr_t            status;
+    oserr_t            resetStatus;
 
     TRACE("__Bcm2712Stop(segment=%u)", bus->Identification.Segment);
 
-    if (!controller->BridgeResetMapped) {
-        return;
+    if (controller->BridgeReset == NULL) {
+        return OS_EOK;
     }
 
-    // Clear the release bit to keep the device from using incomplete address
-    // mappings. Attempt shutdown even though this callback cannot report errors.
-    status = BcmPciUpdate(bus, BCM2712_PCIE_CONTROL,
-            BCM2712_PERST_RELEASE, BCM_PCIE_DISABLED);
-    if (status != OS_EOK) {
-        ERROR("__Bcm2712Stop failed to hold the device in reset: %u", status);
+    if (controller->BridgeResetMapped) {
+        // Hold the device in reset before releasing the host reset signal.
+        // Attempt both writes. On failure, keep the mapping for another attempt.
+        status = BcmPciUpdate(
+            bus,
+            BCM2712_PCIE_CONTROL,
+            BCM2712_PERST_RELEASE,
+            BCM_PCIE_DISABLED
+        );
+        resetStatus = __Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
+        if (status != OS_EOK) {
+            return status;
+        }
+        if (resetStatus != OS_EOK) {
+            return resetStatus;
+        }
+        controller->BridgeResetMapped = 0;
     }
 
-    // Let the host controller run even if Prepare failed while it was in reset.
-    // Keeping it in reset could disturb calibration shared with another host.
-    status = __Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
-    if (status != OS_EOK) {
-        ERROR("__Bcm2712Stop failed to release bridge reset: %u", status);
+    status = __Bcm2712ReleaseResetProvider(controller->BridgeReset);
+    if (status == OS_EOK) {
+        controller->BridgeReset = NULL;
     }
-
-    __Bcm2712ReleaseResetProvider(controller->BridgeReset);
-    controller->BridgeReset = NULL;
-    controller->BridgeResetMapped = 0;
+    return status;
 }
 
 // Use the shared code to select devices and access their configuration.

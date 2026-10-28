@@ -29,7 +29,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Track state during enumeration of RP1 children.
 struct __Rp1Enumeration {
     struct Rp1Bus*    Bus;
     struct Rp1Child** Tail;
@@ -69,6 +68,37 @@ __Rp1AddChild(
     enumeration->Bus->ChildCount++;
 }
 
+static oserr_t
+__Rp1CollectRanges(
+    _In_  const struct PciBar* bars,
+    _Out_ struct FdtRp1Range*  ranges,
+    _Out_ uint32_t*            countOut)
+{
+    uint32_t count = 0;
+
+    for (unsigned int bar = 0; bar < 6; bar++) {
+        if (bars[bar].Size && bars[bar].Size - 1 > UINT64_MAX - bars[bar].CpuAddress) {
+            ERROR("__Rp1CollectRanges: BAR%u extent overflows", bar);
+            return OS_EINVALPARAMS;
+        }
+        
+        if (bars[bar].State != PciBarAssigned || !bars[bar].Size) {
+            continue;
+        }
+        
+        if (bars[bar].Space != 2 && bars[bar].Space != 3) {
+            continue;
+        }
+        
+        ranges[count].Base = bars[bar].CpuAddress;
+        ranges[count].Length = bars[bar].Size;
+        count++;
+    }
+
+    *countOut = count;
+    return OS_EOK;
+}
+
 oserr_t
 Rp1BusCreate(
     _In_  const struct FdtPciHost* host,
@@ -76,35 +106,43 @@ Rp1BusCreate(
     _Out_ struct Rp1Bus**          busOut)
 {
     struct __Rp1Enumeration enumeration = { 0 };
+    struct FdtRp1Range      ranges[6];
+    uint32_t                rangeCount;
     struct Rp1Bus*          bus;
     oserr_t                 status;
     oserr_t                 cleanupStatus;
 
     TRACE("Rp1BusCreate(host=%p)", host);
-    // The caller needs a clear failure result even if validation or allocation
-    // below fails before a device list has been created.
     if (host == NULL || bars == NULL || busOut == NULL) {
         ERROR("Rp1BusCreate: missing host, BARs or output");
         return OS_EINVALPARAMS;
     }
     
+    // Once the arguments are valid, leave the output empty until setup succeeds.
     *busOut = NULL;
     
     // RP1's peripheral-control registers (APBS) are inside the PCI memory range
     // described by BAR1. Check that this range is assigned and large enough
     // before reading the descriptions of RP1's internal devices.
     if (bars[1].State != PciBarAssigned ||
-        (bars[1].Space != 2 && bars[1].Space != 3) || bars[1].Size < RP1_PCIE_APBS_OFFSET + RP1_PCIE_APBS_LENGTH) {
+        (bars[1].Space != 2 && bars[1].Space != 3) ||
+        bars[1].Size < RP1_PCIE_APBS_OFFSET + RP1_PCIE_APBS_LENGTH) {
         ERROR("Rp1BusCreate: BAR1 does not contain assigned APBS memory");
         return OS_EINVALPARAMS;
     }
     
+    status = __Rp1CollectRanges(bars, ranges, &rangeCount);
+    if (status != OS_EOK) {
+        return status;
+    }
+
     bus = calloc(1, sizeof(struct Rp1Bus));
     if (bus == NULL) {
         ERROR("Rp1BusCreate: bus allocation failed");
         return OS_EOOM;
     }
     bus->Host = host;
+    usched_mtx_init(&bus->Lock, USCHED_MUTEX_PLAIN);
     atomic_init(&bus->ProviderReferences, 0);
 
     // Keep the complete PCI address list. Each child's register addresses must
@@ -114,7 +152,13 @@ Rp1BusCreate(
     enumeration.Tail = &bus->Children;
     enumeration.Status = OS_EOK;
     
-    status = FdtEnumerateRp1Children(host, bars, __Rp1AddChild, &enumeration);
+    status = FdtEnumerateRp1Children(
+        host,
+        ranges,
+        rangeCount,
+        __Rp1AddChild,
+        &enumeration
+    );
     if (status != OS_EOK) {
         WARNING("Rp1BusCreate: firmware enumeration failed (%u)", status);
         goto error;
@@ -144,19 +188,20 @@ Rp1BusDestroy(
     _In_ struct Rp1Bus* bus)
 {
     struct Rp1Child* child;
-    oserr_t status;
+    oserr_t          status;
 
     TRACE("Rp1BusDestroy(bus=%p)", bus);
-    // A failed creation may call cleanup before a device list was allocated.
     if (bus == NULL) {
         return OS_EOK;
     }
-    // A provider may outlive its registry ID. Keep its context and the borrowed
-    // firmware pointers until that owner has also released its parent reference.
+
+    // Child resource users may outlive their registry IDs. Their contexts and
+    // firmware pointers must remain valid until they release their parent references.
     if (atomic_load(&bus->ProviderReferences) != 0) {
-        WARNING("Rp1BusDestroy: providers still retain bus %p", bus);
+        WARNING("Rp1BusDestroy: child resource references still hold bus %p", bus);
         return OS_EBUSY;
     }
+
     for (child = bus->Children; child != NULL; child = child->Next) {
         // The registration group still needs this stored ID to remove the
         // device-manager entry. Keep the list until every entry has been removed.
@@ -166,13 +211,21 @@ Rp1BusDestroy(
         }
     }
     
+    usched_mtx_lock(&bus->Lock);
     status = Rp1RuntimeStop(bus);
+    usched_mtx_unlock(&bus->Lock);
     if (status != OS_EOK) {
-        ERROR("Rp1BusDestroy: Rp1RuntimeStop bus %p failed: %u; inventory retained", bus, status);
+        ERROR("Rp1BusDestroy: Rp1RuntimeStop bus %p failed: %u; inventory kept", bus, status);
         return status;
     }
     while (bus->Children != NULL) {
         child = bus->Children;
+        
+        status = Rp1ChildResourcesDestroy(child);
+        if (status != OS_EOK) {
+            return status;
+        }
+        
         bus->Children = child->Next;
         free(child);
     }
@@ -184,7 +237,7 @@ static int
 __Rp1Match(
     _In_ const struct PciDevice* device)
 {
-    // Use this handler for the RP1 device itself; skip devices that connect PCI buses.
+    // Only RP1 endpoints use this handler. PCI bridges have separate handling.
     return !device->IsBridge && device->Header->VendorId == RP1_VENDOR_ID &&
         device->Header->DeviceId == RP1_DEVICE_ID;
 }
@@ -193,7 +246,7 @@ static oserr_t
 __Rp1Attach(
     _In_  struct PciDevice*                  device,
     _In_  const struct PciFunctionResources* resources,
-    _Out_ void**                             attachmentOut)
+    _Out_ void**                            attachmentOut)
 {
     const struct PciHostIdentification* identification = PciHostGetIdentification(device->Host);
     struct Rp1Bus*   bus;
@@ -235,8 +288,8 @@ __Rp1Attach(
         return status;
     }
     
-    // Record the association without retaining our owner permanently. Actual
-    // provider users take references; a permanent one would prevent teardown.
+    // Child resource users take parent references while using the bus. Keeping
+    // a permanent reference here would prevent the PCI device from being destroyed.
     bus->Parent = device;
     *attachmentOut = bus;
     
@@ -255,10 +308,10 @@ __Rp1DestroyAttachment(
 {
     oserr_t status;
 
-    // Propagate busy to PCI so it cannot free our parent while we remain in use.
+    // PCI must keep the parent device alive if the RP1 bus cannot be destroyed.
     status = Rp1BusDestroy(attachment);
     if (status != OS_EOK) {
-        WARNING("__Rp1DestroyAttachment: attachment %p retained (%u)", attachment, status);
+        WARNING("__Rp1DestroyAttachment: attachment %p kept (%u)", attachment, status);
         return status;
     }
     return OS_EOK;
@@ -280,11 +333,36 @@ __Rp1PublishAttachment(
     return OS_EOK;
 }
 
+static struct DmStartupResult
+__Rp1PrepareHardware(
+    _In_ void* attachment)
+{
+    struct Rp1Bus*         bus = attachment;
+    struct DmStartupResult result;
+    oserr_t                status;
+
+    usched_mtx_lock(&bus->Lock);
+    status = Rp1RuntimeStart(bus);
+    result = __DmStartupFromStatus(status);
+    if (status != OS_EOK && bus->Runtime != NULL) {
+        // Partial runtime resources must finish cleanup before startup can stop.
+        result = __DmStartupRetryResult(status);
+    }
+    usched_mtx_unlock(&bus->Lock);
+    return result;
+}
+
 static oserr_t
 __Rp1PrepareRemoval(
     _In_ void* attachment)
 {
-    return Rp1RuntimePrepareRemoval(attachment);
+    struct Rp1Bus* bus = attachment;
+    oserr_t        status;
+
+    usched_mtx_lock(&bus->Lock);
+    status = Rp1RuntimePrepareRemoval(bus);
+    usched_mtx_unlock(&bus->Lock);
+    return status;
 }
 
 const struct PciFunctionHandler g_rp1PciHandler = {
@@ -293,5 +371,6 @@ const struct PciFunctionHandler g_rp1PciHandler = {
     .Attach = __Rp1Attach,
     .Destroy = __Rp1DestroyAttachment,
     .Publish = __Rp1PublishAttachment,
+    .PrepareHardware = __Rp1PrepareHardware,
     .PrepareRemoval = __Rp1PrepareRemoval
 };

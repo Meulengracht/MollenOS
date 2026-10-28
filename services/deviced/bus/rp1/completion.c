@@ -64,22 +64,22 @@ Rp1CompletionStart(
     oserr_t                  status;
 
     TRACE("Rp1CompletionStart(runtime=%p, source=%u)", runtime, source);
-    
-    // Create the handle first so Stop can retry cleanup if setting up its
-    // mapping fails.
+
+    // Store the handle before binding so Rp1CompletionsStop can release it
+    // if the resource mapping fails.
     status = DeviceInterruptCompletionCreate(&completion->Handle);
     if (status != OS_EOK) {
         ERROR("Rp1CompletionStart: DeviceInterruptCompletionCreate source %u failed: %u", source, status);
         return status;
     }
-    
+
     completion->Context.Source = source;
     resources.IoResources[0] = &runtime->Pci.Apbs;
     resources.MemoryResources[0].Address = (uintptr_t)&completion->Context;
     resources.MemoryResources[0].Length = sizeof(completion->Context);
 
-    // Keep the source number and its data in place for as long as the callback
-    // is attached. Stop keeps the runtime if it needs to retry releasing it.
+    // Keep the context in place until the completion handle is released.
+    // If release fails, the caller must keep the runtime for a later retry.
     status = DeviceInterruptCompletionBind(completion->Handle, &resources);
     if (status != OS_EOK) {
         ERROR("Rp1CompletionStart: DeviceInterruptCompletionBind source %u, handle %u failed: %u",
@@ -101,6 +101,7 @@ Rp1CompletionsStop(
         if (runtime->Completions[i].Handle == UUID_INVALID) {
             continue;
         }
+
         // A child group may still use this callback. Keep its data and register
         // mapping until the callback has been released.
         status = DeviceInterruptCompletionRelease(runtime->Completions[i].Handle);

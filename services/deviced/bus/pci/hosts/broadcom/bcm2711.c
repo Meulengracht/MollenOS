@@ -33,6 +33,7 @@
  */
 static oserr_t
 __BcmDependencies(
+    _In_ PciHost_t*               bus,
     _In_ const struct FdtPciHost* firmware)
 {
     struct FdtPciDependencies dependencies;
@@ -55,9 +56,9 @@ __BcmDependencies(
     }
 
     // The shared helper starts resistor calibration, waits for completion,
-    // and releases its temporary mapping. Pi 4 does not reuse Pi 5's shared
-    // completion state; each requested calibration is performed here.
-    return BcmPciRescal(&dependencies, 0);
+    // and releases its temporary mapping. Run each requested calibration on
+    // Pi 4 without reusing Pi 5's shared completion state.
+    return BcmPciRescal(bus->OpContext, &dependencies, 0);
 }
 
 /**
@@ -104,7 +105,8 @@ __BcmValidateWindows(
     }
 
     // Honor an explicit memory-controller size. Otherwise choose the smallest
-    // power of two that contains firmware's RAM range, without changing it.
+    // power of two that covers the firmware RAM range. Keep the original range
+    // for DMA buffer validation.
     size = firmware->ScbSize;
     if (size == 0) {
         size = 1;
@@ -112,6 +114,7 @@ __BcmValidateWindows(
             size <<= 1;
         }
     }
+    
     if (size < window->Length || size < BCM2711_INBOUND_MIN_SIZE ||
         size > BCM_PCIE_INBOUND_MAX_SIZE) {
         WARNING("__BcmValidateWindows SCB size cannot cover the DMA window");
@@ -177,7 +180,7 @@ __Bcm2711Prepare(
         return status;
     }
 
-    status = __BcmDependencies(firmware);
+    status = __BcmDependencies(bus, firmware);
     if (status != OS_EOK) {
         ERROR("__Bcm2711Prepare __BcmDependencies failed: %u", status);
         return status;
@@ -198,7 +201,7 @@ __Bcm2711Prepare(
 
     BcmPciDelay(BCM_PCIE_RESET_SETTLE_MS);
 
-    // Let the host controller run again; its address mappings are still to be set up.
+    // Release the host reset before programming its address mappings.
     status = BcmPciUpdate(
         bus,
         BCM2711_SW_INIT,
@@ -263,9 +266,10 @@ __Bcm2711Prepare(
 /**
  * @brief Set the address range devices use to reach RAM, using the host's BAR2.
  *
- * Earlier checks confirmed that RAM starts at CPU physical address zero and
- * the PCI starting address is a multiple of the chosen size. Disable unused
- * mappings so devices cannot use extra address ranges left over from firmware.
+ * Requires a DMA window accepted by __BcmValidateWindows and the size exponent
+ * returned by that check. RAM starts at CPU physical address zero, and the PCI
+ * starting address is a multiple of the chosen size. Disable unused mappings
+ * so devices cannot use extra address ranges left over from firmware.
  */
 static oserr_t
 __Bcm2711Inbound(
@@ -282,8 +286,8 @@ __Bcm2711Inbound(
     window = &firmware->DmaWindows[0];
     sizeCode = dmaOrder - BCM_PCIE_INBOUND_LARGE_SIZE_BIAS;
 
-    // BAR1 is not the RAM window owned by this variant. Clear its size to
-    // remove any extra mapping left by firmware.
+    // This variant uses BAR2 for RAM. Clear BAR1's size to remove any extra
+    // mapping left by firmware.
     status = WriteDeviceIo(
         &bus->IoSpace,
         BCM_PCIE_INBOUND_BAR1,
@@ -296,7 +300,7 @@ __Bcm2711Inbound(
         return status;
     }
 
-    // BAR3 is also unused; leaving it enabled could provide another route to RAM.
+    // Disable BAR3 so it cannot provide another route to RAM.
     status = WriteDeviceIo(
         &bus->IoSpace,
         BCM_PCIE_INBOUND_BAR3,
@@ -367,8 +371,9 @@ __Bcm2711Inbound(
 /**
  * @brief Set Pi 4 connection settings, then allow the connected device to start.
  *
- * Address mappings are already installed. Use PCI Express generation 2 speed
- * (Gen2), limited by firmware, and keep connection power saving disabled.
+ * Requires the host's address mappings to be installed. Use PCI Express
+ * generation 2 speed (Gen2), limited by firmware, and keep connection power
+ * saving disabled.
  * After releasing device reset, wait 100 ms before the shared code starts
  * checking connection status.
  */
@@ -490,11 +495,12 @@ __Bcm2711Start(
 /**
  * @brief Hold both the Pi 4 bridge and its connected device in reset.
  *
- * This also handles a failed Prepare: registers are still mapped, and resetting
- * both sides prevents use of incomplete address mappings. Pi 4 does not need
- * to keep the host running to preserve calibration shared with other ports.
+ * Requires the controller registers to remain mapped, including after a failed
+ * Prepare. Resetting both sides prevents use of incomplete address mappings.
+ * Pi 4 does not need to keep the host running to preserve calibration shared
+ * with other ports.
  */
-static void
+static oserr_t
 __Bcm2711Stop(
     _In_ PciHost_t* bus)
 {
@@ -502,8 +508,7 @@ __Bcm2711Stop(
 
     TRACE("__Bcm2711Stop(segment=%u)", bus->Identification.Segment);
 
-    // Set both reset bits to 1 to hold the host and device in reset; keep other bits.
-    // Shutdown is best effort because this callback has no error return.
+    // Set both reset bits and preserve the unrelated controls.
     status = BcmPciUpdate(
         bus,
         BCM2711_SW_INIT,
@@ -513,6 +518,7 @@ __Bcm2711Stop(
     if (status != OS_EOK) {
         ERROR("__Bcm2711Stop failed to assert bridge and device resets: %u", status);
     }
+    return status;
 }
 
 // These callbacks provide Pi 4's reset, RAM mapping, and connection setup.

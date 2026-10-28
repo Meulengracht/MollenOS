@@ -20,26 +20,30 @@
 
 //#define __TRACE
 
+#include <bus/pci/dma.h>
 #include <ddk/utils.h>
 #include <bus/pci/hosts/ecam.h>
 #include <bus/pci/host-private.h>
 #include <firmware/pci.h>
+#include <core/io.h>
 #include <stdlib.h>
 #include <string.h>
 
 static size_t
 __EcamOffset(
-    _In_ PciHost_t*   Io,
-    _In_ unsigned int Bus,
-    _In_ unsigned int Device,
-    _In_ unsigned int Function,
-    _In_ size_t       Register)
+    _In_ PciHost_t*   host,
+    _In_ unsigned int bus,
+    _In_ unsigned int slot,
+    _In_ unsigned int function,
+    _In_ size_t       reg)
 {
+    // The mapping starts at BusStart. Each bus uses 1 MiB, with 4 KiB per function.
     return (size_t)(
-        ((Bus - Io->Identification.BusStart) << 20) |
-            (Device << 15) |
-            (Function << 12) |
-            Register);
+        ((bus - host->Identification.BusStart) << 20) |
+        (slot << 15) |
+        (function << 12) |
+        reg
+    );
 }
 
 static size_t
@@ -78,16 +82,21 @@ __EcamWrite(
     );
     if (status != OS_EOK) {
         ERROR("__EcamWrite %u:%u:%u.%u register 0x%x failed: %u",
-            host->Identification.Segment, bus, slot, function, (unsigned)reg, status);
+            host->Identification.Segment,
+            bus,
+            slot,
+            function,
+            (unsigned)reg,
+            status);
     }
 }
 
 static oserr_t
 __DtTranslate(
-    _In_ PciHost_t* host,
-    _In_ uint32_t   space,
-    _In_ uint64_t   address,
-    _In_ uint64_t   length,
+    _In_  PciHost_t* host,
+    _In_  uint32_t   space,
+    _In_  uint64_t   address,
+    _In_  uint64_t   length,
     _Out_ uint64_t* physicalOut)
 {
     return FdtTranslatePciAddress(
@@ -101,11 +110,11 @@ __DtTranslate(
 
 static oserr_t
 __DtResolveInterrupt(
-    _In_ PciHost_t*     host,
-    _In_ unsigned int   bus,
-    _In_ unsigned int   slot,
-    _In_ unsigned int   function,
-    _In_ unsigned int   pin,
+    _In_  PciHost_t*    host,
+    _In_  unsigned int  bus,
+    _In_  unsigned int  slot,
+    _In_  unsigned int  function,
+    _In_  unsigned int  pin,
     _Out_ int*          lineOut,
     _Out_ unsigned int* flagsOut)
 {
@@ -121,6 +130,7 @@ __DtResolveInterrupt(
 }
 
 static const struct PciHostOperations g_pciAcpiEcamOperations = {
+    .GetDmaDescription = PciHostGetIdentityDma,
     .Read = __EcamRead,
     .Write = __EcamWrite
 };
@@ -144,8 +154,10 @@ PciEcamHostCreate(
     oserr_t    cleanup;
 
     TRACE("PciEcamHostCreate(segment=%u, buses=%u-%u, base=0x%llx)",
-        configuration->Identification.Segment, configuration->Identification.BusStart,
-        configuration->Identification.BusEnd, (unsigned long long)base);
+        configuration->Identification.Segment,
+        configuration->Identification.BusStart,
+        configuration->Identification.BusEnd,
+        (unsigned long long)base);
 
     *hostOut = NULL;
     if (configuration->Identification.HostId != UUID_INVALID ||
@@ -161,7 +173,7 @@ PciEcamHostCreate(
         return OS_EOVERFLOW;
     }
 
-    host = calloc(1, sizeof(*host) +
+    host = calloc(1, sizeof(PciHost_t) +
         (configuration->Firmware != NULL ? sizeof(struct FdtPciHost) : 0));
     if (host == NULL) {
         ERROR("PciEcamHostCreate failed to allocate host");
@@ -178,20 +190,26 @@ PciEcamHostCreate(
     status = AcquireDeviceIo(&host->IoSpace);
     if (status != OS_EOK) {
         ERROR("PciEcamHostCreate failed to acquire ECAM I/O: %u", status);
-        cleanup = DestroyDeviceIo(&host->IoSpace);
+        cleanup = DmIoRelease(&host->IoSpace, &host->IoAcquired);
         if (cleanup != OS_EOK) {
             ERROR("PciEcamHostCreate failed to destroy ECAM I/O: %u", cleanup);
+            // Return the unfinished host so the caller can retry destruction.
+            *hostOut = host;
+        } else {
+            free(host);
         }
-        free(host);
         return status;
     }
 
+    host->IoAcquired = 1;
     host->Identification = configuration->Identification;
     host->IsExtended = 1;
     host->IoResourcePolicy = configuration->IoResourcePolicy;
     host->Operations = &g_pciAcpiEcamOperations;
 
     if (configuration->Firmware != NULL) {
+        // Store the firmware description after the host in the same allocation.
+        // Its referenced data must stay mapped until host registration succeeds.
         host->OpContext = host + 1;
         memcpy(host->OpContext, configuration->Firmware, sizeof(struct FdtPciHost));
         host->Firmware = host->OpContext;

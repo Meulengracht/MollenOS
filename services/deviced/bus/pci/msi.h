@@ -64,7 +64,7 @@ struct PciMsiState {
     uint32_t AddressLow;
     uint32_t AddressHigh;
     uint32_t Mask;
-    
+
     // Interrupt message used by this reservation.
     DeviceInterruptMessage_t Message;
 };
@@ -89,7 +89,8 @@ PciInterruptProbe(
  * @brief Validate the shared MSI/MSI-X request fields before touching hardware.
  *
  * @param request Request with one message strategy and zeroed unused fields.
- * @return Nonzero when the request matches the wire contract.
+ * @return Nonzero when the operation, allocation, message fields, and reserved
+ *         fields are valid for the selected strategy. Zero otherwise.
  */
 __EXTERN int
 PciInterruptRequestIsValid(
@@ -100,7 +101,13 @@ PciInterruptRequestIsValid(
  *
  * Rejects cycles, misaligned or out-of-range links, duplicate MSI capabilities,
  * and truncated layouts. The function must be an endpoint with MSI and MSI-X
- * disabled. This probe writes no registers. The caller checks platform MSI policy.
+ * disabled. Hold the PCI lock and check platform MSI policy before calling.
+ * This probe writes no registers and leaves the output unchanged on failure.
+ *
+ * @param access Configuration access for one endpoint.
+ * @param capability Receives the MSI capability's byte offset.
+ * @return OS_EOK if a disabled MSI capability exists, OS_ENOTSUPPORTED if MSI
+ *         is unavailable, or an error for malformed configuration or an enabled mode.
  */
 __EXTERN oserr_t
 PciMsiProbe(
@@ -118,6 +125,14 @@ PciMsiProbe(
  * OS_EBUSY means another reservation owns the function, MSI or MSI-X was
  * already enabled, or Enable came before preparation finished. OS_EUNKNOWN
  * means a write did not pass readback. This function does not check device access.
+ *
+ * @param access Configuration access for the endpoint being controlled.
+ * @param state Reservation state, zero-initialized before the first Reserve.
+ *              Preserve this state until Release succeeds.
+ * @param request MSI operation and kernel allocation identifier.
+ * @return OS_EOK on success, OS_EINVALPARAMS for an invalid request, OS_ENOENT
+ *         when Program or Enable has no reservation, or an error from validation
+ *         or register programming as described above.
  */
 __EXTERN oserr_t
 PciMsiControl(

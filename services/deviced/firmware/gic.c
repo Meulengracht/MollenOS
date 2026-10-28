@@ -19,7 +19,7 @@
 //#define __TRACE
 #include <firmware/resources.h>
 #include <firmware/interrupt.h>
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 
 // The first GIC interrupt cell identifies whether the interrupt belongs to a
@@ -33,8 +33,7 @@ enum FdtGicInterruptType {
     FdtGicInterruptTypePpi = 1
 };
 
-// The final GIC interrupt cell describes whether the signal changes at an
-// edge or stays asserted at a level, and whether that signal is high or low.
+// The third GIC interrupt cell specifies the trigger mode and polarity.
 enum FdtGicTrigger {
     // The signal is active high and interrupts when it changes from low to high.
     FdtGicTriggerRisingEdge = 1,
@@ -64,8 +63,8 @@ __IsSupportedCompatible(
     return 0;
 }
 
-// The trigger cell use one of the four supported values this function knows
-// how to represent: rising edge, falling edge, level high, or level low.
+// Require one supported trigger value. Combinations and additional bits
+// cannot be represented by this decoder.
 static int
 __IsSupportedTriggerMode(
     _In_ int trigger)
@@ -92,71 +91,54 @@ FdtGicInterrupt(
     uint32_t trigger;
 
     TRACE("FdtGicInterrupt(provider=%u)", provider->Phandle);
-    // This decoder understands the three-cell format used by GIC interrupt
-    // descriptions: the interrupt kind, its number, and how its signal is
-    // triggered. Other controllers or formats need a different decoder, so
-    // reject them rather than interpreting their cells incorrectly.
+
+    // Require the three-cell GIC format: interrupt type, number, and trigger.
     if (provider->InterruptCells != 3) {
         WARNING("FdtGicInterrupt: provider %u has unsupported cell count %u",
             provider->Phandle, provider->InterruptCells);
         return OS_ENOTSUPPORTED;
     }
 
-    // Device Tree stores each cell as a 32-bit big-endian value. Read the
-    // values separately so the checks below can describe each part of the
-    // interrupt without depending on the machine's byte order.
+    // Device Tree cells are 32-bit big-endian values.
     type = FdtReadBe32(cells);
     number = FdtReadBe32(cells + 4);
     trigger = FdtReadBe32(cells + 8);
 
-    // This implementation is for the supported Arm GIC controller families,
-    // and only accepts a node that firmware identifies as an interrupt
-    // controller. This function translates shared peripheral interrupts
-    // (SPIs), which are not private to one processor. Processor private
-    // interrupts (PPIs) have different routing rules and are not translated
-    // here.
-    //
-    // The number is the SPI number from the Device Tree description, not the
-    // final GIC interrupt ID. The GIC reserves IDs 0 through 31 for other
-    // purposes, so SPI numbers from 0 through 987 become IDs 32 through 1019.
+    // Require a supported GIC node marked as an interrupt controller.
     if (!__IsSupportedCompatible(provider) || !provider->IsInterruptController) {
         WARNING("FdtGicInterrupt: provider %u is not a supported GIC", provider->Phandle);
         return OS_ENOTSUPPORTED;
     }
+
+    // Only shared peripheral interrupts (SPIs) are supported. SPI numbers
+    // 0 through 987 map to GIC interrupt IDs 32 through 1019.
     if (type != FdtGicInterruptTypeSpi || number > 987 || !__IsSupportedTriggerMode(trigger)) {
         WARNING("FdtGicInterrupt: provider %u rejects type %u number %u trigger %u",
             provider->Phandle, type, number, trigger);
         return OS_ENOTSUPPORTED;
     }
 
-    // Keep the firmware controller's phandle so the caller can associate
-    // this interrupt with the GIC that owns it. Convert the SPI number into
-    // the GIC-wide interrupt ID expected by the rest of the system.
+    // Preserve the controller phandle and convert the SPI number to a GIC ID.
+    // IDs 0 through 31 are reserved for software and processor interrupts.
     interrupt->Controller = provider->Phandle;
     interrupt->Line = (int)number + 32;
 
-    // These flags describe a real, fixed hardware interrupt line that may be
-    // shared. The rest of the interrupt code uses this common flag format for
-    // information gathered from different firmware sources.
-    interrupt->Flags = 
-        INTERRUPT_ACPICONFORM_PRESENT | 
+    // Use the common firmware flag format for a fixed, shareable hardware line.
+    interrupt->Flags =
+        INTERRUPT_ACPICONFORM_PRESENT |
         INTERRUPT_ACPICONFORM_FIXED |
         INTERRUPT_ACPICONFORM_SHAREABLE;
 
-    // In this flag format, trigger mode means level-triggered. Device Tree
-    // values 4 and 8 describe level signals; values 1 and 2 describe edge
-    // signals and therefore leave this bit clear.
+    // Set TRIGGERMODE for level signals. Edge signals leave this bit clear.
     if (trigger == FdtGicTriggerLevelHigh || trigger == FdtGicTriggerLevelLow) {
         interrupt->Flags |= INTERRUPT_ACPICONFORM_TRIGGERMODE;
     }
 
-    // Polarity means active-low in the common flag format. A falling edge
-    // (value 2) and a low level (value 8) are active-low; rising edges and
-    // high levels are active-high and leave this bit clear.
+    // Set POLARITY for active-low signals: falling edges and low levels.
     if (trigger == FdtGicTriggerFallingEdge || trigger == FdtGicTriggerLevelLow) {
         interrupt->Flags |= INTERRUPT_ACPICONFORM_POLARITY;
     }
-    
+
     TRACE("FdtGicInterrupt: provider %u line %i flags 0x%x",
         interrupt->Controller, interrupt->Line, interrupt->Flags);
     return OS_EOK;

@@ -21,27 +21,57 @@
 #ifndef __DEVICED_BUS_PCI_PUBLISH_H__
 #define __DEVICED_BUS_PCI_PUBLISH_H__
 
-#include <os/osdefs.h>
+#include <core/publication.h>
+#include <startup.h>
 
 struct PciDevice;
 
 /**
- * @brief Adds the host root and all PCI and attached child descriptions before
- * allowing drivers to match them. Adding an entry may fail; the partial group
- * is then removed. Binding failures retain the complete group for retry.
+ * @brief Tracks publication of one PCI host and its attached child buses.
+ * Start with a zeroed structure. Group tracks registry entries and pending
+ * driver binding. CleanupPending records unfinished removal or rollback,
+ * including attachment removal preparation and published I/O cleanup. It can
+ * remain set while Group is empty or has not begun removal.
+ * PCI publication owns this structure and changes registry state through the
+ * group API.
+ */
+struct PciPublication {
+    struct DmPublicationGroup Group;
+    int                       CleanupPending;
+};
+
+/**
+ * @brief Registers the host root and all PCI and attached child descriptions,
+ * then prepares shared hardware before allowing drivers to bind.
+ *
+ * Complete the host's startup scan successfully before calling. Serialize calls
+ * with other publication and host removal operations. Temporary function
+ * attachment failures are retried before descriptions are added.
+ *
+ * If adding an entry fails, the partial group is removed. Repeated calls finish
+ * pending rollback before adding descriptions again. Hardware preparation
+ * failures keep all descriptions registered and defer binding. A later call
+ * retries preparation and binding without restarting successful bindings.
  *
  * @param pciDevice Host root to publish. Child devices are added by this call.
- * @return OS_EOK on success, or an error adding, binding, or removing entries.
+ * @return Complete on success, retry for unfinished resources or temporary failure,
+ *         or failed when the current description cannot be published or prepared.
  */
-__EXTERN oserr_t
+__EXTERN struct DmStartupResult
 PciPublishDevice(
     _In_ struct PciDevice* pciDevice);
 
 /**
- * @brief Removes the host's device-manager entries, children first. Stop its
- * clients before calling. If removal fails, keep the remaining IDs for a retry.
+ * @brief Removes the host's device-manager entries, children first, then destroys
+ * published I/O resources.
+ *
+ * Stop the host's clients and release its PCI interrupt reservations before
+ * calling. Active reservations return OS_EBUSY without removing any entries.
+ * If removal or I/O destruction fails, keep the host and remaining resources
+ * valid for retry. Complete cleanup before republishing.
  *
  * @param device The host root to unpublish.
+ * @return OS_EOK when entries and I/O resources are removed, or a cleanup error.
  */
 __EXTERN oserr_t
 PciUnpublishDevice(

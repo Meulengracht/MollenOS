@@ -21,7 +21,7 @@
 
 #include <firmware/pci.h>
 
-/** 
+/**
  * @brief Registers and settings needed to reset and clock a Broadcom PCI host.
  */
 struct FdtPciDependencies {
@@ -49,7 +49,8 @@ struct FdtPciDependencies {
  *
  * @param host Host whose "msi-parent" property names the controller.
  * @param msi Receives the controller's registers and interrupt details on success.
- * @return OS_EOK on success, or an error if missing, malformed, or unsupported.
+ * @return OS_EOK on success, or an error if the controller is missing, malformed,
+ *         or unsupported. The output is unchanged on error.
  */
 extern oserr_t
 FdtResolvePciMsi(
@@ -63,7 +64,7 @@ FdtResolvePciMsi(
  * Missing optional resources leave their output fields zero.
  *
  * @param host Host whose reset and clock properties should be read.
- * @param dependencies Receives the reset and clock settings on success.
+ * @param dependencies Receives the reset and clock settings on success. Unchanged on error.
  * @return OS_EOK on success, or an error for malformed or unsupported settings.
  */
 extern oserr_t
@@ -84,16 +85,18 @@ FdtBcmHostType(
     _Out_ enum FdtPciHostType*  type);
 
 /**
- * @brief Read firmware settings for the host's PCI Express connection.
+ * @brief Read firmware settings for a supported Broadcom PCI Express host.
  *
  * @param node Node containing connection speed, lane count, and clock settings.
- * @param host Host to update; initialize its fields to zero before calling.
- *             Some fields may already be updated when an error is returned.
+ * @param host BCM2711 or BCM2712 host to update. Initialize its Link fields to zero
+ *             before calling. ClkreqMode points into the node's device tree, which
+ *             must remain valid while that string is used. Some fields may
+ *             already be updated when an error is returned.
  * @return OS_EOK on success, or OS_EINVALPARAMS for invalid connection settings.
  */
 oserr_t
 FdtBcmHostPolicy(
-    _In_ const struct FdtNode* node,
-    _In_ struct FdtPciHost*    host);
+    _In_    const struct FdtNode* node,
+    _InOut_ struct FdtPciHost*    host);
 
 #endif //!__FIRMWARE_BCM_H__

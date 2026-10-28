@@ -19,17 +19,24 @@
  */
 
 #include <bus/pci/function.h>
-#include <bus/rp1/rp1.h>
 
-static const struct PciFunctionHandler* const g_functionHandlers[] = {
-    &g_rp1PciHandler
-};
+static const struct PciFunctionHandler* const* g_functionHandlers;
+static size_t                                  g_functionHandlerCount;
+
+void
+PciFunctionHandlersInitialize(
+    _In_ const struct PciFunctionHandler* const* handlers,
+    _In_ size_t                                  count)
+{
+    g_functionHandlers = handlers;
+    g_functionHandlerCount = count;
+}
 
 const struct PciFunctionHandler*
 PciFunctionHandlerFind(
     _In_ const struct PciDevice* device)
 {
-    for (size_t index = 0; index < SIZEOF_ARRAY(g_functionHandlers); index++) {
+    for (size_t index = 0; index < g_functionHandlerCount; index++) {
         if (g_functionHandlers[index]->Match(device)) {
             return g_functionHandlers[index];
         }

@@ -23,12 +23,12 @@
 
 #include <os/osdefs.h>
 
-//  Standard capabilities live in the first 256 bytes of configuration space, 
-// while PCI Express extended capabilities expand 
-// from offset 0x100 up to 0xFFF (4096 bytes)
+// Standard configuration space occupies the first 256 bytes, including the
+// standard capability list. PCI Express extended capabilities use 0x100-0xFFF
+// in the 4096-byte configuration space.
 #define PCI_CONFIG_SPACE_SIZE                 256U
 
-// Pci standard header offsets
+// PCI standard header offsets.
 #define PCI_VENDOR_ID_OFFSET                  0x00U
 #define PCI_DEVICE_ID_OFFSET                  0x02U
 #define PCI_COMMAND_OFFSET                    0x04U
@@ -75,7 +75,7 @@
 
 #define PCI_STATUS_CAPABILITIES_LIST          0x10U
 
-// Bit 7 indicates multi-function; bits 6-0 define Type 0x00 or 0x01.
+// Bit 7 indicates a multifunction device. Bits 6-0 select the header layout.
 #define PCI_HEADER_TYPE_NORMAL                0x00U
 #define PCI_HEADER_TYPE_MASK                  0x7FU
 #define PCI_HEADER_TYPE_MULTIFUNCTION         0x80U
@@ -83,10 +83,10 @@
 #define PCI_CAPABILITY_LIST_MIN_OFFSET        0x40U
 #define PCI_CAPABILITY_LIST_ALIGNMENT_MASK    0x03U
 
-// PCI Capability Header Offsets
+// Standard capability header size in bytes.
 #define PCI_CAPABILITY_HEADER_LENGTH          2U
 
-// The standard pci capability header offsets
+// Offsets relative to the start of a standard capability.
 #define PCI_CAPABILITY_ID_OFFSET              0U
 #define PCI_CAPABILITY_NEXT_OFFSET            1U
 
@@ -94,8 +94,7 @@
 #define PCI_CAPABILITY_ID_MSI                 0x05U
 #define PCI_CAPABILITY_ID_MSIX                0x11U
 
-/* Pci Type definitions, helps us figure out what
- * kind of device/controller we are dealing with */
+// PCI class codes identify the device or controller type.
 #define PCI_CLASS_NONE                  0x00
 #define PCI_CLASS_STORAGE               0x01
 #define PCI_CLASS_NETWORK               0x02
@@ -119,8 +118,7 @@
 
 #define PCI_BRIDGE_SUBCLASS_PCI         0x04
 
-/* The different command flag bits that can be
- * manipulated in Pci base entry (Command) field */
+// Bits in the PCI command register.
 #define PCI_COMMAND_PORTIO              0x1
 #define PCI_COMMAND_MMIO                0x2
 #define PCI_COMMAND_BUSMASTER           0x4
@@ -132,9 +130,13 @@
 #define PCI_COMMAND_FASTBTB             0x200
 #define PCI_COMMAND_INTDISABLE          0x400
 
-/* The PCI base entry on the pci-databus
- * It describes a device on the pci-bus, the resources
- * its command register, status and its system bars */
+/**
+ * @brief Packed type 0 configuration header with device identity, command and
+ * status registers, base address registers, and interrupt routing fields.
+ *
+ * The header type must be PCI_HEADER_TYPE_NORMAL after masking off bit 7
+ * before interpreting the fields from offset 0x10 onward with this layout.
+ */
 PACKED_TYPESTRUCT(PciNativeHeader, {
     uint16_t VendorId;             /* 0x00 */
     uint16_t DeviceId;             /* 0x02 */
@@ -154,11 +156,11 @@ PACKED_TYPESTRUCT(PciNativeHeader, {
     uint32_t Bar3;                 /* 0x1C */
     uint32_t Bar4;                 /* 0x20 */
     uint32_t Bar5;                 /* 0x24 */
-    uint32_t CardbusCISPtr;        /* 0x28 */
+    uint32_t CardbusCISPtr;         /* 0x28 */
     uint16_t SubSystemVendorId;    /* 0x2C */
     uint16_t SubSystemId;          /* 0x2E */
     uint32_t ExpansionRomBaseAddr; /* 0x30 */
-    uint32_t Reserved0;            /* 0x34 */
+    uint32_t Reserved0;            /* 0x34, includes the capability pointer byte */
     uint32_t Reserved1;            /* 0x38 */
     uint8_t  InterruptLine;        /* 0x3C */
     uint8_t  InterruptPin;         /* 0x3D */

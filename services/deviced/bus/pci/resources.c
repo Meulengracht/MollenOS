@@ -20,8 +20,9 @@
 
 #include <bus/pci/bars.h>
 #include <bus/pci/host-private.h>
-#include <ddk/busdevice.h>
+#include <ddk/devices/bus.h>
 #include <ddk/utils.h>
+#include <core/io.h>
 
 static void
 __CreateBarResource(
@@ -29,48 +30,33 @@ __CreateBarResource(
     _Out_ DeviceIo_t*          resource,
     _In_  const struct PciBar* bar)
 {
-    uint64_t physical = bar->CpuAddress;
-    uint64_t length = bar->Size;
-    oserr_t  status;
+    uint64_t   physical = bar->CpuAddress;
+    uint64_t   length = bar->Size;
+    DeviceIo_t io = { 0 };
+    oserr_t    status;
 
     if (bar->State != PciBarAssigned) {
         return;
     }
-    
-    if (length > SIZE_MAX || physical > UINTPTR_MAX || length - 1 > UINTPTR_MAX - physical) {
-        WARNING("__CreateBarResource region 0x%llx+0x%llx is not CPU-addressable",
-            (unsigned long long)physical, (unsigned long long)length);
-        return;
-    }
-    
-    if (bar->Space == 1) {
-        if (bus->IoResourcePolicy == PciIoResourcePorts) {
-            if (physical > UINT16_MAX || length - 1 > UINT16_MAX - physical) {
-                WARNING("__CreateBarResource port range 0x%llx+0x%llx exceeds 16 bits",
-                    (unsigned long long)physical, (unsigned long long)length);
-                return;
-            }
-            status = CreateDevicePortIo(resource, (uint16_t)physical, (size_t)length);
-            if (status != OS_EOK) {
-                ERROR("__CreateBarResource failed to create port I/O at 0x%x: %u",
-                    (unsigned)physical, status);
-                return;
-            }
-        } else {
-            status = CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
-            if (status != OS_EOK) {
-                ERROR("__CreateBarResource failed to map PCI I/O window at 0x%llx: %u",
-                    (unsigned long long)physical, status);
-                return;
-            }
-        }
-    } else {
-        status = CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
-        if (status != OS_EOK) {
-            ERROR("__CreateBarResource failed to create memory I/O at 0x%llx: %u",
-                (unsigned long long)physical, status);
+
+    if (bar->Space == 1 && bus->IoResourcePolicy == PciIoResourcePorts) {
+        // The complete port range must fit before narrowing its base to 16 bits.
+        if (length == 0 || physical > UINT16_MAX || length - 1 > UINT16_MAX - physical) {
+            WARNING("__CreateBarResource port range 0x%llx+0x%llx exceeds 16 bits",
+                (unsigned long long)physical, (unsigned long long)length);
             return;
         }
+        status = CreateDevicePortIo(&io, (uint16_t)physical, (size_t)length);
+        if (status == OS_EOK) {
+            *resource = io;
+        }
+    } else {
+        // Hosts without port I/O expose PCI I/O ranges through CPU memory addresses.
+        status = DmIoCreateMemory(resource, physical, length);
+    }
+    if (status != OS_EOK) {
+        ERROR("__CreateBarResource failed to register range 0x%llx+0x%llx: %u",
+            (unsigned long long)physical, (unsigned long long)length, status);
     }
 }
 

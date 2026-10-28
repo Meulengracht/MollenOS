@@ -36,12 +36,13 @@ Rp1GetDmaDescription(
     oserr_t                  status;
 
     TRACE("Rp1GetDmaDescription(parent=%p, child=%u)", parent, childNode);
-    // The PCI attachment already owns the inventory. Use that association
-    // instead of keeping another registry or accepting an arbitrary host.
+    // The parent must have an RP1 attachment containing the requested child.
+    
     if (parent == NULL || description == NULL) {
         ERROR("Rp1GetDmaDescription: missing parent or output");
         return OS_EINVALPARAMS;
     }
+    
     if (parent->Handler != &g_rp1PciHandler || parent->Attachment == NULL) {
         WARNING("Rp1GetDmaDescription: parent has no RP1 attachment");
         return OS_ENOTSUPPORTED;
@@ -58,22 +59,24 @@ Rp1GetDmaDescription(
         return OS_ENOENT;
     }
 
-    // The firmware resolver supplies only the RP1 part of this path. The PCI
-    // part must come from the host that actually installed the inbound windows.
+    // Start with the PCI host's configured inbound DMA windows, then apply the
+    // child's RP1 firmware mappings to obtain the complete DMA address map.
     status = PciHostGetDmaDescription(parent->Host, &result);
     if (status != OS_EOK) {
-        WARNING("Rp1GetDmaDescription: host DMA unavailable for child %u (%u)", childNode, status);
+        WARNING("Rp1GetDmaDescription: host DMA unavailable for child %u (%u)",
+            childNode, status);
         return status;
     }
     
     status = FdtComposeRp1Dma(bus->Host, childNode, &result.Map, &result.Map);
     if (status != OS_EOK) {
-        WARNING("Rp1GetDmaDescription: child %u DMA path unavailable (%u)", childNode, status);
+        WARNING("Rp1GetDmaDescription: child %u DMA path unavailable (%u)",
+            childNode, status);
         return status;
     }
 
-    // Even a coherent parent would not establish cache visibility across RP1.
-    // Keep unknown policy unknown; otherwise require software-managed visibility.
+    // RP1 requires software cache maintenance even when the PCI host is coherent.
+    // Leave the policy unknown if the host's cache requirements are unavailable.
     if (result.CachePolicy != DmDmaCacheUnknown) {
         result.CachePolicy = DmDmaCacheNonCoherent;
     }

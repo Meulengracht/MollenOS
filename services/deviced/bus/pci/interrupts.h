@@ -26,30 +26,40 @@
 struct PciDevice;
 
 /**
- * @brief Resolves the interrupt line and pin for the specified PCI device.
+ * @brief Uses the device's INTx pin to resolve its interrupt line and flags.
  *
- * @param parent The parent PCI device or bridge.
+ * The device must have a configuration header and a parent chain connected to
+ * the host's root device. When the host has no interrupt resolver, ACPI routing
+ * is used if available.
+ *
+ * @param parent The parent PCI device or bridge with an initialized host.
  * @param bus The bus number of the PCI device.
  * @param slot The slot number of the PCI device.
  * @param function The function number of the PCI device.
- * @param pciDevice The PCI device for which to resolve the interrupt line and pin.
+ * @param pciDevice The PCI device whose InterruptLine and AcpiConform fields are updated.
  */
 __EXTERN void
 PciResolveInterruptLineAndPin(
     _In_ struct PciDevice* parent,
-    _In_ int          bus,
-    _In_ int          slot,
-    _In_ int          function,
+    _In_ int               bus,
+    _In_ int               slot,
+    _In_ int               function,
     _In_ struct PciDevice* pciDevice);
 
 /**
  * @brief Reports whether ACPI interrupt routing is available.
+ *
+ * @return Nonzero if ACPI is available, or zero otherwise.
  */
 __EXTERN int
 PciIsAcpiAvailable(void);
 
 /**
- * @brief Reports whether MSI (Message Signaled Interrupts) are available.
+ * @brief Reports whether MSI (Message Signaled Interrupts) are enabled globally.
+ *
+ * Device and host support must be checked separately.
+ *
+ * @return One if MSI is enabled, or zero if it is disabled.
  */
 __EXTERN int
 PciIsMsiAvailable(void);

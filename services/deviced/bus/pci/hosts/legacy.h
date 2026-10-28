@@ -30,7 +30,11 @@
 /**
  * @brief Creates a host and acquires the legacy PCI I/O ports, but does not
  * register it or scan its buses. The caller owns the host until registration
- * succeeds. On failure, leaves hostOut NULL and frees partial resources.
+ * succeeds. On failure, *hostOut is NULL unless cleanup also failed. A non-NULL
+ * failed host must only be passed to PciHostDestroy until cleanup succeeds.
+ *
+ * @param hostOut Non-NULL storage for the created host or a host needing cleanup.
+ * @return OS_EOK on success, OS_EOOM if allocation fails, or the I/O setup error.
  */
 __EXTERN oserr_t
 PciLegacyHostCreate(

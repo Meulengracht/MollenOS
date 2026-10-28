@@ -27,7 +27,6 @@
 struct PciDevice;
 struct PciMsixState;
 
-// Represents a validated, CPU-accessible region within one memory BAR.
 struct PciMsixRegion {
     uint32_t Bar;
     uint32_t Offset;
@@ -35,7 +34,6 @@ struct PciMsixRegion {
     uint64_t Address;
 };
 
-// Represents the MSI-X capability and full table/PBA extents.
 struct PciMsixLayout {
     uint16_t             Capability;
     uint16_t             Control;
@@ -44,41 +42,71 @@ struct PciMsixLayout {
     struct PciMsixRegion Pending;
 };
 
-// Access operations for MSI-X under the PCI provider lock.
+/**
+ * @brief Configuration, BAR, and mapping operations used with the PCI lock held.
+ */
 struct MsixDeviceOperations {
     // Configuration and BAR access for the PCI function.
     struct PciConfigOperations Config;
-    
-    // The enumerated BAR for the MSI-X table and PBA.
+
+    // Enumerated BAR descriptions indexed by the capability's BAR numbers.
     const struct PciBar*       Bars;
 
     /**
-     * @brief Map creates an uncached alias without taking ownership of the driver's BAR
+     * @brief Create an uncached mapping while the driver keeps ownership of its BAR.
+     *
+     * @param context Configuration access context from Config.Context.
+     * @param region Validated BAR range to map.
+     * @param mapping Receives the mapped address on success.
+     * @return OS_EOK on success, or the mapping error.
      */
-    oserr_t (*Map)(void* context, const struct PciMsixRegion* region, void** mapping);
-    
+    oserr_t (*Map)(
+        _In_  void*                       context,
+        _In_  const struct PciMsixRegion*  region,
+        _Out_ void**                      mapping);
+
     /**
-     * @brief Unmap releases a previously created alias.
+     * @brief Release a mapping created by Map.
+     *
+     * @param context Configuration access context from Config.Context.
+     * @param mapping Address returned by Map.
+     * @param length Original region length in bytes.
+     * @return OS_EOK on success, or an error that allows cleanup to be retried.
      */
-    oserr_t (*Unmap)(void* context, void* mapping, size_t length);
-    
+    oserr_t (*Unmap)(
+        _In_ void*  context,
+        _In_ void*  mapping,
+        _In_ size_t length);
+
     /**
-     * @brief Read performs an ordered 32-bit read from the mapped region.
+     * @brief Perform an ordered 32-bit read from the mapped region.
+     *
+     * @param mapping Address returned by Map.
+     * @param offset Byte offset of a complete, aligned 32-bit word in the region.
+     * @return The value read from the device.
      */
-    uint32_t (*Read)(void* mapping, size_t offset);
-    
+    uint32_t (*Read)(
+        _In_ void*  mapping,
+        _In_ size_t offset);
+
     /**
-     * @brief Write performs an ordered 32-bit write.
-     * Additionally, it reads back the written value for verification.
+     * @brief Perform an ordered 32-bit write. The caller reads back to verify it.
+     *
+     * @param mapping Address returned by Map.
+     * @param offset Byte offset of a complete, aligned 32-bit word in the region.
+     * @param value Value to write to the device.
      */
-    void (*Write)(void* mapping, size_t offset, uint32_t value);
+    void (*Write)(
+        _In_ void*    mapping,
+        _In_ size_t   offset,
+        _In_ uint32_t value);
 };
 
 /**
- * @brief Validate the MSI-X capability and its table and PBA BAR ranges.
- * 
+ * @brief Validate the MSI-X capability and its table and pending-bit array (PBA).
+ *
  * @param access Locked configuration access and enumerated BAR descriptions.
- * @param layout Receives validated extents on success. Unchanged on failure.
+ * @param layout Receives validated BAR ranges on success. Unchanged on failure.
  * @return OS_EOK, OS_ENOTSUPPORTED if absent, or a validation error.
  */
 __EXTERN oserr_t
@@ -88,7 +116,7 @@ PciMsixProbe(
 
 /**
  * @brief Execute a retryable MSI-X operation while holding the PCI lock.
- * 
+ *
  * @param access Locked access to the same function on every call.
  * @param state Owns saved data and mappings until Release succeeds.
  * @param request Fixed-width operation whose allocation identifies its owner.
@@ -102,9 +130,9 @@ PciMsixControl(
 
 /**
  * @brief Remember the latest accepted INTx/MMIO bus-control state for Release.
- * 
+ *
  * @param state Active reservation, serialized with control operations.
- * @param command Desired command bits before the provider disables INTx and enables MMIO.
+ * @param command Desired command bits before MSI-X disables INTx and enables MMIO.
  */
 __EXTERN void
 PciMsixUpdateCommand(
@@ -113,7 +141,7 @@ PciMsixUpdateCommand(
 
 /**
  * @brief Validate a live device's MSI-X layout without mapping or changing it.
- * 
+ *
  * @param device PCI function with published BARs, protected by the PCI lock.
  * @return OS_EOK if the layout can be mapped, or a validation error.
  */
@@ -123,7 +151,7 @@ PciMsixDeviceProbe(
 
 /**
  * @brief Adapt a live device's registered BARs to the MSI-X engine.
- * 
+ *
  * @param device PCI function protected by the PCI lock.
  * @param request Operation and allocation owner. See PciInterruptRequest.
  * @return The engine's status. A failed operation can leave cleanup state for retry.

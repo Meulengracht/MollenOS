@@ -23,67 +23,76 @@
 
 #include <bus/pci/config.h>
 
-uint16_t PciReadVendorId(
-    PciHost_t*   host,
-    unsigned int bus,
-    unsigned int device,
-    unsigned int function)
-{
-	return PciRead16(host, bus, device, function, 0);
-}
-
-void PciReadFunction(
-    _InOut_ PciNativeHeader_t* pciHeader, 
-    _In_    PciHost_t*         host, 
-    _In_    unsigned int       bus, 
-    _In_    unsigned int       device, 
-    _In_    unsigned int       function)
-{
-	/* Get the dword and parse the vendor and device ID */
-	uint16_t vendor = PciReadVendorId(host, bus, device, function);
-
-	if (vendor && vendor != 0xFFFF) {
-		/* Valid device! Okay, so the config space is 256 bytes long
-		 * and we read in dwords: 64 reads should do it. */
-		for (size_t i = 0; i < 64; i += 16) {
-			*(uint32_t*)((size_t)pciHeader + i) = PciRead32(host, bus, device, function, i);
-			*(uint32_t*)((size_t)pciHeader + i + 4) = PciRead32(host, bus, device, function, i + 4);
-			*(uint32_t*)((size_t)pciHeader + i + 8) = PciRead32(host, bus, device, function, i + 8);
-			*(uint32_t*)((size_t)pciHeader + i + 12) = PciRead32(host, bus, device, function, i + 12);
-		}
-	}
-}
-
-uint8_t PciReadSecondaryBusNumber(
-    _In_ PciHost_t*   host,
-    _In_ unsigned int bus, 
-    _In_ unsigned int device, 
-    _In_ unsigned int function)
-{
-	/* Get the dword and parse the vendor and device ID */
-	uint16_t vendor = PciReadVendorId(host, bus, device, function);
-
-	if (vendor && vendor != 0xFFFF) {
-		uint32_t offset = PciRead32(host, bus, device, function, 0x18);
-		return (uint8_t)((offset >> 8) & 0xFF);
-	} else {
-		return 0xFF;
-	}
-}
-
-uint8_t PciReadHeaderType(
+uint16_t
+PciReadVendorId(
     _In_ PciHost_t*   host,
     _In_ unsigned int bus,
     _In_ unsigned int device,
     _In_ unsigned int function)
 {
-	/* Get the dword and parse the vendor and device ID */
-	uint16_t vendor = PciReadVendorId(host, bus, device, function);
+    return PciRead16(host, bus, device, function, 0);
+}
 
-	if (vendor && vendor != 0xFFFF) {
-		uint32_t offset = PciRead32(host, bus, device, function, 0x0C);
-		return (uint8_t)((offset >> 16) & 0xFF);
-	} else {
-		return 0xFF;
-	}
+void
+PciReadFunction(
+    _InOut_ PciNativeHeader_t* pciHeader,
+    _In_    PciHost_t*         host,
+    _In_    unsigned int       bus,
+    _In_    unsigned int       device,
+    _In_    unsigned int       function)
+{
+    uint16_t vendor;
+
+    vendor = PciReadVendorId(host, bus, device, function);
+    if (!vendor || vendor == 0xFFFF) {
+        // Leave the caller's header unchanged when the function is absent.
+        return;
+    }
+
+    // Read the first 64 bytes of configuration space, four dwords per iteration.
+    for (size_t i = 0; i < 64; i += 16) {
+        *(uint32_t*)((size_t)pciHeader + i) = PciRead32(host, bus, device, function, i);
+        *(uint32_t*)((size_t)pciHeader + i + 4) = PciRead32(host, bus, device, function, i + 4);
+        *(uint32_t*)((size_t)pciHeader + i + 8) = PciRead32(host, bus, device, function, i + 8);
+        *(uint32_t*)((size_t)pciHeader + i + 12) = PciRead32(host, bus, device, function, i + 12);
+    }
+}
+
+uint8_t
+PciReadSecondaryBusNumber(
+    _In_ PciHost_t*   host,
+    _In_ unsigned int bus,
+    _In_ unsigned int device,
+    _In_ unsigned int function)
+{
+    uint16_t vendor;
+    uint32_t offset;
+
+    vendor = PciReadVendorId(host, bus, device, function);
+    if (!vendor || vendor == 0xFFFF) {
+        return 0xFF;
+    }
+
+    // The caller must select a bridge function for this register layout.
+    offset = PciRead32(host, bus, device, function, 0x18);
+    return (uint8_t)((offset >> 8) & 0xFF);
+}
+
+uint8_t
+PciReadHeaderType(
+    _In_ PciHost_t*   host,
+    _In_ unsigned int bus,
+    _In_ unsigned int device,
+    _In_ unsigned int function)
+{
+    uint16_t vendor;
+    uint32_t offset;
+
+    vendor = PciReadVendorId(host, bus, device, function);
+    if (!vendor || vendor == 0xFFFF) {
+        return 0xFF;
+    }
+
+    offset = PciRead32(host, bus, device, function, 0x0C);
+    return (uint8_t)((offset >> 16) & 0xFF);
 }
