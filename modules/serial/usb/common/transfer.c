@@ -31,6 +31,25 @@
 
 extern gracht_server_t* __crt_get_module_server(void);
 
+static void
+__DiscardTransfer(
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    UsbManagerController_t* controller;
+
+    if (USBTransferDestroy(transfer) == OS_EOK) {
+        return;
+    }
+
+    // Creation and queue failures already send their own response. Keep the
+    // indexed owner for cleanup retries without notifying the caller twice.
+    transfer->Flags |= __USBTRANSFER_FLAG_SILENT;
+    transfer->ResultCode = USBTRANSFERCODE_INVALID;
+    transfer->State = USBTRANSFER_STATE_CLEANUP;
+    controller = UsbManagerGetController(transfer->DeviceID);
+    UsbManagerQueueTransferWork(controller, transfer);
+}
+
 static unsigned int
 __ConvertFlags(
         _In_ unsigned int flags)
@@ -64,9 +83,8 @@ __AttachSGTable(
             sgTable,
             -1
     );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&usbTransfer->SHMHandle);
-    }
+    // The transfer owns the attachment even if SG discovery fails. Its common
+    // cleanup path keeps that owner when release needs another attempt.
     return oserr;
 }
 
@@ -109,15 +127,45 @@ USBTransferCreate(
     usbTransfer->MaxPacketSize = transfer->MaxPacketSize;
     usbTransfer->Flags = __ConvertFlags(transfer->Flags);
 
+    // Publish ownership before acquiring resources: a failed rollback must
+    // remain reachable by controller teardown and the cleanup worker.
+    list_append(&controller->TransactionList, &usbTransfer->ListHeader);
+
     if (__Transfer_IsPeriodic(usbTransfer)) {
         usbTransfer->TData.Periodic.Bandwith = transfer->PeriodicBandwith;
         usbTransfer->TData.Periodic.Interval = transfer->PeriodicInterval;
     }
 
+    if (controller->DmaContext != NULL) {
+        if (transfer->MaxPacketSize == 0 || transfer->Length == 0) {
+            __DiscardTransfer(usbTransfer);
+            return OS_EINVALPARAMS;
+        }
+
+        usbTransfer->Dma.Context = controller->DmaContext;
+        usbTransfer->Dma.BufferOffset = transfer->BufferOffset;
+        usbTransfer->Dma.BufferLength = transfer->Length;
+        if (__Transfer_IsPeriodic(usbTransfer)) {
+            usbTransfer->TData.Periodic.BufferSize = transfer->Length;
+        }
+
+        oserr = SHMAttach(transfer->BufferHandle, &usbTransfer->SHMHandle);
+        if (oserr == OS_EOK) {
+            oserr = USBTransferDmaPrepare(usbTransfer);
+        }
+        if (oserr != OS_EOK) {
+            __DiscardTransfer(usbTransfer);
+            return oserr;
+        }
+
+        *transferOut = usbTransfer;
+        return OS_EOK;
+    }
+
     // Get the SG table before calculating TDs
     oserr = __AttachSGTable(usbTransfer, transfer, &sgTable);
     if (oserr != OS_EOK) {
-        USBTransferDestroy(usbTransfer);
+        __DiscardTransfer(usbTransfer);
         return oserr;
     }
 
@@ -131,14 +179,16 @@ USBTransferCreate(
             &usbTransfer->ElementCount
     );
     if (oserr != OS_EOK) {
-        USBTransferDestroy(usbTransfer);
+        free(sgTable.Entries);
+        __DiscardTransfer(usbTransfer);
         return oserr;
     }
 
     // Allocate the transfer element array
     usbTransfer->Elements = calloc(sizeof(struct TransferElement), usbTransfer->ElementCount);
     if (usbTransfer->Elements == NULL) {
-        USBTransferDestroy(usbTransfer);
+        free(sgTable.Entries);
+        __DiscardTransfer(usbTransfer);
         return OS_EOOM;
     }
     HCITransferElementFill(
@@ -149,28 +199,43 @@ USBTransferCreate(
             transfer->BufferOffset
     );
     free(sgTable.Entries);
-    list_append(&controller->TransactionList, &usbTransfer->ListHeader);
     *transferOut = usbTransfer;
     return OS_EOK;
 }
 
-void
+oserr_t
 USBTransferDestroy(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UsbManagerController_t* controller;
+    oserr_t                 status;
 
     if (!transfer) {
-        return;
+        return OS_EOK;
+    }
+
+    // A failed unmap leaves storage owned, including after a failed controller stop.
+    status = USBTransferDmaDestroy(transfer);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // Keep the transfer indexed until its client attachment is released too.
+    // The manager can then retry cleanup without losing the last SHM owner.
+    status = SHMRelease(&transfer->SHMHandle);
+    if (status != OS_EOK) {
+        WARNING("USB transfer SHM release failed (%u); keeping transfer", status);
+        return status;
     }
 
     controller = (UsbManagerController_t*)UsbManagerGetController(transfer->DeviceID);
     if (controller) {
         list_remove(&controller->TransactionList, &transfer->ListHeader);
     }
-    OSHandleDestroy(&transfer->SHMHandle);
+    UsbManagerForgetTransferWork(transfer);
     free(transfer->Elements);
     free(transfer);
+    return OS_EOK;
 }
 
 void
@@ -208,7 +273,7 @@ USBTransferNotify(
         if (transfer->ResultCode == USBTRANSFERCODE_SUCCESS) {
             transfer->TData.Periodic.CurrentDataIndex = ADDLIMIT(
                     0, transfer->TData.Periodic.CurrentDataIndex,
-                    transfer->Elements[0].Length,
+                    transfer->Dma.Context != NULL ? transfer->Dma.Length : transfer->Elements[0].Length,
                     transfer->TData.Periodic.BufferSize
             );
         }
@@ -235,7 +300,7 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t p
 
     oserr = HCITransferQueue(usbTransfer);
     if (oserr != OS_EOK) {
-        USBTransferDestroy(usbTransfer);
+        __DiscardTransfer(usbTransfer);
         ctt_usbhost_queue_response(message, oserr, CTT_USB_TRANSFER_STATUS_NAK, 0);
     }
 }
@@ -265,7 +330,7 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     }
 
     if (oserr != OS_EOK) {
-        USBTransferDestroy(usbTransfer);
+        __DiscardTransfer(usbTransfer);
     }
     ctt_usbhost_queue_periodic_response(message, oserr);
 }
@@ -289,7 +354,18 @@ void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const
         }
     }
 
-    if (transfer != NULL) {
+    if (transfer != NULL && transfer->Dma.Context != NULL) {
+        // Endpoint reset completes asynchronously. Queue through the usual HCI
+        // state machine instead of touching an old descriptor chain.
+        if (transfer->State != USBTRANSFER_STATE_COMPLETED) {
+            status = OS_EBUSY;
+        } else {
+            status = USBTransferDmaPrepare(transfer);
+            if (status == OS_EOK) {
+                status = HCITransferQueue(transfer);
+            }
+        }
+    } else if (transfer != NULL) {
         UsbManagerChainEnumerate(
                 controller,
                 transfer->RootElement,

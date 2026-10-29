@@ -31,29 +31,37 @@ COMPILE_TIME_ASSERT(sizeof(UsbSchedulerObject_t) == 18);
 
 static oserr_t
 __AllocatePoolMemory(
-    _In_ UsbSchedulerPool_t* schedulerPool)
+    _In_ UsbSchedulerPool_t* schedulerPool,
+    _In_ bool                softwareElements)
 {
     size_t  elementBytes = schedulerPool->ElementCount * schedulerPool->ElementAlignedSize;
+    SHM_t   options = {
+        .Flags = SHM_DEVICE | SHM_PRIVATE,
+        .Conformity = OSMEMORYCONFORMITY_LOW,
+        .Size = elementBytes,
+        .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    };
     oserr_t oserr;
 
-    oserr = SHMCreate(
-            &(SHM_t) {
-                .Flags = SHM_DEVICE | SHM_PRIVATE,
-                .Conformity = OSMEMORYCONFORMITY_LOW,
-                .Size = elementBytes,
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            &schedulerPool->ElementPoolDMA
-    );
+    // CPU-only descriptors need cached memory, but use the same page-aligned
+    // SHM storage and cleanup as hardware pools. They have no device addresses.
+    if (softwareElements) {
+        options.Flags = SHM_COMMIT | SHM_PRIVATE;
+        options.Conformity = OSMEMORYCONFORMITY_NONE;
+    }
+    
+    oserr = SHMCreate(&options, &schedulerPool->ElementPoolDMA);
     if (oserr != OS_EOK) {
         ERROR("__AllocatePoolMemory: cannot allocate memory region for pool: %u", oserr);
         return oserr;
     }
 
-    oserr = SHMGetSGTable(&schedulerPool->ElementPoolDMA, &schedulerPool->ElementPoolDMATable, -1);
-    if (oserr != OS_EOK) {
-        ERROR("__AllocatePoolMemory: cannot retrieve SG table for memory region: %u", oserr);
-        return oserr;
+    if (!softwareElements) {
+        oserr = SHMGetSGTable(&schedulerPool->ElementPoolDMA, &schedulerPool->ElementPoolDMATable, -1);
+        if (oserr != OS_EOK) {
+            ERROR("__AllocatePoolMemory: cannot retrieve SG table for memory region: %u", oserr);
+            return oserr;
+        }
     }
 
     schedulerPool->ElementPool = SHMBuffer(&schedulerPool->ElementPoolDMA);
@@ -151,7 +159,10 @@ UsbSchedulerInitialize(
     }
 
     for (int i = 0; i < scheduler->Settings.PoolCount; i++) {
-        status = __AllocatePoolMemory(&scheduler->Settings.Pools[i]);
+        status = __AllocatePoolMemory(
+            &scheduler->Settings.Pools[i],
+            (scheduler->Settings.Flags & USB_SCHEDULER_SOFTWARE_ELEMENTS) != 0
+        );
         if (status != OS_EOK) {
             UsbSchedulerDestroy(scheduler);
             return status;

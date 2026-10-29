@@ -21,75 +21,89 @@
 
 #include <fdt/reader.h>
 
-/** 
+struct FdtTree;
+
+struct FdtProperty {
+    const char*    Name;
+    const uint8_t* Value;
+    uint32_t       Length;
+};
+
+/**
  * @brief Describes one device-tree node without copying its strings or properties.
  * A node is an entry describing hardware or its configuration. You may copy
  * this structure, but its pointers still refer to the original firmware data.
- * Keep that data mapped and unchanged until all copies are no longer used.
+ * Keep a reference to FdtTree until all copies are no longer used. The tree
+ * owns the property records and keeps their values mapped and unchanged.
  * NodeOffset is a byte offset within the tree's structure block. Phandle is
  * an optional numeric ID used by other nodes to refer to this node.
  */
 struct FdtNode {
-    const char*    Name;
-    uint32_t       NodeOffset;
-    uint32_t       Phandle;
-    int            Disabled;
-    int            Malformed;
-    int            AncestorDisabled;
-    int            AncestorMalformed;
-    const uint8_t* Properties;
-    uint32_t       PropertiesLength;
-    const char*    Strings;
-    uint32_t       StringsLength;
+    const char*               Name;
+    uint32_t                  NodeOffset;
+    uint32_t                  Phandle;
+    int                       Disabled;
+    int                       Malformed;
+    // Set if any parent node up to the root has this state.
+    int                       ParentDisabled;
+    int                       ParentMalformed;
+    const struct FdtProperty* Properties;
+    size_t                    PropertyCount;
 };
 
-typedef void (*FdtNodeFn)(const struct FdtNode* nodes, int depth, void* context);
+/**
+ * @brief Process one node with the path from the root available to the callback.
+ *
+ * @param nodes Temporary array valid until the callback returns. Copy records
+ *              needed later and keep their tree alive while using their pointers.
+ * @param depth Index of the current node in nodes. The root is at index zero.
+ * @param context Caller data passed to FdtWalkNodes.
+ */
+typedef void (*FdtNodeFn)(
+    _In_    const struct FdtNode* nodes,
+    _In_    int                   depth,
+    _InOut_ void*                 context);
 
 /**
- * @brief Check the tree's format, then call the visitor for each node.
+ * @brief Visit parsed nodes in firmware order, parents before children.
  *
- * @param blob Firmware device-tree data, kept mapped and unchanged during use.
- * @param length Available size of blob in bytes.
- * @param visitor Callback receiving an array from the root to the current node
- *                and the current node's index (depth). NULL checks the tree only.
- *                The array is temporary; copy any records needed later. Their
- *                strings and property bytes still point into blob.
+ * @param tree Parsed firmware tree, kept alive while callback data is used.
+ * @param visitor Receives a temporary array from the root to the current node
+ *                and the current node's index. NULL skips visitation. Copy any
+ *                records needed after the callback; their pointers refer to tree.
  * @param context Caller data passed to visitor.
- * @return OS_EOK on success, or an error if the tree's format is invalid.
+ * @return OS_EOK on success, or OS_EOOM if the traversal array cannot be allocated.
  */
 __EXTERN oserr_t
 FdtWalkNodes(
-    _In_    const void* blob,
-    _In_    size_t      length,
-    _In_    FdtNodeFn   visitor,
-    _InOut_ void*       context);
+    _In_    const struct FdtTree* tree,
+    _In_    FdtNodeFn             visitor,
+    _InOut_ void*                 context);
 
 /**
  * @brief Find the enabled node with the requested firmware ID.
  *
- * Searches the whole tree, so references may point to nodes listed later.
+ * Searches the node ID index, including nodes listed later in the tree.
  * Duplicate IDs are rejected even if one of the matching nodes is disabled.
  *
- * @param blob Firmware device-tree data, kept mapped and unchanged during use.
- * @param length Available size of blob in bytes.
+ * @param tree Parsed firmware tree, kept alive while the returned node is used.
  * @param phandle Numeric node ID to find.
- * @param node Receives the node on success; its pointers refer to blob.
+ * @param node Receives the node on success; its pointers refer to tree.
  * @return OS_EOK on success, OS_ENOENT if missing or disabled, or an error for
  *         invalid input, duplicate IDs, or malformed node or parent data.
  */
 __EXTERN oserr_t
 FdtFindNode(
-    _In_  const void*     blob,
-    _In_  size_t          length,
-    _In_  uint32_t        phandle,
-    _Out_ struct FdtNode* node);
+    _In_  const struct FdtTree* tree,
+    _In_  uint32_t              phandle,
+    _Out_ struct FdtNode*       node);
 
 /**
  * @brief Find a property by name and return its bytes without copying them.
  *
- * @param node Node to search.
+ * @param node Node to search. Its tree must remain alive while using the result.
  * @param name Exact property name, such as "reg".
- * @param length Receives the property's size in bytes, or zero if absent.
+ * @param length Required output for the property's size in bytes, or zero if absent.
  * @return Pointer into the original firmware data, or NULL if absent. An empty
  *         property has a non-NULL pointer and a length of zero.
  */

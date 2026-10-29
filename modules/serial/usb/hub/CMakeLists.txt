@@ -7,6 +7,7 @@ set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 add_module_target(usbhub ""
     ${ADDITONAL_SOURCES}
     functions.c
+    events.c
     hub.c
     main.c
 )

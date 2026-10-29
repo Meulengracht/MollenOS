@@ -24,8 +24,8 @@
 #ifndef _USB_MANAGER_H_
 #define _USB_MANAGER_H_
 
-#include <ddk/busdevice.h>
-#include <ddk/interrupt.h>
+#include <ddk/devices/bus.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
 #include <os/spinlock.h>
@@ -38,7 +38,8 @@
 typedef struct UsbManagerController {
     uuid_t                 Id;
     enum USBControllerKind Kind;
-    BusDevice_t*           Device;
+    Device_t*              Device;
+    struct DMAContext*     DmaContext;
 
     // IORequirements describes the required conformities that any
     // io-request made towards this controller must support. Conformity
@@ -55,6 +56,10 @@ typedef struct UsbManagerController {
 
     hashtable_t Endpoints;
     list_t      TransactionList;
+    list_t      ReadyTransfers;
+    list_t      WaitingTransfers;
+    element_t   DestroyElement;
+    bool        DestroyPending;
     spinlock_t  Lock;
 } UsbManagerController_t;
 
@@ -86,7 +91,7 @@ UsbManagerDestroy(void);
  */
 extern UsbManagerController_t*
 UsbManagerCreateController(
-    _In_ BusDevice_t*           device,
+    _In_ Device_t*              device,
     _In_ enum USBControllerKind kind,
     _In_ size_t                 structureSize);
 
@@ -106,6 +111,15 @@ UsbManagerRegisterController(
  */
 extern void
 UsbManagerDestroyController(
+    _In_ UsbManagerController_t* controller);
+
+/**
+ * @brief Keep a controller available for teardown retries by the monitor.
+ * Calls are serialized on the service event loop. Repeated requests are harmless.
+ * @param controller Registered controller, including incomplete initialization.
+ */
+extern void
+UsbManagerDeferControllerDestroy(
     _In_ UsbManagerController_t* controller);
 
 /**
@@ -200,12 +214,52 @@ UsbManagerSetToggle(
         _In_ USBAddress_t*           address,
         _In_ int                     toggle);
 
-/* UsbManagerProcessTransfers
- * Processes all the associated transfers with the given usb controller.
- * The iteration process will invoke <HCIProcessElement> */
+/**
+ * @brief Process queued DMA work, or scan transfers for legacy controllers.
+ * A DMA work item is attempted at most once per dispatch; failed
+ * cleanup or synchronization for retry. Active transfers are not scanned.
+ * @param controller Controller whose service event loop is dispatching work.
+ */
 extern void
 UsbManagerProcessTransfers(
     _In_ UsbManagerController_t* controller);
+
+/**
+ * @brief Queue completion or cleanup work once, without scanning active transfers.
+ * Calls and processing are serialized by the controller's service event loop.
+ * @param controller Controller owning the transfer.
+ * @param transfer Live transfer kept until work is processed or removed.
+ */
+extern void
+UsbManagerQueueTransferWork(
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer);
+
+/**
+ * @brief Suspend submission until a controller command changes its prerequisites.
+ * @param controller Controller owning the transfer.
+ * @param transfer Live transfer to mark waiting and add to the wait queue.
+ */
+extern void
+UsbManagerWaitTransfer(
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer);
+
+/**
+ * @brief Make command-dependent transfers eligible for one submission attempt.
+ * @param controller Controller whose command completion may unblock submissions.
+ */
+extern void
+UsbManagerWakeTransfers(
+    _In_ UsbManagerController_t* controller);
+
+/**
+ * @brief Unlink queued work before destroying or processing a transfer.
+ * @param transfer Transfer whose queue entry must be unlinked.
+ */
+extern void
+UsbManagerForgetTransferWork(
+    _In_ UsbManagerTransfer_t* transfer);
 
 /* UsbManagerScheduleTransfers
  * Handles all transfers that are marked for either Schedule or Unscheduling.

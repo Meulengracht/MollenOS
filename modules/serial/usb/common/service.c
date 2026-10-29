@@ -82,12 +82,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
         return;
     }
 
-    if (device->Length != sizeof(BusDevice_t)) {
-        ERROR("ctt_driver_register_device_invocation device provided was of invalid type");
-        return;
-    }
-
-    controller = HCIControllerCreate((BusDevice_t*)device);
+    controller = HCIControllerCreate(device);
     if (controller == NULL) {
         ERROR("ctt_driver_register_device_invocation failed to create the hci controller");
     }
@@ -102,8 +97,7 @@ OnUnregister(
     if (Controller == NULL) {
         return OS_EUNKNOWN;
     }
-    HCIControllerDestroy(Controller);
-    return OS_EOK;
+    return HCIControllerDestroy(Controller);
 }
 
 void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)

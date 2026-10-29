@@ -23,6 +23,7 @@
 #ifndef __USB_SCHEDULER__
 #define __USB_SCHEDULER__
 
+#include <ddk/ddkdefs.h>
 #include <os/types/handle.h>
 #include <os/types/shm.h>
 #include <os/spinlock.h>
@@ -130,6 +131,9 @@ typedef struct UsbSchedulerSettings {
 #define USB_SCHEDULER_DEFERRED_CLEAN    (1 << 3) // If set, cleanup must occur later than unlink
 #define USB_SCHEDULER_LINK_BIT_EOL      (1 << 4) // Specify that empty links must be marked with EOL
 #define USB_SCHEDULER_PERIODIC          (1 << 5) // If set, enable periodic/bandwidth bookkeeping
+// Element pools contain CPU-only metadata; no physical address table is created.
+// Hardware rings and frame lists must use their own DMA allocations.
+#define USB_SCHEDULER_SOFTWARE_ELEMENTS (1 << 6)
 
 typedef struct UsbTransferArena {
     UsbSchedulerSettings_t* Settings;

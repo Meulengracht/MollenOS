@@ -35,16 +35,28 @@
  */
 extern UsbManagerController_t*
 HCIControllerCreate(
-    _In_ BusDevice_t* busDevice);
+    _In_ Device_t* busDevice);
 
 /**
- * @brief Frees any resources allocated by HCIControllerCreate.
- * @param controller The controller to cleanup.
+ * @brief Stop and release resources allocated by HCIControllerCreate.
+ * @param controller Controller owned until destruction succeeds.
+ * @return OS_EOK after release, or a cleanup error while the controller remains owned.
  */
-extern void
+extern oserr_t
 HCIControllerDestroy(
     _In_ UsbManagerController_t* controller);
 
+/**
+ * @brief Count controller elements for the supplied buffer.
+ *
+ * @param transfer Transfer metadata and, for DMA controllers, device segments.
+ * @param transferLength Number of bytes in this submission.
+ * @param direction Transfer direction.
+ * @param sgTable Physical segments for legacy controllers; NULL for DMA controllers.
+ * @param sgTableOffset Offset into the physical segments; zero for DMA controllers.
+ * @param elementCountOut Receives the required element count.
+ * @return OS_EOK or an invalid buffer geometry error.
+ */
 extern oserr_t
 HCITransferElementsNeeded(
         _In_  UsbManagerTransfer_t*     transfer,
@@ -130,7 +142,10 @@ HCIProcessEvent(
     _In_ void*                   context);
 
 /**
- * @brief Finalizes a transfer by unlinking and maybe also cleaning any resources allocated.
+ * @brief Unlink a completed submission or release a transfer's controller resources.
+ *
+ * DMA controllers keep descriptors after periodic completion for rearm.
+ * Cancellation and cleanup must also release those descriptors.
  */
 extern oserr_t
 HCITransferFinalize(

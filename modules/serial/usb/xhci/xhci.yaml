@@ -1,5 +1,9 @@
 # Standard configuration file for drivers in the OS
 driver:
+  compatibles:
+    - generic-xhci
+    - snps,dwc3
+  
   # Access device registers and manage hardware interrupts.
   capabilities:
     - deviceio-access
