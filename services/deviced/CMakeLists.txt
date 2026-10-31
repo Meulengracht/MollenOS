@@ -2,6 +2,7 @@ enable_language(C)
 
 # Shared header paths
 add_library(deviced-headers INTERFACE)
+target_link_libraries(deviced-headers INTERFACE vali-fdt-headers)
 target_include_directories(deviced-headers INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -23,6 +24,8 @@ target_link_libraries(deviced PRIVATE
     deviced-headers
     deviced-core
     deviced-pci
+    deviced-rp1
+    deviced-platform
 )
 add_dependencies(deviced service_servers contract_clients)
 deploy_file_to_initrd(deviced "services" deviced.yaml)

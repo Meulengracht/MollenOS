@@ -136,7 +136,7 @@ FdtResolvePciMsi(
             ERROR("FdtResolvePciMsi GIC interrupt decoding failed: %u", status);
             return status;
         }
-        
+
         result.InterruptCount = FdtReadBe32(provider.MsiRanges + 16);
         result.Offset = msiOffset;
 
@@ -193,13 +193,13 @@ FdtResolvePciMsi(
 
 oserr_t
 FdtResolvePciDependencies(
-    _In_  const struct FdtPciHost*    host,
+    _In_  const struct FdtPciHost*   host,
     _Out_ struct FdtPciDependencies* dependencies)
 {
     struct FdtResources       provider;
     uint32_t                  clockFrequency = 0;
     struct FdtPciDependencies result = { 0 };
-    const uint8_t*             arguments;
+    const uint8_t*            arguments;
     uint32_t                  offset = 0;
     uint32_t                  index = 0;
     uint32_t                  names;

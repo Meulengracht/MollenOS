@@ -54,12 +54,14 @@ struct PciPublication {
  * retries preparation and binding without restarting successful bindings.
  *
  * @param pciDevice Host root to publish. Child devices are added by this call.
- * @return Complete on success, retry for unfinished resources or temporary failure,
- *         or failed when the current description cannot be published or prepared.
+ * @param result Caller-provided storage. Complete on success, retry for unfinished
+ *               resources or temporary failure, or failed when the current
+ *               description cannot be published or prepared.
  */
-__EXTERN struct DmStartupResult
+__EXTERN void
 PciPublishDevice(
-    _In_ struct PciDevice* pciDevice);
+    _In_  struct PciDevice*       pciDevice,
+    _Out_ struct DmStartupResult* result);
 
 /**
  * @brief Removes the host's device-manager entries, children first, then destroys

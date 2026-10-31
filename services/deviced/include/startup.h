@@ -21,25 +21,19 @@
 
 #include <os/osdefs.h>
 
-enum DmStartupOutcome {
+typedef enum DmStartupOutcome {
     // No startup work remains, including an absent optional subsystem.
     DmStartupComplete,
     // Another attempt may finish setup or release unfinished resources.
     DmStartupRetry,
     // The current description or implementation cannot complete startup.
     DmStartupFailed
-};
+} DmStartupOutcome_t;
 
-/**
- * @brief Startup status and whether another attempt is needed.
- * Merging results preserves the status of the first unfinished subsystem and
- * requests a retry if any subsystem still has retryable work. A completed
- * optional subsystem may report OS_ENOENT.
- */
-struct DmStartupResult {
-    oserr_t               Status;
-    enum DmStartupOutcome Outcome;
-};
+typedef struct DmStartupResult {
+    oserr_t            Status;
+    DmStartupOutcome_t Outcome;
+} DmStartupResult_t;
 
 /**
  * @brief Classify a setup status when the device description will not change.
@@ -47,48 +41,45 @@ struct DmStartupResult {
  * later, even when the status would otherwise mean startup has failed.
  *
  * @param status Setup error, or OS_EOK after completion.
- * @return The status with a complete, failed, or retry outcome.
+ * @param result Caller-provided storage for the status and startup outcome.
  */
-static inline struct DmStartupResult
+static inline void
 __DmStartupFromStatus(
-    _In_ oserr_t status)
+    _In_  oserr_t            status,
+    _Out_ DmStartupResult_t* result)
 {
-    struct DmStartupResult result = { .Status = status };
+    result->Status = status;
 
     switch (status) {
         case OS_EOK:
-            result.Outcome = DmStartupComplete;
+            result->Outcome = DmStartupComplete;
             break;
         case OS_EINVALPARAMS:
         case OS_ENOTSUPPORTED:
         case OS_EEXISTS:
         case OS_EOVERFLOW:
         case OS_ENOENT:
-            result.Outcome = DmStartupFailed;
+            result->Outcome = DmStartupFailed;
             break;
         default:
-            result.Outcome = DmStartupRetry;
+            result->Outcome = DmStartupRetry;
             break;
     }
-    return result;
 }
 
 /**
  * @brief Request another attempt when cleanup or a dependency check fails.
  *
  * @param status Cleanup or dependency error, or OS_EOK when work completed.
- * @return Retry on failure, or complete on success.
+ * @param result Caller-provided storage, retry on failure or complete on success.
  */
-static inline struct DmStartupResult
+static inline void
 __DmStartupRetryResult(
-    _In_ oserr_t status)
+    _In_  oserr_t            status,
+    _Out_ DmStartupResult_t* result)
 {
-    struct DmStartupResult result = {
-        .Status = status,
-        .Outcome = status == OS_EOK ? DmStartupComplete : DmStartupRetry
-    };
-
-    return result;
+    result->Status = status;
+    result->Outcome = status == OS_EOK ? DmStartupComplete : DmStartupRetry;
 }
 
 /**
@@ -101,16 +92,16 @@ __DmStartupRetryResult(
  */
 static inline void
 __DmStartupMerge(
-    _InOut_ struct DmStartupResult* result,
-    _In_    struct DmStartupResult  next)
+    _InOut_ DmStartupResult_t*       result,
+    _In_    const DmStartupResult_t* next)
 {
-    if (next.Outcome == DmStartupComplete) {
+    if (next->Outcome == DmStartupComplete) {
         return;
     }
     
     if (result->Outcome == DmStartupComplete) {
-        *result = next;
-    } else if (next.Outcome == DmStartupRetry) {
+        *result = *next;
+    } else if (next->Outcome == DmStartupRetry) {
         result->Outcome = DmStartupRetry;
     }
 }

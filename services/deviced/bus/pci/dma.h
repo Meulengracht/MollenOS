@@ -35,7 +35,7 @@ struct PciDmaDescription;
 struct PciDmaDescription {
     struct PciHostIdentification Host;
     enum DmDmaCachePolicy        CachePolicy;
-    struct DmDmaMap              Map;
+    DmDmaMap_t                   Map;
 };
 
 /**

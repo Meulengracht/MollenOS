@@ -123,18 +123,22 @@ FdtTreeConsole(
  * Terminal validation failures are remembered until FirmwareShutdown succeeds.
  * Cleanup failures always request another attempt before reporting terminal failure.
  *
- * @return Complete on success or absence, retry for pending work, or terminal failure.
+ * @param result Caller-provided storage. Complete on success or absence, retry
+ *               for pending work, or terminal failure.
  */
-__EXTERN struct DmStartupResult
-FirmwareInitialize(void);
+__EXTERN void
+FirmwareInitialize(
+    _Out_ struct DmStartupResult* result);
 
 /**
  * @brief Read the last initialization outcome without mapping or parsing firmware.
  *
- * @return Retry before initialization or while failed-parse cleanup is unfinished.
+ * @param result Caller-provided storage. Retry before initialization or while
+ *               failed-parse cleanup is unfinished.
  */
-__EXTERN struct DmStartupResult
-FirmwareGetStartupResult(void);
+__EXTERN void
+FirmwareGetStartupResult(
+    _Out_ struct DmStartupResult* result);
 
 /**
  * @brief Return the initialized shared tree.

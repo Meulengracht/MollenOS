@@ -22,7 +22,7 @@
 #include <firmware/reader.h>
 
 /**
- * @brief Read hardware resource information from a device-tree description.
+ * @brief Parsed resource properties and register information for one tree node.
  *
  * A device tree is a nested description of hardware. Each node represents a
  * device or a bus and stores named properties as byte sequences. Some
@@ -37,11 +37,11 @@
  * used by its own parent; FdtTranslateAddress applies those mappings one level
  * at a time.
  *
- * The View and property pointers in these records point into the original
- * firmware data. Keep that data mapped and unchanged for as long as any such
- * record or pointer is in use. PhysicalBase and PhysicalLength describe only
- * the first register range, and are usable only when RegisterStatus is
- * OS_EOK. Malformed indicates that a resource property could not be trusted.
+ * The View and property pointers refer to data owned by the parsed tree.
+ * Keep a reference to the tree for as long as any such record or pointer is
+ * in use. PhysicalBase and PhysicalLength describe only the first register
+ * range, and are usable only when RegisterStatus is OS_EOK. Malformed indicates
+ * that a resource property could not be trusted.
  */
 struct FdtResources {
     struct FdtNode View;
@@ -53,7 +53,7 @@ struct FdtResources {
     const uint8_t* Compatible;
     uint32_t       CompatibleLength;
 
-    // Number of 32-bit cells per address and size for this node's children
+    // Number of 32-bit cells per address and size for this node's children.
     uint32_t       AddressCells;
     int            HasAddressCells;
     uint32_t       SizeCells;
@@ -61,8 +61,11 @@ struct FdtResources {
     uint32_t       InterruptCells;
     int            IsInterruptController;
     int            Disabled;
-    int            AncestorDisabled;
-    int            AncestorMalformed;
+
+    // Set if any parent node up to the root has this state.
+    int            ParentDisabled;
+    int            ParentMalformed;
+    
     const uint8_t* Ranges;
     uint32_t       RangesLength;
     const uint8_t* Reg;
@@ -85,6 +88,8 @@ struct FdtResources {
     uint64_t       PhysicalLength;
     int            Malformed;
     int            IsMemory;
+    int            IsPci;
+    int            IsSimpleBus;
     int            IsMsiController;
     uint32_t       MsiCells;
     const uint8_t* MsiParent;
@@ -100,52 +105,48 @@ struct FdtResources {
     uint32_t       InterruptNamesLength;
 };
 
-typedef void (*FdtResourceFn)(const struct FdtResources*, int, void*);
+/**
+ * @brief Process the resource path from the root to the current node.
+ *
+ * @param nodes Temporary records, valid only during the callback. Pointers in
+ *              copied records remain valid while the parsed tree is available.
+ * @param depth Index of the current node in nodes, with the root at zero.
+ * @param context Caller data passed to the traversal routine.
+ */
+typedef void
+(*FdtResourceFn)(
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _InOut_ void*                      context);
 
 /**
- * @brief Visit every device-tree node with its decoded resource properties.
+ * @brief Visit parsed resource records in firmware order, parents before children.
+ * Check Malformed and RegisterStatus before using each record's resources.
  *
- * For each node, this function builds an array containing that node and its
- * ancestors, starting at the tree root. It reads resource properties such as
- * register ranges, bus address rules, clocks, resets, and interrupts, then
- * passes the array to the visitor. Keeping the ancestors in the array lets
- * callers interpret a node using the cell counts and address rules declared
- * by the buses above it.
- *
- * A node can still be visited when one of its resource properties is invalid.
- * The visitor must check Malformed and RegisterStatus before using the
- * affected data. The callback runs while the tree is being read, so copy any
- * records that must outlive the callback. Their pointers still refer to the
- * original firmware data.
- *
- * @param blob Firmware device-tree data, kept mapped and unchanged during use.
- * @param length Available size of blob in bytes.
- * @param visitor Function called for each node. It receives the ancestor array
- *                and the index of the current node in that array.
+ * @param tree Parsed firmware tree, kept alive while callback data is used.
+ * @param visitor Receives a temporary array from the root to the current node
+ *                and the current node's index. Copy records needed after the
+ *                callback; their pointers still refer to tree.
  * @param context Caller data passed to visitor.
- * @return OS_EOK if the tree was read, or an error if the tree itself could
- *         not be read. Resource-property problems are reported in each record
- *         and do not necessarily stop the walk.
+ * @return OS_EOK on success, or OS_EOOM if the traversal array cannot be allocated.
  */
 __EXTERN oserr_t
 FdtWalkResources(
-    _In_    const void*   blob,
-    _In_    size_t        length,
-    _In_    FdtResourceFn visitor,
-    _InOut_ void*         context);
+    _In_    const struct FdtTree* tree,
+    _In_    FdtResourceFn         visitor,
+    _InOut_ void*                 context);
 
 /**
- * @brief Find a node by its numeric device-tree ID and read its resources.
+ * @brief Find a node by its numeric device-tree ID and copy its parsed resources.
  *
- * Nodes that provide things such as clocks or interrupts are often named by
+ * Nodes that supply clocks or interrupts can be named by
  * numeric IDs in other nodes' properties. This function locates the node for
  * one of those IDs and returns its decoded resource information. The ID must
- * identify exactly one node, and the node and all of its ancestors must be
+ * identify exactly one node, and every node on the path to the root must be
  * enabled and structurally usable. The returned register address still needs
  * to be checked through RegisterStatus before it is used.
  *
- * @param blob Firmware device-tree data, kept mapped and unchanged during use.
- * @param length Available size of blob in bytes.
+ * @param tree Parsed firmware tree, kept alive while the returned resources are used.
  * @param phandle Numeric ID of the node to find. Duplicate IDs are rejected.
  * @param provider Receives the node's resources on success. Check RegisterStatus
  *                 before using its physical register address.
@@ -154,10 +155,9 @@ FdtWalkResources(
  */
 __EXTERN oserr_t
 FdtFindResources(
-    _In_  const void*          blob,
-    _In_  size_t               length,
-    _In_  uint32_t             phandle,
-    _Out_ struct FdtResources* provider);
+    _In_  const struct FdtTree* tree,
+    _In_  uint32_t              phandle,
+    _Out_ struct FdtResources*  provider);
 
 /**
  * @brief Read one register range as it is written in the device tree.
@@ -203,8 +203,8 @@ FdtRawRegister(
  * address partly updated, so use a temporary value if the original is needed.
  *
  * @param nodes Bus descriptions from the tree root through the starting bus.
- * @param depth Index of the starting bus in nodes.
- * @param length Number of bytes that must fit in the translated range.
+ * @param depth Valid index of the starting bus in nodes, with the root at zero.
+ * @param length Nonzero number of bytes that must fit in the translated range.
  * @param address Starting address; replaced with the translated address on
  *                success and possibly partly changed on failure.
  * @param dma Nonzero to use "dma-ranges", which describes addresses used by
@@ -214,11 +214,11 @@ FdtRawRegister(
  */
 __EXTERN int
 FdtTranslateAddress(
-    _In_ const struct FdtResources* nodes,
-    _In_ int                        depth,
-    _In_ uint64_t                   length,
-    _In_ uint64_t*                  address,
-    _In_ int                        dma);
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _In_    uint64_t                   length,
+    _InOut_ uint64_t*                  address,
+    _In_    int                        dma);
 
 /**
  * @brief Read one or more device-tree cells as a single integer.
@@ -245,9 +245,8 @@ FdtReadCells(
  * Properties such as "compatible" and "clock-names" store several strings
  * back-to-back, each ending with a zero byte. This function walks those
  * strings one at a time and compares complete entries, so a short name does
- * not accidentally match the beginning of a longer one. If an entry has no
- * terminating zero within the supplied length, the list is treated as invalid
- * and no match is reported.
+ * not accidentally match the beginning of a longer one. The search stops at
+ * the first match or unterminated entry. Bytes after a match are not checked.
  *
  * @param list Bytes containing the string list.
  * @param length Number of bytes available in list.
@@ -317,47 +316,45 @@ FdtContainsRange(
  * @brief Read one reference to another node from a resource property.
  *
  * A property such as "clocks" can contain a sequence of references. Each
- * reference names a node that supplies a resource, such as a clock or reset;
- * that node is called the provider. A reference normally starts with the
- * provider's numeric ID. The provider declares how many 32-bit argument
- * values follow that ID, so this function reads the ID, finds the provider,
- * checks its declared argument count, and returns the argument bytes.
+ * reference names a node that supplies a resource, such as a clock or reset.
+ * A reference normally starts with that node's numeric ID. The referenced
+ * node declares how many 32-bit argument values follow the ID. This function
+ * finds the node, checks its argument count, and returns the argument bytes.
  *
- * Some properties name their provider once for the whole list instead of
+ * Some properties name the referenced node once for the whole list instead of
  * repeating the ID for every entry. In that case inheritedProvider supplies
  * the ID and each entry contains only arguments. The function advances offset
  * only after the entire reference is valid, allowing a caller to stop safely
  * on an error without losing its place. The returned pointers refer to the
- * original firmware data.
+ * original data. Keep both tree and cells available while using the outputs.
  *
- * @param blob Firmware device-tree data, kept mapped and unchanged during use.
- * @param blobLength Available size of blob in bytes.
+ * @param tree Parsed firmware tree, kept alive while the returned pointers are used.
  * @param cells Bytes containing the references and their arguments.
  * @param length Number of bytes available in cells.
- * @param cellsName Name of the provider property that states the argument
+ * @param cellsName Name of the referenced node's property that states the argument
  *                  count, such as "#clock-cells".
- * @param inheritedProvider Zero when every entry starts with its provider ID.
+ * @param inheritedProvider Zero when every entry starts with a node ID.
  *                          Otherwise, this ID is used for each entry and the
  *                          entry starts directly with its arguments.
  * @param offset Byte position of the next entry to read. It advances past the
  *               entry only when that entry is valid.
- * @param provider Receives the resource information for the named provider.
+ * @param provider Receives the resource information for the referenced node.
  * @param arguments Receives a pointer to this entry's argument bytes. The
  *                  original firmware data must remain available while the
  *                  pointer is used.
- * @return OS_EOK on success, or an error if the provider cannot be found, its
- *         argument count is invalid, or the entry is incomplete.
+ * @return OS_EOK on success, or an error if the node cannot be found, its
+ *         argument count is invalid, or the entry is incomplete. Outputs
+ *         remain unchanged on error.
  */
 __EXTERN oserr_t
 FdtNextReference(
-    _In_    const void*          blob,
-    _In_    size_t               blobLength,
-    _In_    const uint8_t*       cells,
-    _In_    uint32_t             length,
-    _In_    const char*          cellsName,
-    _In_    uint32_t             inheritedProvider,
-    _InOut_ uint32_t*            offset,
-    _Out_   struct FdtResources* provider,
-    _Out_   const uint8_t**      arguments);
+    _In_    const struct FdtTree* tree,
+    _In_    const uint8_t*        cells,
+    _In_    uint32_t              length,
+    _In_    const char*           cellsName,
+    _In_    uint32_t              inheritedProvider,
+    _InOut_ uint32_t*             offset,
+    _Out_   struct FdtResources*  provider,
+    _Out_   const uint8_t**       arguments);
 
 #endif //!__FIRMWARE_RESOURCES_H__

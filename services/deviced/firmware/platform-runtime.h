@@ -86,6 +86,6 @@ oserr_t
 FdtPlatformDma(
     _In_  const struct FdtTree* tree,
     _In_  uint32_t              node,
-    _Out_ struct DmDmaMap*      map);
+    _Out_ DmDmaMap_t*           map);
 
 #endif

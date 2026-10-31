@@ -68,12 +68,14 @@ PlatformBusDestroy(
  * @brief Collect platform devices once and retry publication on later calls.
  *
  * Terminal startup failure is remembered for the service lifetime. Firmware
- * initialization must run first. If the tree is unavailable, return the firmware
+ * initialization must run first. If the tree is unavailable, report the firmware
  * startup outcome.
- * @return Complete on success or absence, retry for pending setup or rollback,
- *         or terminal failure for an unusable description.
+ * @param result Caller-provided storage. Complete on success or absence, retry
+ *               for pending setup or rollback, or terminal failure for an
+ *               unusable description.
  */
-__EXTERN struct DmStartupResult
-PlatformEnumerate(void);
+__EXTERN void
+PlatformEnumerate(
+    _Out_ struct DmStartupResult* result);
 
 #endif

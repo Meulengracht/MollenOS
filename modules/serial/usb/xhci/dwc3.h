@@ -25,7 +25,7 @@
  * Changed includes a write that failed verification, so partial preparation and
  * failed restoration leave the state needed for another cleanup attempt.
  */
-struct Dwc3Integration {
+struct DWC3State {
     DeviceIo_t*  Registers;
     uint32_t     Original[6];
     unsigned int Changed;
@@ -50,7 +50,7 @@ Dwc3IsDevice(
  */
 extern oserr_t
 Dwc3Prepare(
-    _InOut_ struct Dwc3Integration*       integration,
+    _InOut_ struct DWC3State*             integration,
     _In_    const struct DeviceResources* resources,
     _In_    DeviceIo_t*                   registers,
     _Out_   size_t*                       length);
@@ -62,6 +62,6 @@ Dwc3Prepare(
  */
 extern oserr_t
 Dwc3Release(
-    _InOut_ struct Dwc3Integration* integration);
+    _InOut_ struct DWC3State* integration);
 
 #endif

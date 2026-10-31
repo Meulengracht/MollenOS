@@ -109,11 +109,13 @@ struct PciFunctionHandler {
      * An already prepared attachment must leave active resources unchanged.
      *
      * @param attachment The attachment whose children need shared resources.
-     * @return Complete when ready for binding, retry for unfinished setup or cleanup,
-     *         or failed for unsupported hardware. Every failure blocks host binding.
+     * @param result Caller-provided storage. Complete when ready for binding,
+     *               retry for unfinished setup or cleanup, or failed for
+     *               unsupported hardware. Every failure blocks host binding.
      */
-    struct DmStartupResult (*PrepareHardware)(
-        _In_ void* attachment);
+    void (*PrepareHardware)(
+        _In_  void*                   attachment,
+        _Out_ struct DmStartupResult* result);
 };
 
 /**

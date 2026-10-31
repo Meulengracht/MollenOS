@@ -237,12 +237,16 @@ static oserr_t
 __PciRetryAttachments(
     _In_ PciDevice_t* device)
 {
-    oserr_t status;
+    struct DmStartupResult result;
+    oserr_t                status;
 
-    if (__DmStartupFromStatus(device->AttachmentStatus).Outcome == DmStartupRetry) {
+    __DmStartupFromStatus(device->AttachmentStatus, &result);
+    if (result.Outcome == DmStartupRetry) {
         status = device->Handler->Attach(device, &device->Resources, &device->Attachment);
         device->AttachmentStatus = status;
-        if (__DmStartupFromStatus(status).Outcome == DmStartupRetry) {
+        
+        __DmStartupFromStatus(status, &result);
+        if (result.Outcome == DmStartupRetry) {
             return status;
         }
     }
@@ -318,32 +322,31 @@ __PciReleasePublishedIo(
     return DmIoDestroy(device->PublishedIo, 6);
 }
 
-static struct DmStartupResult
+static void
 __PciPrepareHardware(
-    _In_ PciDevice_t* device)
+    _In_  PciDevice_t*            device,
+    _Out_ struct DmStartupResult* result)
 {
-    struct DmStartupResult result;
-
     if (device->Attachment != NULL && device->Handler->PrepareHardware != NULL) {
         PciCriticalSectionEnter();
-        result = device->Handler->PrepareHardware(device->Attachment);
+        device->Handler->PrepareHardware(device->Attachment, result);
         PciCriticalSectionLeave();
 
-        if (result.Outcome != DmStartupComplete) {
+        if (result->Outcome != DmStartupComplete) {
             ERROR("__PciPrepareHardware: device %u at %u:%u:%u.%u not ready (%u); descriptions kept",
                 device->DeviceId, device->Host->Identification.Segment,
-                device->Bus, device->Slot, device->Function, result.Status);
-            return result;
+                device->Bus, device->Slot, device->Function, result->Status);
+            return;
         }
     }
 
     foreach (element, &device->Children) {
-        result = __PciPrepareHardware(element->value);
-        if (result.Outcome != DmStartupComplete) {
-            return result;
+        __PciPrepareHardware(element->value, result);
+        if (result->Outcome != DmStartupComplete) {
+            return;
         }
     }
-    return __DmStartupFromStatus(OS_EOK);
+    __DmStartupFromStatus(OS_EOK, result);
 }
 
 static int
@@ -443,15 +446,15 @@ PciUnpublishDevice(
     return status;
 }
 
-struct DmStartupResult
+void
 PciPublishDevice(
-    _In_ PciDevice_t* device)
+    _In_  PciDevice_t*            device,
+    _Out_ struct DmStartupResult* result)
 {
     struct PciPublication*     publication = &device->Host->Publication;
     struct DmPublicationGroup* group = &publication->Group;
     oserr_t                    status;
     oserr_t                    cleanup;
-    struct DmStartupResult     result;
 
     InterruptMessageControllerIdentity_t query = {
         .Version = 1,
@@ -461,23 +464,27 @@ PciPublishDevice(
     TRACE("PciPublishDevice(host=%u)", device->Host->Identification.HostId);
 
     if (device->Host->Removing) {
-        return __DmStartupRetryResult(OS_EBUSY);
+        __DmStartupRetryResult(OS_EBUSY, result);
+        return;
     }
     if (device->Host->ScanStatus != OS_EOK) {
-        return __DmStartupFromStatus(device->Host->ScanStatus);
+        __DmStartupFromStatus(device->Host->ScanStatus, result);
+        return;
     }
 
     // Publication must cover the whole host before any driver can start.
     if (device->Parent != NULL) {
         WARNING("PciPublishDevice requires a host root");
-        return __DmStartupFromStatus(OS_EINVALPARAMS);
+        __DmStartupFromStatus(OS_EINVALPARAMS, result);
+        return;
     }
 
     // Finish removing the old group before adding descriptions for a new attempt.
     if (publication->CleanupPending) {
         status = PciUnpublishDevice(device);
         if (status != OS_EOK) {
-            return __DmStartupRetryResult(status);
+            __DmStartupRetryResult(status, result);
+            return;
         }
     }
 
@@ -488,7 +495,8 @@ PciPublishDevice(
         // Complete child inventories before fixing the publication group's membership.
         status = __PciRetryAttachments(device);
         if (status != OS_EOK) {
-            return __DmStartupFromStatus(status);
+            __DmStartupFromStatus(status, result);
+            return;
         }
         status = __PciStagePublication(device);
         if (status != OS_EOK) {
@@ -499,15 +507,18 @@ PciPublishDevice(
             cleanup = PciUnpublishDevice(device);
             if (cleanup != OS_EOK) {
                 WARNING("PciPublishDevice rollback incomplete: %u", cleanup);
-                return __DmStartupRetryResult(cleanup);
+                __DmStartupRetryResult(cleanup, result);
+                return;
             }
-            return __DmStartupFromStatus(status);
+            __DmStartupFromStatus(status, result);
+            return;
         }
 
         status = DmPublicationFinish(group);
         if (status != OS_EOK) {
             ERROR("PciPublishDevice publication finalization failed: %u", status);
-            return __DmStartupFromStatus(status);
+            __DmStartupFromStatus(status, result);
+            return;
         }
     }
 
@@ -526,15 +537,17 @@ PciPublishDevice(
         if (status != OS_EOK && status != OS_ENOTSUPPORTED) {
             // A supported interrupt controller may not have registered yet.
             if (status == OS_ENOENT) {
-                return __DmStartupRetryResult(status);
+                __DmStartupRetryResult(status, result);
+                return;
             }
-            return __DmStartupFromStatus(status);
+            __DmStartupFromStatus(status, result);
+            return;
         }
     }
 
-    result = __PciPrepareHardware(device);
-    if (result.Outcome != DmStartupComplete) {
-        return result;
+    __PciPrepareHardware(device, result);
+    if (result->Outcome != DmStartupComplete) {
+        return;
     }
-    return __DmStartupFromStatus(DmPublicationEnableBinding(group));
+    __DmStartupFromStatus(DmPublicationEnableBinding(group), result);
 }

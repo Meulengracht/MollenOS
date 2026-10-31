@@ -51,6 +51,10 @@ XhciEndpointGetOrCreate(
     oserr_t         oserr;
 
     if (endpoint != NULL) {
+        if (endpoint->State == XHCI_ENDPOINT_FAILED) {
+            return NULL;
+        }
+
         endpoint->Address = transfer->Address;
         return endpoint;
     }
@@ -73,56 +77,81 @@ XhciEndpointGetOrCreate(
     list_construct(&endpoint->Pending);
     ELEMENT_INIT(&endpoint->Header, (uintptr_t)transfer->Address.EndpointAddress, endpoint);
 
-    oserr = XhciRingInitialize(&endpoint->TransferRing, XHCI_RING_TRB_COUNT);
+    // Keep partial allocations attached for controller teardown if release fails.
+    list_append(&controller->XhciEndpoints, &endpoint->Header);
+    
+    oserr = XhciRingInitialize(controller->Base.DmaContext, &endpoint->TransferRing, XHCI_RING_TRB_COUNT);
     if (oserr != OS_EOK) {
-        free(endpoint);
-        return NULL;
-    }
-
-    if (list_append(&controller->XhciEndpoints, &endpoint->Header) != 0) {
-        XhciRingDestroy(&endpoint->TransferRing);
-        free(endpoint);
+        endpoint->State = XHCI_ENDPOINT_FAILED;
         return NULL;
     }
     return endpoint;
 }
 
-static void
+static oserr_t
 __DestroyEndpoint(
-    _In_ element_t* item,
-    _In_ void*      context)
+    _In_ XhciController_t* controller,
+    _In_ XhciEndpoint_t*   endpoint)
 {
-    XhciEndpoint_t* endpoint = item->value;
-    _CRT_UNUSED(context);
+    oserr_t status;
 
-    XhciRingDestroy(&endpoint->TransferRing);
+    if (endpoint->Pending.head != NULL) {
+        return OS_EBUSY;
+    }
+
+    status = XhciRingDestroy(&endpoint->TransferRing);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (endpoint->Device != NULL &&
+        endpoint->Device->Endpoints[endpoint->DeviceContextIndex] == endpoint) {
+        endpoint->Device->Endpoints[endpoint->DeviceContextIndex] = NULL;
+    }
+
+    list_remove(&controller->XhciEndpoints, &endpoint->Header);
     free(endpoint);
+    return OS_EOK;
 }
 
-void
+oserr_t
 XhciEndpointDestroyAll(
     _In_ XhciController_t* controller)
 {
-    list_clear(&controller->XhciEndpoints, __DestroyEndpoint, NULL);
+    oserr_t status;
+
+    while (controller->XhciEndpoints.head != NULL) {
+        status = __DestroyEndpoint(controller, controller->XhciEndpoints.head->value);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    return OS_EOK;
 }
 
-void
+oserr_t
 XhciEndpointDestroyDevice(
     _In_ XhciController_t* controller,
-    _In_ XhciDevice_t*      device)
+    _In_ XhciDevice_t*     device)
 {
     element_t* node = controller->XhciEndpoints.head;
+    ;
+    XhciEndpoint_t* endpoint;
+    oserr_t         status;
 
     while (node != NULL) {
-        element_t* next = node->next;
+        element_t*      next = node->next;
         XhciEndpoint_t* endpoint = node->value;
+        
         if (endpoint->Device == device) {
-            list_remove(&controller->XhciEndpoints, node);
-            XhciRingDestroy(&endpoint->TransferRing);
-            free(endpoint);
+            status = __DestroyEndpoint(controller, endpoint);
+            if (status != OS_EOK) {
+                return status;
+            }
         }
         node = next;
     }
+    return OS_EOK;
 }
 
 bool

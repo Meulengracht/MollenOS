@@ -333,23 +333,22 @@ __Rp1PublishAttachment(
     return OS_EOK;
 }
 
-static struct DmStartupResult
+static void
 __Rp1PrepareHardware(
-    _In_ void* attachment)
+    _In_  void*              attachment,
+    _Out_ DmStartupResult_t* result)
 {
-    struct Rp1Bus*         bus = attachment;
-    struct DmStartupResult result;
-    oserr_t                status;
+    struct Rp1Bus* bus = attachment;
+    oserr_t        status;
 
     usched_mtx_lock(&bus->Lock);
     status = Rp1RuntimeStart(bus);
-    result = __DmStartupFromStatus(status);
+    __DmStartupFromStatus(status, result);
     if (status != OS_EOK && bus->Runtime != NULL) {
         // Partial runtime resources must finish cleanup before startup can stop.
-        result = __DmStartupRetryResult(status);
+        __DmStartupRetryResult(status, result);
     }
     usched_mtx_unlock(&bus->Lock);
-    return result;
 }
 
 static oserr_t

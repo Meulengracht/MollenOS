@@ -393,7 +393,7 @@ __BcmTranslate(
     // Translate a PCI device address using the ranges installed during setup.
     return FdtTranslatePciAddress(
         &controller->Firmware,
-        (enum FdtPciSpace)space,
+        (FdtPciSpace_t)space,
         address,
         length,
         physical

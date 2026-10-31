@@ -136,8 +136,8 @@ FdtDecodeDmaRanges(
 oserr_t
 FdtComposeDmaRanges(
     _In_  const struct FdtDmaRanges* child,
-    _In_  const struct DmDmaMap*     parent,
-    _Out_ struct DmDmaMap*           map);
+    _In_  const DmDmaMap_t*          parent,
+    _Out_ DmDmaMap_t*                map);
 
 /**
  * @brief Copy a PCI host's RAM windows into the common DMA range format.
@@ -156,6 +156,6 @@ FdtComposeDmaRanges(
 oserr_t
 FdtPciDmaMap(
     _In_  const struct FdtPciHost* host,
-    _Out_ struct DmDmaMap*         map);
+    _Out_ DmDmaMap_t*              map);
 
 #endif

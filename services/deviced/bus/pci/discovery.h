@@ -33,11 +33,12 @@
  * the host's descriptions remain blocked until explicit unpublication or
  * destruction.
  *
- * @return First error and combined outcome. DmStartupRetry means cleanup or host
- *         startup needs another attempt, even if a different host has failed
- *         permanently.
+ * @param result Caller-provided storage for the first error and combined outcome.
+ *               DmStartupRetry means cleanup or host startup needs another
+ *               attempt, even if a different host has failed permanently.
  */
-__EXTERN struct DmStartupResult
-BusRecoverAndRepublish(void);
+__EXTERN void
+BusRecoverAndRepublish(
+    _Out_ struct DmStartupResult* result);
 
 #endif // __DEVICED_BUS_PCI_DISCOVERY_H__

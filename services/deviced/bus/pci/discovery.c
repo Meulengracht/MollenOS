@@ -54,11 +54,15 @@ static void
 __RecordDiscoveryError(
     _In_ oserr_t status)
 {
+    DmStartupResult_t result;
+
     // Retry only errors classified as temporary. Invalid firmware stays invalid
     // across startup attempts.
-    if (__DmStartupFromStatus(status).Outcome != DmStartupRetry) {
+    __DmStartupFromStatus(status, &result);
+    if (result.Outcome != DmStartupRetry) {
         return;
     }
+    
     if (g_discoveryStatus == OS_EOK) {
         g_discoveryStatus = status;
     }
@@ -185,8 +189,9 @@ __EnumerateEcamWindow(
     _In_ const struct FdtPciHost*  firmwareHost,
     _In_ struct FdtTree*           tree)
 {
-    PciHost_t*                      host;
-    oserr_t                         status;
+    PciHost_t* host;
+    oserr_t    status;
+    
     struct PciEcamHostConfiguration configuration = {
         .Identification = {
             .Segment = segment,
@@ -328,12 +333,14 @@ __OnFdtPciHost(
 static void
 __EnumerateDeviceTree(void)
 {
-    struct FdtTree* tree = FirmwareGetTree();
-    oserr_t         status;
+    struct FdtTree*   tree = FirmwareGetTree();
+    DmStartupResult_t result;
+    oserr_t           status;
 
     if (tree == NULL) {
         // Retry only while firmware startup can still produce a usable tree.
-        if (FirmwareGetStartupResult().Outcome == DmStartupRetry) {
+        FirmwareGetStartupResult(&result);
+        if (result.Outcome == DmStartupRetry) {
             __RecordDiscoveryError(OS_EBUSY);
         }
         return;
@@ -349,16 +356,19 @@ __EnumerateDeviceTree(void)
 static oserr_t
 __InitializeDiscoveryPolicy(void)
 {
-    AcpiDescriptor_t acpi = { 0 };
-    oserr_t          status;
+    AcpiDescriptor_t  acpi = { 0 };
+    DmStartupResult_t result;
+    oserr_t           status;
 
     if (g_policyInitialized) {
         return OS_EOK;
     }
     status = AcpiQueryStatus(&acpi);
-    if (__DmStartupFromStatus(status).Outcome == DmStartupRetry) {
+    __DmStartupFromStatus(status, &result);
+    if (result.Outcome == DmStartupRetry) {
         return status;
     }
+    
     if (status != OS_EOK) {
         TRACE("__InitializeDiscoveryPolicy: ACPI unavailable: %u", status);
     } else {
@@ -428,28 +438,28 @@ __DiscoverHosts(void)
     return g_discoveryStatus;
 }
 
-struct DmStartupResult
-BusRecoverAndRepublish(void)
+void
+BusRecoverAndRepublish(
+    _Out_ DmStartupResult_t* result)
 {
-    element_t*             element;
-    PciHost_t*             host;
-    oserr_t                status;
-    struct DmStartupResult result;
-    struct DmStartupResult next;
+    element_t*        element;
+    PciHost_t*        host;
+    oserr_t           status;
+    DmStartupResult_t next;
 
     // Finish releasing failed hosts before another discovery attempt, even if
     // their setup error prevents further startup attempts.
     status = __FinishHostCleanup();
-    result = __DmStartupRetryResult(status);
+    __DmStartupRetryResult(status, result);
     if (status == OS_EOK) {
         if (g_discoveryFailure != OS_EOK) {
-            result = __DmStartupFromStatus(g_discoveryFailure);
+            __DmStartupFromStatus(g_discoveryFailure, result);
         } else {
-            result = __DmStartupFromStatus(__DiscoverHosts());
+            __DmStartupFromStatus(__DiscoverHosts(), result);
             if (g_hostCleanup != NULL) {
-                result.Outcome = DmStartupRetry;
-            } else if (result.Outcome == DmStartupFailed) {
-                g_discoveryFailure = result.Status;
+                result->Outcome = DmStartupRetry;
+            } else if (result->Outcome == DmStartupFailed) {
+                g_discoveryFailure = result->Status;
             }
         }
     }
@@ -459,24 +469,25 @@ BusRecoverAndRepublish(void)
     _foreach(element, &g_pciRoots) {
         host = ((struct PciDevice*)element->value)->Host;
         if (host->StartupFailure != OS_EOK) {
-            next = (struct DmStartupResult) {
+            next = (DmStartupResult_t) {
                 .Status = host->StartupFailure,
                 .Outcome = DmStartupFailed
             };
         } else {
-            next = __DmStartupFromStatus(PciRecoverScan(host));
+            __DmStartupFromStatus(PciRecoverScan(host), &next);
             if (next.Outcome == DmStartupComplete) {
-                next = PciPublishDevice(element->value);
+                PciPublishDevice(element->value, &next);
             }
+            
             if (next.Outcome == DmStartupFailed) {
                 host->StartupFailure = next.Status;
             }
+            
             if (next.Outcome != DmStartupComplete) {
                 ERROR("PCI startup failed for host %u: %u (outcome %u)",
                     host->Identification.HostId, next.Status, next.Outcome);
             }
         }
-        __DmStartupMerge(&result, next);
+        __DmStartupMerge(result, &next);
     }
-    return result;
 }

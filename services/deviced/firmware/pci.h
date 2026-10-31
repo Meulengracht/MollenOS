@@ -25,7 +25,7 @@
 // Forward declarations
 struct FdtNode;
 
-/** 
+/**
  * @brief PCI host controller types supported by the firmware reader.
  * The host controller acts as a proxy to one or more PCI buses.
  * ECAM places PCI device configuration registers in a
@@ -40,7 +40,7 @@ enum FdtPciHostType {
 // PCI memory window may be read ahead by the processor.
 #define FDT_PCI_PREFETCHABLE 0x40000000U
 
-enum FdtPciSpace {
+typedef enum FdtPciSpace {
     // PCI configuration addresses.
     FdtPciSpaceConfiguration = 0,
     // PCI I/O addresses.
@@ -49,13 +49,13 @@ enum FdtPciSpace {
     FdtPciSpaceMemory32 = 2,
     // PCI memory addresses that can use 64 bits.
     FdtPciSpaceMemory64 = 3
-};
+} FdtPciSpace_t;
 
 // Read the PCI address-space kind from bits 25 through 24 of its attributes.
 #define FDT_PCI_SPACE_FROM_ATTRIBUTES(attributes) \
-    ((enum FdtPciSpace)(((attributes) >> 24) & 3))
+    ((FdtPciSpace_t)(((attributes) >> 24) & 3))
 
-/** 
+/**
  * @brief Describes what a PCI device can reach through one of its DMA address ranges.
  * Direct memory access (DMA) lets a device read or write memory without asking
  * the processor to copy each piece of data. Firmware descriptions help identify
@@ -72,14 +72,17 @@ enum FdtDmaWindowKind {
     FdtDmaWindowMsi
 };
 
-/** Describes one continuous range of addresses visible to a PCI device.
+/**
+ * @brief One continuous range of addresses visible to a PCI device.
+ *
  * PCI devices use bus addresses, which can differ from the physical addresses
  * used by the processor. PhysicalBase is the final processor-visible address,
  * after applying address changes made by parent buses. Space identifies the
- * PCI address kind: 1 is I/O, 2 is 32-bit memory, and 3 is 64-bit memory. */
+ * PCI address kind: 1 is I/O, 2 is 32-bit memory, and 3 is 64-bit memory.
+ */
 struct FdtPciWindow {
     // Address kind from the PCI firmware address-space encoding.
-    enum FdtPciSpace Space;
+    FdtPciSpace_t Space;
     // Firmware attributes from the first PCI address cell. The prefetch flag
     // means the processor may read nearby addresses ahead of the request.
     uint32_t Attributes;
@@ -93,7 +96,7 @@ struct FdtPciWindow {
     uint64_t Length;
 };
 
-/** 
+/**
  * @brief Firmware-provided settings for the PCI Express link.
  */
 struct FdtPciLink {
@@ -110,7 +113,7 @@ struct FdtPciLink {
     const char* ClkreqMode;
 };
 
-/** 
+/**
  * @brief Describes the controller used to deliver message-signaled interrupts (MSIs).
  * An MSI is an interrupt raised when a device writes to a designated address,
  * rather than changing a physical interrupt pin. RegisterBase and
@@ -123,7 +126,7 @@ struct FdtPciMsi {
     // Firmware identifier for the interrupt controller.
     uint32_t Controller;
     // Nonzero when this controller receives device writes that raise MSIs.
-    int IsMip; 
+    int IsMip;
     // First physical address of the controller's registers.
     uint64_t RegisterBase;
     // Size of the controller's register range in bytes.
@@ -140,15 +143,15 @@ struct FdtPciMsi {
     uint32_t Offset;
 };
 
-/** 
+/**
  * @brief Firmware description of one PCI host controller and its connections.
  * It includes the controller's configuration-register range, the buses it
  * serves, address translations, and interrupt information. A PCI domain
  * (also called a segment) identifies a group of PCI buses. Windows translate
  * processor addresses when the processor accesses PCI resources; DmaWindows
- * describe where devices' direct memory access (DMA) requests go. Most property
- * pointers refer into Blob, the original firmware Device Tree data. Keep Blob
- * mapped and unchanged for as long as this description or any copy is in use.
+ * describe where devices' direct memory access (DMA) requests go. The property
+ * pointers refer to data owned by Tree, the shared firmware inventory. Keep a
+ * reference to Tree for as long as this description or any copy is in use.
  */
 struct FdtPciHost {
     // Byte position of this node in the Device Tree structure.
@@ -213,10 +216,8 @@ struct FdtPciHost {
     const uint8_t* ClockNames;
     // Size of ClockNames in bytes.
     uint32_t ClockNamesLength;
-    // Original Device Tree data containing the property pointers above.
-    const void* Blob;
-    // Size of Blob in bytes.
-    size_t BlobLength;
+    // Shared firmware tree that owns the property data above.
+    struct FdtTree* Tree;
     // Rules mapping a PCI device's interrupt pin to a controller interrupt.
     const uint8_t* InterruptMap;
     // Size of InterruptMap in bytes.
@@ -227,7 +228,19 @@ struct FdtPciHost {
     uint32_t InterruptMaskLength;
 };
 
-typedef void (*FdtPciHostFn)(const struct FdtPciHost* host, void* context);
+/**
+ * @brief Process one usable PCI host during enumeration.
+ *
+ * @param host Temporary host description, valid until the callback returns.
+ *             Copies require the firmware tree to remain alive because their
+ *             property pointers refer to its data.
+ * @param context Caller-owned value supplied to FdtEnumeratePciHosts.
+ * @return No return value.
+ */
+typedef void
+(*FdtPciHostFn)(
+    _In_    const struct FdtPciHost* host,
+    _InOut_ void*                    context);
 
 /**
  * @brief Find an interrupt connection on the PCI host by its firmware name.
@@ -262,12 +275,10 @@ FdtResolvePciNamedInterrupt(
  * number ranges conflict. Disabled hosts and hosts with invalid or unsupported
  * resource descriptions are not reported.
  *
- * @param blob Firmware Device Tree data. It must stay mapped and unchanged
- *             while this function runs and while any callback data is used.
- * @param length Number of available bytes in blob.
+ * @param tree Parsed firmware tree, kept alive while callback data is used.
  * @param callback Function called for each usable host. The host description
  *                 is temporary, so copy it if it must be kept after the call.
- *                 Its property pointers still refer to blob.
+ *                 Its property pointers still refer to data owned by tree.
  * @param context Caller-owned value passed unchanged to each callback.
  * @return OS_EOK on success. Returns an error for invalid input, memory
  *         allocation failure, or when no unused domain number remains. Device
@@ -276,10 +287,9 @@ FdtResolvePciNamedInterrupt(
  */
 __EXTERN oserr_t
 FdtEnumeratePciHosts(
-    _In_ const void*  blob,
-    _In_ size_t       length,
-    _In_ FdtPciHostFn callback,
-    _In_ void*        context);
+    _In_    struct FdtTree* tree,
+    _In_    FdtPciHostFn    callback,
+    _InOut_ void*           context);
 
 /**
  * @brief Convert a PCI device address range to the processor's physical address.
@@ -287,6 +297,8 @@ FdtEnumeratePciHosts(
  * PCI devices use bus addresses. The processor may use a different physical
  * address for the same resource, so this function applies the host's firmware
  * address mappings. The entire requested range must fit within one mapping.
+ * Both PCI memory address kinds can use either memory window kind. Other
+ * address kinds must match the window exactly.
  *
  * @param host Host whose address mappings describe the conversion.
  * @param space PCI address-space kind: FdtPciSpaceConfiguration, FdtPciSpaceIo,
@@ -300,7 +312,7 @@ FdtEnumeratePciHosts(
 __EXTERN oserr_t
 FdtTranslatePciAddress(
     _In_  const struct FdtPciHost* host,
-    _In_  enum FdtPciSpace         space,
+    _In_  FdtPciSpace_t            space,
     _In_  uint64_t                 address,
     _In_  uint64_t                 length,
     _Out_ uint64_t*                physicalOut);
@@ -332,7 +344,6 @@ FdtResolvePciInterrupt(
     _In_  unsigned int             pin,
     _Out_ int*                     lineOut,
     _Out_ unsigned int*            flagsOut);
-
 
 /**
  * @brief Check whether a Device Tree node describes a supported PCI host.

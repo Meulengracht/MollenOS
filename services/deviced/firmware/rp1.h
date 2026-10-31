@@ -20,29 +20,19 @@
 #define __FIRMWARE_RP1_H__
 
 #include <firmware/pci.h>
-#include <bus/pci/bars.h>
 
-struct FdtDmaMap;
+// forward declarations
+typedef struct DmDmaMap DmDmaMap_t;
 
 #define FDT_RP1_MAX_REGISTERS   8
 #define FDT_RP1_MAX_INTERRUPTS  8
 #define FDT_RP1_INTERRUPT_COUNT 61
 
-/** 
- * @brief A CPU physical address range for an RP1 device's registers.
- * The range has been checked to fit inside memory assigned to RP1 through a
- * PCI Base Address Register (BAR), which describes a device's address range.
- */
 struct FdtRp1Range {
     uint64_t Base;
     uint64_t Length;
 };
 
-/** 
- * @brief An interrupt handled by the RP1 I/O controller.
- * Controller is its firmware ID (phandle). Number is an RP1 interrupt number,
- * not a line on the Arm interrupt controller or a PCI device's interrupt pin.
- */
 struct FdtRp1Interrupt {
     uint32_t Controller;
     uint32_t Number;
@@ -50,30 +40,28 @@ struct FdtRp1Interrupt {
     uint32_t Type;
 };
 
-/** 
- * @brief Describes one enabled device attached to the RP1 I/O controller.
- * Strings point into the original firmware data, which must stay mapped and
- * unchanged while they are used. NodeOffset locates the original node in the
- * tree's structure block, where callers can also read this device's clock,
- * reset, direct memory access (DMA), and pin settings.
- */
 struct FdtRp1Device {
-    const char* Name;
-    
-    const char* Compatible;
-    uint32_t    CompatibleLength;
-    
-    uint32_t NodeOffset;
-    uint32_t Controller;
-    
-    struct FdtRp1Range Registers[FDT_RP1_MAX_REGISTERS];
-    uint32_t           RegisterCount;
-
+    const char*            Name;
+    const char*            Compatible;
+    uint32_t               CompatibleLength;
+    uint32_t               NodeOffset;
+    uint32_t               Controller;
+    struct FdtRp1Range     Registers[FDT_RP1_MAX_REGISTERS];
+    uint32_t               RegisterCount;
     struct FdtRp1Interrupt Interrupts[FDT_RP1_MAX_INTERRUPTS];
     uint32_t               InterruptCount;
 };
 
-typedef void (*FdtRp1DeviceFn)(const struct FdtRp1Device*, void*);
+/**
+ * @brief Process a temporary description of an enabled RP1 child.
+ *
+ * @param device Description valid for this call. Its strings remain valid while
+ *               the original firmware tree stays mapped and unchanged.
+ * @param context Caller data passed to FdtEnumerateRp1Children.
+ */
+typedef void (*FdtRp1DeviceFn)(
+    _In_ const struct FdtRp1Device* device,
+    _In_ void*                      context);
 
 /**
  * @brief Find devices directly attached to the RP1 controller under this host.
@@ -83,48 +71,53 @@ typedef void (*FdtRp1DeviceFn)(const struct FdtRp1Device*, void*);
  * before any callbacks, so callers do not receive an incomplete device list.
  *
  * @param host PCI host whose RP1 controller should be examined.
- * @param bars Six PCI BAR descriptions. Only assigned memory ranges are used,
- *             and their addresses must be CPU physical addresses.
+ * @param ranges CPU physical memory ranges assigned to this RP1 endpoint by
+ *               the bus owner. Firmware descriptions alone do not assign memory.
+ *               Every child register range must fit inside one assigned range.
+ * @param rangeCount Number of entries in ranges; zero permits NULL.
  * @param callback Called with each device's temporary description; copy it if
- *                 needed later. Its strings still point into host->Blob.
+ *                 needed later. Keep host->Tree alive while using its strings.
  * @param context Caller data passed to callback.
  * @return OS_EOK on success, OS_ENOENT if no RP1 controller is described, or
  *         an error for invalid, ambiguous, or unsupported resource descriptions.
  */
 __EXTERN oserr_t
 FdtEnumerateRp1Children(
-    _In_ const struct FdtPciHost* host,
-    _In_ const struct PciBar*     bars,
-    _In_ FdtRp1DeviceFn           callback,
-    _In_ void*                    context);
+    _In_ const struct FdtPciHost*  host,
+    _In_ const struct FdtRp1Range* ranges,
+    _In_ uint32_t                  rangeCount,
+    _In_ FdtRp1DeviceFn            callback,
+    _In_ void*                     context);
 
 /**
- * @brief Describe the RAM apertures reachable by an enabled direct RP1 child.
+ * @brief Describe the RAM ranges reachable by an enabled direct RP1 child.
  *
- * @param host Retained, decoded PCI host description. Its DmaWindows already
- *             express PCI-to-CPU translations through the host's ancestors.
+ * The result describes firmware DMA windows. The caller must check installed
+ * RAM, cache policy and programmed hardware before using it for DMA. This
+ * function does not allocate memory, publish devices or change readiness flags.
+ *
+ * @param host Decoded PCI host description, kept alive throughout the call.
+ *             Its DmaWindows include PCI-to-CPU translations through parent buses.
  *             Only windows classified as RAM contribute to the result.
  * @param childNode Exact firmware node offset from an enumerated RP1 child.
  * @param map Receives the complete copied mapping only on success. Aliases are
- *            retained; holes, peer resources and MSI doorbells are excluded.
+ *            included; holes, peer resources and MSI doorbells are excluded.
  * @return OS_EOK, OS_ENOENT for an absent/disabled child or no reachable RAM,
  *         OS_EINVALPARAMS for malformed/ambiguous descriptions, or
- *         OS_ENOTSUPPORTED for absent DMA ranges, IOMMU paths or capacity.
- *         Does not validate installed RAM, cache policy or programmed hardware,
- *         allocate memory, publish devices or change readiness flags.
+ *         OS_ENOTSUPPORTED for absent DMA ranges, IOMMU paths or insufficient
+ *         map capacity.
  */
 __EXTERN oserr_t
 FdtResolveRp1Dma(
     _In_  const struct FdtPciHost* host,
     _In_  uint32_t                 childNode,
-    _Out_ struct FdtDmaMap*        map);
+    _Out_ DmDmaMap_t*              map);
 
 /**
  * @brief Resolve the RP1 child path using the supplied PCI-to-RAM map.
  *
- * A running host can supply its configured windows here, instead of treating
- * firmware's desired host settings as proof that those settings were applied.
- * The child path uses the same ancestry and unsupported-path checks as
+ * A running host must supply windows that match its programmed DMA settings.
+ * The child path uses the same parent-bus and unsupported-path checks as
  * FdtResolveRp1Dma. No host DMA windows are read from firmware by this function.
  *
  * @param host Firmware used to locate this host and its RP1 child bus.
@@ -138,8 +131,7 @@ __EXTERN oserr_t
 FdtComposeRp1Dma(
     _In_  const struct FdtPciHost* host,
     _In_  uint32_t                 childNode,
-    _In_  const struct FdtDmaMap*  parent,
-    _Out_ struct FdtDmaMap*        map);
-
+    _In_  const DmDmaMap_t*        parent,
+    _Out_ DmDmaMap_t*              map);
 
 #endif //!__FIRMWARE_RP1_H__

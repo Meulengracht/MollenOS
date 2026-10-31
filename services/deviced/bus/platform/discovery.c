@@ -21,38 +21,38 @@
 static struct PlatformBus* g_platformBus;
 static oserr_t             g_platformStartupFailure;
 
-struct DmStartupResult
+void
 PlatformEnumerate(
-    void)
+    _Out_ struct DmStartupResult* result)
 {
     struct FdtTree*        tree = FirmwareGetTree();
-    struct DmStartupResult result;
     oserr_t                status;
 
     if (tree == NULL) {
-        return FirmwareGetStartupResult();
+        FirmwareGetStartupResult(result);
+        return;
     }
     if (g_platformStartupFailure != OS_EOK) {
-        return __DmStartupFromStatus(g_platformStartupFailure);
+        __DmStartupFromStatus(g_platformStartupFailure, result);
+        return;
     }
 
     if (g_platformBus == NULL) {
         status = PlatformBusCreate(tree, &g_platformBus);
-        result = __DmStartupFromStatus(status);
+        __DmStartupFromStatus(status, result);
     } else {
-        result = __DmStartupFromStatus(OS_EOK);
+        __DmStartupFromStatus(OS_EOK, result);
     }
 
-    if (result.Outcome == DmStartupComplete) {
-        result = __DmStartupFromStatus(PlatformBusPublish(g_platformBus));
+    if (result->Outcome == DmStartupComplete) {
+        __DmStartupFromStatus(PlatformBusPublish(g_platformBus), result);
         if (g_platformBus->Publication.State == DmPublicationRemoving) {
             // Retry until rollback removes the partially published devices.
-            result.Outcome = DmStartupRetry;
+            result->Outcome = DmStartupRetry;
         }
     }
 
-    if (result.Outcome == DmStartupFailed) {
-        g_platformStartupFailure = result.Status;
+    if (result->Outcome == DmStartupFailed) {
+        g_platformStartupFailure = result->Status;
     }
-    return result;
 }
