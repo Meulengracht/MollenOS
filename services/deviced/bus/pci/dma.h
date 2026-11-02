@@ -20,7 +20,7 @@
 #define __DEVICED_PCI_DMA_H__
 
 #include <bus/pci/host.h>
-#include <device-dma.h>
+#include <dma-types.h>
 
 struct PciDmaDescription;
 

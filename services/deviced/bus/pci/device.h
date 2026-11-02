@@ -33,7 +33,7 @@
 #include <ds/list.h>
 
 struct PciFunctionHandler;
-typedef struct DmDeviceProviderOperations DmDeviceBusOperations_t;
+typedef struct DmDeviceBusOperations DmDeviceBusOperations_t;
 
 typedef struct PciDevice {
     element_t            ListHeader;

@@ -38,20 +38,20 @@
 #include <devices.h>
 
 static oserr_t
-__PciBusControl(
+__PciSetBusControl(
     _In_ PciDevice_t*              device,
     _In_ struct OSIOCtlBusControl* request)
 {
     uint16_t settings;
     uint16_t requested;
 
-    TRACE("__PciBusControl(%u:%u:%u.%u, flags=0x%x)",
+    TRACE("__PciSetBusControl(%u:%u:%u.%u, flags=0x%x)",
         device->Host->Identification.Segment, device->Bus, device->Slot,
         device->Function, request->Flags);
 
     // Do not change command bits while this handler forbids activation.
     if (device->Handler != NULL && device->Handler->BlockActivation) {
-        WARNING("__PciBusControl: activation blocked for %u:%u:%u.%u",
+        WARNING("__PciSetBusControl: activation blocked for %u:%u:%u.%u",
             device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
         return OS_ENOTSUPPORTED;
     }
@@ -278,7 +278,7 @@ __PciBusControl(
         }
 
         PciCriticalSectionEnter();
-        status = __PciBusControl(device, &activation);
+        status = __PciSetBusControl(device, &activation);
         PciCriticalSectionLeave();
         return status;
     }
@@ -310,7 +310,7 @@ __PciBusControl(
 
     // Bus control changes the same command register used by interrupt setup.
     PciCriticalSectionEnter();
-    status = __PciBusControl(context, buffer);
+    status = __PciSetBusControl(context, buffer);
     PciCriticalSectionLeave();
     return status;
 }

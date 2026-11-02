@@ -27,7 +27,7 @@
 #include <bus/platform/platform.h>
 #include <core/publication.h>
 #include <firmware/tree.h>
-#include <device-dma.h>
+#include <dma-types.h>
 
 #include "activation.h"
 

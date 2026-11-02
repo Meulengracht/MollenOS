@@ -23,31 +23,33 @@
 // Maximum number of device-to-physical-memory ranges in a description.
 #define DM_DMA_MAX_RANGES 64
 
-/**
- * @brief One continuous device-address block that maps to physical memory.
- *
- * DeviceBase is an address the device can use, and PhysicalBase is the
- * corresponding address in physical memory. Length gives the number of bytes
- * covered. This describes where DMA could reach; it does not say that memory
- * has been allocated, that the full buffer fits, or that DMA hardware is ready.
- */
+// One continuous device-address block that maps to physical memory.
 typedef struct DmDmaRange {
     uint64_t PhysicalBase;
     uint64_t DeviceBase;
     uint64_t Length;
 } DmDmaRange_t;
 
-/**
- * @brief List of device-to-physical-memory ranges available for DMA.
- *
- * The ranges are copied into this structure and sorted by DeviceBase. Their
- * device-address blocks do not overlap. Two different device-address blocks
- * can still refer to some or all of the same physical memory. Adjacent entries
- * are kept separate when the address mapping changes at their boundary.
- */
+// List of device-to-physical-memory ranges available for DMA.
 typedef struct DmDmaMap {
     uint32_t     Count;
     DmDmaRange_t Ranges[DM_DMA_MAX_RANGES];
 } DmDmaMap_t;
+
+enum DmDmaCachePolicy {
+    // Cached RAM cannot be used until a cache policy has been established.
+    DmDmaCacheUnknown,
+    // Software must synchronize caches before the CPU or device uses DMA data.
+    DmDmaCacheNonCoherent,
+    // Bus code must verify cache coherency for the complete device path.
+    DmDmaCacheCoherent
+};
+
+typedef struct DmDmaDescription {
+    uuid_t                DeviceId;
+    uuid_t                HostId;
+    enum DmDmaCachePolicy CachePolicy;
+    DmDmaMap_t            Map;
+} DmDmaDescription_t;
 
 #endif

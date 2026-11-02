@@ -22,7 +22,7 @@
 #define __DEVICED_CORE_DMA_H__
 
 #include <os/types/device.h>
-#include <device-dma.h>
+#include <dma-types.h>
 
 /**
  * @brief Initialize DMA session bookkeeping before publishing devices.

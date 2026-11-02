@@ -205,7 +205,7 @@ __PublishPciRoot(
     Device_t*              description;
     oserr_t                status;
 
-    description = calloc(1, sizeof(DmDeviceRegistration_t));
+    description = calloc(1, sizeof(Device_t));
 
     if (description == NULL) {
         ERROR("__PublishPciRoot: failed to allocate description for host %u segment %u (%u)",
@@ -213,7 +213,7 @@ __PublishPciRoot(
         return OS_EOOM;
     }
 
-    description->Length = sizeof(DmDeviceRegistration_t);
+    description->Length = sizeof(Device_t);
     description->Identification.Description = strdup("PCI host");
 
     if (description->Identification.Description == NULL) {

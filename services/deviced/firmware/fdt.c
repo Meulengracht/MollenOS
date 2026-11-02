@@ -512,7 +512,6 @@ FdtCompatible(
 {
     uint32_t       length;
     const uint8_t* value = FdtProperty(node, "compatible", &length);
-    const uint8_t* end;
     uint32_t       offset = 0;
 
     if (node->Malformed) {

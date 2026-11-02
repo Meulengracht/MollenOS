@@ -135,6 +135,11 @@ __AddCompatible(
         WARNING("__AddCompatible: invalid compatible length %zu", length);
         return -1;
     }
+    
+    if (memchr(value, 0, length) != NULL) {
+        WARNING("__AddCompatible: compatible contains an embedded NUL");
+        return -1;
+    }
 
     compatible = calloc(1, sizeof(*compatible));
     if (compatible == NULL) {
@@ -272,6 +277,10 @@ __ConsumeEvent(
                     if (strcmp(value, "capabilities") == 0) {
                         s->State = STATE_CAPABILITIES_LIST;
                     } else if (strcmp(value, "compatibles") == 0) {
+                        if (s->Driver.Compatibles.count != 0) {
+                            ERROR("__ConsumeEvent: duplicate compatibles list");
+                            return -1;
+                        }
                         s->State = STATE_COMPATIBLES_LIST;
                     } else if (strcmp(value, "type") == 0) {
                         s->State = STATE_DRIVERTYPE;
@@ -571,6 +580,10 @@ __ConsumeEvent(
                     break;
 
                 case YAML_SEQUENCE_END_EVENT:
+                    if (s->Driver.Compatibles.count == 0) {
+                        ERROR("__ConsumeEvent: compatibles list is empty");
+                        return -1;
+                    }
                     s->State = STATE_DRIVERKEY;
                     break;
                 default:

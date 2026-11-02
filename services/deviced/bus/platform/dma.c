@@ -16,7 +16,7 @@
  *
  */
 
-#include <device-dma.h>
+#include <dma-types.h>
 #include <ddk/utils.h>
 
 #include "private.h"

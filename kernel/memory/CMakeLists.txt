@@ -2,6 +2,7 @@ if (__BUILD_UNIT_TESTS)
     set (KMEM_INCLUDES
             ../include
             ${CMAKE_SOURCE_DIR}/librt/libds/include
+            ${CMAKE_SOURCE_DIR}/librt/libddk/include
             ${CMAKE_SOURCE_DIR}/librt/libos/include
             ${CMAKE_SOURCE_DIR}/boot/include
     )

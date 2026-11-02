@@ -456,11 +456,11 @@ DmHandleIoctl(
             length
         );
         if (status != OS_EOK) {
-            WARNING("DmHandleIoctl: dma failed request 0x%x for device %u, principal %u: %u",
+            WARNING("DmHandleIoctl: bus failed request 0x%x for device %u, principal %u: %u",
                     request, deviceId, principal, status);
         }
     } else {
-        TRACE("DmHandleIoctl: device %u has no dma for request 0x%x", deviceId, request);
+        TRACE("DmHandleIoctl: device %u has no bus control callback for request 0x%x", deviceId, request);
         status = OS_ENOTSUPPORTED;
     }
 

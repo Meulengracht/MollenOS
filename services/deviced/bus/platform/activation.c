@@ -199,7 +199,7 @@ __PlatformActivationPrepare(
     // If a dependency driver has not registered yet, preparation can be retried
     // after it starts.
     for (uint32_t i = 0; i < dependencies.Count; i++) {
-        if (dependencies.Entries[i].Immutable) {
+        if (dependencies.Entries[i].Fixed) {
             continue;
         }
 

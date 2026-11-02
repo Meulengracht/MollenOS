@@ -87,7 +87,7 @@ void TestMSContextNew_Happy(void** state)
     assert_int_equal(list_count(&context->Allocations), 0);
     assert_int_equal(context->SignalHandler, 0);
     assert_int_equal(context->Security.Handle, handle);
-    assert_int_equal(atomic_load(&context->Security.Capabilities), 0);
+    assert_int_equal(context->Security.Capabilities, 0);
 
     // delete again, should be OK to invoke this
     assert_int_equal(DestroyHandle(handle), OS_EOK);

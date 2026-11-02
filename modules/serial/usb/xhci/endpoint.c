@@ -135,9 +135,7 @@ XhciEndpointDestroyDevice(
     _In_ XhciDevice_t*     device)
 {
     element_t* node = controller->XhciEndpoints.head;
-    ;
-    XhciEndpoint_t* endpoint;
-    oserr_t         status;
+    oserr_t    status;
 
     while (node != NULL) {
         element_t*      next = node->next;
