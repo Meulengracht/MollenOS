@@ -810,6 +810,61 @@ UsbManagerProcessTransfers(
     __QueueWaitingTransfers(controller);
 }
 
+
+void
+UsbManagerForgetTransferWork(
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    if (transfer->Work.Queue != NULL) {
+        list_remove(transfer->Work.Queue, &transfer->Work.Header);
+        transfer->Work.Queue = NULL;
+    }
+}
+
+static void
+__MoveTransferWork(
+    _In_ list_t*              queue,
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    if (transfer->Work.Queue == queue) {
+        return;
+    }
+    
+    UsbManagerForgetTransferWork(transfer);
+    ELEMENT_INIT(&transfer->Work.Header, 0, transfer);
+    list_append(queue, &transfer->Work.Header);
+    transfer->Work.Queue = queue;
+}
+
+void
+UsbManagerQueueTransferWork(
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer)
+{
+    __MoveTransferWork(&controller->ReadyTransfers, transfer);
+}
+
+void
+UsbManagerWaitTransfer(
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer)
+{
+    transfer->State = USBTRANSFER_STATE_WAITING;
+    __MoveTransferWork(&controller->WaitingTransfers, transfer);
+}
+
+void
+UsbManagerWakeTransfers(
+    _In_ UsbManagerController_t* controller)
+{
+    UsbManagerTransfer_t* transfer;
+
+    while (controller->WaitingTransfers.head != NULL) {
+        transfer = controller->WaitingTransfers.head->value;
+        UsbManagerQueueTransferWork(controller, transfer);
+    }
+}
+
 void
 UsbManagerChainEnumerate(
     _In_ UsbManagerController_t*     controller,

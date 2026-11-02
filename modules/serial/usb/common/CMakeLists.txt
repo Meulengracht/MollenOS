@@ -16,6 +16,8 @@ add_library(usb-common STATIC
     scheduler_settings.c
     service.c
     transfer.c
+    transfer_dma.c
+    transfer_work.c
 )
 add_dependencies(usb-common contract_servers)
 target_link_libraries(usb-common PUBLIC gracht libds libddk c librt)

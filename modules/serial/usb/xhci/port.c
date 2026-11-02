@@ -1,10 +1,18 @@
 /**
- * Copyright 2026, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation ? , either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 //#define __TRACE
@@ -110,20 +118,23 @@ HCIPortStatus(
 
 void
 XhciPortScan(
-        _In_ XhciController_t* controller)
+    _In_ XhciController_t* controller,
+    _In_ bool              initial)
 {
     for (size_t i = 0; i < controller->Base.PortCount; i++) {
         reg32_t status = READ_VOLATILE(controller->Ports[i].StatusControl);
         reg32_t changes = status & XHCI_PORT_STATUS_CHANGE_BITS;
-
-        if (changes == 0) {
+        if (changes == 0 && !initial) {
             continue;
         }
 
         XhciPortClearChanges(controller, i, changes);
-        if (changes & XHCI_PORT_STATUS_CONNECT_CHANGE) {
+        // Startup may have cleared connect-change while powering the port.
+        // Subsequent scans must only report changes, including disconnects.
+        if ((changes & XHCI_PORT_STATUS_CONNECT_CHANGE) ||
+            (initial && (status & XHCI_PORT_STATUS_CONNECTED))) {
             TRACE("XhciPortScan(port=%u, status=0x%x)", (unsigned int)i, status);
-            (void)UsbEventPort(controller->Base.Device->Base.Id, (uint8_t)(i & 0xFF));
+            (void)UsbEventPort(controller->Base.Device->Id, (uint8_t)(i & 0xFF));
         }
     }
 }

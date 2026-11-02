@@ -24,6 +24,8 @@
 #include <os/types/shm.h>
 #include <os/spinlock.h>
 #include <threads.h>
+#include <ddk/dma.h>
+#include <ds/list.h>
 
 #define __XPAGE(_a) ((_a) & ~((uintptr_t)0xFFF))
 #define __XPAGEOFFSET(_a) ((_a) & 0xFFF)
@@ -42,6 +44,7 @@ enum USBManagerTransferState {
     USBTRANSFER_STATE_UNSCHEDULE,
     USBTRANSFER_STATE_CLEANUP,
     USBTRANSFER_STATE_COMPLETED,
+    USBTRANSFER_STATE_STALLED,
 };
 
 enum TransferElementType {
@@ -81,6 +84,24 @@ static inline enum TransferElementType __TransferElement_DirectionToType(enum US
     }
 }
 
+typedef struct UsbTransferDmaStaging {
+    OSHandle_t Buffer;
+    size_t     ClientOffset;
+} UsbTransferDmaStaging_t;
+
+typedef struct UsbTransferDmaLayout {
+    enum USBTransferType      Type;
+    enum USBTransferDirection Direction;
+    uint16_t                  MaxPacketSize;
+    uint32_t                  Length;
+    struct DMAMapping*        Mapping;
+} UsbTransferDmaLayout_t;
+
+typedef struct UsbTransferWork {
+    element_t Header;
+    list_t*   Queue;
+} UsbTransferWork_t;
+
 typedef struct UsbManagerTransfer {
     element_t ListHeader;
 
@@ -97,8 +118,14 @@ typedef struct UsbManagerTransfer {
     void*                        RootElement;
     int                          ChainLength;
 
+    // Controller-owned descriptors kept between periodic submissions.
+    // HCITransferFinalize releases them when the transfer is cancelled.
+    struct UsbTransferWork  Work;
+    void*                   ReusableElements;
+
     struct TransferElement* Elements;
     int                     ElementCount;
+    int                     ElementCapacity;
 
     // ResultCode was the result of the transfer. It must
     // be updated once the transfer has been determined to
@@ -121,9 +148,31 @@ typedef struct UsbManagerTransfer {
         } Periodic;
     } TData;
 
-    // SHMHandle is the reference we must keep on the underlying
-    // physical memory that we use to transfer data in/out of.
+    // The client attachment supplies CPU access for setup and packet staging.
+    // A DMA mapping independently keeps storage alive until the mapping is released.
     OSHandle_t SHMHandle;
+
+    // Device addresses and ownership for controllers using the DMA interface.
+    // Small periodic packets reuse one private staging page. Larger periodic
+    // mappings are created lazily for each client slot. Mapping points to the
+    // current slot owned by Mappings when present; otherwise it owns the mapping.
+    // Completed client slots remain CPU-owned while the next packet is in flight.
+    struct {
+        struct DMAContext*           Context;
+        struct DMAMapping*           Mapping;
+        struct DMAMapping**          Mappings;
+        uint32_t                     MappingCount;
+        const struct DMASegment*     Segments;
+        uint32_t                     SegmentCount;
+        size_t                       BufferOffset;
+        uint32_t                     BufferLength;
+        uint32_t                     Length;
+        bool                         DeviceOwned;
+        bool                         HardwareActive;
+        usb_packet_t                 Setup;
+        struct UsbTransferDmaStaging Staging;
+        struct UsbTransferDmaLayout  Layout;
+    } Dma;
 
     // Deferred message for async responding
     struct gracht_message DeferredMessage[];
@@ -198,7 +247,7 @@ static inline enum USBTransferDirection __Transfer_Direction(UsbManagerTransfer_
  * @brief Cleans up a usb transfer and frees resources.
  * @param transfer 
  */
-extern void
+extern oserr_t
 USBTransferDestroy(
     _In_ UsbManagerTransfer_t* transfer);
 
@@ -211,5 +260,30 @@ extern void
 USBTransferNotify(
     _In_ UsbManagerTransfer_t* transfer);
 
+/**
+ * @brief Select or create the current packet's mapping and reuse element storage.
+ *
+ * @param transfer CPU-owned transfer whose buffer geometry remains fixed.
+ * @return OS_EOK, or a mapping/allocation error with resources kept for cleanup.
+ */
+extern oserr_t
+USBTransferDmaPrepare(
+    _InOut_ UsbManagerTransfer_t* transfer);
+
+/**
+ * @brief Release all packet mappings after completion or confirmed hardware stop.
+ *
+ * @param transfer Transfer owning the mappings. Failed releases remain retryable.
+ * @return OS_EOK when all mappings are released, otherwise the unmap error.
+ */
+extern oserr_t
+USBTransferDmaDestroy(
+    _InOut_ UsbManagerTransfer_t* transfer);
+
+/** @brief Return completed bytes to the CPU after completion or confirmed stop. */
+extern oserr_t
+USBTransferDmaComplete(
+    _InOut_ UsbManagerTransfer_t* transfer,
+    _In_ size_t bytes);
+
 #endif //!__USB_COMMON_TRANSFER__
- 

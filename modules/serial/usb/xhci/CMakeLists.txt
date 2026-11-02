@@ -1,6 +1,8 @@
 add_module_target(xhci ""
     command.c
     controller.c
+    dma.c
+    dwc3.c
     endpoint.c
     interrupt.c
     port.c

@@ -1,56 +1,28 @@
 /**
- * Copyright 2026, Philip Meulengracht
+ * Copyright, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define __need_minmax
 #include <ddk/barrier.h>
 #include <ddk/io.h>
 #include <os/shm.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include "xhci.h"
-
-static inline uintptr_t
-__GetAddress(
-    _In_ SHMSGTable_t* sgTable,
-    _In_ int           index,
-    _In_ size_t        offset)
-{
-    return sgTable->Entries[index].Address + offset;
-}
-
-static inline size_t
-__GetBytesLeft(
-    _In_ SHMSGTable_t* sgTable,
-    _In_ int           index,
-    _In_ size_t        offset)
-{
-    return sgTable->Entries[index].Length - offset;
-}
-
-static void
-__FillElement(
-    _In_  UsbManagerTransfer_t* transfer,
-    _In_  SHMSGTable_t*         sgTable,
-    _In_  uint32_t              sgTableOffset,
-    _In_  uint32_t              transferLength,
-    _In_  uint32_t              bytesLeft,
-    _Out_ struct TransferElement* element)
-{
-    int    index;
-    size_t offset;
-
-    SHMSGTableOffset(
-            sgTable,
-            sgTableOffset + (transferLength - bytesLeft),
-            &index,
-            &offset
-    );
-
-    element->Data.Address = __GetAddress(sgTable, index, offset);
-    element->Length       = (uint32_t)MIN(bytesLeft, MIN(__GetBytesLeft(sgTable, index, offset), XHCI_TRB_MAX_DATA));
-    element->Type         = __TransferElement_DirectionToType(transfer->Direction);
-}
 
 static int
 __TransferElementsRemaining(
@@ -69,6 +41,17 @@ __BuildDescriptor(
     _In_ XhciEndpoint_t*           endpoint,
     _In_ uint16_t                  trbIndex)
 {
+    // Preserve the scheduler allocation identity, but discard all submission
+    // state before reusing an element for another packet slot.
+    descriptor->Object.DepthIndex = USB_ELEMENT_NO_INDEX;
+    descriptor->Object.BreathIndex = USB_ELEMENT_NO_INDEX;
+    descriptor->Object.Flags &= ~USB_ELEMENT_PROCESSED;
+    descriptor->Flags = 0;
+    descriptor->CompletionCode = 0;
+    descriptor->BytesTransferred = 0;
+    descriptor->TransferLength = 0;
+    descriptor->CacheNext = NULL;
+    memset(&descriptor->QueueHeader, 0, sizeof(descriptor->QueueHeader));
     descriptor->Transfer      = transfer;
     descriptor->Endpoint      = endpoint;
     descriptor->FirstTrbIndex = trbIndex;
@@ -93,39 +76,7 @@ __DescriptorNext(
     );
 }
 
-static bool
-__ReadSetupPacket(
-    _In_  UsbManagerTransfer_t* transfer,
-    _Out_ usb_packet_t*         packetOut)
-{
-    SHMSGTable_t sgTable;
-    uint8_t*     buffer;
-    size_t       virtualOffset = 0;
-    uintptr_t    setupAddress = transfer->Elements[0].Data.Address;
-
-    if (SHMGetSGTable(&transfer->SHMHandle, &sgTable, -1) != OS_EOK) {
-        return false;
-    }
-
-    buffer = SHMBuffer(&transfer->SHMHandle);
-    for (int i = 0; i < sgTable.Count; i++) {
-        uintptr_t entryStart = sgTable.Entries[i].Address;
-        uintptr_t entryEnd = entryStart + sgTable.Entries[i].Length;
-
-        if (setupAddress >= entryStart &&
-            setupAddress + sizeof(usb_packet_t) <= entryEnd) {
-            memcpy(packetOut, buffer + virtualOffset + (setupAddress - entryStart), sizeof(usb_packet_t));
-            free(sgTable.Entries);
-            return true;
-        }
-        virtualOffset += sgTable.Entries[i].Length;
-    }
-
-    free(sgTable.Entries);
-    return false;
-}
-
-static oserr_t
+static void
 __BuildTrb(
     _In_  UsbManagerTransfer_t* transfer,
     _In_  int                   elementIndex,
@@ -140,12 +91,7 @@ __BuildTrb(
 
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         if (elementIndex == 0) {
-            usb_packet_t packet;
-
-            if (!__ReadSetupPacket(transfer, &packet)) {
-                return OS_EUNKNOWN;
-            }
-            memcpy(&trbOut->Parameter, &packet, sizeof(usb_packet_t));
+            memcpy(&trbOut->Parameter, &transfer->Dma.Setup, sizeof(usb_packet_t));
             trbOut->Status = sizeof(usb_packet_t);
             trbOut->Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_SETUP_STAGE) |
                     XHCI_TRB_CONTROL_IDT | XHCI_TRB_CONTROL_CHAIN;
@@ -155,7 +101,7 @@ __BuildTrb(
             } else {
                 trbOut->Control |= XHCI_TRB_CONTROL_TRT_NONE;
             }
-            return OS_EOK;
+            return;
         }
 
         if (isLast) {
@@ -166,7 +112,7 @@ __BuildTrb(
             if (element->Type == TRANSFERELEMENT_TYPE_IN) {
                 trbOut->Control |= XHCI_TRB_CONTROL_DIR_IN;
             }
-            return OS_EOK;
+            return;
         }
 
         trbOut->Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_DATA_STAGE) |
@@ -174,12 +120,95 @@ __BuildTrb(
         if (element->Type == TRANSFERELEMENT_TYPE_IN) {
             trbOut->Control |= XHCI_TRB_CONTROL_DIR_IN;
         }
-        return OS_EOK;
+        return;
     }
 
     trbOut->Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_NORMAL) |
             XHCI_TRB_CONTROL_ISP | (isLast ? XHCI_TRB_CONTROL_IOC : XHCI_TRB_CONTROL_CHAIN);
-    return OS_EOK;
+}
+
+/** Walk device segments in order, using the same splits for counting and filling. */
+static oserr_t
+__BuildTransferElements(
+    _In_  UsbManagerTransfer_t*    transfer,
+    _In_  uint32_t                 length,
+    _Out_ struct TransferElement* elements,
+    _Out_ int*                    countOut)
+{
+    const struct DMASegment* segment;
+    enum TransferElementType      type = __TransferElement_DirectionToType(transfer->Direction);
+    enum TransferElementType      ackType = TRANSFERELEMENT_TYPE_IN;
+    uint32_t                      remaining = length;
+    uint32_t                      segmentIndex = 0;
+    uint64_t                      offset = 0;
+    uint64_t                      address;
+    uint32_t                      chunk;
+    int                           count = 0;
+
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        if (remaining < sizeof(usb_packet_t)) {
+            return OS_EINVALPARAMS;
+        }
+        remaining -= sizeof(usb_packet_t);
+        offset = sizeof(usb_packet_t);
+        if (elements != NULL) {
+            elements[count].Type = TRANSFERELEMENT_TYPE_SETUP;
+            elements[count].Length = sizeof(usb_packet_t);
+        }
+        count++;
+        if (remaining != 0 && transfer->Direction == USBTRANSFER_DIRECTION_IN) {
+            ackType = TRANSFERELEMENT_TYPE_OUT;
+        }
+    }
+
+    while (remaining != 0) {
+        while (segmentIndex < transfer->Dma.SegmentCount &&
+            offset >= transfer->Dma.Segments[segmentIndex].Length) {
+            offset -= transfer->Dma.Segments[segmentIndex].Length;
+            segmentIndex++;
+        }
+        if (segmentIndex == transfer->Dma.SegmentCount) {
+            return OS_EINVALPARAMS;
+        }
+        segment = &transfer->Dma.Segments[segmentIndex];
+        address = segment->Address + offset;
+        chunk = (uint32_t)MIN(remaining, segment->Length - offset);
+        chunk = MIN(chunk, 0x10000 - (address & 0xffff));
+        if (count == INT_MAX) {
+            return OS_EOVERFLOW;
+        }
+        if (elements != NULL) {
+            elements[count].Type = type;
+            elements[count].Data.Address = (uintptr_t)address;
+            elements[count].Length = chunk;
+        }
+        count++;
+        offset += chunk;
+        remaining -= chunk;
+
+        // Preserve the existing terminal zero-length element policy.
+        if (remaining == 0 && (transfer->Type == USBTRANSFER_TYPE_ISOC ||
+            (transfer->Direction == USBTRANSFER_DIRECTION_OUT && chunk == transfer->MaxPacketSize))) {
+            if (count == INT_MAX) {
+                return OS_EOVERFLOW;
+            }
+            if (elements != NULL) {
+                elements[count].Type = type;
+            }
+            count++;
+        }
+    }
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        if (count == INT_MAX) {
+            return OS_EOVERFLOW;
+        }
+        if (elements != NULL) {
+            elements[count].Type = ackType;
+        }
+        count++;
+    }
+    *countOut = count;
+    return count == 0 ? OS_EINVALPARAMS : OS_EOK;
 }
 
 oserr_t
@@ -189,47 +218,14 @@ HCITransferElementsNeeded(
     _In_  enum USBTransferDirection direction,
     _In_  SHMSGTable_t*             sgTable,
     _In_  uint32_t                  sgTableOffset,
-    _Out_ int*                      elementCountOut)
+    _Out_ int*                     elementCountOut)
 {
-    uint32_t bytesLeft = transferLength;
-    int      tdCount   = 0;
-
+    // The common HCI interface also serves physical-SG controllers. xHCI
+    // always uses the current DMA mapping's immutable device segments.
     _CRT_UNUSED(direction);
-    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
-        bytesLeft -= sizeof(usb_packet_t);
-        tdCount += 2;
-    }
-
-    while (bytesLeft) {
-        int    index;
-        size_t offset;
-        size_t bytesInChunk;
-
-        SHMSGTableOffset(
-                sgTable,
-                sgTableOffset + (transferLength - bytesLeft),
-                &index,
-                &offset
-        );
-
-        bytesInChunk = MIN(bytesLeft, MIN(__GetBytesLeft(sgTable, index, offset), XHCI_TRB_MAX_DATA));
-        bytesLeft   -= (uint32_t)bytesInChunk;
-        tdCount++;
-
-        if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
-            bytesLeft == 0 &&
-            bytesInChunk == transfer->MaxPacketSize &&
-            transfer->Direction == USBTRANSFER_DIRECTION_OUT)
-        {
-            tdCount++;
-        }
-    }
-
-    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-        tdCount++;
-    }
-    *elementCountOut = tdCount;
-    return tdCount == 0 ? OS_EINVALPARAMS : OS_EOK;
+    _CRT_UNUSED(sgTable);
+    _CRT_UNUSED(sgTableOffset);
+    return __BuildTransferElements(transfer, transferLength, NULL, elementCountOut);
 }
 
 void
@@ -240,41 +236,13 @@ HCITransferElementFill(
     _In_ SHMSGTable_t*             sgTable,
     _In_ uint32_t                  sgTableOffset)
 {
-    uint32_t                 bytesLeft = transferLength;
-    enum TransferElementType ackType   = TRANSFERELEMENT_TYPE_IN;
-    int                      index     = 0;
+    int count;
 
-    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
-        __FillElement(transfer, sgTable, sgTableOffset, transferLength, bytesLeft, &transfer->Elements[index]);
-        transfer->Elements[index].Type   = TRANSFERELEMENT_TYPE_SETUP;
-        transfer->Elements[index].Length = sizeof(usb_packet_t);
-        bytesLeft -= sizeof(usb_packet_t);
-        index++;
-
-        if (bytesLeft && direction == USBTRANSFER_DIRECTION_IN) {
-            ackType = TRANSFERELEMENT_TYPE_OUT;
-        }
-    }
-
-    while (bytesLeft) {
-        __FillElement(transfer, sgTable, sgTableOffset, transferLength, bytesLeft, &transfer->Elements[index]);
-        transfer->Elements[index].Type = __TransferElement_DirectionToType(direction);
-        bytesLeft -= transfer->Elements[index].Length;
-        index++;
-
-        if (bytesLeft == 0) {
-            if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                transfer->Elements[index++].Type = __TransferElement_DirectionToType(direction);
-            } else if (direction == USBTRANSFER_DIRECTION_OUT &&
-                       transfer->Elements[index - 1].Length == transfer->MaxPacketSize) {
-                transfer->Elements[index++].Type = TRANSFERELEMENT_TYPE_OUT;
-            }
-        }
-    }
-
-    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
-        transfer->Elements[index].Type = ackType;
-    }
+    _CRT_UNUSED(direction);
+    _CRT_UNUSED(sgTable);
+    _CRT_UNUSED(sgTableOffset);
+    // Counting validated the same immutable segments before storage was grown.
+    (void)__BuildTransferElements(transfer, transferLength, transfer->Elements, &count);
 }
 
 oserr_t
@@ -283,7 +251,11 @@ XhciTransferPrepare(
     _In_ UsbManagerTransfer_t* transfer,
     _In_ XhciEndpoint_t*       endpoint)
 {
-    int descriptorCount;
+    XhciTransferDescriptor_t* descriptor;
+    XhciTransferDescriptor_t* tail = NULL;
+    int                      descriptorCount;
+    int                      i;
+    oserr_t                  oserr;
 
     if (transfer->RootElement != NULL) {
         return OS_EOK;
@@ -291,26 +263,35 @@ XhciTransferPrepare(
 
     descriptorCount = __TransferElementsRemaining(transfer);
     transfer->ChainLength = descriptorCount;
-    for (int i = 0; i < descriptorCount; i++) {
-        XhciTransferDescriptor_t* descriptor;
-        oserr_t                   oserr;
-
-        oserr = UsbSchedulerAllocateElement(controller->Base.Scheduler, XHCI_TD_POOL, (uint8_t**)&descriptor);
-        if (oserr != OS_EOK) {
-            XhciTransferCleanup(controller, transfer);
-            return oserr;
+    for (i = 0; i < descriptorCount; i++) {
+        descriptor = transfer->ReusableElements;
+        if (descriptor != NULL) {
+            transfer->ReusableElements = descriptor->CacheNext;
+        } else {
+            oserr = UsbSchedulerAllocateElement(
+                controller->Base.Scheduler,
+                XHCI_TD_POOL,
+                (uint8_t**)&descriptor
+            );
+            if (oserr != OS_EOK) {
+                XhciTransferCleanup(controller, transfer);
+                return oserr;
+            }
         }
 
         __BuildDescriptor(descriptor, transfer, endpoint, endpoint->TransferRing.EnqueueIndex);
         if (transfer->RootElement == NULL) {
             transfer->RootElement = descriptor;
+            tail = descriptor;
             continue;
         }
 
+        // Append through the known tail so fragmented transfers are built in
+        // linear time instead of walking the growing chain for each element.
         oserr = UsbSchedulerChainElement(
                 controller->Base.Scheduler,
                 XHCI_TD_POOL,
-                transfer->RootElement,
+                (uint8_t*)tail,
                 XHCI_TD_POOL,
                 (uint8_t*)descriptor,
                 USB_ELEMENT_NO_INDEX,
@@ -321,6 +302,7 @@ XhciTransferPrepare(
             XhciTransferCleanup(controller, transfer);
             return oserr;
         }
+        tail = descriptor;
     }
     return OS_EOK;
 }
@@ -330,17 +312,17 @@ XhciTransferIsSetAddress(
     _In_  UsbManagerTransfer_t* transfer,
     _Out_ uint8_t*              addressOut)
 {
-    usb_packet_t packet;
+    const usb_packet_t* packet = &transfer->Dma.Setup;
 
-    if (transfer->Type != USBTRANSFER_TYPE_CONTROL ||
-        transfer->ElementCount < 2 ||
-        !__ReadSetupPacket(transfer, &packet) ||
-        packet.Type != USBPACKET_TYPE_SET_ADDRESS ||
-        packet.Direction != USBPACKET_DIRECTION_OUT) {
+    if (transfer->Type != USBTRANSFER_TYPE_CONTROL || transfer->ElementCount < 2) {
+        return false;
+    }
+    if (packet->Type != USBPACKET_TYPE_SET_ADDRESS ||
+        packet->Direction != USBPACKET_DIRECTION_OUT) {
         return false;
     }
 
-    *addressOut = packet.ValueLo;
+    *addressOut = packet->ValueLo;
     return true;
 }
 
@@ -357,6 +339,7 @@ XhciTransferCompleteSoftware(
         descriptor->Flags |= XHCI_TD_FLAG_COMPLETED;
         descriptor = __DescriptorNext(controller, descriptor);
     }
+    UsbManagerQueueTransferWork(&controller->Base, transfer);
 }
 
 oserr_t
@@ -366,25 +349,36 @@ XhciTransferSubmit(
     _In_ UsbManagerTransfer_t* transfer)
 {
     XhciTransferDescriptor_t* descriptor = transfer->RootElement;
-        int                       elementIndex = __Transfer_IsAsync(transfer) ?
+    int                       elementIndex = __Transfer_IsAsync(transfer) ?
             transfer->TData.Async.ElementsCompleted : 0;
 
+    XhciTrb_t trb;
+    uint16_t trbIndex;
+    oserr_t status;
+
+    if (controller->State != XHCI_CONTROLLER_RUNNING) {
+        return OS_EBUSY;
+    }
     if (endpoint->TransferRing.Used + transfer->ChainLength >
             (uint16_t)(endpoint->TransferRing.TrbCount - 1)) {
         return OS_EBUSY;
     }
 
-    while (descriptor != NULL) {
-        XhciTrb_t trb;
-        uint16_t  trbIndex;
-        oserr_t   oserr = __BuildTrb(transfer, elementIndex, &trb);
-
-        if (oserr != OS_EOK) {
-            return oserr;
+    // Publish payload before any TRB cycle bit can make it visible to hardware.
+    if (!transfer->Dma.DeviceOwned) {
+        status = DMABeginTransfer(transfer->Dma.Mapping, 0, transfer->Dma.Length);
+        if (status != OS_EOK) {
+            return status;
         }
-        oserr = XhciRingEnqueue(&endpoint->TransferRing, &trb, &trbIndex);
-        if (oserr != OS_EOK) {
-            return oserr;
+        transfer->Dma.DeviceOwned = true;
+    }
+
+    transfer->Dma.HardwareActive = true;
+    while (descriptor != NULL) {
+        __BuildTrb(transfer, elementIndex, &trb);
+        status = XhciRingEnqueue(&endpoint->TransferRing, &trb, &trbIndex);
+        if (status != OS_EOK) {
+            return status;
         }
 
         descriptor->FirstTrbIndex = trbIndex;
@@ -392,7 +386,10 @@ XhciTransferSubmit(
         descriptor->TrbCount = 1;
         descriptor->TransferLength = transfer->Elements[elementIndex].Length;
         descriptor->CycleState = endpoint->TransferRing.Trbs[trbIndex].Control & XHCI_TRB_CONTROL_CYCLE ? 1 : 0;
-        descriptor->Flags |= XHCI_TD_FLAG_QUEUED;
+        // Reset completion state when a stopped or stalled TD is resubmitted.
+        descriptor->CompletionCode = 0;
+        descriptor->BytesTransferred = 0;
+        descriptor->Flags = XHCI_TD_FLAG_QUEUED;
         endpoint->TRBOwners[trbIndex] = descriptor;
 
         descriptor = __DescriptorNext(controller, descriptor);
@@ -410,63 +407,102 @@ XhciTransferHandleEvent(
     _In_ XhciController_t* controller,
     _In_ XhciTrb_t*        eventTrb)
 {
-    uintptr_t trbAddress = (uintptr_t)eventTrb->Parameter;
+    XhciDevice_t*            device;
+    XhciEndpoint_t*          endpoint;
+    XhciTransferDescriptor_t* eventDescriptor;
+    XhciTransferDescriptor_t* descriptor;
+    XhciTransferDescriptor_t* next;
+    UsbManagerTransfer_t*    transfer;
+    uint64_t                address = eventTrb->Parameter;
+    uint64_t                offset;
+    uint32_t                code = XHCI_TRB_COMPLETION_CODE(eventTrb->Status);
+    uint32_t                remaining = XHCI_TRB_TRANSFER_LENGTH(eventTrb->Status);
+    uint16_t                index;
+    uint16_t                released;
+    uint8_t                 slotId = XHCI_TRB_SLOT_ID(eventTrb->Control);
+    uint8_t                 endpointId = XHCI_TRB_ENDPOINT_ID(eventTrb->Control);
+    bool                    failed = code != XHCI_TRB_COMPLETION_SUCCESS && code != XHCI_TRB_COMPLETION_SHORT_PACKET;
 
-    foreach(node, &controller->XhciEndpoints) {
-        XhciEndpoint_t* endpoint = node->value;
-        uintptr_t       ringEnd = endpoint->TransferRing.PhysicalBase +
-                (endpoint->TransferRing.TrbCount * sizeof(XhciTrb_t));
-
-        if (trbAddress >= endpoint->TransferRing.PhysicalBase && trbAddress < ringEnd) {
-            uint16_t trbIndex = (uint16_t)((trbAddress - endpoint->TransferRing.PhysicalBase) /
-                    sizeof(XhciTrb_t));
-            XhciTransferDescriptor_t* eventDescriptor = endpoint->TRBOwners[trbIndex];
-            XhciTransferDescriptor_t* descriptor;
-            uint32_t completionCode = XHCI_TRB_COMPLETION_CODE(eventTrb->Status);
-            uint32_t bytesRemaining = XHCI_TRB_TRANSFER_LENGTH(eventTrb->Status);
-            uint16_t trbsReleased = 0;
-
-            if (eventDescriptor == NULL) {
-                return false;
-            }
-
-            descriptor = eventDescriptor->Transfer->RootElement;
-            while (descriptor != NULL) {
-                if (!(descriptor->Flags & XHCI_TD_FLAG_COMPLETED)) {
-                    descriptor->CompletionCode = descriptor == eventDescriptor ?
-                            completionCode : XHCI_TRB_COMPLETION_SUCCESS;
-                    descriptor->BytesTransferred = descriptor == eventDescriptor ?
-                            descriptor->TransferLength - MIN(descriptor->TransferLength, bytesRemaining) :
-                            descriptor->TransferLength;
-                    descriptor->Flags |= XHCI_TD_FLAG_COMPLETED;
-                    if (descriptor == eventDescriptor &&
-                        completionCode != XHCI_TRB_COMPLETION_SUCCESS &&
-                        completionCode != XHCI_TRB_COMPLETION_SHORT_PACKET) {
-                        descriptor->Flags |= XHCI_TD_FLAG_FAILED;
-                        /* A transfer error (stall, babble, etc) halts the endpoint
-                         * ring on real hardware; the class driver must clear
-                         * ENDPOINT_HALT before further transfers can proceed. */
-                        endpoint->State = XHCI_ENDPOINT_HALTED;
-                    }
-
-                    endpoint->TRBOwners[descriptor->FirstTrbIndex] = NULL;
-                    trbsReleased += descriptor->TrbCount;
-                }
-                if (descriptor == eventDescriptor) {
-                    break;
-                }
-                descriptor = __DescriptorNext(controller, descriptor);
-            }
-            XhciRingRelease(&endpoint->TransferRing, trbsReleased);
-            if (eventDescriptor->Transfer->Type == USBTRANSFER_TYPE_CONTROL &&
-                completionCode == XHCI_TRB_COMPLETION_SHORT_PACKET &&
-                __DescriptorNext(controller, eventDescriptor) != NULL) {
-                return false;
-            }
-            return true;
-        }
+    if (slotId == 0 || slotId > controller->SlotCount || endpointId == 0) {
+        return false;
     }
-    return false;
+    device = controller->Slots[slotId];
+    if (device == NULL) {
+        return false;
+    }
+    endpoint = device->Endpoints[endpointId];
+    if (endpoint == NULL || address < endpoint->TransferRing.DeviceBase) {
+        return false;
+    }
+
+    // Event identity selects the ring; the pointer must still name an aligned,
+    // currently owned TRB in that ring before any transfer state is changed.
+    offset = address - endpoint->TransferRing.DeviceBase;
+    if (offset >= endpoint->TransferRing.TrbCount * sizeof(XhciTrb_t) || offset % sizeof(XhciTrb_t)) {
+        return false;
+    }
+    index = (uint16_t)(offset / sizeof(XhciTrb_t));
+    eventDescriptor = endpoint->TRBOwners[index];
+    if (eventDescriptor == NULL) {
+        return false;
+    }
+    transfer = eventDescriptor->Transfer;
+    descriptor = transfer->RootElement;
+    while (descriptor != NULL) {
+        if (!(descriptor->Flags & XHCI_TD_FLAG_COMPLETED)) {
+            descriptor->CompletionCode = descriptor == eventDescriptor ? code : XHCI_TRB_COMPLETION_SUCCESS;
+            descriptor->BytesTransferred = descriptor->TransferLength;
+            if (descriptor == eventDescriptor) {
+                descriptor->BytesTransferred -= MIN(descriptor->TransferLength, remaining);
+            }
+            descriptor->Flags |= XHCI_TD_FLAG_COMPLETED;
+        }
+        if (descriptor == eventDescriptor) {
+            break;
+        }
+        descriptor = __DescriptorNext(controller, descriptor);
+    }
+    next = __DescriptorNext(controller, eventDescriptor);
+    if (failed) {
+        eventDescriptor->Flags |= XHCI_TD_FLAG_FAILED;
+        endpoint->State = XHCI_ENDPOINT_HALTED;
+    }
+    if (code == XHCI_TRB_COMPLETION_SHORT_PACKET) {
+        // Hardware skips the rest of the data TD. Control transfers still
+        // owe a status stage; skipped data must never count as received.
+        descriptor = next;
+        while (descriptor != NULL) {
+            if (transfer->Type == USBTRANSFER_TYPE_CONTROL && __DescriptorNext(controller, descriptor) == NULL) {
+                break;
+            }
+            descriptor->BytesTransferred = 0;
+            descriptor->CompletionCode = XHCI_TRB_COMPLETION_SUCCESS;
+            descriptor->Flags |= XHCI_TD_FLAG_COMPLETED;
+            descriptor = __DescriptorNext(controller, descriptor);
+        }
+        if (transfer->Type == USBTRANSFER_TYPE_CONTROL && next != NULL) {
+            return false;
+        }
+    } else if (!failed && next != NULL) {
+        return false;
+    }
+
+    // Retire every TRB in the completed TD, including skipped tail entries,
+    // before the common manager can free its descriptor chain and mapping.
+    released = 0;
+    descriptor = transfer->RootElement;
+    while (descriptor != NULL) {
+        index = descriptor->FirstTrbIndex;
+        if (endpoint->TRBOwners[index] == descriptor) {
+            endpoint->TRBOwners[index] = NULL;
+            released += descriptor->TrbCount;
+        }
+        descriptor = __DescriptorNext(controller, descriptor);
+    }
+    XhciRingRelease(&endpoint->TransferRing, released);
+    transfer->Dma.HardwareActive = false;
+    UsbManagerQueueTransferWork(&controller->Base, transfer);
+    return true;
 }
 
 void
@@ -487,25 +523,54 @@ XhciTransferCleanup(
     _In_ XhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)
 {
-    if (transfer == NULL || transfer->RootElement == NULL) {
+    XhciTransferDescriptor_t* descriptor;
+
+    if (transfer == NULL) {
         return;
     }
 
-    {
-        XhciTransferDescriptor_t* rootDescriptor = transfer->RootElement;
-        if (rootDescriptor->Endpoint != NULL) {
-            XhciEndpointDequeueTransfer(rootDescriptor->Endpoint, rootDescriptor);
+    descriptor = transfer->RootElement;
+    if (descriptor != NULL) {
+        if (descriptor->Endpoint != NULL) {
+            XhciEndpointDequeueTransfer(descriptor->Endpoint, descriptor);
         }
-    }
-
-    UsbManagerChainEnumerate(
+        UsbManagerChainEnumerate(
             &controller->Base,
             transfer->RootElement,
             USB_CHAIN_DEPTH,
             HCIPROCESS_REASON_CLEANUP,
             HCIProcessElement,
             transfer
-    );
+        );
+        transfer->RootElement = NULL;
+    }
+
+    while (transfer->ReusableElements != NULL) {
+        descriptor = transfer->ReusableElements;
+        transfer->ReusableElements = descriptor->CacheNext;
+        UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)descriptor);
+    }
+}
+
+static void
+__RecycleDescriptors(
+    _In_    XhciController_t*     controller,
+    _InOut_ UsbManagerTransfer_t* transfer)
+{
+    XhciTransferDescriptor_t* descriptor = transfer->RootElement;
+    XhciTransferDescriptor_t* next;
+
+    if (descriptor != NULL && descriptor->Endpoint != NULL) {
+        XhciEndpointDequeueTransfer(descriptor->Endpoint, descriptor);
+    }
+    while (descriptor != NULL) {
+        next = __DescriptorNext(controller, descriptor);
+        // Cached descriptors must not keep endpoints that detach may free.
+        descriptor->Endpoint = NULL;
+        descriptor->CacheNext = transfer->ReusableElements;
+        transfer->ReusableElements = descriptor;
+        descriptor = next;
+    }
     transfer->RootElement = NULL;
 }
 
@@ -516,9 +581,29 @@ HCITransferFinalize(
     _In_ bool                    deferredClean)
 {
     XhciController_t* controller = (XhciController_t*)controllerBase;
+    bool              keepDescriptors;
+    oserr_t           status;
 
-    _CRT_UNUSED(deferredClean);
-    XhciTransferCleanup(controller, transfer);
+    status = USBTransferDmaComplete(transfer, 0);
+    if (status != OS_EOK) {
+        return status;
+    }
+    keepDescriptors = __Transfer_IsPeriodic(transfer) && transfer->State == USBTRANSFER_STATE_QUEUED;
+    if (transfer->ResultCode == USBTRANSFERCODE_CANCELLED || deferredClean) {
+        keepDescriptors = false;
+    }
+    if (keepDescriptors) {
+        if (transfer->ResultCode == USBTRANSFERCODE_STALL) {
+            // Keep the completed chain in the endpoint's pending list. Reset
+            // recovery owns rearming it; cancellation and detach retire it.
+            return OS_EOK;
+        }
+        // Completion retires this submission, while cancellation and controller
+        // teardown release both active descriptors and spare capacity.
+        __RecycleDescriptors(controller, transfer);
+    } else {
+        XhciTransferCleanup(controller, transfer);
+    }
     return OS_EOK;
 }
 
@@ -535,6 +620,9 @@ HCITransferQueue(
     if (controller == NULL) {
         return OS_ENOENT;
     }
+    if (controller->State != XHCI_CONTROLLER_RUNNING) {
+        return OS_EBUSY;
+    }
 
     endpoint = XhciEndpointGetOrCreate(controller, transfer);
     if (endpoint == NULL) {
@@ -547,11 +635,27 @@ HCITransferQueue(
 
         oserr = XhciDeviceEnsure(controller, transfer, endpoint, &device);
         if (oserr == OS_EINCOMPLETE) {
-            transfer->State = USBTRANSFER_STATE_WAITING;
+            UsbManagerWaitTransfer(&controller->Base, transfer);
             return OS_EOK;
         }
         if (oserr != OS_EOK) {
             return oserr;
+        }
+
+        // A stopped endpoint must return every old mapping to CPU ownership
+        // before new work can publish TRBs. Recovery completion wakes these waiters.
+        switch (endpoint->State) {
+            case XHCI_ENDPOINT_RESET_PENDING:
+            case XHCI_ENDPOINT_STOP_PENDING:
+            case XHCI_ENDPOINT_DEQUEUE_PENDING:
+            case XHCI_ENDPOINT_REBUILD_PENDING:
+                UsbManagerWaitTransfer(&controller->Base, transfer);
+                return OS_EOK;
+            case XHCI_ENDPOINT_RETIRE_PENDING:
+            case XHCI_ENDPOINT_FAILED:
+                return OS_EUNKNOWN;
+            default:
+                break;
         }
 
         /* Non-control endpoints are configured lazily: the first transfer for
@@ -560,20 +664,20 @@ HCITransferQueue(
          * before its TRBs are ever built/submitted. */
         if (endpoint->DeviceContextIndex != 1) {
             if (device->State != XHCI_DEVICE_ADDRESSED) {
-                transfer->State = USBTRANSFER_STATE_WAITING;
+                UsbManagerWaitTransfer(&controller->Base, transfer);
                 return OS_EOK;
             }
             if (endpoint->State == XHCI_ENDPOINT_FAILED) {
                 return OS_EUNKNOWN;
             }
             if (endpoint->State == XHCI_ENDPOINT_CONFIGURE_PENDING) {
-                transfer->State = USBTRANSFER_STATE_WAITING;
+                UsbManagerWaitTransfer(&controller->Base, transfer);
                 return OS_EOK;
             }
             if (!XhciEndpointMetadataMatches(endpoint, transfer)) {
                 oserr = XhciDeviceConfigureEndpoint(controller, device, endpoint, transfer);
                 if (oserr == OS_EINCOMPLETE) {
-                    transfer->State = USBTRANSFER_STATE_WAITING;
+                    UsbManagerWaitTransfer(&controller->Base, transfer);
                     return OS_EOK;
                 }
                 if (oserr != OS_EOK) {
@@ -633,9 +737,12 @@ HCITransferDequeue(
         return OS_ENOENT;
     }
 
-    if (transfer->State == USBTRANSFER_STATE_WAITING && transfer->RootElement == NULL) {
+    if (!transfer->Dma.HardwareActive &&
+        (transfer->RootElement == NULL || transfer->State == USBTRANSFER_STATE_STALLED)) {
         transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
         transfer->State = USBTRANSFER_STATE_CLEANUP;
+        UsbManagerQueueTransferWork(&controller->Base, transfer);
+        UsbManagerProcessTransfers(&controller->Base);
         return OS_EOK;
     }
 

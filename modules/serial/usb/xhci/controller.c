@@ -17,7 +17,7 @@
 
 //#define __TRACE
 
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/io.h>
 #include <ddk/utils.h>
 #include <os/device.h>
@@ -29,83 +29,6 @@
 #include "xhci.h"
 
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
-
-static void
-__XhciFreeDMA(
-        _In_ OSHandle_t*   handle,
-        _In_ SHMSGTable_t* table)
-{
-    OSHandleDestroy(handle);
-    free(table->Entries);
-    memset(table, 0, sizeof(SHMSGTable_t));
-}
-
-static oserr_t
-__XhciAllocateDMA(
-        _In_  size_t        size,
-        _Out_ OSHandle_t*   handle,
-        _Out_ SHMSGTable_t* table,
-        _Out_ void**        bufferOut)
-{
-    oserr_t oserr;
-
-    oserr = SHMCreate(
-            &(SHM_t) {
-                    .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                    .Conformity = OSMEMORYCONFORMITY_BITS32,
-                    .Size = size,
-                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            handle
-    );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = SHMGetSGTable(handle, table, -1);
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(handle);
-        memset(handle, 0, sizeof(OSHandle_t));
-        memset(table, 0, sizeof(SHMSGTable_t));
-        return oserr;
-    }
-
-    if (bufferOut != NULL) {
-        *bufferOut = SHMBuffer(handle);
-    }
-    return OS_EOK;
-}
-
-static void
-__XhciFreeController(
-        _In_ XhciController_t* controller)
-{
-    UsbManagerDestroyController(&controller->Base);
-    free(controller);
-}
-
-static oserr_t
-__XhciFillScratchpadArray(
-        _In_ XhciController_t* controller)
-{
-    size_t scratchpadIndex = 0;
-
-    // The scratchpad buffer allocation may be physically scattered. Populate
-    // the controller-visible array from every SG entry instead of assuming that
-    // the first entry covers all pages contiguously.
-    for (int i = 0; i < controller->ScratchpadBufferDMATable.Count && scratchpadIndex < controller->ScratchpadCount; i++) {
-        uintptr_t address = controller->ScratchpadBufferDMATable.Entries[i].Address;
-        size_t    length  = controller->ScratchpadBufferDMATable.Entries[i].Length;
-
-        while (length >= XHCI_PAGE_SIZE && scratchpadIndex < controller->ScratchpadCount) {
-            controller->ScratchpadArray[scratchpadIndex++] = address;
-            address += XHCI_PAGE_SIZE;
-            length  -= XHCI_PAGE_SIZE;
-        }
-    }
-
-    return (scratchpadIndex == controller->ScratchpadCount) ? OS_EOK : OS_EUNKNOWN;
-}
 
 oserr_t
 XhciHalt(
@@ -134,7 +57,7 @@ XhciReset(
     int     fault;
 
     TRACE("XhciReset()");
-    if (XhciHalt(controller) != OS_EOK) {
+    if (controller->OpRegisters != NULL && XhciHalt(controller) != OS_EOK) {
         return OS_ETIMEOUT;
     }
 
@@ -157,20 +80,31 @@ XhciReset(
     return fault ? OS_ETIMEOUT : OS_EOK;
 }
 
-static void
+static oserr_t
 __XhciDisableLegacySupport(
-        _In_ XhciController_t* controller)
+    _In_ XhciController_t* controller)
 {
-    uintptr_t registerBase = (uintptr_t)controller->CapRegisters;
-    unsigned int offset = XHCI_HCCPARAMS1_XECP(controller->HccParams1);
+    uintptr_t         registerBase = (uintptr_t)controller->CapRegisters;
+    unsigned int      offset = XHCI_HCCPARAMS1_XECP(controller->HccParams1);
+    volatile reg32_t* capability;
+    reg32_t           value;
+    unsigned int      next;
+    int               fault;
 
     while (offset != 0) {
-        volatile reg32_t* capability = (volatile reg32_t*)(registerBase + (offset << 2));
-        reg32_t value = READ_VOLATILE(*capability);
-        unsigned int next = XHCI_EXTCAP_NEXT(value);
+        // Integration registers outside the xHCI window are not capabilities.
+        if ((uint64_t)offset * 4 + sizeof(reg32_t) > controller->RegisterLength) {
+            return OS_ENOTSUPPORTED;
+        }
+        
+        capability = (volatile reg32_t*)(registerBase + ((size_t)offset * 4));
+        value = READ_VOLATILE(*capability);
+        next = XHCI_EXTCAP_NEXT(value);
 
         if (XHCI_EXTCAP_ID(value) == XHCI_EXTCAP_LEGACY_SUPPORT) {
-            int fault;
+            if ((uint64_t)offset * 4 + 2 * sizeof(reg32_t) > controller->RegisterLength) {
+                return OS_ENOTSUPPORTED;
+            }
 
             // Request ownership from firmware. BIOS Owned should clear once OS
             // Owned is set; clearing the following control/status register then
@@ -184,11 +118,12 @@ __XhciDisableLegacySupport(
                 WARNING("XHCI: firmware did not release ownership before reset.");
             }
             WRITE_VOLATILE(*(volatile reg32_t*)((uintptr_t)capability + sizeof(reg32_t)), 0);
-            return;
+            return OS_EOK;
         }
 
         offset = next ? offset + next : 0;
     }
+    return OS_EOK;
 }
 
 oserr_t
@@ -200,16 +135,17 @@ XhciRun(
 
     TRACE("XhciRun()");
 
+    dma_wmb();
     WRITE_VOLATILE(controller->OpRegisters->Configure, XHCI_OP_CONFIG_MAXSLOTS(controller->SlotCount));
-    WRITE_VOLATILE(controller->OpRegisters->DeviceContextBaseAddressArray, controller->DCBaaDMATable.Entries[0].Address);
+    WRITE_VOLATILE(controller->OpRegisters->DeviceContextBaseAddressArray, controller->DCBaaDeviceAddress);
     WRITE_VOLATILE(controller->OpRegisters->CommandRingControl,
-            controller->CommandRing.PhysicalBase | XHCI_OP_CRCR_RING_CYCLE);
+            controller->CommandRing.DeviceBase | XHCI_OP_CRCR_RING_CYCLE);
 
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableSize, XHCI_ERST_ENTRIES);
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingDequeuePointer,
-            controller->EventRingDMATable.Entries[0].Address | XHCI_INTERRUPTER_ERDP_BUSY);
+            controller->EventRingDeviceAddress | XHCI_INTERRUPTER_ERDP_BUSY);
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableBaseAddress,
-            controller->ErstDMATable.Entries[0].Address);
+            controller->ErstDeviceAddress);
     WRITE_VOLATILE(controller->InterrupterRegisters->Management, XHCI_INTERRUPTER_MANAGEMENT_ENABLE);
 
     command = READ_VOLATILE(controller->OpRegisters->UsbCommand);
@@ -221,18 +157,6 @@ XhciRun(
             250,
             10);
     return fault ? OS_ETIMEOUT : OS_EOK;
-}
-
-static DeviceIo_t*
-__GetControllerIoSpace(
-        _In_ BusDevice_t* device)
-{
-    for (int i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (device->IoSpaces[i].Type == DeviceIoMemoryBased) {
-            return &device->IoSpaces[i];
-        }
-    }
-    return NULL;
 }
 
 static oserr_t
@@ -263,9 +187,21 @@ __SetupController(
     controller->Base.IORequirements.Conformity = (controller->HccParams1 & XHCI_HCCPARAMS1_AC64) ?
             OSMEMORYCONFORMITY_BITS64 : OSMEMORYCONFORMITY_BITS32;
 
-    __XhciDisableLegacySupport(controller);
+    oserr = __XhciDisableLegacySupport(controller);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     oserr = XhciReset(controller);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Address width belongs to the controller, even when the driver itself
+    // uses 32-bit pointers. The context applies this limit to device addresses.
+    oserr = DMAOpen(controller->Base.Device->Id,
+        (controller->HccParams1 & XHCI_HCCPARAMS1_AC64) ? UINT64_MAX : UINT32_MAX,
+        &controller->Base.DmaContext);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -275,6 +211,10 @@ __SetupController(
         return oserr;
     }
 
+    oserr = DeviceActivate(controller->Base.Device->Id, DeviceStart);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
     oserr = XhciRun(controller);
     if (oserr != OS_EOK) {
         return oserr;
@@ -294,119 +234,215 @@ __SetupController(
                 (status & XHCI_PORT_STATUS_RW_MASK) | XHCI_PORT_STATUS_POWER | XHCI_PORT_STATUS_CHANGE_BITS);
     }
     thrd_sleep(&(struct timespec) { .tv_nsec = 20 * NSEC_PER_MSEC }, NULL);
-    XhciPortScan(controller);
+    XhciPortScan(controller, true);
     return OS_EOK;
 }
 
 UsbManagerController_t*
 HCIControllerCreate(
-        _In_ BusDevice_t* device)
+    _In_ Device_t* device)
 {
-    XhciController_t* controller;
-    DeviceIo_t*       ioBase;
-    uintptr_t         registerBase;
-    oserr_t           oserr;
+    XhciController_t*      controller;
+    struct DeviceResources resources;
+    uintptr_t              base;
+    size_t                 length;
+    uint32_t               operational;
+    uint32_t               runtime;
+    uint32_t               doorbells;
+    uint32_t               ports;
+    unsigned int           i;
+    oserr_t                status;
 
-    controller = (XhciController_t*)UsbManagerCreateController(device, USBCONTROLLER_KIND_XHCI, sizeof(XhciController_t));
-    if (!controller) {
+    controller = (XhciController_t*)UsbManagerCreateController(device,
+        USBCONTROLLER_KIND_XHCI, sizeof(*controller));
+    if (controller == NULL) {
         return NULL;
     }
+    controller->State = XHCI_CONTROLLER_RUNNING;
+    
     list_construct(&controller->XhciEndpoints);
     list_construct(&controller->Devices);
-
-    ioBase = __GetControllerIoSpace(device);
-    if (!ioBase) {
-        ERROR("No memory space found for xhci-controller");
-        __XhciFreeController(controller);
-        return NULL;
+    
+    status = DeviceActivate(device->Id, DevicePrepare);
+    if (status == OS_EOK) {
+        controller->Prepared = true;
+        status = DeviceGetResources(device->Id, &resources);
+    }
+    
+    if (status != OS_EOK) {
+        goto error;
     }
 
-    oserr = AcquireDeviceIo(ioBase);
-    if (oserr != OS_EOK) {
-        ERROR("Failed to acquire the io-space for xhci-controller");
-        __XhciFreeController(controller);
-        return NULL;
+    for (i = 0; i < resources.Count; i++) {
+        if (resources.Registers[i].Type == DeviceIoMemoryBased) {
+            controller->RegisterIo = resources.Registers[i];
+            break;
+        }
+    }
+    if (i == resources.Count) {
+        goto error;
+    }
+    
+    status = AcquireDeviceIo(&controller->RegisterIo);
+    if (status != OS_EOK) {
+        goto error;
+    }
+    
+    controller->Base.IoBase = &controller->RegisterIo;
+    base = controller->RegisterIo.Access.Memory.VirtualBase;
+    length = controller->RegisterIo.Access.Memory.Length;
+
+    if (Dwc3IsDevice(device)) {
+        status = Dwc3Prepare(
+            &controller->Dwc3,
+            &resources,
+            &controller->RegisterIo,
+            &length
+        );
+        if (status != OS_EOK) {
+            goto error;
+        }
     }
 
-    controller->Base.IoBase = ioBase;
-    registerBase = ioBase->Access.Memory.VirtualBase;
-    controller->CapRegisters = (XhciCapabilityRegisters_t*)registerBase;
-    controller->OpRegisters = (XhciOperationalRegisters_t*)(registerBase + controller->CapRegisters->CapLength);
-    controller->RuntimeRegisters = (XhciRuntimeRegisters_t*)(registerBase + (controller->CapRegisters->RuntimeOffset & ~0x1FUL));
-    controller->InterrupterRegisters = (XhciInterrupterRegisters_t*)((uintptr_t)controller->RuntimeRegisters + 0x20);
-    controller->Doorbells = (volatile reg32_t*)(registerBase + (controller->CapRegisters->DoorbellOffset & ~0x3UL));
-    controller->Ports = (XhciPortRegisters_t*)((uintptr_t)controller->OpRegisters + 0x400);
+    controller->RegisterLength = length;
+    if (length < sizeof(XhciCapabilityRegisters_t)) {
+        goto error;
+    }
+    
+    controller->CapRegisters = (XhciCapabilityRegisters_t*)base;
+    
+    operational = READ_VOLATILE(controller->CapRegisters->CapLength);
+    runtime = READ_VOLATILE(controller->CapRegisters->RuntimeOffset) & ~0x1fU;
+    doorbells = READ_VOLATILE(controller->CapRegisters->DoorbellOffset) & ~3U;
+    ports = XHCI_HCSPARAMS1_MAXPORTS(READ_VOLATILE(controller->CapRegisters->HcsParams1));
+    
+    if (operational < sizeof(XhciCapabilityRegisters_t) ||
+        (uint64_t)operational + 0x400 + ports * sizeof(XhciPortRegisters_t) > length) {
+        goto error;
+    }
+    
+    if ((uint64_t)runtime + 0x20 + sizeof(XhciInterrupterRegisters_t) > length ||
+        (uint64_t)doorbells + 256 * sizeof(reg32_t) > length) {
+        goto error;
+    }
+    
+    controller->OpRegisters = (XhciOperationalRegisters_t*)(base + operational);
+    controller->RuntimeRegisters = (XhciRuntimeRegisters_t*)(base + runtime);
+    controller->InterrupterRegisters = (XhciInterrupterRegisters_t*)(base + runtime + 0x20);
+    controller->Doorbells = (volatile reg32_t*)(base + doorbells);
+    controller->Ports = (XhciPortRegisters_t*)(base + operational + 0x400);
 
-    // Keep the source quiet until controller setup has created its event ring.
+    // Keep the peripheral quiet while the kernel binds the common fast handler.
     WRITE_VOLATILE(controller->OpRegisters->UsbCommand,
         READ_VOLATILE(controller->OpRegisters->UsbCommand) & ~XHCI_OP_USBCMD_INTERRUPTER);
     
-    // Keep the allocation with the controller so disable and destruction can
-    // release every handler mapping before the controller memory is freed.
-    oserr = UsbManagerConfigureInterrupt(
+    status = UsbManagerConfigureInterrupt(
         &controller->Base,
         (InterruptHandler_t)OnFastInterrupt,
         sizeof(XhciController_t)
     );
-    if (oserr == OS_EOK) {
-        oserr = DeviceInterruptEnable(&controller->Base.Interrupt);
-    }
-    if (oserr != OS_EOK) {
-        HCIControllerDestroy(&controller->Base);
-        return NULL;
+    if (status == OS_EOK) {
+        status = DeviceInterruptEnable(&controller->Base.Interrupt);
     }
 
-    oserr = OSDeviceIOCtl(
-            controller->Base.Device->Base.Id,
-            OSIOCTLREQUEST_BUS_CONTROL,
-            &(struct OSIOCtlBusControl) {
-                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
-                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
-            },
-            sizeof(struct OSIOCtlBusControl)
-    );
-    if (oserr != OS_EOK) {
-        ERROR("Failed to enable the xhci-controller");
-        HCIControllerDestroy(&controller->Base);
-        return NULL;
-    }
-
-    if (__SetupController(controller) != OS_EOK) {
-        HCIControllerDestroy(&controller->Base);
-        return NULL;
-    }
-    return &controller->Base;
-}
-
-void
-HCIControllerDestroy(
-        _In_ UsbManagerController_t* baseController)
-{
-    XhciController_t* controller = (XhciController_t*)baseController;
-
-    TRACE("HCIControllerDestroy()");
-    if (XhciHalt(controller) != OS_EOK) {
-        ERROR("Failed to stop XHCI; keeping interrupt and queue resources alive");
-        return;
+    if (status == OS_EOK) {
+        status = __SetupController(controller);
     }
     
-    // Synchronize delivery before freeing queues, events or mapped handler state.
-    if (DeviceInterruptDestroy(&baseController->Interrupt) != OS_EOK) {
-        ERROR("Failed to release controller interrupt; keeping its resources alive");
-        return;
+    if (status != OS_EOK) {
+        goto error;
     }
+    return &controller->Base;
 
-    UsbManagerDestroyController(baseController);
-    if (baseController->Scheduler != NULL) {
-        XhciQueueDestroy(controller);
-    }
-    ReleaseDeviceIo(baseController->IoBase);
-    free(controller);
+error:
+    HCIControllerDestroy(&controller->Base);
+    return NULL;
 }
 
-void
-HciTimerCallback(
-        _In_ UsbManagerController_t* baseController)
+oserr_t
+HCIControllerDestroy(
+    _In_ UsbManagerController_t* baseController)
 {
-    _CRT_UNUSED(baseController);
+    XhciController_t* controller = (XhciController_t*)baseController;
+    oserr_t           status;
+
+    // Register the retry owner before the first fallible step, including failed
+    // initialization. The manager removes it only after all releases succeed.
+    // Provider IPC can yield to another unregister request or monitor tick.
+    if (controller->Destroying) {
+        return OS_EBUSY;
+    }
+
+    controller->Destroying = true;
+    if (controller->State == XHCI_CONTROLLER_RUNNING) {
+        controller->State = XHCI_CONTROLLER_STOPPING;
+    }
+    
+    UsbManagerDeferControllerDestroy(baseController);
+    if (controller->State != XHCI_CONTROLLER_HALTED) {
+        if (controller->OpRegisters != NULL) {
+            status = XhciHalt(controller);
+            if (status != OS_EOK) {
+                ERROR("XHCI teardown: halt failed (%u); keeping hardware resources", status);
+                goto retry;
+            }
+        }
+        controller->State = XHCI_CONTROLLER_HALTED;
+    }
+
+    // Halting the engine ends DMA. Keep provider activation alive while removing
+    // interrupts and DMA mappings: native platforms cannot release their power
+    // and translation resources while these leases exist. No later retry may
+    // touch MMIO after activation has been released.
+    status = DeviceInterruptDestroy(&baseController->Interrupt);
+    if (status != OS_EOK) {
+        WARNING("XHCI teardown: interrupt release failed (%u); retry pending", status);
+        goto retry;
+    }
+
+    status = XhciQueueDestroy(controller);
+    if (status != OS_EOK) {
+        WARNING("XHCI teardown: queue release failed (%u); retry pending", status);
+        goto retry;
+    }
+    
+    status = DMAClose(&baseController->DmaContext);
+    if (status != OS_EOK) {
+        goto retry;
+    }
+    
+    // Wrapper restoration also needs live MMIO. A partial preparation or failed
+    // restoration keeps its state until this succeeds, before provider stop.
+    status = Dwc3Release(&controller->Dwc3);
+    if (status != OS_EOK) {
+        WARNING("XHCI teardown: DWC3 release failed (%u); retry pending", status);
+        goto retry;
+    }
+    
+    if (controller->Prepared) {
+        status = DeviceActivate(baseController->Device->Id, DeviceStop);
+        if (status != OS_EOK) {
+            WARNING("XHCI teardown: activation release failed (%u); retry pending", status);
+            goto retry;
+        }
+        controller->Prepared = false;
+    }
+    
+    if (baseController->IoBase != NULL) {
+        status = ReleaseDeviceIo(baseController->IoBase);
+        if (status != OS_EOK) {
+            WARNING("XHCI teardown: register detach failed (%u); retry pending", status);
+            goto retry;
+        }
+        baseController->IoBase = NULL;
+    }
+    
+    TRACE("XHCI teardown: released controller %u", baseController->Device->Id);
+    UsbManagerDestroyController(baseController);
+    free(controller);
+    return OS_EOK;
+
+retry:
+    controller->Destroying = false;
+    return status;
 }

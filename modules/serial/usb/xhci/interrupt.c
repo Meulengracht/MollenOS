@@ -1,15 +1,23 @@
 /**
- * Copyright 2026, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation ? , either version 3 of the License, or
  * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 //#define __TRACE
 
-#include <ddk/interrupt.h>
+#include <ddk/interrupts/interrupt.h>
 #include <ddk/io.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -19,7 +27,7 @@ static uintptr_t
 __EventRingDequeueAddress(
         _In_ XhciController_t* controller)
 {
-    return controller->EventRingDMATable.Entries[0].Address +
+    return controller->EventRingDeviceAddress +
            (controller->EventRingIndex * sizeof(XhciTransferRequestBlock_t));
 }
 
@@ -33,6 +41,8 @@ __ProcessEventRing(
     while ((controller->EventRing[controller->EventRingIndex].Control & XHCI_TRB_CONTROL_CYCLE) ==
            (controller->EventRingCycle ? XHCI_TRB_CONTROL_CYCLE : 0)) {
         XhciTransferRequestBlock_t* trb = &controller->EventRing[controller->EventRingIndex];
+
+        dma_rmb();
 
         // Port status events carry the changed port id in the event TRB. The
         // common stack only needs a root-hub port notification, so we let the
@@ -63,7 +73,8 @@ __ProcessEventRing(
             __EventRingDequeueAddress(controller) | XHCI_INTERRUPTER_ERDP_BUSY);
 
     if (portEvent) {
-        XhciPortScan(controller);
+        bool initial = false;
+        XhciPortScan(controller, initial);
     }
     if (transferEvent) {
         UsbManagerProcessTransfers(&controller->Base);
@@ -81,16 +92,25 @@ OnFastInterrupt(
     XhciOperationalRegisters_t* opRegisters = (XhciOperationalRegisters_t*)(registerBase + capRegisters->CapLength);
     XhciRuntimeRegisters_t* runtimeRegisters = (XhciRuntimeRegisters_t*)(registerBase + (capRegisters->RuntimeOffset & ~0x1FUL));
     XhciInterrupterRegisters_t* interrupterRegisters = (XhciInterrupterRegisters_t*)((uintptr_t)runtimeRegisters + 0x20);
-    reg32_t status = READ_VOLATILE(opRegisters->UsbStatus);
-    reg32_t management = READ_VOLATILE(interrupterRegisters->Management);
+    reg32_t status = opRegisters->UsbStatus;
+    reg32_t management = interrupterRegisters->Management;
 
     if (!(status & (XHCI_OP_USBSTS_EVENT | XHCI_OP_USBSTS_HOSTERROR)) &&
         !(management & XHCI_INTERRUPTER_MANAGEMENT_PENDING)) {
         return IRQSTATUS_NOT_HANDLED;
     }
 
-    WRITE_VOLATILE(opRegisters->UsbStatus, status & (XHCI_OP_USBSTS_EVENT | XHCI_OP_USBSTS_HOSTERROR));
-    WRITE_VOLATILE(interrupterRegisters->Management, management | XHCI_INTERRUPTER_MANAGEMENT_PENDING);
+    // An event can arrive between the USBSTS and IMAN reads on a shared IRQ.
+    // IP alone must schedule a drain so the consumer releases event-handler busy.
+    if (management & XHCI_INTERRUPTER_MANAGEMENT_PENDING) {
+        status |= XHCI_OP_USBSTS_EVENT;
+    }
+
+    // Fast handlers run from a kernel mapping and cannot call userspace helpers.
+    // These register members are volatile; order acknowledgement before signalling.
+    opRegisters->UsbStatus = status & (XHCI_OP_USBSTS_EVENT | XHCI_OP_USBSTS_HOSTERROR);
+    interrupterRegisters->Management = management | XHCI_INTERRUPTER_MANAGEMENT_PENDING;
+    mb();
     atomic_fetch_or(&controller->Base.InterruptStatus, status);
 
     InterruptTable->EventSignal(ResourceTable->HandleResource);
@@ -113,8 +133,13 @@ ProcessInterrupt:
 
     if (interruptStatus & XHCI_OP_USBSTS_HOSTERROR) {
         ERROR("XHCI-Failure: host controller error; stopping controller");
-        XhciHalt(controller);
-        UsbManagerClearTransfers(&controller->Base);
+        if (controller->State == XHCI_CONTROLLER_RUNNING) {
+            controller->State = XHCI_CONTROLLER_STOPPING;
+        }
+        if (XhciHalt(controller) == OS_EOK) {
+            controller->State = XHCI_CONTROLLER_HALTED;
+            UsbManagerClearTransfers(&controller->Base);
+        }
     }
 
     if (atomic_load(&controller->Base.InterruptStatus) != 0) {

@@ -1,5 +1,18 @@
 /**
- * Copyright 2026, Philip Meulengracht
+ * Copyright, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define __need_minmax
@@ -11,82 +24,37 @@
 #include <string.h>
 #include "xhci.h"
 
-static void
-__XhciFreeDMA(
-        _In_ OSHandle_t*   handle,
-        _In_ SHMSGTable_t* table)
-{
-    OSHandleDestroy(handle);
-    free(table->Entries);
-    memset(table, 0, sizeof(SHMSGTable_t));
-}
-
 static oserr_t
-__XhciAllocateDMA(
-        _In_  size_t        size,
-        _Out_ OSHandle_t*   handle,
-        _Out_ SHMSGTable_t* table,
-        _Out_ void**        bufferOut)
+__XhciFreeControllerResources(
+    _In_ XhciController_t* controller)
 {
-    oserr_t oserr;
+    oserr_t status;
 
-    oserr = SHMCreate(
-            &(SHM_t) {
-                    .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                    .Conformity = OSMEMORYCONFORMITY_BITS32,
-                    .Size = size,
-                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            handle
-    );
-    if (oserr != OS_EOK) {
-        return oserr;
+    status = DMAFree(&controller->ErstDMA);
+    if (status != OS_EOK) {
+        return status;
     }
-
-    oserr = SHMGetSGTable(handle, table, -1);
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(handle);
-        memset(handle, 0, sizeof(OSHandle_t));
-        memset(table, 0, sizeof(SHMSGTable_t));
-        return oserr;
+    status = DMAFree(&controller->EventRingDMA);
+    if (status != OS_EOK) {
+        return status;
     }
-
-    if (bufferOut != NULL) {
-        *bufferOut = SHMBuffer(handle);
+    status = XhciRingDestroy(&controller->CommandRing);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = XhciScratchpadsFree(&controller->Scratchpads, controller->ScratchpadCount);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = DMAFree(&controller->ScratchpadArrayDMA);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = DMAFree(&controller->DCBaaDMA);
+    if (status != OS_EOK) {
+        return status;
     }
     return OS_EOK;
-}
-
-static void
-__XhciFreeControllerResources(
-        _In_ XhciController_t* controller)
-{
-    __XhciFreeDMA(&controller->ErstDMA, &controller->ErstDMATable);
-    __XhciFreeDMA(&controller->EventRingDMA, &controller->EventRingDMATable);
-    XhciRingDestroy(&controller->CommandRing);
-    __XhciFreeDMA(&controller->ScratchpadBufferDMA, &controller->ScratchpadBufferDMATable);
-    __XhciFreeDMA(&controller->ScratchpadArrayDMA, &controller->ScratchpadArrayDMATable);
-    __XhciFreeDMA(&controller->DCBaaDMA, &controller->DCBaaDMATable);
-}
-
-static oserr_t
-__XhciFillScratchpadArray(
-        _In_ XhciController_t* controller)
-{
-    size_t scratchpadIndex = 0;
-
-    for (int i = 0; i < controller->ScratchpadBufferDMATable.Count && scratchpadIndex < controller->ScratchpadCount; i++) {
-        uintptr_t address = controller->ScratchpadBufferDMATable.Entries[i].Address;
-        size_t    length  = controller->ScratchpadBufferDMATable.Entries[i].Length;
-
-        while (length >= XHCI_PAGE_SIZE && scratchpadIndex < controller->ScratchpadCount) {
-            controller->ScratchpadArray[scratchpadIndex++] = address;
-            address += XHCI_PAGE_SIZE;
-            length  -= XHCI_PAGE_SIZE;
-        }
-    }
-
-    return (scratchpadIndex == controller->ScratchpadCount) ? OS_EOK : OS_EUNKNOWN;
 }
 
 oserr_t
@@ -94,11 +62,11 @@ XhciQueueInitialize(
     _In_ XhciController_t* controller)
 {
     size_t  dcbaaEntries = MIN(controller->SlotCount + 1, XHCI_MAX_DEVICE_CONTEXTS);
-    size_t  scratchpadBytes;
     UsbSchedulerSettings_t settings;
     oserr_t                oserr;
 
-    UsbSchedulerSettingsCreate(&settings, 1, 1, 0, 0);
+    // Hardware reads the separate TRB rings, never these software descriptors.
+    UsbSchedulerSettingsCreate(&settings, 1, 1, 0, USB_SCHEDULER_SOFTWARE_ELEMENTS);
     UsbSchedulerSettingsAddPool(
             &settings,
             sizeof(XhciTransferDescriptor_t),
@@ -115,99 +83,64 @@ XhciQueueInitialize(
         return oserr;
     }
 
-    oserr = __XhciAllocateDMA(
+    oserr = XhciDmaAllocate(controller->Base.DmaContext,
             dcbaaEntries * sizeof(reg64_t),
             &controller->DCBaaDMA,
-            &controller->DCBaaDMATable,
+            &controller->DCBaaDeviceAddress,
             (void**)&controller->DCBaa
     );
     if (oserr != OS_EOK) {
-        UsbSchedulerDestroy(controller->Base.Scheduler);
-        controller->Base.Scheduler = NULL;
         return oserr;
     }
 
     if (controller->ScratchpadCount > 0) {
-        oserr = __XhciAllocateDMA(
+        oserr = XhciDmaAllocate(controller->Base.DmaContext,
                 controller->ScratchpadCount * sizeof(reg64_t),
                 &controller->ScratchpadArrayDMA,
-                &controller->ScratchpadArrayDMATable,
+                &controller->ScratchpadArrayDeviceAddress,
                 (void**)&controller->ScratchpadArray
         );
         if (oserr != OS_EOK) {
-            __XhciFreeControllerResources(controller);
-            UsbSchedulerDestroy(controller->Base.Scheduler);
-            controller->Base.Scheduler = NULL;
             return oserr;
         }
-        if (controller->ScratchpadArrayDMATable.Count != 1) {
-            ERROR("XHCI-Failure: scratchpad pointer array was not physically contiguous.");
-            __XhciFreeControllerResources(controller);
-            UsbSchedulerDestroy(controller->Base.Scheduler);
-            controller->Base.Scheduler = NULL;
-            return OS_EUNKNOWN;
-        }
-
-        scratchpadBytes = controller->ScratchpadCount * XHCI_PAGE_SIZE;
-        oserr = __XhciAllocateDMA(
-                scratchpadBytes,
-                &controller->ScratchpadBufferDMA,
-                &controller->ScratchpadBufferDMATable,
-                NULL
+        oserr = XhciScratchpadsAllocate(
+            controller->Base.DmaContext,
+            controller->ScratchpadCount,
+            controller->ScratchpadArray,
+            &controller->Scratchpads
         );
         if (oserr != OS_EOK) {
-            __XhciFreeControllerResources(controller);
-            UsbSchedulerDestroy(controller->Base.Scheduler);
-            controller->Base.Scheduler = NULL;
             return oserr;
         }
-
-        oserr = __XhciFillScratchpadArray(controller);
-        if (oserr != OS_EOK) {
-            ERROR("XHCI-Failure: scratchpad buffers did not provide enough DMA pages.");
-            __XhciFreeControllerResources(controller);
-            UsbSchedulerDestroy(controller->Base.Scheduler);
-            controller->Base.Scheduler = NULL;
-            return oserr;
-        }
-        controller->DCBaa[0] = controller->ScratchpadArrayDMATable.Entries[0].Address;
+        controller->DCBaa[0] = controller->ScratchpadArrayDeviceAddress;
     }
 
-        oserr = XhciRingInitialize(&controller->CommandRing, XHCI_COMMAND_RING_ENTRIES);
+    oserr = XhciRingInitialize(controller->Base.DmaContext, &controller->CommandRing, XHCI_COMMAND_RING_ENTRIES);
     if (oserr != OS_EOK) {
-        __XhciFreeControllerResources(controller);
-        UsbSchedulerDestroy(controller->Base.Scheduler);
-        controller->Base.Scheduler = NULL;
         return oserr;
     }
 
-    oserr = __XhciAllocateDMA(
+    oserr = XhciDmaAllocate(controller->Base.DmaContext,
             XHCI_EVENT_RING_ENTRIES * sizeof(XhciTransferRequestBlock_t),
             &controller->EventRingDMA,
-            &controller->EventRingDMATable,
+            &controller->EventRingDeviceAddress,
             (void**)&controller->EventRing
     );
     if (oserr != OS_EOK) {
-        __XhciFreeControllerResources(controller);
-        UsbSchedulerDestroy(controller->Base.Scheduler);
-        controller->Base.Scheduler = NULL;
         return oserr;
     }
 
-    oserr = __XhciAllocateDMA(
+    oserr = XhciDmaAllocate(controller->Base.DmaContext,
             XHCI_ERST_ENTRIES * sizeof(XhciEventRingSegmentTableEntry_t),
             &controller->ErstDMA,
-            &controller->ErstDMATable,
+            &controller->ErstDeviceAddress,
             (void**)&controller->Erst
     );
     if (oserr != OS_EOK) {
-        __XhciFreeControllerResources(controller);
-        UsbSchedulerDestroy(controller->Base.Scheduler);
-        controller->Base.Scheduler = NULL;
         return oserr;
     }
 
-    controller->Erst[0].RingSegmentBaseAddress = controller->EventRingDMATable.Entries[0].Address;
+    controller->Erst[0].RingSegmentBaseAddress = controller->EventRingDeviceAddress;
     controller->Erst[0].RingSegmentSize = XHCI_EVENT_RING_ENTRIES;
     controller->EventRingIndex = 0;
     controller->EventRingCycle = 1;
@@ -218,12 +151,25 @@ oserr_t
 XhciQueueReset(
     _In_ XhciController_t* controller)
 {
+    oserr_t status;
+
     UsbManagerClearTransfers(&controller->Base);
-    XhciEndpointDestroyAll(controller);
-    XhciDeviceDestroyAll(controller);
+    if (controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
+    status = XhciEndpointDestroyAll(controller);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = XhciDeviceDestroyAll(controller);
+    if (status != OS_EOK) {
+        return status;
+    }
     XhciRingReset(&controller->CommandRing);
     memset(controller->Commands, 0, sizeof(controller->Commands));
-    memset(controller->EventRing, 0, XHCI_EVENT_RING_ENTRIES * sizeof(XhciTransferRequestBlock_t));
+    if (controller->EventRing != NULL) {
+        memset(controller->EventRing, 0, XHCI_EVENT_RING_ENTRIES * sizeof(XhciTransferRequestBlock_t));
+    }
     controller->EventRingIndex = 0;
     controller->EventRingCycle = 1;
     if (controller->Base.Scheduler != NULL) {
@@ -232,18 +178,33 @@ XhciQueueReset(
     return OS_EOK;
 }
 
-void
+oserr_t
 XhciQueueDestroy(
     _In_ XhciController_t* controller)
 {
-    if (controller == NULL) {
-        return;
-    }
+    oserr_t status;
 
-    XhciQueueReset(controller);
-    __XhciFreeControllerResources(controller);
-    UsbSchedulerDestroy(controller->Base.Scheduler);
-    controller->Base.Scheduler = NULL;
+    UsbManagerClearTransfers(&controller->Base);
+    if (controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
+    status = XhciEndpointDestroyAll(controller);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = XhciDeviceDestroyAll(controller);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = __XhciFreeControllerResources(controller);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (controller->Base.Scheduler != NULL) {
+        UsbSchedulerDestroy(controller->Base.Scheduler);
+        controller->Base.Scheduler = NULL;
+    }
+    return OS_EOK;
 }
 
 static bool

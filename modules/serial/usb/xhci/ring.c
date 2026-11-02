@@ -1,17 +1,29 @@
 /**
- * Copyright 2026, Philip Meulengracht
+ * Copyright, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <os/handle.h>
-#include <os/shm.h>
-#include <stdlib.h>
+#include <ddk/io.h>
 #include <string.h>
 #include "xhci.h"
 
 oserr_t
 XhciRingInitialize(
-    _Out_ XhciRing_t* ring,
-    _In_  uint16_t    trbCount)
+    _In_    struct DMAContext* context,
+    _Out_   XhciRing_t*        ring,
+    _In_    uint16_t           trbCount)
 {
     oserr_t oserr;
 
@@ -20,32 +32,12 @@ XhciRingInitialize(
         return OS_EINVALPARAMS;
     }
 
-    oserr = SHMCreate(
-            &(SHM_t) {
-                .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                .Conformity = OSMEMORYCONFORMITY_LOW,
-                .Size = trbCount * sizeof(XhciTrb_t),
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            &ring->BufferHandle
-    );
+    oserr = XhciDmaAllocate(context, trbCount * sizeof(XhciTrb_t),
+        &ring->BufferHandle, &ring->DeviceBase, (void**)&ring->Trbs);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    oserr = SHMGetSGTable(&ring->BufferHandle, &ring->BufferSGTable, -1);
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&ring->BufferHandle);
-        memset(&ring->BufferHandle, 0, sizeof(OSHandle_t));
-        return oserr;
-    }
-
-    ring->Trbs         = SHMBuffer(&ring->BufferHandle);
-    if (ring->BufferSGTable.Count != 1) {
-        XhciRingDestroy(ring);
-        return OS_EUNKNOWN;
-    }
-    ring->PhysicalBase = ring->BufferSGTable.Entries[0].Address;
     ring->TrbCount     = trbCount;
     ring->CycleState   = 1;
     memset(ring->Trbs, 0, trbCount * sizeof(XhciTrb_t));
@@ -53,17 +45,21 @@ XhciRingInitialize(
     return OS_EOK;
 }
 
-void
+oserr_t
 XhciRingDestroy(
     _In_ XhciRing_t* ring)
 {
-    if (ring == NULL) {
-        return;
-    }
+    oserr_t status;
 
-    OSHandleDestroy(&ring->BufferHandle);
-    free(ring->BufferSGTable.Entries);
+    if (ring == NULL) {
+        return OS_EOK;
+    }
+    status = DMAFree(&ring->BufferHandle);
+    if (status != OS_EOK) {
+        return status;
+    }
     memset(ring, 0, sizeof(XhciRing_t));
+    return OS_EOK;
 }
 
 void
@@ -81,17 +77,19 @@ XhciRingReset(
     ring->CycleState        = 1;
     ring->DequeueCycleState = 1;
 
-    ring->Trbs[ring->TrbCount - 1].Parameter = ring->PhysicalBase;
+    ring->Trbs[ring->TrbCount - 1].Parameter = ring->DeviceBase;
     ring->Trbs[ring->TrbCount - 1].Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_LINK) |
             XHCI_TRB_CONTROL_TOGGLE_CYCLE | XHCI_TRB_CONTROL_CYCLE;
 }
 
 oserr_t
 XhciRingEnqueue(
-    _In_  XhciRing_t*      ring,
-    _In_  const XhciTrb_t* trb,
-    _Out_ uint16_t*        trbIndexOut)
+    _In_    XhciRing_t*      ring,
+    _In_    const XhciTrb_t* trb,
+    _Out_   uint16_t*        trbIndexOut)
 {
+    uint32_t control;
+
     if (ring == NULL || ring->Trbs == NULL || trb == NULL || ring->TrbCount < 2) {
         return OS_EINVALPARAMS;
     }
@@ -101,15 +99,21 @@ XhciRingEnqueue(
     }
 
     if (ring->EnqueueIndex == (uint16_t)(ring->TrbCount - 1)) {
-        ring->Trbs[ring->EnqueueIndex].Control &= ~XHCI_TRB_CONTROL_CYCLE;
-        ring->Trbs[ring->EnqueueIndex].Control |= ring->CycleState ? XHCI_TRB_CONTROL_CYCLE : 0;
+        control = ring->Trbs[ring->EnqueueIndex].Control & ~XHCI_TRB_CONTROL_CYCLE;
+        control |= ring->CycleState ? XHCI_TRB_CONTROL_CYCLE : 0;
+        dma_wmb();
+        WRITE_VOLATILE(ring->Trbs[ring->EnqueueIndex].Control, control);
         ring->EnqueueIndex = 0;
         ring->CycleState ^= 1;
     }
 
-    ring->Trbs[ring->EnqueueIndex] = *trb;
-    ring->Trbs[ring->EnqueueIndex].Control &= ~XHCI_TRB_CONTROL_CYCLE;
-    ring->Trbs[ring->EnqueueIndex].Control |= ring->CycleState ? XHCI_TRB_CONTROL_CYCLE : 0;
+    // Publish cycle last: an active controller may fetch without a new doorbell.
+    control = (trb->Control & ~XHCI_TRB_CONTROL_CYCLE) |
+        (ring->CycleState ? XHCI_TRB_CONTROL_CYCLE : 0);
+    ring->Trbs[ring->EnqueueIndex].Parameter = trb->Parameter;
+    ring->Trbs[ring->EnqueueIndex].Status = trb->Status;
+    dma_wmb();
+    WRITE_VOLATILE(ring->Trbs[ring->EnqueueIndex].Control, control);
     if (trbIndexOut != NULL) {
         *trbIndexOut = ring->EnqueueIndex;
     }
@@ -120,8 +124,8 @@ XhciRingEnqueue(
 
 void
 XhciRingRelease(
-    _In_ XhciRing_t* ring,
-    _In_ uint16_t    trbCount)
+    _In_    XhciRing_t* ring,
+    _In_    uint16_t    trbCount)
 {
     if (ring == NULL || ring->TrbCount < 2) {
         return;
