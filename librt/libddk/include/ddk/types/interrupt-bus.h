@@ -25,7 +25,7 @@
 #include <ddk/types/interrupt.h>
 #include <ddk/types/interrupt-controller.h>
 
-#define INTERRUPT_PROVIDER_MAX_VECTORS 2048U
+#define INTERRUPT_BUS_MAX_VECTORS 2048U
 
 /**
  * @brief An interrupt's optional bus callback and hardware message.
@@ -49,7 +49,7 @@ typedef struct InterruptBusVector {
  * Set Principal from the message transport's verified sender identity. Do not
  * trust a process ID from the driver's request. ControllerID and Count must
  * match the existing allocation. Count must be nonzero and Vectors must address
- * that many readable/writable entries, up to INTERRUPT_PROVIDER_MAX_VECTORS.
+ * that many readable/writable entries, up to INTERRUPT_BUS_MAX_VECTORS.
  * Vectors follow allocation order, not firmware source or controller ordinals.
  * Message attachments require Line == LineFlags == 0. Fixed-line attachments
  * require Count == 1, an exact line/attribute match, and no completion callback.

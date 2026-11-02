@@ -87,9 +87,9 @@ extern oserr_t ScInterruptReap(uuid_t);
 extern oserr_t ScInterruptCompletionCreate(uuid_t*);
 extern oserr_t ScInterruptCompletionBind(uuid_t, const InterruptResourceTable_t*);
 extern oserr_t ScInterruptCompletionRelease(uuid_t);
-extern oserr_t ScInterruptProviderAttach(const InterruptBusAttachRequest_t*);
-extern oserr_t ScInterruptProviderCheckEnabled(uuid_t, uuid_t, uuid_t);
-extern oserr_t ScInterruptProviderClose(uuid_t, uuid_t, uuid_t);
+extern oserr_t ScInterruptBusAttach(const InterruptBusAttachRequest_t*);
+extern oserr_t ScInterruptBusStatus(uuid_t, uuid_t, uuid_t);
+extern oserr_t ScInterruptBusClose(uuid_t, uuid_t, uuid_t);
 extern oserr_t ScInterruptGetMessage(uuid_t, uint32_t, DeviceInterruptMessage_t*);
 extern oserr_t ScInterruptLineSourceResolve(const InterruptLineSourceIdentity_t*, uuid_t*);
 extern oserr_t ScInterruptMessageControllerResolve(const InterruptMessageControllerIdentity_t*, uuid_t*);
@@ -216,9 +216,9 @@ static struct SystemCallDescriptor {
         DefineSyscall(26, ScInterruptCompletionCreate),
         DefineSyscall(27, ScInterruptCompletionBind),
         DefineSyscall(28, ScInterruptCompletionRelease),
-        DefineSyscall(29, ScInterruptProviderAttach),
-        DefineSyscall(30, ScInterruptProviderCheckEnabled),
-        DefineSyscall(31, ScInterruptProviderClose),
+        DefineSyscall(29, ScInterruptBusAttach),
+        DefineSyscall(30, ScInterruptBusStatus),
+        DefineSyscall(31, ScInterruptBusClose),
         DefineSyscall(32, ScInterruptMessageControllerResolve),
         
         DefineSyscall(33, ScGetProcessBaseAddress),

@@ -115,7 +115,7 @@ ScInterruptLineSourceResolve(
         return status;
     }
 
-    // Copyout failure has no ownership to roll back, so the provider can retry
+    // Copyout failure has no ownership to roll back, so the bus can retry
     // the identical query without creating a second controller or lease.
     return MemorySpaceCopyUser(userController, &controller, sizeof(controller), true);
 }
@@ -705,12 +705,12 @@ ScMapRamdisk(
 }
 
 static oserr_t
-__CheckInterruptProvider(void)
+__VerifyInterruptPrivileges(void)
 {
     oserr_t status;
 
     // A completion runs inside the kernel, just like a device's fast handler.
-    // A provider also acts on behalf of another process, so interrupt permission
+    // A bus also acts on behalf of another process, so interrupt permission
     // alone is insufficient: it must be trusted to manage devices and identify
     // the driver that sent it an attachment request.
     status = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
@@ -731,7 +731,7 @@ ScInterruptCompletionCreate(
         return OS_EINVALPARAMS;
     }
 
-    status = __CheckInterruptProvider();
+    status = __VerifyInterruptPrivileges();
     if (status != OS_EOK) {
         return status;
     }
@@ -764,7 +764,7 @@ ScInterruptCompletionBind(
         return OS_EINVALPARAMS;
     }
 
-    status = __CheckInterruptProvider();
+    status = __VerifyInterruptPrivileges();
     if (status != OS_EOK) {
         return status;
     }
@@ -776,7 +776,7 @@ ScInterruptCompletionBind(
 
     // Copying the outer table copies pointers, not the I/O descriptions they
     // point to. Copy those descriptions too and replace their pointers with our
-    // local copies. Mapping can wait while another provider thread changes its
+    // local copies. Mapping can wait while another bus thread changes its
     // memory; validation and mapping must use the same values throughout.
     for (unsigned int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (resources.IoResources[i] != NULL) {
@@ -797,18 +797,18 @@ ScInterruptCompletionRelease(
 {
     oserr_t status;
 
-    status = __CheckInterruptProvider();
+    status = __VerifyInterruptPrivileges();
     if (status != OS_EOK) {
         return status;
     }
 
     // The core checks ownership and attached groups before touching mappings.
-    // Keep its failure visible so the provider knows to retain and retry the handle.
+    // Keep its failure visible so the bus knows to keep/retry the handle.
     return InterruptCompletionRelease(handle);
 }
 
 oserr_t
-ScInterruptProviderAttach(
+ScInterruptBusAttach(
     _In_ const InterruptBusAttachRequest_t* userRequest)
 {
     InterruptBusAttachRequest_t request;
@@ -820,7 +820,7 @@ ScInterruptProviderAttach(
     if (userRequest == NULL) {
         return OS_EINVALPARAMS;
     }
-    status = __CheckInterruptProvider();
+    status = __VerifyInterruptPrivileges();
     if (status != OS_EOK) {
         return status;
     }
@@ -830,7 +830,7 @@ ScInterruptProviderAttach(
         return status;
     }
 
-    if (request.Count == 0 || request.Count > INTERRUPT_PROVIDER_MAX_VECTORS) {
+    if (request.Count == 0 || request.Count > INTERRUPT_BUS_MAX_VECTORS) {
         return OS_EINVALPARAMS;
     }
 
@@ -855,7 +855,7 @@ ScInterruptProviderAttach(
     }
 
     request.Vectors = vectors;
-    status = InterruptGroupProviderAttach(&request);
+    status = InterruptGroupBusAttach(&request);
     if (status == OS_EOK) {
         // Attachment has already succeeded. Writing the returned messages into
         // user memory can still fail, so the caller may not know the outcome.
@@ -870,35 +870,37 @@ ScInterruptProviderAttach(
 }
 
 oserr_t
-ScInterruptProviderCheckEnabled(
+ScInterruptBusStatus(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device)
 {
     oserr_t status;
 
-    status = __CheckInterruptProvider();
+    status = __VerifyInterruptPrivileges();
     if (status != OS_EOK) {
         return status;
     }
+
     // The supplied driver identity must match the group's recorded owner. The
-    // provider is a different process, so checking only the caller would be wrong.
-    return InterruptGroupProviderCheckEnabled(handle, principal, device);
+    // bus is a different process, so checking only the caller would be wrong.
+    return InterruptGroupBusStatus(handle, principal, device);
 }
 
 oserr_t
-ScInterruptProviderClose(
+ScInterruptBusClose(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device)
 {
     oserr_t status;
 
-    status = __CheckInterruptProvider();
+    status = __VerifyInterruptPrivileges();
     if (status != OS_EOK) {
         return status;
     }
+
     // This records closure in the kernel. Stopping the actual device's interrupt
-    // writes is the provider's responsibility and must happen before this call.
-    return InterruptGroupProviderClose(handle, principal, device);
+    // writes is the bus's responsibility and must happen before this call.
+    return InterruptGroupBusClose(handle, principal, device);
 }

@@ -193,7 +193,7 @@ InterruptGroupReap(
  *         extra callback references. A closed group cannot be attached again.
  */
 oserr_t
-InterruptGroupProviderAttach(
+InterruptGroupBusAttach(
     _In_ const InterruptBusAttachRequest_t* request);
 
 /**
@@ -206,7 +206,7 @@ InterruptGroupProviderAttach(
  *         This check does not prevent the child from disabling the group later.
  */
 oserr_t
-InterruptGroupProviderCheckEnabled(
+InterruptGroupBusStatus(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device);
@@ -226,7 +226,7 @@ InterruptGroupProviderCheckEnabled(
  *         was never attached.
  */
 oserr_t
-InterruptGroupProviderClose(
+InterruptGroupBusClose(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device);

@@ -32,7 +32,7 @@
 #include <spinlock.h>
 #include <debug.h>
 
-#define INTERRUPT_GROUP_LIMIT INTERRUPT_PROVIDER_MAX_VECTORS
+#define INTERRUPT_GROUP_LIMIT INTERRUPT_BUS_MAX_VECTORS
 _Static_assert(MAX_SUPPORTED_INTERRUPTS <= UINT16_MAX,
     "Interrupt table indices must fit in descriptor IDs");
 
@@ -52,9 +52,9 @@ struct __InterruptGroupVector {
  * Records which bus provider attached this device to the group. Closed prevents
  * a delayed attachment request from reopening a group that is being removed.
  */
-struct __InterruptProviderLease {
-    uuid_t Provider;
-    uuid_t Device;
+struct __InterruptBusLease {
+    uuid_t BusID;
+    uuid_t DeviceID;
     int    Closed;
 };
 
@@ -66,20 +66,20 @@ struct __InterruptProviderLease {
  * records whether late device messages might still target these reservations.
  */
 struct __InterruptGroup {
-    struct __InterruptGroup*        Next;
-    uuid_t                          Handle;
-    uuid_t                          Owner;
-    uuid_t                          ControllerID;
-    DeviceInterruptLine_t           FixedLine;
-    struct __InterruptProviderLease Provider;
-    InterruptSourceKind_t           Kind;
-    uint32_t                        Count;
-    int                             KernelHandlers;
-    int                             Updating;
-    int                             Unbinding;
-    int                             EverEnabled;
-    _Atomic(int)                    Enabled;
-    struct __InterruptGroupVector   Vectors[];
+    struct __InterruptGroup*      Next;
+    uuid_t                        Handle;
+    uuid_t                        Owner;
+    uuid_t                        ControllerID;
+    DeviceInterruptLine_t         FixedLine;
+    struct __InterruptBusLease    Provider;
+    InterruptSourceKind_t         Kind;
+    uint32_t                      Count;
+    int                           KernelHandlers;
+    int                           Updating;
+    int                           Unbinding;
+    int                           EverEnabled;
+    _Atomic(int)                  Enabled;
+    struct __InterruptGroupVector Vectors[];
 };
 
 static Spinlock_t               g_groupLock = OS_SPINLOCK_INIT;
@@ -762,7 +762,7 @@ InterruptGroupRelease(
         return status;
     }
 
-    if (group->Provider.Provider != UUID_INVALID && !group->Provider.Closed) {
+    if (group->Provider.BusID != UUID_INVALID && !group->Provider.Closed) {
         // The provider still owns hardware capable of writing this message.
         // It must block those writes and close its attachment before group release.
         __EndGroup(group);
@@ -830,7 +830,7 @@ __ProviderGroupIdle(
 }
 
 static oserr_t
-__ProviderAttachGroup(
+__BusAttachGroup(
     _InOut_ struct __InterruptGroup*           group,
     _In_    const InterruptBusAttachRequest_t* request)
 {
@@ -858,7 +858,7 @@ __ProviderAttachGroup(
         return OS_EINVALPARAMS;
     }
 
-    if (group->Provider.Provider != UUID_INVALID) {
+    if (group->Provider.BusID != UUID_INVALID) {
         // Returning messages to the provider may have failed after attachment
         // succeeded. Accept the same request even if the driver has since bound
         // or enabled its handlers. Compare input handles only; Message is output.
@@ -899,8 +899,8 @@ __ProviderAttachGroup(
         group->Vectors[i].CompletionHandle = request->Vectors[i].Completion;
     }
 
-    group->Provider.Provider = InterruptCurrentOwner();
-    group->Provider.Device = request->Device;
+    group->Provider.BusID = InterruptCurrentOwner();
+    group->Provider.DeviceID = request->Device;
 
 messages:
     // Return the kernel's reserved message for each vector. Never accept an
@@ -925,7 +925,7 @@ rollback:
 }
 
 static oserr_t
-__ProviderCloseGroup(
+__BusCloseGroup(
     _InOut_ struct __InterruptGroup* group,
     _In_    uuid_t                   device)
 {
@@ -944,8 +944,8 @@ __ProviderCloseGroup(
     // Close can arrive before an earlier attachment request has been processed.
     // Remember closure in the group even if nothing was attached, so that delayed
     // request cannot restart a device whose shutdown has already been requested.
-    group->Provider.Provider = InterruptCurrentOwner();
-    group->Provider.Device = device;
+    group->Provider.BusID = InterruptCurrentOwner();
+    group->Provider.DeviceID = device;
     group->Provider.Closed = 1;
     
     for (i = 0; i < group->Count; i++) {
@@ -956,10 +956,10 @@ __ProviderCloseGroup(
 }
 
 static oserr_t
-__BeginProviderGroup(
-    _In_  uuid_t                   handle,
-    _In_  uuid_t                   principal,
-    _In_  uuid_t                   device,
+__BeginBusGroup(
+    _In_  uuid_t                    handle,
+    _In_  uuid_t                    principal,
+    _In_  uuid_t                    device,
     _Out_ struct __InterruptGroup** groupOut)
 {
     struct __InterruptGroup* group;
@@ -978,18 +978,18 @@ __BeginProviderGroup(
         return status;
     }
     
-    // Principal is the driver's process identity, obtained by the provider from
+    // Principal is the driver's process identity, obtained by the bus from
     // the message transport's verified sender information. Compare it with the
     // recorded owner: knowing a group handle alone does not authorize attachment.
     // Only message or explicitly validated native fixed groups can attach. Once attached,
-    // both the calling provider and its device identity must continue to match.
+    // both the calling bus and its device identity must continue to match.
     if (group->KernelHandlers || group->Owner != principal) {
         status = OS_EPERMISSIONS;
     } else if (group->Kind == InterruptSourceLine) {
         status = OS_ENOTSUPPORTED;
-    } else if (group->Provider.Provider != UUID_INVALID &&
-               (group->Provider.Provider != InterruptCurrentOwner() ||
-                group->Provider.Device != device)) {
+    } else if (group->Provider.BusID != UUID_INVALID &&
+               (group->Provider.BusID != InterruptCurrentOwner() ||
+                group->Provider.DeviceID != device)) {
         status = OS_EPERMISSIONS;
     } else {
         *groupOut = group;
@@ -1000,13 +1000,13 @@ __BeginProviderGroup(
 }
 
 oserr_t
-InterruptGroupProviderAttach(
+InterruptGroupBusAttach(
     _In_ const InterruptBusAttachRequest_t* request)
 {
     struct __InterruptGroup* group;
     oserr_t                  status;
 
-    if (request->Count == 0 || request->Count > INTERRUPT_PROVIDER_MAX_VECTORS) {
+    if (request->Count == 0 || request->Count > INTERRUPT_BUS_MAX_VECTORS) {
         return OS_EINVALPARAMS;
     }
 
@@ -1014,7 +1014,7 @@ InterruptGroupProviderAttach(
         return OS_EINVALPARAMS;
     }
     
-    status = __BeginProviderGroup(
+    status = __BeginBusGroup(
         request->Allocation,
         request->Principal,
         request->Device,
@@ -1024,13 +1024,13 @@ InterruptGroupProviderAttach(
         return status;
     }
     
-    status = __ProviderAttachGroup(group, request);
+    status = __BusAttachGroup(group, request);
     __EndGroup(group);
     return status;
 }
 
 oserr_t
-InterruptGroupProviderCheckEnabled(
+InterruptGroupBusStatus(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device)
@@ -1038,21 +1038,21 @@ InterruptGroupProviderCheckEnabled(
     struct __InterruptGroup* group;
     oserr_t                  status;
 
-    status = __BeginProviderGroup(handle, principal, device, &group);
+    status = __BeginBusGroup(handle, principal, device, &group);
     if (status != OS_EOK) {
         return status;
     }
 
     // This is a current-state check, not a reservation of that state. The driver
     // can disable again after __EndGroup allows other operations to proceed.
-    status = !group->Provider.Closed && group->Provider.Provider != UUID_INVALID &&
+    status = !group->Provider.Closed && group->Provider.BusID != UUID_INVALID &&
         atomic_load(&group->Enabled) ? OS_EOK : OS_EBUSY;
     __EndGroup(group);
     return status;
 }
 
 oserr_t
-InterruptGroupProviderClose(
+InterruptGroupBusClose(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device)
@@ -1060,12 +1060,12 @@ InterruptGroupProviderClose(
     struct __InterruptGroup* group;
     oserr_t                  status;
 
-    status = __BeginProviderGroup(handle, principal, device, &group);
+    status = __BeginBusGroup(handle, principal, device, &group);
     if (status != OS_EOK) {
         return status;
     }
     
-    status = __ProviderCloseGroup(group, device);
+    status = __BusCloseGroup(group, device);
     __EndGroup(group);
     return status;
 }
