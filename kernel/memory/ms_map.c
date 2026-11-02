@@ -629,6 +629,10 @@ __ValidateUserCopyPages(
                 &attributes
         );
         if (status != OS_EOK) {
+            if (status == OS_ENOENT) {
+                // Override the case of a missing page with invalid parameters.
+                return OS_EINVALPARAMS;
+            }
             return status;
         }
 

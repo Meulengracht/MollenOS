@@ -36,9 +36,25 @@ __SHMBufferDelete(
         _In_ void* resource)
 {
     struct SHMBuffer* shmBuffer = resource;
+    oserr_t           oserr;
 
     if (shmBuffer == NULL) {
         return;
+    }
+
+    if (shmBuffer->KernelMapping != 0) {
+        oserr = MemorySpaceUnmap(
+            GetCurrentMemorySpace(),
+            shmBuffer->KernelMapping,
+            shmBuffer->Length
+        );
+        if (oserr != OS_EOK) {
+            ERROR("__SHMBufferDelete: kernel unmap id %u failed: %u", shmBuffer->ID, oserr);
+            // The handle destructor cannot report failure. Keep the buffer and
+            // its backing allocated while the kernel mapping still exists.
+            return;
+        }
+        shmBuffer->KernelMapping = 0;
     }
 
     // Reserved backing returns to the memory component recorded at allocation.
