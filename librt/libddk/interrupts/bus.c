@@ -53,7 +53,7 @@ DeviceInterruptProviderAttach(
     // Forward the whole group in one call so attachment cannot stop halfway
     // through the vector list. A failed result copy may still leave it attached;
     // the API lets the provider retry the same request to retrieve its messages.
-    return Syscall_InterruptProviderAttach(request);
+    return Syscall_InterruptBusAttach(request);
 }
 
 oserr_t
@@ -64,7 +64,7 @@ DeviceInterruptProviderCheckEnabled(
 {
     // Ask the kernel instead of caching the state here: the device driver can
     // enable or disable its group independently of the provider.
-    return Syscall_InterruptProviderCheckEnabled(handle, principal, device);
+    return Syscall_InterruptBusStatus(handle, principal, device);
 }
 
 oserr_t
@@ -75,7 +75,7 @@ DeviceInterruptProviderClose(
 {
     // Closing drops this group's uses of the callbacks. Their handles remain
     // owned by the provider, which may have attached them to other groups too.
-    return Syscall_InterruptProviderClose(handle, principal, device);
+    return Syscall_InterruptBusClose(handle, principal, device);
 }
 
 oserr_t

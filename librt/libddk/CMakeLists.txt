@@ -55,9 +55,9 @@ add_library(libddk
     initrd/depacks.c
     initrd/filter.c
 
+    interrupts/bus.c
     interrupts/interrupt.c
     interrupts/pci.c
-    interrupts/provider.c
 
     utils/bufferpool.c
     utils/bytepool.c

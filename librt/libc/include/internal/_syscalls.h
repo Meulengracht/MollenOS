@@ -54,9 +54,9 @@ _CODE_END
 #define Syscall_InterruptCompletionCreate(HandleOut)                                  (oserr_t)syscall1(26, SCPARAM(HandleOut))
 #define Syscall_InterruptCompletionBind(Handle, Resources)                            (oserr_t)syscall2(27, SCPARAM(Handle), SCPARAM(Resources))
 #define Syscall_InterruptCompletionRelease(Handle)                                    (oserr_t)syscall1(28, SCPARAM(Handle))
-#define Syscall_InterruptProviderAttach(Request)                                      (oserr_t)syscall1(29, SCPARAM(Request))
-#define Syscall_InterruptProviderCheckEnabled(Handle, Principal, Device)              (oserr_t)syscall3(30, SCPARAM(Handle), SCPARAM(Principal), SCPARAM(Device))
-#define Syscall_InterruptProviderClose(Handle, Principal, Device)                     (oserr_t)syscall3(31, SCPARAM(Handle), SCPARAM(Principal), SCPARAM(Device))
+#define Syscall_InterruptBusAttach(Request)                                           (oserr_t)syscall1(29, SCPARAM(Request))
+#define Syscall_InterruptBusStatus(Handle, Principal, Device)                         (oserr_t)syscall3(30, SCPARAM(Handle), SCPARAM(Principal), SCPARAM(Device))
+#define Syscall_InterruptBusClose(Handle, Principal, Device)                          (oserr_t)syscall3(31, SCPARAM(Handle), SCPARAM(Principal), SCPARAM(Device))
 #define Syscall_InterruptMessageControllerResolve(Query, Controller)                  (oserr_t)syscall2(32, SCPARAM(Query), SCPARAM(Controller))
 
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                 (oserr_t)syscall1(33, SCPARAM(BaseAddressOut))
