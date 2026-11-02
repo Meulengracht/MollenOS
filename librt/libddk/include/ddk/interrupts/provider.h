@@ -18,7 +18,7 @@
 #ifndef __DDK_INTERRUPT_PROVIDER_INTERFACE_H__
 #define __DDK_INTERRUPT_PROVIDER_INTERFACE_H__
 
-#include <ddk/types/interrupt-provider.h>
+#include <ddk/types/interrupt-bus.h>
 
 // Attachment, completion and reap operations require INTERRUPT_CONTROL and
 // DEVICEIO_MANAGEMENT. Read-only controller/source resolution requires only
@@ -143,7 +143,7 @@ DeviceInterruptCompletionRelease(
  */
 DDKDECL(oserr_t,
 DeviceInterruptProviderAttach(
-    _In_ const struct InterruptProviderAttachRequest* request));
+    _In_ const InterruptBusAttachRequest_t* request));
 
 /**
  * @brief Check whether an attached child group is enabled.

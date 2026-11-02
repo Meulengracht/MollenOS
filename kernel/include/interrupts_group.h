@@ -26,7 +26,7 @@
 #include <ddk/types/interrupt-group.h>
 #include <interrupt_types.h>
 #include <ddk/types/interrupt.h>
-#include <ddk/types/interrupt-provider.h>
+#include <ddk/types/interrupt-bus.h>
 
 /**
  * @brief Reserve disabled interrupts without programming PCI hardware.
@@ -194,7 +194,7 @@ InterruptGroupReap(
  */
 oserr_t
 InterruptGroupProviderAttach(
-    _In_ const struct InterruptProviderAttachRequest* request);
+    _In_ const InterruptBusAttachRequest_t* request);
 
 /**
  * @brief Check whether the provider's child group is enabled.

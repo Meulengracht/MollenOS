@@ -809,13 +809,13 @@ ScInterruptCompletionRelease(
 
 oserr_t
 ScInterruptProviderAttach(
-    _In_ const struct InterruptProviderAttachRequest* userRequest)
+    _In_ const InterruptBusAttachRequest_t* userRequest)
 {
-    struct InterruptProviderAttachRequest request;
-    struct InterruptProviderVector*       userVectors;
-    struct InterruptProviderVector*       vectors;
-    size_t                                length;
-    oserr_t                               status;
+    InterruptBusAttachRequest_t request;
+    InterruptBusVector_t*       userVectors;
+    InterruptBusVector_t*       vectors;
+    size_t                      length;
+    oserr_t                     status;
 
     if (userRequest == NULL) {
         return OS_EINVALPARAMS;
@@ -841,7 +841,7 @@ ScInterruptProviderAttach(
     // The count limit above keeps this multiplication and allocation bounded.
     // Copy the whole array before attaching anything, so an unreadable later
     // element cannot leave only the earlier vectors attached.
-    length = request.Count * sizeof(struct InterruptProviderVector);
+    length = request.Count * sizeof(InterruptBusVector_t);
     userVectors = request.Vectors;
     vectors = kmalloc(length);
     if (vectors == NULL) {

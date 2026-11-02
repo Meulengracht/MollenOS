@@ -19,7 +19,7 @@
 
 #include <ddk/types/interrupt-controller.h>
 #include <ddk/types/interrupt-group.h>
-#include <ddk/types/interrupt-provider.h>
+#include <ddk/types/interrupt-bus.h>
 #include <string.h>
 
 #include <interrupts_group.h>
@@ -831,8 +831,8 @@ __ProviderGroupIdle(
 
 static oserr_t
 __ProviderAttachGroup(
-    _InOut_ struct __InterruptGroup*                     group,
-    _In_    const struct InterruptProviderAttachRequest* request)
+    _InOut_ struct __InterruptGroup*           group,
+    _In_    const InterruptBusAttachRequest_t* request)
 {
     struct __InterruptGroupVector* vector;
     oserr_t                        status;
@@ -1001,7 +1001,7 @@ __BeginProviderGroup(
 
 oserr_t
 InterruptGroupProviderAttach(
-    _In_ const struct InterruptProviderAttachRequest* request)
+    _In_ const InterruptBusAttachRequest_t* request)
 {
     struct __InterruptGroup* group;
     oserr_t                  status;

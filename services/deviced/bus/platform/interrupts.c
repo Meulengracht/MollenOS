@@ -116,9 +116,9 @@ __PlatformInterruptReserve(
     _In_    uuid_t                                     principal,
     _In_    const struct DeviceInterruptSourceRequest* request)
 {
-    struct InterruptProviderVector        vector = { 0 };
-    struct PlatformInterruptLease*        lease;
-    struct InterruptProviderAttachRequest attach = {
+    InterruptBusVector_t           vector = { 0 };
+    struct PlatformInterruptLease* lease;
+    InterruptBusAttachRequest_t    attach = {
         .Allocation = request->Allocation,
         .Principal = principal,
         .Device = entry->DeviceId,

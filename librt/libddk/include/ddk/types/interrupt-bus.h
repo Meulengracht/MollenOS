@@ -19,8 +19,8 @@
  * need to know about the callbacks.
  */
 
-#ifndef __DDK_INTERRUPT_PROVIDER_H__
-#define __DDK_INTERRUPT_PROVIDER_H__
+#ifndef __DDK_INTERRUPT_BUS_H__
+#define __DDK_INTERRUPT_BUS_H__
 
 #include <ddk/types/interrupt.h>
 #include <ddk/types/interrupt-controller.h>
@@ -28,7 +28,7 @@
 #define INTERRUPT_PROVIDER_MAX_VECTORS 2048U
 
 /**
- * @brief An interrupt's optional provider callback and hardware message.
+ * @brief An interrupt's optional bus callback and hardware message.
  *
  * Completion names a callback that runs after the device handler, such as one
  * that acknowledges upstream bus hardware. Set it to zero when no callback is
@@ -38,10 +38,10 @@
  * buffer. Fixed-line attachments require Completion == UUID_INVALID and return
  * a zero Message. Completion results do not replace the device handler's result.
  */
-struct InterruptProviderVector {
+typedef struct InterruptBusVector {
     uuid_t                   Completion;
     DeviceInterruptMessage_t Message;
-};
+} InterruptBusVector_t;
 
 /**
  * @brief Attach provider callbacks to every interrupt in a driver's group.
@@ -63,7 +63,7 @@ struct InterruptProviderVector {
  * retrieve the existing messages after handlers have been bound or enabled;
  * it must preserve provider, device, principal and completion identities.
  */
-struct InterruptProviderAttachRequest {
+typedef struct InterruptBusAttachRequest {
     // Group handle allocated by the device driver.
     uuid_t                          Allocation;
     // Driver process identity verified by the provider.
@@ -73,7 +73,7 @@ struct InterruptProviderAttachRequest {
     // Resolved kernel controller ID; never reinterpret it as a firmware key.
     uuid_t                          ControllerID;
     uint32_t                        Count;
-    struct InterruptProviderVector* Vectors;
+    InterruptBusVector_t*           Vectors;
     // Zero for message groups. For an explicitly validated fixed-line group this must
     // match its reserved INTID, and ControllerID must be its line controller.
     // Fixed groups have one vector, no completion callback and no message.
@@ -81,5 +81,6 @@ struct InterruptProviderAttachRequest {
     // Entire reserved AcpiConform value, including PRESENT/FIXED/shareability;
     // zero for message attachments, not merely trigger and polarity bits.
     uint32_t                        LineFlags;
-};
-#endif
+} InterruptBusAttachRequest_t;
+
+#endif //!__DDK_INTERRUPT_BUS_H__

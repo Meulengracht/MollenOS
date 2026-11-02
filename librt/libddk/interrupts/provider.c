@@ -48,7 +48,7 @@ DeviceInterruptCompletionRelease(
 
 oserr_t
 DeviceInterruptProviderAttach(
-    _In_ const struct InterruptProviderAttachRequest* request)
+    _In_ const InterruptBusAttachRequest_t* request)
 {
     // Forward the whole group in one call so attachment cannot stop halfway
     // through the vector list. A failed result copy may still leave it attached;

@@ -161,13 +161,13 @@ __Rp1ReserveSource(
     _In_    uuid_t                                     principal,
     _In_    const struct DeviceInterruptSourceRequest* request)
 {
-    struct InterruptProviderVector vector = { 0 };
-    struct Rp1Source*              source;
-    struct Rp1Source*              other;
-    oserr_t                        status;
-    oserr_t                        cleanup;
+    InterruptBusVector_t vector = { 0 };
+    struct Rp1Source*    source;
+    struct Rp1Source*    other;
+    oserr_t              status;
+    oserr_t              cleanup;
 
-    struct InterruptProviderAttachRequest attachment = {
+    InterruptBusAttachRequest_t attachment = {
         .Allocation = request->Allocation,
         .Principal = principal,
         .Device = child->DeviceId,

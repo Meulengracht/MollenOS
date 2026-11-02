@@ -47,9 +47,9 @@ DECL_STRUCT(InterruptBindRequest);
 DECL_STRUCT(InterruptResourceTable);
 DECL_STRUCT(InterruptMessageControllerIdentity);
 DECL_STRUCT(DeviceInterruptMessage);
+DECL_STRUCT(InterruptBusAttachRequest);
 
 struct MemoryMappingParameters;
-struct InterruptProviderAttachRequest;
 
 ///////////////////////////////////////////////
 // Operating System Interface
@@ -87,7 +87,7 @@ extern oserr_t ScInterruptReap(uuid_t);
 extern oserr_t ScInterruptCompletionCreate(uuid_t*);
 extern oserr_t ScInterruptCompletionBind(uuid_t, const InterruptResourceTable_t*);
 extern oserr_t ScInterruptCompletionRelease(uuid_t);
-extern oserr_t ScInterruptProviderAttach(const struct InterruptProviderAttachRequest*);
+extern oserr_t ScInterruptProviderAttach(const InterruptBusAttachRequest_t*);
 extern oserr_t ScInterruptProviderCheckEnabled(uuid_t, uuid_t, uuid_t);
 extern oserr_t ScInterruptProviderClose(uuid_t, uuid_t, uuid_t);
 extern oserr_t ScInterruptGetMessage(uuid_t, uint32_t, DeviceInterruptMessage_t*);
