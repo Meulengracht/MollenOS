@@ -99,13 +99,34 @@ __DtTranslate(
     _In_  uint64_t   length,
     _Out_ uint64_t* physicalOut)
 {
-    return FdtTranslatePciAddress(
+    oserr_t status;
+
+    status = FdtTranslatePciAddress(
         host->OpContext,
         (FdtPciSpace_t)space,
         address,
         length,
         physicalOut
     );
+    if (status != OS_EOK) {
+        if (status == OS_ENOENT) {
+            WARNING("__DtTranslate: segment %u space %u address 0x%llx length 0x%llx has no window (%u)",
+                host->Identification.Segment,
+                space,
+                (unsigned long long)address,
+                (unsigned long long)length,
+                status);
+        } else {
+            ERROR("__DtTranslate: segment %u space %u address 0x%llx length 0x%llx translation failed (%u)",
+                host->Identification.Segment,
+                space,
+                (unsigned long long)address,
+                (unsigned long long)length,
+                status);
+        }
+        return status;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -118,7 +139,9 @@ __DtResolveInterrupt(
     _Out_ int*          lineOut,
     _Out_ unsigned int* flagsOut)
 {
-    return FdtResolvePciInterrupt(
+    oserr_t status;
+
+    status = FdtResolvePciInterrupt(
         host->OpContext,
         bus,
         slot,
@@ -127,6 +150,27 @@ __DtResolveInterrupt(
         lineOut,
         flagsOut
     );
+    if (status != OS_EOK) {
+        if (status == OS_ENOENT || status == OS_ENOTSUPPORTED) {
+            WARNING("__DtResolveInterrupt: device %u:%u:%u.%u pin %u cannot be routed (%u)",
+                host->Identification.Segment,
+                bus,
+                slot,
+                function,
+                pin,
+                status);
+        } else {
+            ERROR("__DtResolveInterrupt: device %u:%u:%u.%u pin %u interrupt resolution failed (%u)",
+                host->Identification.Segment,
+                bus,
+                slot,
+                function,
+                pin,
+                status);
+        }
+        return status;
+    }
+    return OS_EOK;
 }
 
 static const struct PciHostOperations g_pciAcpiEcamOperations = {
@@ -160,39 +204,64 @@ PciEcamHostCreate(
         (unsigned long long)base);
 
     *hostOut = NULL;
-    if (configuration->Identification.HostId != UUID_INVALID ||
-        configuration->Identification.BusStart > configuration->Identification.BusEnd) {
-        ERROR("PciEcamHostCreate invalid host identity or bus range");
+    if (configuration->Identification.HostId != UUID_INVALID) {
+        ERROR("PciEcamHostCreate: segment %u has invalid host ID %u",
+            configuration->Identification.Segment,
+            configuration->Identification.HostId);
+        return OS_EINVALPARAMS;
+    }
+    if (configuration->Identification.BusStart > configuration->Identification.BusEnd) {
+        ERROR("PciEcamHostCreate: segment %u has invalid bus range %u-%u",
+            configuration->Identification.Segment,
+            configuration->Identification.BusStart,
+            configuration->Identification.BusEnd);
         return OS_EINVALPARAMS;
     }
 
     length = ((size_t)configuration->Identification.BusEnd -
         configuration->Identification.BusStart + 1) << 20;
     if (base > UINTPTR_MAX || length - 1 > UINTPTR_MAX - (uintptr_t)base) {
-        ERROR("PciEcamHostCreate ECAM range exceeds CPU address space");
+        ERROR("PciEcamHostCreate: segment %u ECAM base 0x%llx length 0x%llx exceeds CPU address space",
+            configuration->Identification.Segment,
+            (unsigned long long)base,
+            (unsigned long long)length);
         return OS_EOVERFLOW;
     }
 
     host = calloc(1, sizeof(PciHost_t) +
         (configuration->Firmware != NULL ? sizeof(struct FdtPciHost) : 0));
     if (host == NULL) {
-        ERROR("PciEcamHostCreate failed to allocate host");
+        ERROR("PciEcamHostCreate: segment %u buses %u-%u failed to allocate host",
+            configuration->Identification.Segment,
+            configuration->Identification.BusStart,
+            configuration->Identification.BusEnd);
         return OS_EOOM;
     }
 
     status = CreateDeviceMemoryIo(&host->IoSpace, (uintptr_t)base, length);
     if (status != OS_EOK) {
-        ERROR("PciEcamHostCreate failed to create ECAM I/O: %u", status);
+        ERROR("PciEcamHostCreate: segment %u ECAM base 0x%llx length 0x%llx I/O creation failed (%u)",
+            configuration->Identification.Segment,
+            (unsigned long long)base,
+            (unsigned long long)length,
+            status);
         free(host);
         return status;
     }
 
     status = AcquireDeviceIo(&host->IoSpace);
     if (status != OS_EOK) {
-        ERROR("PciEcamHostCreate failed to acquire ECAM I/O: %u", status);
+        ERROR("PciEcamHostCreate: segment %u ECAM base 0x%llx length 0x%llx I/O acquisition failed (%u)",
+            configuration->Identification.Segment,
+            (unsigned long long)base,
+            (unsigned long long)length,
+            status);
         cleanup = DmIoRelease(&host->IoSpace, &host->IoAcquired);
         if (cleanup != OS_EOK) {
-            ERROR("PciEcamHostCreate failed to destroy ECAM I/O: %u", cleanup);
+            ERROR("PciEcamHostCreate: segment %u ECAM base 0x%llx I/O destruction failed (%u)",
+                configuration->Identification.Segment,
+                (unsigned long long)base,
+                cleanup);
             // Return the unfinished host so the caller can retry destruction.
             *hostOut = host;
         } else {

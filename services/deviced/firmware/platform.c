@@ -18,6 +18,7 @@
 
 #include <firmware/platform.h>
 #include <firmware/interrupt.h>
+#include <ddk/utils.h>
 #include <string.h>
 
 static oserr_t
@@ -35,20 +36,29 @@ __ReadPlatformRegisters(
 
     // Each address and size must fit in the 64-bit values decoded below.
     if (!node->ParentAddressCells || node->ParentAddressCells > 2) {
+        ERROR("__ReadPlatformRegisters: node %u has unsupported parent address cell count %u (%u)",
+            node->NodeOffset, node->ParentAddressCells, OS_ENOTSUPPORTED);
         return OS_ENOTSUPPORTED;
     }
     
     if (!node->ParentSizeCells || node->ParentSizeCells > 2) {
+        ERROR("__ReadPlatformRegisters: node %u has unsupported parent size cell count %u (%u)",
+            node->NodeOffset, node->ParentSizeCells, OS_ENOTSUPPORTED);
         return OS_ENOTSUPPORTED;
     }
 
     stride = (node->ParentAddressCells + node->ParentSizeCells) * 4;
     if (!node->RegLength || node->RegLength % stride) {
+        ERROR("__ReadPlatformRegisters: node %u has invalid reg length %u (%u)",
+            node->NodeOffset, node->RegLength, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
     
     device->RegisterCount = node->RegLength / stride;
     if (device->RegisterCount > PLATFORM_DEVICE_MAX_REGISTERS) {
+        ERROR("__ReadPlatformRegisters: node %u has %u registers, limit is %u (%u)",
+            node->NodeOffset, device->RegisterCount,
+            (uint32_t)PLATFORM_DEVICE_MAX_REGISTERS, OS_ENOTSUPPORTED);
         return OS_ENOTSUPPORTED;
     }
 
@@ -57,14 +67,21 @@ __ReadPlatformRegisters(
         uint64_t length;
         oserr_t  status = FdtRawRegister(node, i, &base, &length);
         if (status != OS_EOK) {
+            ERROR("__ReadPlatformRegisters: node %u register %u could not be decoded (%u)",
+                node->NodeOffset, i, status);
             return status;
         }
         
         if (!length || length - 1 > UINT64_MAX - base) {
+            ERROR("__ReadPlatformRegisters: node %u register %u has invalid extent (%u)",
+                node->NodeOffset, i, OS_EINVALPARAMS);
             return OS_EINVALPARAMS;
         }
         
         if (!FdtTranslateAddress(nodes, depth - 1, length, &base, 0)) {
+            ERROR("__ReadPlatformRegisters: node %u register %u address could not be "
+                "translated (%u)",
+                node->NodeOffset, i, OS_ENOTSUPPORTED);
             return OS_ENOTSUPPORTED;
         }
         
@@ -85,7 +102,7 @@ __ReadPlatformInterrupts(
     uint32_t            length = node->InterruptsExtendedLength;
     uint32_t            inherited = 0;
     uint32_t            offset = 0;
-    struct FdtResources provider;
+    struct FdtResources resources;
     struct FdtInterrupt interrupt;
     const uint8_t*      arguments;
     uint32_t            trigger;
@@ -98,6 +115,8 @@ __ReadPlatformInterrupts(
         length = node->InterruptsLength;
         inherited = node->InterruptParent;
         if (cells != NULL && !inherited) {
+            ERROR("__ReadPlatformInterrupts: node %u has interrupts without interrupt-parent (%u)",
+                node->NodeOffset, OS_ENOTSUPPORTED);
             return OS_ENOTSUPPORTED;
         }
     }
@@ -105,11 +124,15 @@ __ReadPlatformInterrupts(
         return OS_EOK;
     }
     if (!length) {
+        ERROR("__ReadPlatformInterrupts: node %u has an empty interrupt list (%u)",
+            node->NodeOffset, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
     while (offset < length) {
         if (device->InterruptCount == PLATFORM_DEVICE_MAX_INTERRUPTS) {
+            ERROR("__ReadPlatformInterrupts: node %u exceeds the %u interrupt limit (%u)",
+                node->NodeOffset, (uint32_t)PLATFORM_DEVICE_MAX_INTERRUPTS, OS_ENOTSUPPORTED);
             return OS_ENOTSUPPORTED;
         }
 
@@ -120,21 +143,29 @@ __ReadPlatformInterrupts(
             "#interrupt-cells",
             inherited,
             &offset,
-            &provider,
+            &resources,
             &arguments
         );
         if (status != OS_EOK) {
+            ERROR("__ReadPlatformInterrupts: node %u has an invalid interrupt "
+                "reference at byte %u (%u)",
+                node->NodeOffset, offset, status);
             return status;
         }
 
-        status = FdtGicInterrupt(&provider, arguments, &interrupt);
+        status = FdtGicInterrupt(&resources, arguments, &interrupt);
         if (status != OS_EOK) {
+            ERROR("__ReadPlatformInterrupts: node %u interrupt provider %u is unsupported (%u)",
+                node->NodeOffset, resources.NodeOffset, status);
             return status;
         }
 
         trigger = FdtReadBe32(arguments + 8);
         // Accept rising-edge (1) and high-level (4) interrupt flags.
         if (trigger != 1 && trigger != 4) {
+            ERROR("__ReadPlatformInterrupts: node %u interrupt provider %u has "
+                "unsupported trigger %u (%u)",
+                node->NodeOffset, resources.NodeOffset, trigger, OS_ENOTSUPPORTED);
             return OS_ENOTSUPPORTED;
         }
 
@@ -161,19 +192,29 @@ FdtDescribePlatformDevice(
     oserr_t                    status;
 
     if (depth <= 0) {
+        ERROR("FdtDescribePlatformDevice: invalid node depth %d (%u)", depth, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
     node = &nodes[depth];
     if (node->Malformed || node->ParentMalformed) {
+        ERROR("FdtDescribePlatformDevice: node %u or its parent is malformed (%u)",
+            node->NodeOffset, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
     
     if (node->Disabled || node->ParentDisabled || node->Compatible == NULL) {
+        TRACE("FdtDescribePlatformDevice: skipping node %u (disabled=%u, "
+            "parent-disabled=%u, compatible=%u)",
+            node->NodeOffset, node->Disabled, node->ParentDisabled,
+            node->Compatible != NULL);
         return OS_ENOENT;
     }
     
     if (node->CompatibleLength > sizeof(description.Compatibles)) {
+        ERROR("FdtDescribePlatformDevice: node %u compatible length %u exceeds limit %u (%u)",
+            node->NodeOffset, node->CompatibleLength,
+            (uint32_t)sizeof(description.Compatibles), OS_ENOTSUPPORTED);
         return OS_ENOTSUPPORTED;
     }
 
@@ -196,6 +237,8 @@ FdtDescribePlatformDevice(
         }
     }
     if (!PlatformDeviceValidate(&description)) {
+        ERROR("FdtDescribePlatformDevice: node %u has an invalid platform device description (%u)",
+            node->NodeOffset, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 

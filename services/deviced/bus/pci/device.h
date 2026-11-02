@@ -33,23 +33,16 @@
 #include <ds/list.h>
 
 struct PciFunctionHandler;
-struct DmDeviceProviderOperations;
+typedef struct DmDeviceProviderOperations DmDeviceBusOperations_t;
 
-/**
- * @brief Stores a discovered PCI function's bus address, parent and child links,
- * registered I/O regions, interrupt state, and bus attachment.
- */
 typedef struct PciDevice {
     element_t            ListHeader;
     element_t            ChildHeader;
     struct PciDevice*    Parent;
     int                  IsBridge;
     PciHost_t*           Host;
-    // Registry IDs are distinct from host identity and PCI addresses.
     uuid_t               DeviceId;
-    // Changed under the PCI lock. Nonzero references prevent host destruction.
-    unsigned int         ProviderReferences;
-    // Owns registered BARs, including incomplete publication and cleanup.
+    unsigned int         HostBusReferences;
     DeviceIo_t           PublishedIo[6];
     struct PciMsiState   Msi;
     struct PciMsixState* Msix;
@@ -70,8 +63,8 @@ typedef struct PciDevice {
     list_t             Children;
 } PciDevice_t;
 
-// Registry callbacks for a PciDevice context. Publication installs these callbacks.
-extern const struct DmDeviceProviderOperations g_pciDeviceProviderOperations;
+// Bus operations for a published device
+extern const DmDeviceBusOperations_t g_pciDeviceBusOperations;
 
 /**
  * @brief Check whether a function may be assigned to a generic driver.

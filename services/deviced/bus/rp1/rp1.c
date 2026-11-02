@@ -143,7 +143,7 @@ Rp1BusCreate(
     }
     bus->Host = host;
     usched_mtx_init(&bus->Lock, USCHED_MUTEX_PLAIN);
-    atomic_init(&bus->ProviderReferences, 0);
+    atomic_init(&bus->HostBusReferences, 0);
 
     // Keep the complete PCI address list. Each child's register addresses must
     // fit within memory assigned to this RP1 device.
@@ -197,7 +197,7 @@ Rp1BusDestroy(
 
     // Child resource users may outlive their registry IDs. Their contexts and
     // firmware pointers must remain valid until they release their parent references.
-    if (atomic_load(&bus->ProviderReferences) != 0) {
+    if (atomic_load(&bus->HostBusReferences) != 0) {
         WARNING("Rp1BusDestroy: child resource references still hold bus %p", bus);
         return OS_EBUSY;
     }
@@ -223,6 +223,8 @@ Rp1BusDestroy(
         
         status = Rp1ChildResourcesDestroy(child);
         if (status != OS_EOK) {
+            ERROR("Rp1BusDestroy: child node %u device %u resource destruction failed (%u)",
+                  child->Firmware.NodeOffset, child->DeviceId, status);
             return status;
         }
         
@@ -260,7 +262,9 @@ __Rp1Attach(
 
     // Only hardware revision C0 has the register and firmware formats this code supports.
     if (device->Header->Revision != RP1_REVISION_C0) {
-        WARNING("RP1 revision %u is unsupported", device->Header->Revision);
+        WARNING("__Rp1Attach: %u:%u:%u.%u revision %u is unsupported",
+                identification->Segment, device->Bus, device->Slot, device->Function,
+                device->Header->Revision);
         return OS_ENOTSUPPORTED;
     }
     
@@ -284,7 +288,9 @@ __Rp1Attach(
     // the PCI code. Adding device-manager entries and finding drivers happen later.
     status = Rp1BusCreate(resources->Firmware, resources->Bars, &bus);
     if (status != OS_EOK) {
-        WARNING("RP1 child enumeration failed (%u); assigned BARs and matching firmware required", status);
+        WARNING("__Rp1Attach: %u:%u:%u.%u child enumeration failed (%u); "
+                "assigned BARs and matching firmware required",
+                identification->Segment, device->Bus, device->Slot, device->Function, status);
         return status;
     }
     
@@ -344,9 +350,13 @@ __Rp1PrepareHardware(
     usched_mtx_lock(&bus->Lock);
     status = Rp1RuntimeStart(bus);
     __DmStartupFromStatus(status, result);
-    if (status != OS_EOK && bus->Runtime != NULL) {
-        // Partial runtime resources must finish cleanup before startup can stop.
-        __DmStartupRetryResult(status, result);
+    if (status != OS_EOK) {
+        ERROR("__Rp1PrepareHardware: bus %p runtime startup failed (%u)",
+              bus, status);
+        if (bus->Runtime != NULL) {
+            // Partial runtime resources must finish cleanup before startup can stop.
+            __DmStartupRetryResult(status, result);
+        }
     }
     usched_mtx_unlock(&bus->Lock);
 }
@@ -361,7 +371,12 @@ __Rp1PrepareRemoval(
     usched_mtx_lock(&bus->Lock);
     status = Rp1RuntimePrepareRemoval(bus);
     usched_mtx_unlock(&bus->Lock);
-    return status;
+    if (status != OS_EOK) {
+        ERROR("__Rp1PrepareRemoval: bus %p runtime removal preparation failed (%u)",
+              bus, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 const struct PciFunctionHandler g_rp1PciHandler = {

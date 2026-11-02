@@ -34,6 +34,8 @@ __PlatformAddReference(
 
     usched_mtx_lock(&bus->Lock);
     if (bus->Removing) {
+        TRACE("__PlatformAddReference: node %u bus %u is being removed",
+              entry->Firmware.FirmwareNode, bus->DeviceId);
         status = OS_EBUSY;
     } else {
         atomic_fetch_add(&bus->References, 1);
@@ -72,6 +74,8 @@ __PlatformResources(
             range->Length
         );
         if (status != OS_EOK) {
+            ERROR("__PlatformResources: node %u register %u memory creation failed (%u)",
+                  entry->Firmware.FirmwareNode, i, status);
             // Earlier handles remain owned by the inventory for retry or teardown.
             return status;
         }
@@ -96,15 +100,21 @@ __PlatformControl(
 
     usched_mtx_lock(&bus->Lock);
     if (bus->Removing) {
+        TRACE("__PlatformControl: node %u bus %u request %u rejected during removal",
+              entry->Firmware.FirmwareNode, bus->DeviceId, request);
         status = OS_EBUSY;
     } else if (request == OSIOCTLREQUEST_DEVICE_RESOURCES) {
         if (buffer == NULL || length != sizeof(struct DeviceResources)) {
+            ERROR("__PlatformControl: node %u has invalid resources buffer %p length %zu (%u)",
+                  entry->Firmware.FirmwareNode, buffer, length, OS_EINVALPARAMS);
             status = OS_EINVALPARAMS;
         } else {
             status = __PlatformResources(entry, buffer);
         }
     } else if (request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
         if (buffer == NULL || length != sizeof(enum DeviceActivation)) {
+            ERROR("__PlatformControl: node %u has invalid activation buffer %p length %zu (%u)",
+                  entry->Firmware.FirmwareNode, buffer, length, OS_EINVALPARAMS);
             status = OS_EINVALPARAMS;
         } else {
             status = PlatformActivationControl(
@@ -118,13 +128,15 @@ __PlatformControl(
     } else if (request == OSIOCTLREQUEST_INTERRUPT_CONTROL) {
         status = PlatformInterruptControl(entry, principal, buffer, length);
     } else {
+        TRACE("__PlatformControl: node %u request %u is not supported",
+              entry->Firmware.FirmwareNode, request);
         status = OS_ENOTSUPPORTED;
     }
     usched_mtx_unlock(&bus->Lock);
     return status;
 }
 
-static const struct DmDeviceProviderOperations g_platformOperations = {
+static const DmDeviceBusOperations_t g_platformOperations = {
     .PrepareDma = PlatformPrepareDma,
     .ReleaseDma = PlatformReleaseDma,
     .AddReference = __PlatformAddReference,
@@ -141,6 +153,8 @@ PlatformBusCreate(
     oserr_t             status;
 
     if (tree == NULL || busOut == NULL) {
+        ERROR("PlatformBusCreate: invalid tree %p or output %p (%u)",
+              tree, busOut, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
     
@@ -148,6 +162,7 @@ PlatformBusCreate(
     
     bus = calloc(1, sizeof(struct PlatformBus));
     if (bus == NULL) {
+        ERROR("PlatformBusCreate: bus allocation failed (%u)", OS_EOOM);
         return OS_EOOM;
     }
 
@@ -158,6 +173,7 @@ PlatformBusCreate(
     
     status = PlatformCollectDevices(bus, tree);
     if (status != OS_EOK) {
+        ERROR("PlatformBusCreate: tree %p device collection failed (%u)", tree, status);
         // Collection runs before publication or I/O handle creation, so the
         // partially built device list can be destroyed here.
         PlatformBusDestroy(bus);
@@ -172,18 +188,22 @@ static oserr_t
 __PublishRoot(
     _InOut_ struct PlatformBus* bus)
 {
-    struct DmDeviceRegistration registration = { .Kind = DmDeviceDescriptionGeneric };
+    DmDeviceRegistration_t registration = { .Kind = DmDeviceDescriptionGeneric };
     Device_t*                   device;
     oserr_t                     status;
 
     device = calloc(1, sizeof(Device_t));
     if (device == NULL) {
+        ERROR("__PublishRoot: bus %u device allocation failed (%u)",
+              bus->DeviceId, OS_EOOM);
         return OS_EOOM;
     }
 
     device->Length = sizeof(Device_t);
     device->Identification.Description = strdup("Device Tree platform");
     if (device->Identification.Description == NULL) {
+        ERROR("__PublishRoot: bus %u description allocation failed (%u)",
+              bus->DeviceId, OS_EOOM);
         free(device);
         return OS_EOOM;
     }
@@ -191,10 +211,12 @@ __PublishRoot(
     
     status = DmPublicationAdd(&bus->Publication, &registration, 0, &bus->DeviceId);
     if (status != OS_EOK) {
+        ERROR("__PublishRoot: bus %u root publication failed (%u)", bus->DeviceId, status);
         free(device->Identification.Description);
         free(device);
+        return status;
     }
-    return status;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -202,11 +224,11 @@ __PublishEntry(
     _InOut_ struct PlatformBus*   bus,
     _InOut_ struct PlatformEntry* entry)
 {
-    struct DmDeviceRegistration registration = { .Kind = DmDeviceDescriptionPlatform };
-    struct PlatformEntry*       parent;
-    PlatformDevice_t*           device;
-    uuid_t                      parentId = bus->DeviceId;
-    oserr_t                     status;
+    DmDeviceRegistration_t registration = { .Kind = DmDeviceDescriptionPlatform };
+    struct PlatformEntry*  parent;
+    PlatformDevice_t*      device;
+    uuid_t                 parentId = bus->DeviceId;
+    oserr_t                status;
 
     if (entry->ParentNode != UINT32_MAX) {
         for (parent = bus->Entries; parent != NULL; parent = parent->Next) {
@@ -216,6 +238,8 @@ __PublishEntry(
         }
 
         if (parent == NULL || parent->DeviceId == UUID_INVALID) {
+            ERROR("__PublishEntry: node %u parent node %u is missing or unpublished (%u)",
+                  entry->Firmware.FirmwareNode, entry->ParentNode, OS_EINVALPARAMS);
             return OS_EINVALPARAMS;
         }
         
@@ -224,6 +248,8 @@ __PublishEntry(
 
     device = malloc(sizeof(PlatformDevice_t));
     if (device == NULL) {
+        ERROR("__PublishEntry: node %u device allocation failed (%u)",
+              entry->Firmware.FirmwareNode, OS_EOOM);
         return OS_EOOM;
     }
 
@@ -232,14 +258,16 @@ __PublishEntry(
     device->Base.ParentId = parentId;
     device->Base.Identification.Description = strdup(entry->Firmware.Base.Identification.Description);
     if (device->Base.Identification.Description == NULL) {
+        ERROR("__PublishEntry: node %u description allocation failed (%u)",
+              entry->Firmware.FirmwareNode, OS_EOOM);
         free(device);
         return OS_EOOM;
     }
     
     registration.Description = &device->Base;
     if (!entry->IsBus) {
-        registration.Provider.Operations = &g_platformOperations;
-        registration.Provider.Context = entry;
+        registration.Bus.Operations = &g_platformOperations;
+        registration.Bus.Context = entry;
     }
     
     status = DmPublicationAdd(
@@ -249,10 +277,13 @@ __PublishEntry(
         &entry->DeviceId
     );
     if (status != OS_EOK) {
+        ERROR("__PublishEntry: node %u parent device %u publication failed (%u)",
+              entry->Firmware.FirmwareNode, parentId, status);
         free(device->Base.Identification.Description);
         free(device);
+        return status;
     }
-    return status;
+    return OS_EOK;
 }
 
 oserr_t
@@ -264,12 +295,15 @@ PlatformBusPublish(
     oserr_t               cleanup;
 
     if (bus->Removing) {
+        TRACE("PlatformBusPublish: bus %u is being removed", bus->DeviceId);
         return OS_EBUSY;
     }
     
     if (bus->Publication.State == DmPublicationRemoving) {
         status = DmPublicationRemove(&bus->Publication);
         if (status != OS_EOK) {
+            ERROR("PlatformBusPublish: bus %u pending publication removal failed (%u)",
+                  bus->DeviceId, status);
             return status;
         }
     }
@@ -289,16 +323,25 @@ PlatformBusPublish(
         
         status = DmPublicationFinish(&bus->Publication);
         if (status != OS_EOK) {
+            ERROR("PlatformBusPublish: bus %u publication finish failed (%u)",
+                  bus->DeviceId, status);
             goto rollback;
         }
     }
 
-    return DmPublicationEnableBinding(&bus->Publication);
+    status = DmPublicationEnableBinding(&bus->Publication);
+    if (status != OS_EOK) {
+        ERROR("PlatformBusPublish: bus %u binding enable failed (%u)",
+              bus->DeviceId, status);
+        return status;
+    }
+    return OS_EOK;
 
 rollback:
     cleanup = DmPublicationRemove(&bus->Publication);
     if (cleanup != OS_EOK) {
-        ERROR("PlatformBusPublish: rollback kept inventory (%u)", cleanup);
+        ERROR("PlatformBusPublish: bus %u rollback kept inventory (%u)",
+              bus->DeviceId, cleanup);
     }
     return status;
 }
@@ -322,12 +365,15 @@ PlatformBusDestroy(
     // stop their devices first. Keep requests available after OS_EBUSY so clients
     // can finish that cleanup.
     if (bus->Dependencies != NULL) {
+        TRACE("PlatformBusDestroy: bus %u still has registered dependencies", bus->DeviceId);
         usched_mtx_unlock(&bus->Lock);
         return OS_EBUSY;
     }
 
     for (entry = bus->Entries; entry != NULL; entry = entry->Next) {
         if (PlatformIsRuntimeBusy(entry)) {
+            TRACE("PlatformBusDestroy: bus %u node %u still has active runtime state",
+                  bus->DeviceId, entry->Firmware.FirmwareNode);
             usched_mtx_unlock(&bus->Lock);
             return OS_EBUSY;
         }
@@ -337,16 +383,21 @@ PlatformBusDestroy(
     
     status = DmPublicationRemove(&bus->Publication);
     if (status != OS_EOK) {
+        ERROR("PlatformBusDestroy: bus %u publication removal failed (%u)",
+              bus->DeviceId, status);
         return status;
     }
     
     if (atomic_load(&bus->References) != 0) {
+        TRACE("PlatformBusDestroy: bus %u still has device references", bus->DeviceId);
         return OS_EBUSY;
     }
     
     for (entry = bus->Entries; entry != NULL; entry = entry->Next) {
         status = DmIoDestroy(entry->Resources.Registers, entry->Firmware.RegisterCount);
         if (status != OS_EOK) {
+            ERROR("PlatformBusDestroy: bus %u node %u register handle destruction failed (%u)",
+                  bus->DeviceId, entry->Firmware.FirmwareNode, status);
             return status;
         }
     }

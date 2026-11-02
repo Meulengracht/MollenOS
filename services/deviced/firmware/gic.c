@@ -53,10 +53,10 @@ static const char* g_SupportedCompatible[] = {
 
 static int
 __IsSupportedCompatible(
-    _In_  const struct FdtResources* provider)
+    _In_  const struct FdtResources* resources)
 {
     for (size_t i = 0; i < SIZEOF_ARRAY(g_SupportedCompatible); ++i) {
-        if (FdtCompatible(&provider->View, g_SupportedCompatible[i])) {
+        if (FdtCompatible(&resources->View, g_SupportedCompatible[i])) {
             return 1;
         }
     }
@@ -82,7 +82,7 @@ __IsSupportedTriggerMode(
 
 oserr_t
 FdtGicInterrupt(
-    _In_  const struct FdtResources* provider,
+    _In_  const struct FdtResources* resources,
     _In_  const uint8_t*             cells,
     _Out_ struct FdtInterrupt*       interrupt)
 {
@@ -90,12 +90,12 @@ FdtGicInterrupt(
     uint32_t number;
     uint32_t trigger;
 
-    TRACE("FdtGicInterrupt(provider=%u)", provider->Phandle);
+    TRACE("FdtGicInterrupt(resources=%u)", resources->Phandle);
 
     // Require the three-cell GIC format: interrupt type, number, and trigger.
-    if (provider->InterruptCells != 3) {
-        WARNING("FdtGicInterrupt: provider %u has unsupported cell count %u",
-            provider->Phandle, provider->InterruptCells);
+    if (resources->InterruptCells != 3) {
+        WARNING("FdtGicInterrupt: resource %u has unsupported cell count %u",
+            resources->Phandle, resources->InterruptCells);
         return OS_ENOTSUPPORTED;
     }
 
@@ -105,22 +105,22 @@ FdtGicInterrupt(
     trigger = FdtReadBe32(cells + 8);
 
     // Require a supported GIC node marked as an interrupt controller.
-    if (!__IsSupportedCompatible(provider) || !provider->IsInterruptController) {
-        WARNING("FdtGicInterrupt: provider %u is not a supported GIC", provider->Phandle);
+    if (!__IsSupportedCompatible(resources) || !resources->IsInterruptController) {
+        WARNING("FdtGicInterrupt: resource %u is not a supported GIC", resources->Phandle);
         return OS_ENOTSUPPORTED;
     }
 
     // Only shared peripheral interrupts (SPIs) are supported. SPI numbers
     // 0 through 987 map to GIC interrupt IDs 32 through 1019.
     if (type != FdtGicInterruptTypeSpi || number > 987 || !__IsSupportedTriggerMode(trigger)) {
-        WARNING("FdtGicInterrupt: provider %u rejects type %u number %u trigger %u",
-            provider->Phandle, type, number, trigger);
+        WARNING("FdtGicInterrupt: resource %u invalid type %u number %u trigger %u",
+            resources->Phandle, type, number, trigger);
         return OS_ENOTSUPPORTED;
     }
 
     // Preserve the controller phandle and convert the SPI number to a GIC ID.
     // IDs 0 through 31 are reserved for software and processor interrupts.
-    interrupt->Controller = provider->Phandle;
+    interrupt->Controller = resources->Phandle;
     interrupt->Line = (int)number + 32;
 
     // Use the common firmware flag format for a fixed, shareable hardware line.
@@ -139,7 +139,7 @@ FdtGicInterrupt(
         interrupt->Flags |= INTERRUPT_ACPICONFORM_POLARITY;
     }
 
-    TRACE("FdtGicInterrupt: provider %u line %i flags 0x%x",
+    TRACE("FdtGicInterrupt: controller %u line %i flags 0x%x",
         interrupt->Controller, interrupt->Line, interrupt->Flags);
     return OS_EOK;
 }

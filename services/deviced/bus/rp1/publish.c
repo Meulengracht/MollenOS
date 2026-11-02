@@ -36,7 +36,7 @@
 #include <string.h>
 
 static oserr_t
-__Rp1ProviderAddReference(
+__Rp1BusAddReference(
     _In_ void* context)
 {
     struct Rp1Child* child = context;
@@ -46,23 +46,23 @@ __Rp1ProviderAddReference(
     // A child must be attached to a PCI device before it can be referenced.
     // Reference that device first to keep its host, attachment and firmware valid.
     if (bus->Parent == NULL) {
-        WARNING("__Rp1ProviderAddReference: child %u has no PCI owner", child->Firmware.NodeOffset);
+        WARNING("__Rp1BusAddReference: child %u has no PCI owner", child->Firmware.NodeOffset);
         return OS_ENOTSUPPORTED;
     }
 
     status = PciDeviceAddReference(bus->Parent);
     if (status != OS_EOK) {
-        WARNING("__Rp1ProviderAddReference: child %u adding parent reference failed (%u)",
-            child->Firmware.NodeOffset, status);
+        ERROR("__Rp1BusAddReference: child %u adding parent reference failed (%u)",
+              child->Firmware.NodeOffset, status);
         return status;
     }
 
-    atomic_fetch_add(&bus->ProviderReferences, 1);
+    atomic_fetch_add(&bus->HostBusReferences, 1);
     return OS_EOK;
 }
 
 static void
-__Rp1ProviderRelease(
+__Rp1BusRelease(
     _In_ void* context)
 {
     struct Rp1Child*  child = context;
@@ -72,13 +72,13 @@ __Rp1ProviderRelease(
     // Decrease the child count before releasing the parent, then stop accessing
     // both objects. The publication group may still need the child's saved ID,
     // so the attachment owner decides when to free the child list.
-    atomic_fetch_sub(&bus->ProviderReferences, 1);
+    atomic_fetch_sub(&bus->HostBusReferences, 1);
 
     PciDeviceRelease(parent);
 }
 
 static oserr_t
-__Rp1ProviderPrepareDma(
+__Rp1BusPrepareDma(
     _In_  void*                    context,
     _In_  uuid_t                   principal,
     _Out_ struct DmDmaDescription* description)
@@ -88,7 +88,7 @@ __Rp1ProviderPrepareDma(
     oserr_t                  status;
 
     (void)principal;
-    TRACE("__Rp1ProviderPrepareDma(child=%u)", child->Firmware.NodeOffset);
+    TRACE("__Rp1BusPrepareDma(child=%u)", child->Firmware.NodeOffset);
     // Use this child's PCI device to read the DMA map configured for its hardware.
     status = Rp1GetDmaDescription(
         child->Bus->Parent,
@@ -96,18 +96,18 @@ __Rp1ProviderPrepareDma(
         &configured
     );
     if (status != OS_EOK) {
-        WARNING("__Rp1ProviderPrepareDma: child %u DMA description unavailable (%u)",
+        WARNING("__Rp1BusPrepareDma: child %u DMA description unavailable (%u)",
             child->Firmware.NodeOffset, status);
         return status;
     }
 
     // DMA setup requires a registered host and a known cache policy.
     if (configured.Host.HostId == UUID_INVALID) {
-        WARNING("__Rp1ProviderPrepareDma: child %u host is not registered", child->Firmware.NodeOffset);
+        WARNING("__Rp1BusPrepareDma: child %u host is not registered", child->Firmware.NodeOffset);
         return OS_EBUSY;
     }
     if (configured.CachePolicy == DmDmaCacheUnknown) {
-        WARNING("__Rp1ProviderPrepareDma: child %u cache policy is unknown", child->Firmware.NodeOffset);
+        WARNING("__Rp1BusPrepareDma: child %u cache policy is unknown", child->Firmware.NodeOffset);
         return OS_ENOTSUPPORTED;
     }
 
@@ -128,14 +128,21 @@ __Rp1QueryInterruptSupport(
     oserr_t                            status = OS_EBUSY;
 
     if (query == NULL || length != sizeof(*query)) {
+        ERROR("__Rp1QueryInterruptSupport: device %u invalid query buffer %p or length %zu",
+              child->DeviceId, buffer, length);
         return OS_EINVALPARAMS;
     }
 
     if (query->Kind || query->ControllerID) {
+        ERROR("__Rp1QueryInterruptSupport: device %u source %u has kind %u or controller %u set",
+              child->DeviceId, query->Index, query->Kind, query->ControllerID);
         return OS_EINVALPARAMS;
     }
 
     if (query->Line.Line || query->Line.Pin || query->Line.AcpiConform) {
+        ERROR("__Rp1QueryInterruptSupport: device %u source %u has line %u, pin %u or ACPI flags %u set",
+              child->DeviceId, query->Index, query->Line.Line,
+              query->Line.Pin, query->Line.AcpiConform);
         return OS_EINVALPARAMS;
     }
 
@@ -159,7 +166,7 @@ __Rp1QueryInterruptSupport(
 }
 
 static oserr_t
-__Rp1ProviderControl(
+__Rp1BusControl(
     _In_    void*               context,
     _In_    uuid_t              principal,
     _In_    enum OSIOCtlRequest request,
@@ -169,27 +176,41 @@ __Rp1ProviderControl(
     struct Rp1Child* child = context;
     oserr_t          status;
 
-    TRACE("__Rp1ProviderControl(device=%u, principal=%u, request=0x%x, length=%zu)",
+    TRACE("__Rp1BusControl(device=%u, principal=%u, request=0x%x, length=%zu)",
           child->DeviceId, principal, request, length);
     
     if (request == OSIOCTLREQUEST_DEVICE_RESOURCES || request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
         usched_mtx_lock(&child->Bus->Lock);
         status = Rp1ChildResourceControl(child, request, buffer, length);
         usched_mtx_unlock(&child->Bus->Lock);
-        return status;
+        if (status != OS_EOK) {
+            if (status == OS_ENOTSUPPORTED || status == OS_EBUSY) {
+                TRACE("__Rp1BusControl: device %u resource request 0x%x unavailable (%u)",
+                      child->DeviceId, request, status);
+            } else {
+                ERROR("__Rp1BusControl: device %u resource request 0x%x failed (%u)",
+                      child->DeviceId, request, status);
+            }
+            return status;
+        }
+        return OS_EOK;
     }
 
     if (request == OSIOCTLREQUEST_INTERRUPT_QUERY) {
-        return __Rp1QueryInterruptSupport(context, buffer, length);
+        status = __Rp1QueryInterruptSupport(context, buffer, length);
+        if (status != OS_EOK) {
+            return status;
+        }
+        return OS_EOK;
     }
 
     if (request != OSIOCTLREQUEST_INTERRUPT_CONTROL) {
-        TRACE("__Rp1ProviderControl: device %u unsupported request 0x%x", child->DeviceId, request);
+        TRACE("__Rp1BusControl: device %u unsupported request 0x%x", child->DeviceId, request);
         return OS_ENOTSUPPORTED;
     }
 
     if (buffer == NULL || length != sizeof(struct DeviceInterruptSourceRequest)) {
-        WARNING("__Rp1ProviderControl: device %u invalid control buffer or length %zu", child->DeviceId, length);
+        WARNING("__Rp1BusControl: device %u invalid control buffer or length %zu", child->DeviceId, length);
         return OS_EINVALPARAMS;
     }
 
@@ -197,18 +218,18 @@ __Rp1ProviderControl(
     status = Rp1RuntimeControl(context, principal, buffer);
     usched_mtx_unlock(&child->Bus->Lock);
     if (status != OS_EOK) {
-        TRACE("__Rp1ProviderControl: Rp1RuntimeControl device %u, principal %u returned %u",
+        TRACE("__Rp1BusControl: Rp1RuntimeControl device %u, principal %u returned %u",
               child->DeviceId, principal, status);
     }
     return status;
 }
 
 // Preparing a description supplies no register access or permission to run DMA.
-static const struct DmDeviceProviderOperations g_rp1ChildProviderOperations = {
-    .AddReference = __Rp1ProviderAddReference,
-    .Release = __Rp1ProviderRelease,
-    .PrepareDma = __Rp1ProviderPrepareDma,
-    .Control = __Rp1ProviderControl
+static const DmDeviceBusOperations_t g_rp1ChildBusOperations = {
+    .AddReference = __Rp1BusAddReference,
+    .Release = __Rp1BusRelease,
+    .PrepareDma = __Rp1BusPrepareDma,
+    .Control = __Rp1BusControl
 };
 
 static oserr_t
@@ -217,7 +238,7 @@ __Rp1PublishChild(
     _In_    uuid_t                     parentId,
     _InOut_ struct Rp1Child*           child)
 {
-    struct DmDeviceRegistration registration = { .Kind = DmDeviceDescriptionPlatform };
+    DmDeviceRegistration_t registration = { .Kind = DmDeviceDescriptionPlatform };
     PlatformDevice_t*           device;
     const struct FdtRp1Device*  firmware = &child->Firmware;
     oserr_t                     status;
@@ -277,12 +298,13 @@ __Rp1PublishChild(
     // all device-manager entries. If a later addition fails, it can remove the
     // entries already added before any device drivers have started.
     registration.Description = &device->Base;
-    registration.Provider.Operations = &g_rp1ChildProviderOperations;
-    registration.Provider.Context = child;
+    registration.Bus.Operations = &g_rp1ChildBusOperations;
+    registration.Bus.Context = child;
     
     status = DmPublicationAdd(group, &registration, 1, &child->DeviceId);
     if (status != OS_EOK) {
-        WARNING("__Rp1PublishChild: node %u registration failed (%u)", firmware->NodeOffset, status);
+        ERROR("__Rp1PublishChild: node %u registration failed (%u)",
+              firmware->NodeOffset, status);
         // The device manager did not accept the record, so free it and its name.
         free(device->Base.Identification.Description);
         free(device);
@@ -320,7 +342,7 @@ Rp1BusPublish(
         // The registration group tracks entries already added, so the PCI code
         // can remove them all on failure before any drivers have started.
         if (status != OS_EOK) {
-            WARNING("Rp1BusPublish: stopped at child %u (%u)", child->Firmware.NodeOffset, status);
+            TRACE("Rp1BusPublish: stopped at child %u (%u)", child->Firmware.NodeOffset, status);
             return status;
         }
     }

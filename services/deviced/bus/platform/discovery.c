@@ -17,6 +17,7 @@
  */
 
 #include "private.h"
+#include <ddk/utils.h>
 
 static struct PlatformBus* g_platformBus;
 static oserr_t             g_platformStartupFailure;
@@ -25,27 +26,52 @@ void
 PlatformEnumerate(
     _Out_ struct DmStartupResult* result)
 {
-    struct FdtTree*        tree = FirmwareGetTree();
-    oserr_t                status;
+    struct FdtTree* tree = FirmwareGetTree();
+    oserr_t         status;
 
     if (tree == NULL) {
         FirmwareGetStartupResult(result);
+        TRACE("PlatformEnumerate: no firmware tree, startup outcome %u (%u)",
+              result->Outcome, result->Status);
         return;
     }
+
     if (g_platformStartupFailure != OS_EOK) {
         __DmStartupFromStatus(g_platformStartupFailure, result);
+        TRACE("PlatformEnumerate: skipping platform startup after an earlier failure (%u)",
+              g_platformStartupFailure);
         return;
     }
 
     if (g_platformBus == NULL) {
         status = PlatformBusCreate(tree, &g_platformBus);
         __DmStartupFromStatus(status, result);
+        
+        if (status != OS_EOK) {
+            ERROR("PlatformEnumerate: PlatformBusCreate failed (%u)", status);
+            if (result->Outcome == DmStartupFailed) {
+                g_platformStartupFailure = result->Status;
+            }
+            return;
+        }
     } else {
         __DmStartupFromStatus(OS_EOK, result);
     }
 
     if (result->Outcome == DmStartupComplete) {
-        __DmStartupFromStatus(PlatformBusPublish(g_platformBus), result);
+        status = PlatformBusPublish(g_platformBus);
+        if (status != OS_EOK) {
+            if (g_platformBus->Removing ||
+                g_platformBus->Publication.State == DmPublicationRemoving) {
+                WARNING("PlatformEnumerate: platform bus %u publication is waiting for removal (%u)",
+                        g_platformBus->DeviceId, status);
+            } else {
+                ERROR("PlatformEnumerate: PlatformBusPublish failed for platform bus %u (%u)",
+                      g_platformBus->DeviceId, status);
+            }
+        }
+
+        __DmStartupFromStatus(status, result);
         if (g_platformBus->Publication.State == DmPublicationRemoving) {
             // Retry until rollback removes the partially published devices.
             result->Outcome = DmStartupRetry;

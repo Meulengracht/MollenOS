@@ -174,7 +174,7 @@ __ReadTimer(
         return status;
     }
 
-    if (interrupt.Provider != gic || interrupt.CellCount != ARM64_DT_GIC_CELLS) {
+    if (interrupt.Node != gic || interrupt.CellCount != ARM64_DT_GIC_CELLS) {
         return OS_ENOTSUPPORTED;
     }
 
@@ -384,7 +384,7 @@ ArchDeviceTreeInitialize(
     }
 
     // Validate the controller's interrupt format and both register ranges
-    // before using it as the provider for the scheduler timer's interrupt.
+    // before using it as the source for the scheduler timer's interrupt.
     status = __ReadGic(description.Gic, &description.Platform);
     if (status != OS_EOK) {
         return status;

@@ -36,7 +36,7 @@ struct SHMDeviceMapping;
  *
  * This call must only use kernel memory, never user pointers.
  * It does not register a device, retain a deviced lease, reserve RAM, configure
- * caches or enable hardware. The DDK DMA session retains the provider lease
+ * caches or enable hardware. The DDK DMA session retains the lease
  * until all mappings and the kernel context have been released.
  *
  * @param ranges Unsorted or sorted ranges.

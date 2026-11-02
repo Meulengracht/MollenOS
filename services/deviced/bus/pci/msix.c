@@ -229,12 +229,14 @@ PciMsixProbe(
 
     status = PciInterruptProbe(&access->Config, &capabilities);
     if (status != OS_EOK) {
-        TRACE("PciMsixProbe capability scan failed: %u", status);
+        ERROR("PciMsixProbe: capability scan failed for config context %p (%u)",
+              access->Config.Context, status);
         return status;
     }
 
     if (capabilities.MsixOffset == 0) {
-        TRACE("PciMsixProbe function has no MSI-X capability");
+        WARNING("PciMsixProbe: config context %p has no MSI-X capability",
+                access->Config.Context);
         return OS_ENOTSUPPORTED;
     }
 

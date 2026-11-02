@@ -32,7 +32,7 @@
 #include "activation.h"
 
 struct PlatformActivation;
-struct PlatformDependencyProvider;
+struct PlatformDependencyRegistration;
 
 /**
  * @brief Tracks an interrupt allocation and the process that owns it.
@@ -73,14 +73,14 @@ struct PlatformEntry {
  * references and resources.
  */
 struct PlatformBus {
-    struct FdtTree*                    Tree;
-    struct PlatformEntry*              Entries;
-    struct DmPublicationGroup          Publication;
-    uuid_t                             DeviceId;
-    atomic_uint                        References;
-    struct usched_mtx                  Lock;
-    int                                Removing;
-    struct PlatformDependencyProvider* Dependencies;
+    struct FdtTree*                        Tree;
+    struct PlatformEntry*                  Entries;
+    struct DmPublicationGroup              Publication;
+    uuid_t                                 DeviceId;
+    atomic_uint                            References;
+    struct usched_mtx                      Lock;
+    int                                    Removing;
+    struct PlatformDependencyRegistration* Dependencies;
 };
 
 /**

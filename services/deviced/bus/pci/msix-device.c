@@ -54,17 +54,25 @@ __ValidateMsixRegion(
     DeviceIo_t* io = &device->PublishedIo[region->Bar];
 
     if (io->Type != DeviceIoMemoryBased || io->Id == UUID_INVALID) {
-        WARNING("__ValidateMsixRegion BAR%u has no published memory resource", region->Bar);
+        WARNING("__ValidateMsixRegion: %u:%u:%u.%u BAR%u has no published memory resource",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, region->Bar);
         return OS_ENOTSUPPORTED;
     }
     if (io->Access.Memory.PhysicalBase != device->Resources.Bars[region->Bar].CpuAddress) {
-        ERROR("__ValidateMsixRegion BAR%u no longer matches its published base", region->Bar);
+        ERROR("__ValidateMsixRegion: %u:%u:%u.%u BAR%u no longer matches its published base",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, region->Bar);
         return OS_EINVALPARAMS;
     }
 
     if (region->Offset >= io->Access.Memory.Length ||
         region->Length > io->Access.Memory.Length - region->Offset) {
-        ERROR("__ValidateMsixRegion BAR%u region is outside the published resource", region->Bar);
+        ERROR("__ValidateMsixRegion: %u:%u:%u.%u BAR%u region at 0x%x of %llu bytes "
+              "is outside the published resource",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, region->Bar, region->Offset,
+            (unsigned long long)region->Length);
         return OS_EINVALPARAMS;
     }
     return OS_EOK;
@@ -94,7 +102,11 @@ __MsixDeviceMap(
         mapping
     );
     if (status != OS_EOK) {
-        ERROR("__MsixDeviceMap MapDeviceIo failed for BAR%u: %u", region->Bar, status);
+        ERROR("__MsixDeviceMap: %u:%u:%u.%u MapDeviceIo failed for BAR%u "
+              "at 0x%x of %llu bytes (%u)",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, region->Bar, region->Offset,
+            (unsigned long long)region->Length, status);
         return status;
     }
     return OS_EOK;
@@ -106,18 +118,21 @@ __MsixDeviceUnmap(
     _In_ void*  mapping,
     _In_ size_t length)
 {
-    uintptr_t address = (uintptr_t)mapping;
-    size_t    offset = address % MemoryPageSize();
-    oserr_t   status;
+    PciDevice_t* device = context;
+    uintptr_t    address = (uintptr_t)mapping;
+    size_t       offset = address % MemoryPageSize();
+    oserr_t      status;
 
-    (void)context;
     TRACE("__MsixDeviceUnmap(mapping=%p, length=%llu)", mapping, (unsigned long long)length);
 
     // The region may start within a page. Free from the page boundary and
     // include the bytes before the region in the mapping length.
     status = MemoryFree((void*)(address - offset), length + offset);
     if (status != OS_EOK) {
-        ERROR("__MsixDeviceUnmap MemoryFree failed: %u", status);
+        ERROR("__MsixDeviceUnmap: %u:%u:%u.%u MemoryFree failed for mapping %p "
+              "of %llu bytes (%u)",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, mapping, (unsigned long long)length, status);
         return status;
     }
     return OS_EOK;
@@ -179,6 +194,15 @@ PciMsixDeviceProbe(
 
     status = PciMsixProbe(&access, &layout);
     if (status != OS_EOK) {
+        if (status == OS_ENOTSUPPORTED) {
+            WARNING("PciMsixDeviceProbe: %u:%u:%u.%u MSI-X is unavailable (%u)",
+                device->Host->Identification.Segment, device->Bus, device->Slot,
+                device->Function, status);
+        } else {
+            ERROR("PciMsixDeviceProbe: %u:%u:%u.%u PciMsixProbe failed (%u)",
+                device->Host->Identification.Segment, device->Bus, device->Slot,
+                device->Function, status);
+        }
         return status;
     }
 
@@ -191,5 +215,24 @@ PciMsixDeviceControl(
     _In_ const struct PciInterruptRequest* request)
 {
     struct MsixDeviceOperations access = __MsixDeviceAccess(device);
-    return PciMsixControl(&access, &device->Msix, request);
+    oserr_t                     status;
+
+    status = PciMsixControl(&access, &device->Msix, request);
+    if (status != OS_EOK) {
+        if (status == OS_ENOTSUPPORTED || status == OS_EBUSY || status == OS_ENOENT) {
+            WARNING("PciMsixDeviceControl: %u:%u:%u.%u MSI-X operation %u "
+                    "allocation %u vector %u count %u rejected (%u)",
+                device->Host->Identification.Segment, device->Bus, device->Slot,
+                device->Function, request->Operation, request->Allocation,
+                request->Index, request->Count, status);
+        } else {
+            ERROR("PciMsixDeviceControl: %u:%u:%u.%u PciMsixControl operation %u "
+                  "allocation %u vector %u count %u failed (%u)",
+                device->Host->Identification.Segment, device->Bus, device->Slot,
+                device->Function, request->Operation, request->Allocation,
+                request->Index, request->Count, status);
+        }
+        return status;
+    }
+    return OS_EOK;
 }

@@ -100,11 +100,11 @@ __ValidateDistinctController(
     const struct Arm64MipRoute* previous;
 
     // Separate MIP blocks must not claim overlapping GIC inputs or CPU
-    // registers. Hosts naming the same provider intentionally share hardware;
+    // registers. Hosts naming the same node intentionally share hardware;
     // their individual slot claims are coordinated by the interrupt core.
     while (controllers) {
         previous = &controllers->Route;
-        if (previous->Provider != route->Provider) {
+        if (previous->Node != route->Node) {
             if (previous->FirstInterrupt < route->FirstInterrupt + route->Count &&
                 route->FirstInterrupt < previous->FirstInterrupt + previous->Count) {
                 return OS_EINVALPARAMS;
@@ -143,7 +143,7 @@ __InitializeMip(
     // Hosts can share a physical MIP. Earlier list entries have already been
     // initialized, so reuse their mapping instead of resetting shared hardware.
     for (previous = controllers; previous != controller; previous = previous->Next) {
-        if (previous->Route.Provider == controller->Route.Provider) {
+        if (previous->Route.Node == controller->Route.Node) {
             controller->Registers = previous->Registers;
             return OS_EOK;
         }

@@ -21,20 +21,30 @@
 #include <string.h>
 
 #include <core/io.h>
+#include <ddk/utils.h>
 
 oserr_t
 DmIoRelease(
     _InOut_ DeviceIo_t* space,
     _InOut_ int*        acquired)
 {
+    oserr_t status;
+
     if (*acquired) {
-        oserr_t status = ReleaseDeviceIo(space);
+        status = ReleaseDeviceIo(space);
         if (status != OS_EOK) {
+            ERROR("DmIoRelease: failed to release I/O id %u type %u (%u)",
+                  space->Id, space->Type, status);
             return status;
         }
         *acquired = 0;
     }
-    return DmIoDestroy(space, 1);
+
+    status = DmIoDestroy(space, 1);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return OS_EOK;
 }
 
 oserr_t
@@ -47,9 +57,13 @@ DmIoCreateMemory(
     oserr_t    status;
 
     if (length == 0 || base > UINTPTR_MAX || length > SIZE_MAX) {
+        WARNING("DmIoCreateMemory: unsupported memory base 0x%llx length 0x%llx",
+                (unsigned long long)base, (unsigned long long)length);
         return OS_ENOTSUPPORTED;
     }
     if (length - 1 > UINTPTR_MAX - base) {
+        WARNING("DmIoCreateMemory: memory base 0x%llx length 0x%llx exceeds address limits",
+                (unsigned long long)base, (unsigned long long)length);
         return OS_ENOTSUPPORTED;
     }
 
@@ -57,6 +71,8 @@ DmIoCreateMemory(
     // a successful registration into the owner's persistent slot.
     status = CreateDeviceMemoryIo(&resource, (uintptr_t)base, (size_t)length);
     if (status != OS_EOK) {
+        ERROR("DmIoCreateMemory: failed to register memory base 0x%llx length 0x%llx (%u)",
+              (unsigned long long)base, (unsigned long long)length, status);
         return status;
     }
 
@@ -78,6 +94,8 @@ DmIoDestroy(
 
         oserr = DestroyDeviceIo(&spaces[i]);
         if (oserr != OS_EOK) {
+            ERROR("DmIoDestroy: failed to destroy I/O index %zu id %u type %u (%u)",
+                  i, spaces[i].Id, spaces[i].Type, oserr);
             return oserr;
         }
         memset(&spaces[i], 0, sizeof(DeviceIo_t));

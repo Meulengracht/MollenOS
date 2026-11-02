@@ -58,7 +58,13 @@ __BcmDependencies(
     // The shared helper starts resistor calibration, waits for completion,
     // and releases its temporary mapping. Run each requested calibration on
     // Pi 4 without reusing Pi 5's shared completion state.
-    return BcmPciRescal(bus->OpContext, &dependencies, 0);
+    status = BcmPciRescal(bus->OpContext, &dependencies, 0);
+    if (status != OS_EOK) {
+        ERROR("__BcmDependencies: segment %u resistor calibration failed (%u)",
+            firmware->Segment, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 /**
@@ -182,7 +188,6 @@ __Bcm2711Prepare(
 
     status = __BcmDependencies(bus, firmware);
     if (status != OS_EOK) {
-        ERROR("__Bcm2711Prepare __BcmDependencies failed: %u", status);
         return status;
     }
 
@@ -360,12 +365,18 @@ __Bcm2711Inbound(
 
     // Tell the system-memory side the same size as BAR2, so both sides of the
     // controller agree about the size of the RAM address range.
-    return BcmPciUpdate(
+    status = BcmPciUpdate(
         bus,
         BCM_PCIE_MISC_CONTROL,
         BCM2711_MISC_SCB0_SIZE_MASK,
         sizeCode << BCM2711_MISC_SCB0_SIZE_SHIFT
     );
+    if (status != OS_EOK) {
+        ERROR("__Bcm2711Inbound: segment %u SCB0 size update at register 0x%x failed (%u)",
+            firmware->Segment, (unsigned)BCM_PCIE_MISC_CONTROL, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 /**

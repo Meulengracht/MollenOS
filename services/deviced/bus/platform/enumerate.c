@@ -37,11 +37,20 @@ static int
 __IsPlatformNode(
     _In_ const struct __PlatformWalk* walk,
     _In_ const struct FdtResources*   node,
-    _In_ int                         depth)
+    _In_ int                          depth)
 {
     const struct PlatformEntry* parent;
 
-    if (!depth || node->Disabled || node->ParentDisabled) {
+    if (!depth) {
+        TRACE("__IsPlatformNode: skipping root node %u", node->NodeOffset);
+        return 0;
+    }
+    if (node->Disabled) {
+        TRACE("__IsPlatformNode: skipping disabled node %u", node->NodeOffset);
+        return 0;
+    }
+    if (node->ParentDisabled) {
+        TRACE("__IsPlatformNode: skipping node %u with a disabled parent", node->NodeOffset);
         return 0;
     }
 
@@ -50,11 +59,26 @@ __IsPlatformNode(
     // resources cannot be described as a platform device.
     if (depth > 1) {
         parent = walk->Parents[depth - 1];
-        if (parent == NULL || !parent->IsBus) {
+        if (parent == NULL) {
+            TRACE("__IsPlatformNode: skipping node %u without an accepted parent at depth %d",
+                  node->NodeOffset, depth - 1);
+            return 0;
+        }
+        if (!parent->IsBus) {
+            TRACE("__IsPlatformNode: skipping node %u whose parent %u is not a bus",
+                  node->NodeOffset, parent->Firmware.FirmwareNode);
             return 0;
         }
     }
-    return node->Compatible != NULL && !PlatformNodeIsManaged(walk->Tree, node);
+    if (node->Compatible == NULL) {
+        TRACE("__IsPlatformNode: skipping node %u without a compatible property", node->NodeOffset);
+        return 0;
+    }
+    if (PlatformNodeIsManaged(walk->Tree, node)) {
+        TRACE("__IsPlatformNode: skipping node %u managed elsewhere", node->NodeOffset);
+        return 0;
+    }
+    return 1;
 }
 
 static void
@@ -70,18 +94,23 @@ __CollectDevice(
     oserr_t                    status;
 
     walk->Parents[depth] = NULL;
-    if (walk->Status != OS_EOK || !__IsPlatformNode(walk, node, depth)) {
+    if (walk->Status != OS_EOK) {
+        return;
+    }
+    if (!__IsPlatformNode(walk, node, depth)) {
         return;
     }
 
     status = FdtDescribePlatformDevice(walk->Tree, nodes, depth, &device);
     if (status == OS_ENOTSUPPORTED) {
-        WARNING("Platform discovery: skipping unsupported description for %s", node->Name);
+        WARNING("__CollectDevice: skipping unsupported description for node %u (%s) (%u)",
+                node->NodeOffset, node->Name, status);
         return;
     }
 
     if (status != OS_EOK) {
-        ERROR("Platform discovery: malformed resources for %s (%u)", node->Name, status);
+        ERROR("__CollectDevice: malformed resources for node %u (%s) (%u)",
+              node->NodeOffset, node->Name, status);
         walk->Status = status;
         return;
     }
@@ -95,12 +124,16 @@ __CollectDevice(
 
     entry = calloc(1, sizeof(struct PlatformEntry));
     if (entry == NULL) {
+        ERROR("__CollectDevice: failed to allocate entry for node %u (%s) (%u)",
+              node->NodeOffset, node->Name, OS_EOOM);
         walk->Status = OS_EOOM;
         return;
     }
 
     device.Base.Identification.Description = strdup(node->Name);
     if (device.Base.Identification.Description == NULL) {
+        ERROR("__CollectDevice: failed to copy description for node %u (%s) (%u)",
+              node->NodeOffset, node->Name, OS_EOOM);
         free(entry);
         walk->Status = OS_EOOM;
         return;
@@ -122,9 +155,18 @@ PlatformCollectDevices(
     _InOut_ struct PlatformBus* bus,
     _In_    struct FdtTree*     tree)
 {
-    struct __PlatformWalk walk = { .Bus = bus, .Tail = &bus->Entries, .Tree = tree };
     oserr_t               status;
+    struct __PlatformWalk walk = {
+        .Bus = bus,
+        .Tail = &bus->Entries,
+        .Tree = tree
+    };
 
     status = FdtWalkResources(tree, __CollectDevice, &walk);
-    return status == OS_EOK ? walk.Status : status;
+    if (status != OS_EOK) {
+        ERROR("PlatformCollectDevices: resource walk failed for bus %u (%u)",
+              bus->DeviceId, status);
+        return status;
+    }
+    return walk.Status;
 }

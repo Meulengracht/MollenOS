@@ -40,15 +40,23 @@ BcmPciHostCreate(
     
     variant = BcmPciGetVariant(firmware->Type);
     if (variant == NULL) {
+        WARNING("BcmPciHostCreate: node %u domain %u has unsupported host type %u",
+                firmware->NodeOffset, firmware->Segment, (unsigned int)firmware->Type);
         return OS_ENOTSUPPORTED;
     }
 
     if (firmware->EcamLength < variant->RegisterLength) {
+        ERROR("BcmPciHostCreate: node %u domain %u register length 0x%llx is below required 0x%llx",
+              firmware->NodeOffset, firmware->Segment,
+              (unsigned long long)firmware->EcamLength,
+              (unsigned long long)variant->RegisterLength);
         return OS_EINVALPARAMS;
     }
 
     host = calloc(1, sizeof(PciHost_t) + sizeof(struct BcmPciHost));
     if (host == NULL) {
+        ERROR("BcmPciHostCreate: failed to allocate host for node %u domain %u",
+              firmware->NodeOffset, firmware->Segment);
         return OS_EOOM;
     }
 
@@ -59,6 +67,10 @@ BcmPciHostCreate(
         firmware->EcamLength
     );
     if (status != OS_EOK) {
+        ERROR("BcmPciHostCreate: node %u domain %u failed to map registers at 0x%llx length 0x%llx (%u)",
+              firmware->NodeOffset, firmware->Segment,
+              (unsigned long long)firmware->EcamBase,
+              (unsigned long long)firmware->EcamLength, status);
         goto error;
     }
 
@@ -66,6 +78,9 @@ BcmPciHostCreate(
 
     status = BcmPciInitialize(host, controller, firmware);
     if (status != OS_EOK) {
+        ERROR("BcmPciHostCreate: failed to initialize node %u domain %u buses %u-%u (%u)",
+              firmware->NodeOffset, firmware->Segment,
+              firmware->BusStart, firmware->BusEnd, status);
         goto error;
     }
 
@@ -82,6 +97,9 @@ error:
     
     cleanup = DmIoRelease(&host->IoSpace, &host->IoAcquired);
     if (cleanup != OS_EOK) {
+        ERROR("BcmPciHostCreate: node %u domain %u failed to release registers at 0x%llx (%u)",
+              firmware->NodeOffset, firmware->Segment,
+              (unsigned long long)firmware->EcamBase, cleanup);
         // Keep the I/O state available for another destruction attempt.
         *hostOut = host;
     } else {

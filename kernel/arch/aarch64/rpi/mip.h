@@ -53,7 +53,7 @@
 
 struct Arm64MipRoute {
     const DeviceTreeNode_t* Host;
-    const DeviceTreeNode_t* Provider;
+    const DeviceTreeNode_t* Node;
     // The CPU physical address used to configure the receiver.
     uint64_t                RegisterBase;
     // The PCI bus address devices write to request an interrupt.

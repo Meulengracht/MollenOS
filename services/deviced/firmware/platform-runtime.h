@@ -36,7 +36,7 @@ enum FdtPlatformDependencyKind {
 
 struct FdtPlatformDependency {
     enum FdtPlatformDependencyKind Kind;
-    uint32_t                       Provider;
+    uint32_t                       NodeOffset;
     uint32_t                       ArgumentCount;
     uint32_t                       Arguments[FDT_PLATFORM_MAX_ARGUMENTS];
     int                            Fixed;

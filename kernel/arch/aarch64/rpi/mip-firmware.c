@@ -63,13 +63,13 @@ __ReadAddress(
 }
 
 static oserr_t
-__ReadProvider(
+__ReadNode(
     _In_  const DeviceTree_t*     tree,
     _In_  const DeviceTreeNode_t* host,
     _Out_ struct Arm64MipRoute*   route)
 {
     const DeviceTreeProperty_t* property;
-    const DeviceTreeNode_t*     provider;
+    const DeviceTreeNode_t*     node;
     uint32_t                    cells;
     oserr_t                     status;
 
@@ -84,24 +84,24 @@ __ReadProvider(
         return OS_EINVALPARAMS;
     }
     
-    provider = DeviceTreeFindPhandle(tree, FdtReadBe32(property->Value));
-    if (!provider) {
+    node = DeviceTreeFindPhandle(tree, FdtReadBe32(property->Value));
+    if (!node) {
         return OS_EINVALPARAMS;
     }
     
-    if (!DeviceTreeIsEnabled(provider) || !DeviceTreeIsCompatible(provider, "brcm,bcm2712-mip")) {
+    if (!DeviceTreeIsEnabled(node) || !DeviceTreeIsCompatible(node, "brcm,bcm2712-mip")) {
         return OS_ENOTSUPPORTED;
     }
     
     // A compatible name alone is not enough: the empty marker declares that
     // this node provides message interrupts. Nonzero #msi-cells would require
     // a different parent format, which this implementation does not decode.
-    property = DeviceTreeGetProperty(provider, "msi-controller");
+    property = DeviceTreeGetProperty(node, "msi-controller");
     if (!property || property->Length != 0) {
         return OS_EINVALPARAMS;
     }
     
-    status = __ReadCell(provider, "#msi-cells", 0, &cells);
+    status = __ReadCell(node, "#msi-cells", 0, &cells);
     if (status != OS_EOK) {
         return status;
     }
@@ -111,7 +111,7 @@ __ReadProvider(
     }
 
     route->Host = host;
-    route->Provider = provider;
+    route->Node = node;
     return OS_EOK;
 }
 
@@ -129,18 +129,18 @@ __ReadInterruptRange(
 
     // Accept exactly one range. The final cell is a count, not part of the
     // GIC interrupt reference decoded by DeviceTreeReadReference.
-    property = DeviceTreeGetProperty(route->Provider, "msi-ranges");
+    property = DeviceTreeGetProperty(route->Node, "msi-ranges");
     if (!property || property->Length != MIP_DT_RANGE_CELLS * RPI_MSI_DT_CELL_BYTES) {
         return OS_EINVALPARAMS;
     }
     
-    status = DeviceTreeReadReference(tree, route->Provider,
+    status = DeviceTreeReadReference(tree, route->Node,
         "msi-ranges", "#interrupt-cells", 0, &reference);
     if (status != OS_EOK) {
         return status;
     }
     
-    if (reference.Provider != gic || reference.CellCount != RPI_MSI_DT_GIC_CELLS) {
+    if (reference.Node != gic || reference.CellCount != RPI_MSI_DT_GIC_CELLS) {
         return OS_ENOTSUPPORTED;
     }
     
@@ -152,7 +152,7 @@ __ReadInterruptRange(
     }
     
     route->Count = FdtReadBe32((const unsigned char*)property->Value + MIP_DT_COUNT_OFFSET);
-    status = __ReadCell(route->Provider, "brcm,msi-offset", 0, &route->MessageOffset);
+    status = __ReadCell(route->Node, "brcm,msi-offset", 0, &route->MessageOffset);
     if (status != OS_EOK) {
         return status;
     }
@@ -192,7 +192,7 @@ __ReadRegisters(
 
     // reg[0] is accessed by the CPU. Translate it through the parent buses so
     // the eventual device mapping uses a CPU physical address.
-    status = DeviceTreeReadRegister(route->Provider, 0, &route->RegisterBase, &length);
+    status = DeviceTreeReadRegister(route->Node, 0, &route->RegisterBase, &length);
     if (status != OS_EOK) {
         return status;
     }
@@ -205,7 +205,7 @@ __ReadRegisters(
     // reg[1] is the address a PCI device writes to raise an interrupt. Keep it
     // in PCI bus address space: translating it like reg[0] would give drivers
     // the wrong destination. It must hold one complete aligned message write.
-    status = DeviceTreeReadRegisterRaw(route->Provider, 1, &route->MessageAddress, &length);
+    status = DeviceTreeReadRegisterRaw(route->Node, 1, &route->MessageAddress, &length);
     if (status != OS_EOK) {
         return status;
     }
@@ -217,7 +217,7 @@ __ReadRegisters(
 
     // Only the two defined register entries are supported. In particular,
     // an error reading a third entry must not be mistaken for its absence.
-    status = DeviceTreeReadRegisterRaw(route->Provider, 2, &unused, &length);
+    status = DeviceTreeReadRegisterRaw(route->Node, 2, &unused, &length);
     return status == OS_ENOENT ? OS_EOK : OS_EINVALPARAMS;
 }
 
@@ -246,10 +246,11 @@ __ValidateDoorbellWindow(
     // Prove that the host forwards that write to this MIP, not to RAM or to
     // another device. BCM2712 puts the host and MIP under the same bus, so
     // their untranslated parent addresses can be compared directly.
-    if (!route->Host->Parent || route->Host->Parent != route->Provider->Parent) {
+    if (!route->Host->Parent || route->Host->Parent != route->Node->Parent) {
         return OS_ENOTSUPPORTED;
     }
-    status = DeviceTreeReadRegisterRaw(route->Provider, 0, &registers, &unused);
+    
+    status = DeviceTreeReadRegisterRaw(route->Node, 0, &registers, &unused);
     if (status != OS_EOK) {
         return status;
     }
@@ -340,7 +341,7 @@ Arm64MipReadRoute(
         return OS_ENOTSUPPORTED;
     }
     
-    status = __ReadProvider(tree, host, &route);
+    status = __ReadNode(tree, host, &route);
     if (status != OS_EOK) {
         return status;
     }

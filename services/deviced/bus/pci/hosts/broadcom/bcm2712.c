@@ -27,167 +27,6 @@
 #include <core/io.h>
 
 /**
- * @brief Keep one register mapping for all hosts using the same reset hardware.
- *
- * The kernel rejects a second registration of an overlapping physical range,
- * even from this service. References counts hosts using this mapping. Each
- * host keeps its own signal number and writes only that signal's bit.
- * Acquired records whether register access is available. Removing blocks new
- * users while cleanup is unfinished. g_bcm2712ResetLock protects the list and
- * reference counts.
- */
-struct __Bcm2712ResetProvider {
-    element_t    Header;
-    DeviceIo_t   Io;
-    unsigned int References;
-    int          Acquired;
-    int          Removing;
-};
-
-static list_t g_bcm2712ResetProviders = LIST_INIT;
-static mtx_t  g_bcm2712ResetLock = MUTEX_INIT(mtx_plain);
-
-/**
- * @brief Reuse an existing reset mapping instead of registering it twice.
- *
- * Physical address and length identify the actual registers, even if separate
- * firmware descriptions use different names. Hold a separate lock through
- * registration so simultaneous callers cannot both create the same mapping.
- * The PCI list lock cannot be used here because host teardown already holds it.
- * If mapping fails after registration, result receives the registered object
- * so Stop can finish cleanup.
- * A mapping with unfinished cleanup cannot be shared with another host.
- */
-static oserr_t
-__Bcm2712AcquireResetProvider(
-    _In_  const struct FdtPciDependencies* dependencies,
-    _Out_ struct __Bcm2712ResetProvider**  result)
-{
-    struct __Bcm2712ResetProvider* provider;
-    oserr_t                        status;
-    int                            lockStatus;
-
-    TRACE("__Bcm2712AcquireResetProvider(base=0x%llx, id=%u)",
-        (unsigned long long)dependencies->BridgeResetBase, dependencies->BridgeResetId);
-
-    lockStatus = mtx_lock(&g_bcm2712ResetLock);
-    if (lockStatus != thrd_success) {
-        ERROR("__Bcm2712AcquireResetProvider failed to lock providers: %i", lockStatus);
-    }
-    foreach (element, &g_bcm2712ResetProviders) {
-        provider = element->value;
-        
-        if (provider->Io.Access.Memory.PhysicalBase != dependencies->BridgeResetBase ||
-            provider->Io.Access.Memory.Length != dependencies->BridgeResetLength) {
-            continue;
-        }
-        
-        if (provider->Removing) {
-            mtx_unlock(&g_bcm2712ResetLock);
-            return OS_EBUSY;
-        }
-
-        if (provider->References == UINT_MAX) {
-            ERROR("__Bcm2712AcquireResetProvider reference count exhausted");
-            lockStatus = mtx_unlock(&g_bcm2712ResetLock);
-            if (lockStatus != thrd_success) {
-                ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
-            }
-            return OS_EOVERFLOW;
-        }
-        
-        provider->References++;
-        *result = provider;
-        
-        TRACE("__Bcm2712AcquireResetProvider reused mapping, references=%u", provider->References);
-        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
-        if (lockStatus != thrd_success) {
-            ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
-        }
-        return OS_EOK;
-    }
-
-    provider = calloc(1, sizeof(struct __Bcm2712ResetProvider));
-    if (provider == NULL) {
-        ERROR("__Bcm2712AcquireResetProvider allocation failed");
-        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
-        if (lockStatus != thrd_success) {
-            ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
-        }
-        return OS_EOOM;
-    }
-
-    status = BcmPciMapRegisters(
-        &provider->Io,
-        &provider->Acquired,
-        dependencies->BridgeResetBase,
-        dependencies->BridgeResetLength
-    );
-    if (status != OS_EOK && provider->Io.Type == DeviceIoInvalid) {
-        ERROR("__Bcm2712AcquireResetProvider BcmPciMapRegisters failed: %u", status);
-        free(provider);
-        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
-        if (lockStatus != thrd_success) {
-            ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
-        }
-        return status;
-    }
-
-    provider->References = 1;
-    provider->Removing = status != OS_EOK;
-    ELEMENT_INIT(&provider->Header, 0, provider);
-    list_append(&g_bcm2712ResetProviders, &provider->Header);
-
-    *result = provider;
-
-    lockStatus = mtx_unlock(&g_bcm2712ResetLock);
-    if (lockStatus != thrd_success) {
-        ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
-    }
-    return status;
-}
-
-/**
- * @brief Drop one host's reference without removing another host's registers.
- *
- * Call after this host finishes its reset writes. Keep the mapping available
- * until the last host stops, including when another host fails setup.
- * Removing and destroying it under the same lock also prevents a new host
- * from trying to register the range before the old registration is gone.
- */
-static oserr_t
-__Bcm2712ReleaseResetProvider(
-    _In_ struct __Bcm2712ResetProvider* provider)
-{
-    int     lockStatus;
-    oserr_t status = OS_EOK;
-
-    TRACE("__Bcm2712ReleaseResetProvider(provider=%p)", provider);
-
-    lockStatus = mtx_lock(&g_bcm2712ResetLock);
-    if (lockStatus != thrd_success) {
-        ERROR("__Bcm2712ReleaseResetProvider failed to lock providers: %i", lockStatus);
-    }
-
-    if (provider->References == 1) {
-        provider->Removing = 1;
-        status = DmIoRelease(&provider->Io, &provider->Acquired);
-        if (status == OS_EOK) {
-            list_remove(&g_bcm2712ResetProviders, &provider->Header);
-            free(provider);
-        }
-    } else {
-        provider->References--;
-    }
-
-    lockStatus = mtx_unlock(&g_bcm2712ResetLock);
-    if (lockStatus != thrd_success) {
-        ERROR("__Bcm2712ReleaseResetProvider failed to unlock providers: %i", lockStatus);
-    }
-    return status;
-}
-
-/**
  * @brief Keep each fixed electrical-interface setting beside its register number.
  *
  * The PHY is the electrical interface that sends and receives PCI Express
@@ -198,6 +37,161 @@ struct __Bcm2712PhySetting {
     uint8_t  Register;
     uint16_t Value;
 };
+
+/**
+ * @brief Keep one register mapping for all hosts using the same reset hardware.
+ *
+ * The kernel rejects a second registration of an overlapping physical range,
+ * even from this service. References counts hosts using this mapping. Each
+ * host keeps its own signal number and writes only that signal's bit.
+ * Acquired records whether register access is available. Removing blocks new
+ * users while cleanup is unfinished. g_bcm2712ResetLock protects the list and
+ * reference counts.
+ */
+struct __Bcm2712ResetMapping {
+    element_t    Header;
+    DeviceIo_t   Io;
+    unsigned int References;
+    int          Acquired;
+    int          Removing;
+};
+
+static list_t g_bcm2712ResetMappings = LIST_INIT;
+static mtx_t  g_bcm2712ResetLock = MUTEX_INIT(mtx_plain);
+
+static oserr_t
+__Bcm2712AcquireResetMapping(
+    _In_  const struct FdtPciDependencies* dependencies,
+    _Out_ struct __Bcm2712ResetMapping**   result)
+{
+    struct __Bcm2712ResetMapping* resetMapping;
+    oserr_t                       status;
+    int                           lockStatus;
+
+    TRACE("__Bcm2712AcquireResetMapping(base=0x%llx, id=%u)",
+        (unsigned long long)dependencies->BridgeResetBase, dependencies->BridgeResetId);
+
+    lockStatus = mtx_lock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712AcquireResetMapping failed to lock mappings: %i", lockStatus);
+    }
+    foreach (element, &g_bcm2712ResetMappings) {
+        resetMapping = element->value;
+        
+        if (resetMapping->Io.Access.Memory.PhysicalBase != dependencies->BridgeResetBase ||
+            resetMapping->Io.Access.Memory.Length != dependencies->BridgeResetLength) {
+            continue;
+        }
+        
+        if (resetMapping->Removing) {
+            WARNING("__Bcm2712AcquireResetMapping: reset mapping at 0x%llx has unfinished cleanup",
+                (unsigned long long)dependencies->BridgeResetBase);
+            lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+            if (lockStatus != thrd_success) {
+                ERROR("__Bcm2712AcquireResetMapping: failed to unlock mappings (%u)",
+                    (unsigned int)lockStatus);
+            }
+            return OS_EBUSY;
+        }
+
+        if (resetMapping->References == UINT_MAX) {
+            ERROR("__Bcm2712AcquireResetMapping reference count exhausted");
+            lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+            if (lockStatus != thrd_success) {
+                ERROR("__Bcm2712AcquireResetMapping failed to unlock mappings: %i", lockStatus);
+            }
+            return OS_EOVERFLOW;
+        }
+        
+        resetMapping->References++;
+        *result = resetMapping;
+        
+        TRACE("__Bcm2712AcquireResetMapping reused mapping, references=%u", resetMapping->References);
+        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+        if (lockStatus != thrd_success) {
+            ERROR("__Bcm2712AcquireResetMapping failed to unlock mappings: %i", lockStatus);
+        }
+        return OS_EOK;
+    }
+
+    resetMapping = calloc(1, sizeof(struct __Bcm2712ResetMapping));
+    if (resetMapping == NULL) {
+        ERROR("__Bcm2712AcquireResetMapping allocation failed");
+        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+        if (lockStatus != thrd_success) {
+            ERROR("__Bcm2712AcquireResetMapping failed to unlock mappings: %i", lockStatus);
+        }
+        return OS_EOOM;
+    }
+
+    status = BcmPciMapRegisters(
+        &resetMapping->Io,
+        &resetMapping->Acquired,
+        dependencies->BridgeResetBase,
+        dependencies->BridgeResetLength
+    );
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712AcquireResetMapping: failed to map reset registers at 0x%llx (%u)",
+            (unsigned long long)dependencies->BridgeResetBase, status);
+        if (resetMapping->Io.Type == DeviceIoInvalid) {
+            free(resetMapping);
+            lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+            if (lockStatus != thrd_success) {
+                ERROR("__Bcm2712AcquireResetMapping failed to unlock mappings: %i", lockStatus);
+            }
+            return status;
+        }
+    }
+
+    resetMapping->References = 1;
+    resetMapping->Removing = status != OS_EOK;
+    ELEMENT_INIT(&resetMapping->Header, 0, resetMapping);
+    list_append(&g_bcm2712ResetMappings, &resetMapping->Header);
+
+    *result = resetMapping;
+
+    lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712AcquireResetMapping failed to unlock mappings: %i", lockStatus);
+    }
+    return status;
+}
+
+static oserr_t
+__Bcm2712ReleaseResetMapping(
+    _In_ struct __Bcm2712ResetMapping* mapping)
+{
+    int     lockStatus;
+    oserr_t status = OS_EOK;
+
+    TRACE("__Bcm2712ReleaseResetMapping(mapping=%p)", mapping);
+
+    lockStatus = mtx_lock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712ReleaseResetMapping failed to lock mappings: %i", lockStatus);
+    }
+
+    if (mapping->References == 1) {
+        mapping->Removing = 1;
+        status = DmIoRelease(&mapping->Io, &mapping->Acquired);
+        if (status != OS_EOK) {
+            ERROR("__Bcm2712ReleaseResetMapping: failed to release reset registers at 0x%llx (%u)",
+                (unsigned long long)mapping->Io.Access.Memory.PhysicalBase, status);
+            goto unlock;
+        }
+        list_remove(&g_bcm2712ResetMappings, &mapping->Header);
+        free(mapping);
+    } else {
+        mapping->References--;
+    }
+
+unlock:
+    lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712ReleaseResetMapping failed to unlock mappings: %i", lockStatus);
+    }
+    return status;
+}
 
 /**
  * @brief Check that the driver can use the Pi 5 settings described by firmware.
@@ -343,12 +337,11 @@ __Bcm2712BridgeReset(
     _In_ struct BcmPciHost* controller,
     _In_ int                assert)
 {
-    size_t       bank = (controller->BridgeResetId / BCM2712_RESET_LINES_PER_BANK) *
+    size_t   bank = (controller->BridgeResetId / BCM2712_RESET_LINES_PER_BANK) *
             BCM2712_RESET_BANK_STRIDE;
-    uint32_t     bit = 1U << (controller->BridgeResetId % BCM2712_RESET_LINES_PER_BANK);
-    uint32_t     value;
-    oserr_t      status;
-    unsigned int attempt;
+    uint32_t bit = 1U << (controller->BridgeResetId % BCM2712_RESET_LINES_PER_BANK);
+    uint32_t value;
+    oserr_t  status;
 
     TRACE("__Bcm2712BridgeReset(id=%u, assert=%i)", controller->BridgeResetId, assert);
 
@@ -367,7 +360,7 @@ __Bcm2712BridgeReset(
         return status;
     }
 
-    for (attempt = 0; attempt < BCM2712_REGISTER_POLL_ATTEMPTS; attempt++) {
+    for (unsigned int attempt = 0; attempt < BCM2712_REGISTER_POLL_ATTEMPTS; attempt++) {
         // Reading STATUS waits for the earlier write to reach the controller
         // and reports whether reset is active. SET/CLEAR cannot report that state.
         value = (uint32_t)ReadDeviceIo(&controller->BridgeReset->Io,
@@ -400,8 +393,7 @@ __Bcm2712MdioWrite(
     _In_ uint8_t    reg,
     _In_ uint16_t   value)
 {
-    unsigned int attempt;
-    oserr_t      status;
+    oserr_t status;
 
     TRACE("__Bcm2712MdioWrite(reg=0x%x, value=0x%x)", reg, value);
 
@@ -436,7 +428,7 @@ __Bcm2712MdioWrite(
         return status;
     }
 
-    for (attempt = 0; attempt < BCM2712_REGISTER_POLL_ATTEMPTS; attempt++) {
+    for (unsigned int attempt = 0; attempt < BCM2712_REGISTER_POLL_ATTEMPTS; attempt++) {
         // Hardware clears BUSY after accepting the value. An all-ones read
         // keeps BUSY set, so a missing controller cannot look like a successful write.
         if (!(ReadDeviceIo(&bus->IoSpace, BCM2712_MDIO_WRITE, sizeof(uint32_t)) &
@@ -469,9 +461,8 @@ __Bcm2712Setup(
         { BCM2712_PHY_PLL_REG1C, BCM2712_PHY_PLL_54MHZ_REG1C },
         { BCM2712_PHY_PLL_REG1E, BCM2712_PHY_PLL_54MHZ_REG1E }
     };
-    unsigned int index;
-    uint32_t     value;
-    oserr_t      status;
+    uint32_t value;
+    oserr_t  status;
 
     TRACE("__Bcm2712Setup(segment=%u)", bus->Identification.Segment);
 
@@ -479,17 +470,19 @@ __Bcm2712Setup(
     // numbers refer to that block, not to the controller's CPU-visible offsets.
     status = __Bcm2712MdioWrite(bus, BCM2712_PHY_BLOCK_SELECT, BCM2712_PHY_PLL_BLOCK);
     if (status != OS_EOK) {
-        ERROR("__Bcm2712Setup __Bcm2712MdioWrite failed: %u", status);
+        ERROR("__Bcm2712Setup: segment %u failed to select PHY block 0x%x (%u)",
+            bus->Identification.Segment, (unsigned int)BCM2712_PHY_PLL_BLOCK, status);
         return status;
     }
 
     // Apply every 54 MHz setting in the reference order. The reference does
     // not document their individual bit fields, so keep each full value intact.
     // The helper waits for hardware to accept each write before the next setting.
-    for (index = 0; index < sizeof(settings) / sizeof(settings[0]); index++) {
+    for (unsigned int index = 0; index < sizeof(settings) / sizeof(settings[0]); index++) {
         status = __Bcm2712MdioWrite(bus, settings[index].Register, settings[index].Value);
         if (status != OS_EOK) {
-            ERROR("__Bcm2712Setup __Bcm2712MdioWrite failed: %u", status);
+            ERROR("__Bcm2712Setup: segment %u PHY setting %u register 0x%x failed (%u)",
+                bus->Identification.Segment, index, settings[index].Register, status);
             return status;
         }
     }
@@ -600,12 +593,17 @@ __Bcm2712Setup(
     if (!(value & BCM2712_AXI_PRIORITY_TIMING_FIX)) {
         // On those ports, limiting requests awaiting memory replies to 15
         // reduces the incorrect priority assignments that the missing fix avoids.
-        return BcmPciUpdate(
+        status = BcmPciUpdate(
             bus,
             BCM2712_AXI_CONTROL,
             BCM2712_AXI_OUTSTANDING_MASK,
             BCM2712_AXI_OUTSTANDING_FALLBACK
         );
+        if (status != OS_EOK) {
+            ERROR("__Bcm2712Setup: segment %u failed to set fallback at register 0x%x (%u)",
+                bus->Identification.Segment, (unsigned int)BCM2712_AXI_CONTROL, status);
+            return status;
+        }
     }
     return OS_EOK;
 }
@@ -637,9 +635,9 @@ __Bcm2712Prepare(
         return status;
     }
 
-    status = __Bcm2712AcquireResetProvider(&dependencies, &controller->BridgeReset);
+    status = __Bcm2712AcquireResetMapping(&dependencies, &controller->BridgeReset);
     if (status != OS_EOK) {
-        ERROR("__Bcm2712Prepare __Bcm2712AcquireResetProvider failed: %u", status);
+        ERROR("__Bcm2712Prepare __Bcm2712AcquireResetMapping failed: %u", status);
         return status;
     }
     
@@ -1162,6 +1160,8 @@ __Bcm2712Stop(
         );
         resetStatus = __Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Stop: segment %u failed to hold device in reset at register 0x%x (%u)",
+                bus->Identification.Segment, (unsigned int)BCM2712_PCIE_CONTROL, status);
             return status;
         }
         if (resetStatus != OS_EOK) {
@@ -1170,11 +1170,12 @@ __Bcm2712Stop(
         controller->BridgeResetMapped = 0;
     }
 
-    status = __Bcm2712ReleaseResetProvider(controller->BridgeReset);
-    if (status == OS_EOK) {
-        controller->BridgeReset = NULL;
+    status = __Bcm2712ReleaseResetMapping(controller->BridgeReset);
+    if (status != OS_EOK) {
+        return status;
     }
-    return status;
+    controller->BridgeReset = NULL;
+    return OS_EOK;
 }
 
 // Use the shared code to select devices and access their configuration.

@@ -92,7 +92,7 @@ Arm64Bcm2711MsiReadRoute(
         return OS_EINVALPARAMS;
     }
     
-    // Pi 4's host is its own message provider. An external provider needs a
+    // Pi 4's host is its own message source. An external sender needs a
     // different backend, so do not silently treat it as this internal receiver.
     if (DeviceTreeFindPhandle(tree, FdtReadBe32(property->Value)) != host) {
         return OS_ENOTSUPPORTED;
@@ -128,7 +128,7 @@ Arm64Bcm2711MsiReadRoute(
         return status;
     }
     
-    if (interrupt.Provider != gic || interrupt.CellCount != RPI_MSI_DT_GIC_CELLS) {
+    if (interrupt.Node != gic || interrupt.CellCount != RPI_MSI_DT_GIC_CELLS) {
         return OS_ENOTSUPPORTED;
     }
     

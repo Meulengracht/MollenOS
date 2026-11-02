@@ -18,6 +18,7 @@
  *
  */
 
+#include <ddk/utils.h>
 #include <os/types/dma.h>
 #include <os/types/dma_config.h>
 #include <os/types/device.h>
@@ -60,16 +61,22 @@ DmDmaControl(
     oserr_t                        status = OS_EOK;
 
     if (principal == UUID_INVALID) {
+        ERROR("DmDmaControl: device %u request %u has an invalid principal (%u)",
+              device, request, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
     if (request == OSIOCTLREQUEST_DMA_QUERY &&
         (buffer == NULL || length != sizeof(*result))) {
+        ERROR("DmDmaControl: device %u principal %u DMA query has buffer %p length %zu, expected %zu (%u)",
+              device, principal, buffer, length, sizeof(*result), OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
     
     if (request == OSIOCTLREQUEST_DMA_RELEASE &&
         (buffer == NULL || length != sizeof(uint64_t))) {
+        ERROR("DmDmaControl: device %u principal %u DMA release has buffer %p length %zu, expected %zu (%u)",
+              device, principal, buffer, length, sizeof(uint64_t), OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
@@ -85,6 +92,8 @@ DmDmaControl(
     session = *link;
     
     if (session != NULL && session->Principal != principal) {
+        WARNING("DmDmaControl: device %u request %u principal %u conflicts with session principal %u (%u)",
+                device, request, principal, session->Principal, OS_EBUSY);
         status = OS_EBUSY;
         goto done;
     }
@@ -100,18 +109,24 @@ DmDmaControl(
 
     if (session == NULL) {
         if (g_dmaSessionToken == UINT64_MAX) {
+            ERROR("DmDmaControl: device %u principal %u has no available DMA session tokens (%u)",
+                  device, principal, OS_EOOM);
             status = OS_EOOM;
             goto done;
         }
         
         session = calloc(1, sizeof(struct __DmaSession));
         if (session == NULL) {
+            ERROR("DmDmaControl: failed to allocate a DMA session for device %u principal %u (%u)",
+                  device, principal, OS_EOOM);
             status = OS_EOOM;
             goto done;
         }
         
         status = DmDevicePrepareDmaForPrincipal(device, principal, &session->Lease);
         if (status != OS_EOK) {
+            ERROR("DmDmaControl: failed to prepare DMA for device %u principal %u (%u)",
+                  device, principal, status);
             free(session);
             goto done;
         }
@@ -127,6 +142,9 @@ DmDmaControl(
     memset(result, 0, sizeof(struct OSDmaConfiguration));
     
     if (description->Map.Count > DMA_MAX_RANGES) {
+        ERROR("DmDmaControl: device %u principal %u DMA map has %u ranges, limit is %u (%u)",
+              device, principal, description->Map.Count, (unsigned int)DMA_MAX_RANGES,
+              OS_ENOTSUPPORTED);
         status = OS_ENOTSUPPORTED;
         goto done;
     }

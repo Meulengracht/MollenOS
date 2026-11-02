@@ -51,7 +51,7 @@ __PciBusControl(
 
     // Do not change command bits while this handler forbids activation.
     if (device->Handler != NULL && device->Handler->BlockActivation) {
-        WARNING("__PciBusControl activation blocked for %u:%u:%u.%u",
+        WARNING("__PciBusControl: activation blocked for %u:%u:%u.%u",
             device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
         return OS_ENOTSUPPORTED;
     }
@@ -176,13 +176,15 @@ PciDeviceAddReference(
     // wait for every owner before freeing the device and its attachment.
     PciCriticalSectionEnter();
     // Never wrap the count: a wrapped value could make a live device look unused.
-    if (device->ProviderReferences == UINT_MAX) {
+    if (device->HostBusReferences == UINT_MAX) {
         PciCriticalSectionLeave();
-        ERROR("PciDeviceAddReference provider reference count exhausted");
+        ERROR("PciDeviceAddReference: reference count exhausted for %u:%u:%u.%u (%u)",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, OS_EOVERFLOW);
         return OS_EOVERFLOW;
     }
     
-    device->ProviderReferences++;
+    device->HostBusReferences++;
     PciCriticalSectionLeave();
     return OS_EOK;
 }
@@ -194,12 +196,12 @@ PciDeviceRelease(
     // The caller must hold a reference. Hardware cleanup belongs to the host and
     // must not run inside a registry callback or while another owner remains.
     PciCriticalSectionEnter();
-    device->ProviderReferences--;
+    device->HostBusReferences--;
     PciCriticalSectionLeave();
 }
 
 static oserr_t
-__PciProviderAddReference(
+__PciBusAddReference(
     _In_ void* context)
 {
     // Adapt the registry's untyped context to the shared PCI ownership helper.
@@ -207,7 +209,7 @@ __PciProviderAddReference(
 }
 
 static void
-__PciProviderRelease(
+__PciBusRelease(
     _In_ void* context)
 {
     // Registry and attached-bus owners must balance the same reference count.
@@ -222,7 +224,7 @@ __PciInterruptControl(
     _In_    size_t              length);
 
 static oserr_t
-__PciProviderControl(
+__PciBusControl(
     _In_ void*               context,
     _In_ uuid_t              principal,
     _In_ enum OSIOCtlRequest request,
@@ -239,6 +241,9 @@ __PciProviderControl(
 
     if (request == OSIOCTLREQUEST_DEVICE_RESOURCES) {
         if (buffer == NULL || length != sizeof(struct DeviceResources)) {
+            WARNING("__PciBusControl: invalid resources buffer for %u:%u:%u.%u, length %llu",
+                device->Host->Identification.Segment, device->Bus, device->Slot,
+                device->Function, (unsigned long long)length);
             return OS_EINVALPARAMS;
         }
         
@@ -253,11 +258,17 @@ __PciProviderControl(
 
     if (request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
         if (buffer == NULL || length != sizeof(stage)) {
+            WARNING("__PciBusControl: invalid activation buffer for %u:%u:%u.%u, length %llu",
+                device->Host->Identification.Segment, device->Bus, device->Slot,
+                device->Function, (unsigned long long)length);
             return OS_EINVALPARAMS;
         }
         
         stage = *(enum DeviceActivation*)buffer;
         if (stage != DevicePrepare && stage != DeviceStart && stage != DeviceStop) {
+            WARNING("__PciBusControl: invalid activation stage %u for %u:%u:%u.%u",
+                stage, device->Host->Identification.Segment, device->Bus,
+                device->Slot, device->Function);
             return OS_EINVALPARAMS;
         }
         
@@ -284,13 +295,16 @@ __PciProviderControl(
 
     // All other supported requests were handled above.
     if (request != OSIOCTLREQUEST_BUS_CONTROL) {
-        WARNING("__PciProviderControl unsupported request %u", request);
+        WARNING("__PciBusControl: unsupported request %u for %u:%u:%u.%u",
+            request, device->Host->Identification.Segment, device->Bus,
+            device->Slot, device->Function);
         return OS_ENOTSUPPORTED;
     }
 
     if (buffer == NULL || length < sizeof(struct OSIOCtlBusControl)) {
-        WARNING("__PciProviderControl invalid bus-control buffer, length %llu",
-            (unsigned long long)length);
+        WARNING("__PciBusControl: invalid bus-control buffer for %u:%u:%u.%u, length %llu",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, (unsigned long long)length);
         return OS_EINVALPARAMS;
     }
 
@@ -344,7 +358,9 @@ __PciInterruptControl(
         device->Function, request, (unsigned long long)length);
 
     if (buffer == NULL) {
-        WARNING("__PciInterruptControl missing request buffer");
+        WARNING("__PciInterruptControl: missing buffer for request %u on %u:%u:%u.%u",
+            request, device->Host->Identification.Segment, device->Bus,
+            device->Slot, device->Function);
         return OS_EINVALPARAMS;
     }
 
@@ -352,8 +368,9 @@ __PciInterruptControl(
         support = buffer;
 
         if (length != sizeof(struct PciInterruptSupport)) {
-            WARNING("__PciInterruptControl invalid query length %llu",
-                (unsigned long long)length);
+            WARNING("__PciInterruptControl: invalid query length %llu for %u:%u:%u.%u",
+                (unsigned long long)length, device->Host->Identification.Segment,
+                device->Bus, device->Slot, device->Function);
             return OS_EINVALPARAMS;
         }
 
@@ -372,7 +389,9 @@ __PciInterruptControl(
             return OS_EOK;
         }
         if (status != OS_EOK) {
-            WARNING("__PciInterruptControl capability probe failed: %u", status);
+            ERROR("__PciInterruptControl: capability probe failed for %u:%u:%u.%u (%u)",
+                device->Host->Identification.Segment, device->Bus, device->Slot,
+                device->Function, status);
             return status;
         }
 
@@ -389,7 +408,9 @@ __PciInterruptControl(
         if (capabilities.MsixOffset != 0) {
             status = PciMsixDeviceProbe(device);
             if (status != OS_EOK) {
-                WARNING("__PciInterruptControl MSI-X table unavailable: %u", status);
+                WARNING("__PciInterruptControl: MSI-X table unavailable for %u:%u:%u.%u, capability 0x%x (%u)",
+                    device->Host->Identification.Segment, device->Bus, device->Slot,
+                    device->Function, capabilities.MsixOffset, status);
             } else {
                 support->Strategies |= INTERRUPT_STRATEGY_MSIX;
             }
@@ -398,26 +419,34 @@ __PciInterruptControl(
     }
 
     if (length != sizeof(struct PciInterruptRequest)) {
-        WARNING("__PciInterruptControl invalid control length %llu", (unsigned long long)length);
+        WARNING("__PciInterruptControl: invalid control length %llu for %u:%u:%u.%u",
+            (unsigned long long)length, device->Host->Identification.Segment,
+            device->Bus, device->Slot, device->Function);
         return OS_EINVALPARAMS;
     }
 
     interrupt = buffer;
     if (!PciInterruptRequestIsValid(interrupt)) {
-        WARNING("__PciInterruptControl invalid operation %u for strategy %u",
-            interrupt->Operation, interrupt->Strategy);
+        WARNING("__PciInterruptControl: invalid operation %u for strategy %u on %u:%u:%u.%u",
+            interrupt->Operation, interrupt->Strategy,
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function);
         return OS_EINVALPARAMS;
     }
     
     // Keep one interrupt mode at a time so each mode can restore its own saved
     // configuration without overwriting the other's state.
     if (interrupt->Strategy == INTERRUPT_STRATEGY_MSIX && device->Msi.Active) {
-        WARNING("__PciInterruptControl MSI-X request conflicts with active MSI");
+        WARNING("__PciInterruptControl: MSI-X operation %u conflicts with active MSI on %u:%u:%u.%u",
+            interrupt->Operation, device->Host->Identification.Segment,
+            device->Bus, device->Slot, device->Function);
         return OS_EBUSY;
     }
     
     if (interrupt->Strategy == INTERRUPT_STRATEGY_MSI && device->Msix != NULL) {
-        WARNING("__PciInterruptControl MSI request conflicts with active MSI-X");
+        WARNING("__PciInterruptControl: MSI operation %u conflicts with active MSI-X on %u:%u:%u.%u",
+            interrupt->Operation, device->Host->Identification.Segment,
+            device->Bus, device->Slot, device->Function);
         return OS_EBUSY;
     }
 
@@ -426,19 +455,36 @@ __PciInterruptControl(
     if (interrupt->Operation == PciInterruptReserve) {
         if (!PciIsMsiAvailable() || device->Host->InterruptControllerId == UUID_INVALID ||
             !PciDeviceAllowsDriverBinding(device)) {
-            WARNING("__PciInterruptControl reservation blocked by device policy or type");
+            WARNING("__PciInterruptControl: strategy %u reservation blocked by policy or type on %u:%u:%u.%u",
+                interrupt->Strategy, device->Host->Identification.Segment,
+                device->Bus, device->Slot, device->Function);
             return OS_ENOTSUPPORTED;
         }
     }
     
     if (interrupt->Strategy == INTERRUPT_STRATEGY_MSIX) {
-        return PciMsixDeviceControl(device, interrupt);
+        status = PciMsixDeviceControl(device, interrupt);
+        if (status != OS_EOK) {
+            ERROR("__PciInterruptControl: MSI-X operation %u failed for %u:%u:%u.%u (%u)",
+                interrupt->Operation, device->Host->Identification.Segment,
+                device->Bus, device->Slot, device->Function, status);
+            return status;
+        }
+        return OS_EOK;
     }
-    return PciMsiControl(&access, &device->Msi, interrupt);
+
+    status = PciMsiControl(&access, &device->Msi, interrupt);
+    if (status != OS_EOK) {
+        ERROR("__PciInterruptControl: MSI operation %u failed for %u:%u:%u.%u (%u)",
+            interrupt->Operation, device->Host->Identification.Segment,
+            device->Bus, device->Slot, device->Function, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
-__PciProviderAccessRegister(
+__PciBusAccessRegister(
     _In_    void*        context,
     _In_    int          direction,
     _In_    unsigned int reg,
@@ -471,6 +517,9 @@ __PciPrepareDma(
     status = PciHostGetDmaDescription(device->Host, &configured);
     PciCriticalSectionLeave();
     if (status != OS_EOK) {
+        ERROR("__PciPrepareDma: DMA description lookup failed for %u:%u:%u.%u (%u)",
+            device->Host->Identification.Segment, device->Bus, device->Slot,
+            device->Function, status);
         return status;
     }
     
@@ -480,12 +529,12 @@ __PciPrepareDma(
     return OS_EOK;
 }
 
-const struct DmDeviceProviderOperations g_pciDeviceProviderOperations = {
+const DmDeviceBusOperations_t g_pciDeviceBusOperations = {
     .PrepareDma = __PciPrepareDma,
-    .AddReference = __PciProviderAddReference,
-    .Release = __PciProviderRelease,
-    .Control = __PciProviderControl,
-    .AccessRegister = __PciProviderAccessRegister
+    .AddReference = __PciBusAddReference,
+    .Release = __PciBusRelease,
+    .Control = __PciBusControl,
+    .AccessRegister = __PciBusAccessRegister
 };
 
 int

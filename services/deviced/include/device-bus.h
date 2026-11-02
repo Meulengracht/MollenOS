@@ -18,8 +18,8 @@
  * Device descriptions and the service code that handles their requests.
  */
 
-#ifndef __DEVICED_DEVICE_PROVIDER_H__
-#define __DEVICED_DEVICE_PROVIDER_H__
+#ifndef __DEVICED_DEVICE_BUS_H__
+#define __DEVICED_DEVICE_BUS_H__
 
 #include <ddk/devices/device.h>
 #include <os/types/device.h>
@@ -27,20 +27,14 @@
 // Forward declarations
 struct DmDmaDescription;
 
-enum DmDeviceDescriptionKind {
+typedef enum DmDeviceDescriptionKind {
     DmDeviceDescriptionGeneric,
     DmDeviceDescriptionBus,
     DmDeviceDescriptionUsb,
     DmDeviceDescriptionPlatform
-};
+} DmDeviceDescriptionKind_t;
 
-/**
- * @brief Handles requests for a device owned by a bus or another service module.
- * The operations must remain valid until Release returns. All callbacks run
- * without the device registry lock. Control, AccessRegister and PrepareDma are
- * optional. Both reference callbacks are required when Operations is supplied.
- */
-struct DmDeviceProviderOperations {
+typedef struct DmDeviceBusOperations {
     /**
      * @brief Adds one owner reference. Failure must leave ownership unchanged.
      *
@@ -128,26 +122,17 @@ struct DmDeviceProviderOperations {
      */
     void (*ReleaseDma)(
         _In_ void* context);
-};
+} DmDeviceBusOperations_t;
 
-/**
- * @brief Connects a registered description to the object handling requests.
- */
-struct DmDeviceProvider {
-    const struct DmDeviceProviderOperations* Operations;
-    void*                                    Context;
-};
+typedef struct DmDeviceBus {
+    const DmDeviceBusOperations_t* Operations;
+    void*                          Context;
+} DmDeviceBus_t;
 
-/**
- * @brief Supplies a description and optional request callbacks for registration.
- * The registry copies this structure. It owns Description only on success and
- * holds its own reference to the device owner. On failure, the caller keeps both.
- * Request callbacks are absent when Operations and Context are both NULL.
- */
-struct DmDeviceRegistration {
-    Device_t*                     Description;
-    enum DmDeviceDescriptionKind  Kind;
-    struct DmDeviceProvider       Provider;
-};
+typedef struct DmDeviceRegistration {
+    Device_t*                  Description;
+    DmDeviceDescriptionKind_t  Kind;
+    DmDeviceBus_t              Bus;
+} DmDeviceRegistration_t;
 
-#endif
+#endif //!__DEVICED_DEVICE_BUS_H__

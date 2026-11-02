@@ -38,12 +38,16 @@ FirmwareShutdown(void)
     // The service must serialize initialization and shutdown. Before unmapping,
     // every reference must be released.
     if (g_firmware.Tree != NULL && atomic_load(&g_firmware.Tree->References) != 1) {
+        WARNING("FirmwareShutdown: tree %p still has active references (%u)",
+                g_firmware.Tree, OS_EBUSY);
         return OS_EBUSY;
     }
 
     if (g_firmware.Blob != NULL) {
         status = FirmwareTableUnmap(g_firmware.Blob, g_firmware.Length);
         if (status != OS_EOK) {
+            ERROR("FirmwareShutdown: could not unmap blob %p of length %zu (%u)",
+                  g_firmware.Blob, g_firmware.Length, status);
             return status;
         }
     }
@@ -71,7 +75,8 @@ __FirmwareCleanupFailure(
     // A direct FirmwareShutdown call resets this result.
     g_firmware.Startup = setup;
     if (cleanup != OS_EOK) {
-        ERROR("FirmwareInitialize: mapping cleanup must be retried (%u)", cleanup);
+        TRACE("__FirmwareCleanupFailure: mapping cleanup must be retried (%u)",
+              cleanup);
         __DmStartupRetryResult(cleanup, result);
         return;
     }
@@ -102,8 +107,13 @@ FirmwareInitialize(
     __DmStartupFromStatus(status, &g_firmware.Startup);
     if (status != OS_EOK) {
         if (status == OS_ENOENT) {
+            TRACE("FirmwareInitialize: no device tree table is available for source %u",
+                  key.Source);
             // Firmware without a device tree needs no further initialization here.
             g_firmware.Startup.Outcome = DmStartupComplete;
+        } else {
+            ERROR("FirmwareInitialize: could not map firmware table for source %u (%u)",
+                  key.Source, status);
         }
         *result = g_firmware.Startup;
         return;
@@ -112,6 +122,8 @@ FirmwareInitialize(
     status = FdtTreeCreate(g_firmware.Blob, g_firmware.Length, &g_firmware.Tree);
     __DmStartupFromStatus(status, &g_firmware.Startup);
     if (status != OS_EOK) {
+        ERROR("FirmwareInitialize: could not parse device tree blob %p of length %zu (%u)",
+              g_firmware.Blob, g_firmware.Length, status);
         __FirmwareCleanupFailure(result);
         return;
     }
@@ -124,6 +136,8 @@ FirmwareGetStartupResult(
     _Out_ DmStartupResult_t* result)
 {
     if (g_firmware.Blob != NULL && g_firmware.Tree == NULL) {
+        WARNING("FirmwareGetStartupResult: blob %p still needs mapping cleanup (%u)",
+                g_firmware.Blob, OS_EBUSY);
         __DmStartupRetryResult(OS_EBUSY, result);
         return;
     }

@@ -25,7 +25,7 @@
 
 #include <os/osdefs.h>
 #include <os/types/device.h>
-#include <device-provider.h>
+#include <device-bus.h>
 
 DECL_STRUCT(Device);
 DECL_STRUCT(BusDevice);
@@ -94,10 +94,10 @@ DmDeviceCreate(
  *         context reference setup.
  */
 extern oserr_t
-DmDeviceCreateWithProvider(
-    _In_  const struct DmDeviceRegistration* registration,
-    _In_  unsigned int                      flags,
-    _Out_ uuid_t*                           idOut);
+DmDeviceCreateWithBus(
+    _In_  const DmDeviceRegistration_t* registration,
+    _In_  unsigned int                  flags,
+    _Out_ uuid_t*                       idOut);
 
 /**
  * @brief Allows the registry to look for a driver for an existing device.

@@ -27,7 +27,7 @@
 #include <bus/pci/interrupts.h>
 #include <bus/pci/strings.h>
 #include <core/io.h>
-#include <device-provider.h>
+#include <device-bus.h>
 #include <firmware/pci.h>
 #include <ddk/devices/bus.h>
 #include <ddk/interrupts/provider.h>
@@ -51,7 +51,7 @@ __PciAddIdeChannelPorts(
         memset(&io, 0, sizeof(io));
         status = CreateDevicePortIo(&io, base, 8);
         if (status != OS_EOK) {
-            ERROR("__PciAddIdeChannelPorts failed to create data ports at 0x%x: %u",
+            ERROR("__PciAddIdeChannelPorts: failed to create data ports at 0x%x (%u)",
                 (unsigned)base, status);
         } else {
             spaces[0] = io;
@@ -63,7 +63,7 @@ __PciAddIdeChannelPorts(
         memset(&io, 0, sizeof(io));
         status = CreateDevicePortIo(&io, control, 4);
         if (status != OS_EOK) {
-            ERROR("__PciAddIdeChannelPorts failed to create control ports at 0x%x: %u",
+            ERROR("__PciAddIdeChannelPorts: failed to create control ports at 0x%x (%u)",
                 (unsigned)control, status);
         } else {
             spaces[1] = io;
@@ -104,10 +104,10 @@ static oserr_t
 __PublishPciDevice(
     _In_ PciDevice_t* pciDevice)
 {
-    struct DmDeviceRegistration registration = {
+    DmDeviceRegistration_t registration = {
         .Kind = DmDeviceDescriptionBus,
-        .Provider = {
-            .Operations = &g_pciDeviceProviderOperations,
+        .Bus = {
+            .Operations = &g_pciDeviceBusOperations,
             .Context = pciDevice
         }
     };
@@ -120,7 +120,9 @@ __PublishPciDevice(
 
     device = malloc(sizeof(BusDevice_t));
     if (device == NULL) {
-        ERROR("__PublishPciDevice failed to allocate device description");
+        ERROR("__PublishPciDevice: failed to allocate description for %u:%u:%u.%u (%u)",
+            pciDevice->Host->Identification.Segment,
+            pciDevice->Bus, pciDevice->Slot, pciDevice->Function, OS_EOOM);
         return OS_EOOM;
     }
 
@@ -153,7 +155,9 @@ __PublishPciDevice(
 
     // The registry frees the description string. PciToString returns static text.
     if (device->Base.Identification.Description == NULL) {
-        ERROR("__PublishPciDevice failed to copy device name");
+        ERROR("__PublishPciDevice: failed to copy name for %u:%u:%u.%u (%u)",
+            pciDevice->Host->Identification.Segment,
+            pciDevice->Bus, pciDevice->Slot, pciDevice->Function, OS_EOOM);
         free(device);
         return OS_EOOM;
     }
@@ -182,7 +186,9 @@ __PublishPciDevice(
     // Only the description transfers to the registry. I/O cleanup belongs to
     // host rollback for both registered and unregistered descriptions.
     if (status != OS_EOK) {
-        ERROR("__PublishPciDevice DmPublicationAdd failed: %u", status);
+        ERROR("__PublishPciDevice: DmPublicationAdd failed for %u:%u:%u.%u (%u)",
+            pciDevice->Host->Identification.Segment,
+            pciDevice->Bus, pciDevice->Slot, pciDevice->Function, status);
         free(device->Base.Identification.Description);
         free(device);
         return status;
@@ -195,22 +201,24 @@ static oserr_t
 __PublishPciRoot(
     _In_ PciDevice_t* root)
 {
-    struct DmDeviceRegistration registration = { .Kind = DmDeviceDescriptionGeneric };
-    Device_t*                   description;
-    oserr_t                     status;
+    DmDeviceRegistration_t registration = { .Kind = DmDeviceDescriptionGeneric };
+    Device_t*              description;
+    oserr_t                status;
 
-    description = calloc(1, sizeof(*description));
+    description = calloc(1, sizeof(DmDeviceRegistration_t));
 
     if (description == NULL) {
-        ERROR("__PublishPciRoot failed to allocate host description");
+        ERROR("__PublishPciRoot: failed to allocate description for host %u segment %u (%u)",
+            root->Host->Identification.HostId, root->Host->Identification.Segment, OS_EOOM);
         return OS_EOOM;
     }
 
-    description->Length = sizeof(*description);
+    description->Length = sizeof(DmDeviceRegistration_t);
     description->Identification.Description = strdup("PCI host");
 
     if (description->Identification.Description == NULL) {
-        ERROR("__PublishPciRoot failed to copy host name");
+        ERROR("__PublishPciRoot: failed to copy name for host %u segment %u (%u)",
+            root->Host->Identification.HostId, root->Host->Identification.Segment, OS_EOOM);
         free(description);
         return OS_EOOM;
     }
@@ -225,12 +233,14 @@ __PublishPciRoot(
 
     // The registry takes ownership only after the group accepts this entry.
     if (status != OS_EOK) {
-        ERROR("__PublishPciRoot DmPublicationAdd failed: %u", status);
+        ERROR("__PublishPciRoot: DmPublicationAdd failed for host %u segment %u (%u)",
+            root->Host->Identification.HostId, root->Host->Identification.Segment, status);
         free(description->Identification.Description);
         free(description);
+        return status;
     }
 
-    return status;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -247,7 +257,15 @@ __PciRetryAttachments(
         
         __DmStartupFromStatus(status, &result);
         if (result.Outcome == DmStartupRetry) {
+            TRACE("__PciRetryAttachments: Attach pending for %u:%u:%u.%u (%u)",
+                device->Host->Identification.Segment,
+                device->Bus, device->Slot, device->Function, status);
             return status;
+        }
+        if (status != OS_EOK) {
+            ERROR("__PciRetryAttachments: Attach failed for %u:%u:%u.%u (%u)",
+                device->Host->Identification.Segment,
+                device->Bus, device->Slot, device->Function, status);
         }
     }
 
@@ -274,8 +292,6 @@ __PciStagePublication(
         status = __PublishPciDevice(device);
     }
     if (status != OS_EOK) {
-        ERROR("__PciStagePublication attachment publication failed at %u:%u.%u: %u",
-            device->Bus, device->Slot, device->Function, status);
         return status;
     }
 
@@ -290,6 +306,9 @@ __PciStagePublication(
 
         // The caller removes the entire partial group if any attachment fails.
         if (status != OS_EOK) {
+            ERROR("__PciStagePublication: handler Publish failed for %u:%u:%u.%u (%u)",
+                device->Host->Identification.Segment,
+                device->Bus, device->Slot, device->Function, status);
             return status;
         }
     }
@@ -319,7 +338,15 @@ __PciReleasePublishedIo(
             return status;
         }
     }
-    return DmIoDestroy(device->PublishedIo, 6);
+
+    status = DmIoDestroy(device->PublishedIo, 6);
+    if (status != OS_EOK) {
+        WARNING("__PciReleasePublishedIo: I/O cleanup incomplete for device %u at %u:%u:%u.%u (%u)",
+            device->DeviceId, device->Host->Identification.Segment,
+            device->Bus, device->Slot, device->Function, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static void
@@ -378,16 +405,15 @@ __PciPrepareAttachmentRemoval(
     if (device->Attachment != NULL && device->Handler->PrepareRemoval != NULL) {
         status = device->Handler->PrepareRemoval(device->Attachment);
         if (status != OS_EOK) {
-            WARNING("__PciPrepareAttachmentRemoval: PrepareRemoval device %u failed: %u",
-                    device->DeviceId, status);
+            WARNING("__PciPrepareAttachmentRemoval: PrepareRemoval failed for device %u at %u:%u:%u.%u (%u)",
+                device->DeviceId, device->Host->Identification.Segment,
+                device->Bus, device->Slot, device->Function, status);
             return status;
         }
     }
     foreach (element, &device->Children) {
         status = __PciPrepareAttachmentRemoval(element->value);
         if (status != OS_EOK) {
-            WARNING("__PciPrepareAttachmentRemoval: child of device %u blocked removal: %u",
-                    device->DeviceId, status);
             return status;
         }
     }
@@ -406,7 +432,9 @@ PciUnpublishDevice(
     // A host shares one publication group with its attachments. Removing just
     // one subtree would leave the group's saved IDs pointing at freed objects.
     if (device->Parent != NULL) {
-        WARNING("PciUnpublishDevice requires a host root");
+        WARNING("PciUnpublishDevice: device %u at %u:%u:%u.%u is not a host root (%u)",
+            device->DeviceId, device->Host->Identification.Segment,
+            device->Bus, device->Slot, device->Function, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
@@ -415,15 +443,13 @@ PciUnpublishDevice(
     PciCriticalSectionEnter();
     if (__PciHasInterruptReservation(device)) {
         PciCriticalSectionLeave();
-        WARNING("PciUnpublishDevice host %u has active interrupt reservations",
-            device->Host->Identification.HostId);
+        WARNING("PciUnpublishDevice: host %u segment %u has active interrupt reservations (%u)",
+            device->Host->Identification.HostId, device->Host->Identification.Segment, OS_EBUSY);
         return OS_EBUSY;
     }
     status = __PciPrepareAttachmentRemoval(device);
     PciCriticalSectionLeave();
     if (status != OS_EOK) {
-        WARNING("PciUnpublishDevice: __PciPrepareAttachmentRemoval device %u failed: %u",
-                device->DeviceId, status);
         return status;
     }
 
@@ -433,17 +459,20 @@ PciUnpublishDevice(
     status = DmPublicationRemove(&publication->Group);
     // Keep I/O resources until every device entry has finished its release callback.
     if (status != OS_EOK) {
-        WARNING("PciUnpublishDevice publication removal incomplete: %u", status);
+        WARNING("PciUnpublishDevice: publication removal incomplete for host %u segment %u (%u)",
+            device->Host->Identification.HostId, device->Host->Identification.Segment, status);
         return status;
     }
 
     status = __PciReleasePublishedIo(device);
-    if (status == OS_EOK) {
-        // Registry removal alone does not complete PCI publication cleanup.
-        publication->CleanupPending = 0;
-        device->Host->StartupFailure = OS_EOK;
+    if (status != OS_EOK) {
+        return status;
     }
-    return status;
+
+    // Registry removal alone does not complete PCI publication cleanup.
+    publication->CleanupPending = 0;
+    device->Host->StartupFailure = OS_EOK;
+    return OS_EOK;
 }
 
 void
@@ -464,17 +493,24 @@ PciPublishDevice(
     TRACE("PciPublishDevice(host=%u)", device->Host->Identification.HostId);
 
     if (device->Host->Removing) {
+        TRACE("PciPublishDevice: host %u segment %u removal pending (%u)",
+            device->Host->Identification.HostId, device->Host->Identification.Segment, OS_EBUSY);
         __DmStartupRetryResult(OS_EBUSY, result);
         return;
     }
     if (device->Host->ScanStatus != OS_EOK) {
+        ERROR("PciPublishDevice: scan failed for host %u segment %u (%u)",
+            device->Host->Identification.HostId, device->Host->Identification.Segment,
+            device->Host->ScanStatus);
         __DmStartupFromStatus(device->Host->ScanStatus, result);
         return;
     }
 
     // Publication must cover the whole host before any driver can start.
     if (device->Parent != NULL) {
-        WARNING("PciPublishDevice requires a host root");
+        WARNING("PciPublishDevice: device %u at %u:%u:%u.%u is not a host root (%u)",
+            device->DeviceId, device->Host->Identification.Segment,
+            device->Bus, device->Slot, device->Function, OS_EINVALPARAMS);
         __DmStartupFromStatus(OS_EINVALPARAMS, result);
         return;
     }
@@ -500,13 +536,11 @@ PciPublishDevice(
         }
         status = __PciStagePublication(device);
         if (status != OS_EOK) {
-            ERROR("PciPublishDevice staging failed: %u", status);
             // Removal preparation may fail before DmPublicationRemove runs.
             // Remember rollback so a retry cannot append to the partial tree.
             publication->CleanupPending = 1;
             cleanup = PciUnpublishDevice(device);
             if (cleanup != OS_EOK) {
-                WARNING("PciPublishDevice rollback incomplete: %u", cleanup);
                 __DmStartupRetryResult(cleanup, result);
                 return;
             }
@@ -516,7 +550,8 @@ PciPublishDevice(
 
         status = DmPublicationFinish(group);
         if (status != OS_EOK) {
-            ERROR("PciPublishDevice publication finalization failed: %u", status);
+            ERROR("PciPublishDevice: DmPublicationFinish failed for host %u segment %u (%u)",
+                device->Host->Identification.HostId, device->Host->Identification.Segment, status);
             __DmStartupFromStatus(status, result);
             return;
         }
@@ -537,9 +572,13 @@ PciPublishDevice(
         if (status != OS_EOK && status != OS_ENOTSUPPORTED) {
             // A supported interrupt controller may not have registered yet.
             if (status == OS_ENOENT) {
+                TRACE("PciPublishDevice: interrupt controller pending for host %u segment %u (%u)",
+                    device->Host->Identification.HostId, device->Host->Identification.Segment, status);
                 __DmStartupRetryResult(status, result);
                 return;
             }
+            ERROR("PciPublishDevice: DeviceInterruptMessageControllerResolve failed for host %u segment %u (%u)",
+                device->Host->Identification.HostId, device->Host->Identification.Segment, status);
             __DmStartupFromStatus(status, result);
             return;
         }
@@ -549,5 +588,13 @@ PciPublishDevice(
     if (result->Outcome != DmStartupComplete) {
         return;
     }
-    __DmStartupFromStatus(DmPublicationEnableBinding(group), result);
+
+    status = DmPublicationEnableBinding(group);
+    if (status != OS_EOK) {
+        ERROR("PciPublishDevice: DmPublicationEnableBinding failed for host %u segment %u (%u)",
+            device->Host->Identification.HostId, device->Host->Identification.Segment, status);
+        __DmStartupFromStatus(status, result);
+        return;
+    }
+    __DmStartupFromStatus(OS_EOK, result);
 }

@@ -33,6 +33,7 @@ struct __FdtBuilder {
     size_t           Capacity;
     size_t           ParentPath[FDT_MAX_DEPTH];
     int              Depth;
+    int              CallbackFailed;
 };
 
 static oserr_t
@@ -52,10 +53,14 @@ __ReaderBegin(
     if (tree->Count == builder->Capacity) {
         capacity = builder->Capacity ? builder->Capacity * 2 : 64;
         if (capacity < builder->Capacity || capacity > SIZE_MAX / sizeof(*entries)) {
+            ERROR("__ReaderBegin: node %s entry capacity overflow (%u)", name, OS_EOOM);
+            builder->CallbackFailed = 1;
             return OS_EOOM;
         }
         entries = realloc(tree->Entries, capacity * sizeof(*entries));
         if (entries == NULL) {
+            ERROR("__ReaderBegin: node %s could not grow the entry array (%u)", name, OS_EOOM);
+            builder->CallbackFailed = 1;
             return OS_EOOM;
         }
         tree->Entries = entries;
@@ -97,11 +102,17 @@ __ReaderProperty(
     // Duplicate names would leave the cached value dependent on property order.
     for (size_t i = 0; i < node->PropertyCount; i++) {
         if (!strcmp(node->Properties[i].Name, name)) {
+            ERROR("__ReaderProperty: node %u has duplicate property %s (%u)",
+                  node->NodeOffset, name, OS_EINVALPARAMS);
+            builder->CallbackFailed = 1;
             return OS_EINVALPARAMS;
         }
     }
 
     if (node->PropertyCount >= SIZE_MAX / sizeof(*properties) - 1) {
+        ERROR("__ReaderProperty: node %u property %s exceeds the property array limit (%u)",
+              node->NodeOffset, name, OS_EOOM);
+        builder->CallbackFailed = 1;
         return OS_EOOM;
     }
 
@@ -110,6 +121,9 @@ __ReaderProperty(
         (node->PropertyCount + 1) * sizeof(*properties)
     );
     if (properties == NULL) {
+        ERROR("__ReaderProperty: node %u could not allocate property %s (%u)",
+              node->NodeOffset, name, OS_EOOM);
+        builder->CallbackFailed = 1;
         return OS_EOOM;
     }
     
@@ -120,18 +134,24 @@ __ReaderProperty(
         uint32_t offset = 0;
         
         if (!length) {
+            WARNING("__ReaderProperty: node %u has an empty %s property",
+                    node->NodeOffset, name);
             node->Malformed = 1;
         }
 
         while (offset < length) {
             const uint8_t* end = memchr(bytes + offset, 0, length - offset);
             if (end == NULL || end == bytes + offset) {
+                WARNING("__ReaderProperty: node %u property %s has an invalid string at byte %u",
+                        node->NodeOffset, name, offset);
                 node->Malformed = 1;
                 break;
             }
 
             offset = (uint32_t)(end - bytes) + 1;
             if (!strcmp(name, "status") && offset != length) {
+                WARNING("__ReaderProperty: node %u status has extra data at byte %u",
+                        node->NodeOffset, offset);
                 node->Malformed = 1;
             }
         }
@@ -139,14 +159,23 @@ __ReaderProperty(
         if (!strcmp(name, "status")) {
             node->Disabled = !((length == 3 && !memcmp(bytes, "ok", 3)) ||
                 (length == 5 && !memcmp(bytes, "okay", 5)));
+            if (node->Disabled) {
+                TRACE("__ReaderProperty: node %u is disabled by status", node->NodeOffset);
+            }
         }
     } else if (!strcmp(name, "phandle") || !strcmp(name, "linux,phandle")) {
         if (length != 4) {
+            WARNING("__ReaderProperty: node %u property %s has length %u, expected 4",
+                    node->NodeOffset, name, length);
             node->Malformed = 1;
         } else {
             uint32_t phandle = FdtReadBe32(bytes);
-            node->Malformed |= !phandle || phandle == UINT32_MAX ||
-                (node->Phandle && node->Phandle != phandle);
+            if (!phandle || phandle == UINT32_MAX ||
+                (node->Phandle && node->Phandle != phandle)) {
+                WARNING("__ReaderProperty: node %u property %s has invalid or conflicting phandle %u",
+                        node->NodeOffset, name, phandle);
+                node->Malformed |= 1;
+            }
             node->Phandle = phandle;
         }
     }
@@ -166,7 +195,7 @@ __ReaderEnd(
 }
 
 static int
-__CompareProviders(
+__CompareNodes(
     _In_ const void* left,
     _In_ const void* right)
 {
@@ -212,6 +241,7 @@ __FindPath(
     size_t position = 1;
 
     if (!length || path[0] != '/') {
+        WARNING("__FindPath: path length %u is empty or not absolute", (uint32_t)length);
         return NULL;
     }
 
@@ -231,6 +261,8 @@ __FindPath(
             
             if (strlen(name) == end - position && !memcmp(name, path + position, end - position)) {
                 if (match != SIZE_MAX) {
+                    WARNING("__FindPath: parent node %u has duplicate child name %s",
+                            tree->Entries[parent].Resources.NodeOffset, name);
                     return NULL;
                 }
                 match = child;
@@ -261,15 +293,19 @@ __ResolveConsole(
     size_t                     i;
 
     if (chosen == NULL || chosen->Malformed || chosen->Disabled) {
+        TRACE("__ResolveConsole: /chosen is absent, malformed or disabled");
         return;
     }
 
     path = FdtProperty(&chosen->View, "stdout-path", &length);
     if (path == NULL || !length) {
+        TRACE("__ResolveConsole: node %u has no stdout-path", chosen->NodeOffset);
         return;
     }
 
     if (path[length - 1] || strlen((const char*)path) != length - 1) {
+        WARNING("__ResolveConsole: node %u has a malformed stdout-path of length %u",
+                chosen->NodeOffset, length);
         return;
     }
 
@@ -279,6 +315,8 @@ __ResolveConsole(
         aliases = __FindPath(tree, "/aliases", 8);
         
         if (aliases == NULL || aliases->Malformed || aliases->Disabled) {
+            WARNING("__ResolveConsole: node %u stdout-path %s needs an available /aliases node",
+                    chosen->NodeOffset, (const char*)path);
             return;
         }
         
@@ -290,12 +328,16 @@ __ResolveConsole(
         }
         
         if (i == aliases->View.PropertyCount) {
+            WARNING("__ResolveConsole: aliases node %u has no entry for stdout-path %s",
+                    aliases->NodeOffset, (const char*)path);
             return;
         }
 
         path = property->Value;
         length = property->Length;
         if (!length || path[length - 1] || strlen((const char*)path) != length - 1) {
+            WARNING("__ResolveConsole: aliases node %u property %s has invalid path length %u",
+                    aliases->NodeOffset, property->Name, length);
             return;
         }
         
@@ -304,14 +346,18 @@ __ResolveConsole(
 
     console = __FindPath(tree, (const char*)path, nameLength);
     if (console == NULL) {
+        WARNING("__ResolveConsole: node %u stdout-path %s could not be resolved",
+                chosen->NodeOffset, (const char*)path);
         return;
     }
     
     if (console->Disabled || console->ParentDisabled) {
+        TRACE("__ResolveConsole: console node %u or its parent is disabled", console->NodeOffset);
         return;
     }
     
     if (console->Malformed || console->ParentMalformed) {
+        WARNING("__ResolveConsole: console node %u or its parent is malformed", console->NodeOffset);
         return;
     }
     tree->Console = console;
@@ -346,11 +392,14 @@ FdtTreeCreate(
         &header
     );
     if (status != OS_EOK) {
+        ERROR("FdtTreeCreate: could not parse the header of a %llu-byte blob (%u)",
+              (unsigned long long)length, status);
         return status;
     }
 
     tree = calloc(1, sizeof(struct FdtTree));
     if (tree == NULL) {
+        ERROR("FdtTreeCreate: could not allocate the tree (%u)", OS_EOOM);
         return OS_EOOM;
     }
     
@@ -366,6 +415,10 @@ FdtTreeCreate(
         &parser
     );
     if (status != OS_EOK) {
+        if (!builder.CallbackFailed) {
+            ERROR("FdtTreeCreate: could not parse structure at offset %u, length %u (%u)",
+                  header.OffDtStruct, header.SizeDtStruct, status);
+        }
         FdtTreeRelease(tree);
         return status;
     }
@@ -373,8 +426,17 @@ FdtTreeCreate(
     // The parser visits parents first, so their decoded records are available
     // when a child needs inherited address and interrupt settings.
     parentPath = malloc(FDT_MAX_DEPTH * sizeof(*parentPath));
-    tree->Providers = malloc(tree->Count * sizeof(*tree->Providers));
-    if (parentPath == NULL || tree->Providers == NULL) {
+    tree->Providers = malloc(tree->Count * sizeof(struct __FdtEntry*));
+    if (parentPath == NULL) {
+        ERROR("FdtTreeCreate: could not allocate the parent path (%u)", OS_EOOM);
+        free(parentPath);
+        FdtTreeRelease(tree);
+        return OS_EOOM;
+    }
+
+    if (tree->Providers == NULL) {
+        ERROR("FdtTreeCreate: could not allocate the phandle index for %llu nodes (%u)",
+              (unsigned long long)tree->Count, OS_EOOM);
         free(parentPath);
         FdtTreeRelease(tree);
         return OS_EOOM;
@@ -394,7 +456,7 @@ FdtTreeCreate(
         tree->Providers,
         tree->ProviderCount,
         sizeof(*tree->Providers),
-        __CompareProviders
+        __CompareNodes
     );
     __ResolveConsole(tree);
     
@@ -460,6 +522,8 @@ FdtCompatible(
     while (offset < length) {
         const uint8_t* end = memchr(value + offset, 0, length - offset);
         if (end == NULL) {
+            WARNING("FdtCompatible: node %u has an unterminated compatible entry at byte %u",
+                    node->NodeOffset, offset);
             return 0;
         }
 
@@ -482,6 +546,7 @@ FdtScalar(
 
     property = FdtProperty(node, name, &length);
     if (property == NULL) {
+        TRACE("FdtScalar: node %u has no property %s (%u)", node->NodeOffset, name, OS_ENOENT);
         return OS_ENOENT;
     }
 
@@ -502,7 +567,11 @@ FdtTreeNode(
 {
     size_t index = __FindOffset(tree, offset);
 
-    return index == SIZE_MAX ? NULL : &tree->Entries[index].Resources;
+    if (index == SIZE_MAX) {
+        WARNING("FdtTreeNode: node offset %u was not found", offset);
+        return NULL;
+    }
+    return &tree->Entries[index].Resources;
 }
 
 const struct FdtResources*
@@ -519,7 +588,12 @@ FdtTreeParent(
 {
     size_t index = __FindOffset(tree, offset);
 
-    if (index == SIZE_MAX || tree->Entries[index].Parent == SIZE_MAX) {
+    if (index == SIZE_MAX) {
+        WARNING("FdtTreeParent: node offset %u was not found", offset);
+        return NULL;
+    }
+
+    if (tree->Entries[index].Parent == SIZE_MAX) {
         return NULL;
     }
     return &tree->Entries[tree->Entries[index].Parent].Resources;
@@ -536,6 +610,7 @@ FdtFindResources(
     size_t                     high = tree->ProviderCount;
 
     if (!phandle) {
+        ERROR("FdtFindResources: phandle 0 is invalid (%u)", OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
@@ -549,19 +624,27 @@ FdtFindResources(
     }
 
     if (low == tree->ProviderCount || tree->Providers[low]->Resources.Phandle != phandle) {
+        WARNING("FdtFindResources: phandle %u was not found (%u)", phandle, OS_ENOENT);
         return OS_ENOENT;
     }
     
     if (low + 1 < tree->ProviderCount && tree->Providers[low + 1]->Resources.Phandle == phandle) {
+        ERROR("FdtFindResources: nodes %u and %u have duplicate phandle %u (%u)",
+              tree->Providers[low]->Resources.NodeOffset,
+              tree->Providers[low + 1]->Resources.NodeOffset, phandle, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
     
     result = &tree->Providers[low]->Resources;
     if (result->Malformed || result->ParentMalformed) {
+        ERROR("FdtFindResources: phandle %u node %u or its parent is malformed (%u)",
+              phandle, result->NodeOffset, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
     
     if (result->Disabled || result->ParentDisabled) {
+        TRACE("FdtFindResources: phandle %u node %u or its parent is disabled (%u)",
+              phandle, result->NodeOffset, OS_ENOENT);
         return OS_ENOENT;
     }
     
@@ -579,13 +662,16 @@ FdtFindNode(
     oserr_t             status;
 
     if (node == NULL) {
+        ERROR("FdtFindNode: phandle %u has no output node (%u)", phandle, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
     status = FdtFindResources(tree, phandle, &resources);
-    if (status == OS_EOK) {
-        *node = resources.View;
+    if (status != OS_EOK) {
+        return status;
     }
+
+    *node = resources.View;
     return status;
 }
 
@@ -602,11 +688,13 @@ FdtVisitSubtree(
     size_t               end;
 
     if (index == SIZE_MAX) {
+        WARNING("FdtVisitSubtree: node offset %u was not found (%u)", offset, OS_ENOENT);
         return OS_ENOENT;
     }
 
     parentPath = malloc(FDT_MAX_DEPTH * sizeof(struct FdtResources));
     if (parentPath == NULL) {
+        ERROR("FdtVisitSubtree: node %u could not allocate the parent path (%u)", offset, OS_EOOM);
         return OS_EOOM;
     }
     

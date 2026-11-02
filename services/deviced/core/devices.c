@@ -47,17 +47,17 @@ struct __DmDeviceProtocol {
 };
 
 struct __DmDevice {
-    element_t                    Header;
-    uuid_t                       DriverId;
-    bool                         HasDriver; // A driver search is pending or succeeded.
-    unsigned int                 Flags;
-    Device_t*                    Device;
-    list_t                       Protocols; // list<struct __DmDeviceProtocol>
-    enum DmDeviceDescriptionKind Kind;
-    struct DmDeviceProvider      Provider;
-    unsigned int                 ActiveRequests;
-    unsigned int                 DmaLeases;
-    int                          Removing;
+    element_t                 Header;
+    uuid_t                    DriverId;
+    bool                      HasDriver; // A driver search is pending or succeeded.
+    unsigned int              Flags;
+    Device_t*                 Device;
+    list_t                    Protocols; // list<struct __DmDeviceProtocol>
+    DmDeviceDescriptionKind_t Kind;
+    DmDeviceBus_t             Bus;
+    unsigned int              ActiveRequests;
+    unsigned int              DmaLeases;
+    int                       Removing;
 };
 
 /**
@@ -260,39 +260,39 @@ __DevicePrepareDma(
     _In_    uuid_t              principal,
     _InOut_ struct DmDmaLease** leaseOut)
 {
-    struct __DmDevice*                       device;
-    const struct DmDeviceProviderOperations* operations;
-    struct DmDmaLease*                       lease;
-    oserr_t                                  status;
-    TRACE("DmDevicePrepareDma(device=%u)", deviceId);
+    struct __DmDevice*             device;
+    const DmDeviceBusOperations_t* operations;
+    struct DmDmaLease*             lease;
+    oserr_t                        status;
+    TRACE("__DevicePrepareDma(device=%u)", deviceId);
 
     // Require an empty output slot so preparing twice cannot lose an earlier
     // lease and permanently prevent the device from being removed.
     if (leaseOut == NULL) {
-        WARNING("DmDevicePrepareDma: missing lease output for device %u", deviceId);
+        WARNING("__DevicePrepareDma: missing lease output for device %u", deviceId);
         return OS_EINVALPARAMS;
     }
     if (*leaseOut != NULL) {
-        WARNING("DmDevicePrepareDma: lease output for device %u is occupied", deviceId);
+        WARNING("__DevicePrepareDma: lease output for device %u is occupied", deviceId);
         return OS_EBUSY;
     }
 
     status = __AcquireDeviceRequest(deviceId, &device);
     if (status != OS_EOK) {
-        WARNING("DmDevicePrepareDma: could not acquire device %u: %u", deviceId, status);
+        WARNING("__DevicePrepareDma: could not acquire device %u: %u", deviceId, status);
         return status;
     }
 
-    operations = device->Provider.Operations;
+    operations = device->Bus.Operations;
     if (operations == NULL || operations->PrepareDma == NULL) {
-        TRACE("DmDevicePrepareDma: device %u has no DMA provider", deviceId);
+        TRACE("__DevicePrepareDma: device %u has no DMA provider", deviceId);
         __ReleaseDeviceRequest(device);
         return OS_ENOTSUPPORTED;
     }
 
     lease = calloc(1, sizeof(struct DmDmaLease));
     if (lease == NULL) {
-        ERROR("DmDevicePrepareDma: failed to allocate lease for device %u", deviceId);
+        ERROR("__DevicePrepareDma: failed to allocate lease for device %u", deviceId);
         __ReleaseDeviceRequest(device);
         return OS_EOOM;
     }
@@ -301,12 +301,12 @@ __DevicePrepareDma(
     // Bus callbacks may take their own locks or fail. Run them without the
     // registry lock and keep their result private until the lease is counted.
     status = operations->PrepareDma(
-        device->Provider.Context,
+        device->Bus.Context,
         principal,
         &lease->Description
     );
     if (status != OS_EOK) {
-        WARNING("DmDevicePrepareDma: provider for device %u failed: %u", deviceId, status);
+        WARNING("__DevicePrepareDma: dma for device %u failed: %u", deviceId, status);
         __ReleaseDeviceRequest(device);
         free(lease);
         return status;
@@ -316,10 +316,10 @@ __DevicePrepareDma(
     // the callback, undo DMA preparation and leave the output slot empty.
     usched_mtx_lock(&g_devicesLock);
     if (device->Removing) {
-        WARNING("DmDevicePrepareDma: device %u removal started during preparation", deviceId);
+        WARNING("__DevicePrepareDma: device %u removal started during preparation", deviceId);
         status = OS_EBUSY;
     } else if (device->DmaLeases == UINT_MAX) {
-        WARNING("DmDevicePrepareDma: lease count overflow for device %u", deviceId);
+        WARNING("__DevicePrepareDma: lease count overflow for device %u", deviceId);
         status = OS_EOVERFLOW;
     } else {
         device->DmaLeases++;
@@ -333,7 +333,7 @@ __DevicePrepareDma(
         // Keep the request count until DMA cleanup finishes. Otherwise
         // concurrent removal could free its context before ReleaseDma runs.
         if (operations->ReleaseDma != NULL) {
-            operations->ReleaseDma(device->Provider.Context);
+            operations->ReleaseDma(device->Bus.Context);
         }
 
         __ReleaseDeviceRequest(device);
@@ -342,7 +342,7 @@ __DevicePrepareDma(
     }
 
     *leaseOut = lease;
-    TRACE("DmDevicePrepareDma: committed lease for device %u", deviceId);
+    TRACE("__DevicePrepareDma: committed lease for device %u", deviceId);
     return OS_EOK;
 }
 
@@ -361,6 +361,8 @@ DmDevicePrepareDmaForPrincipal(
     _InOut_ struct DmDmaLease** leaseOut)
 {
     if (principal == UUID_INVALID) {
+        WARNING("DmDevicePrepareDmaForPrincipal: invalid principal %u for device %u",
+                principal, deviceId);
         return OS_EPERMISSIONS;
     }
     return __DevicePrepareDma(deviceId, principal, leaseOut);
@@ -390,8 +392,8 @@ DmDmaLeaseRelease(
     *lease = NULL;
 
     // The outstanding lease still prevents registry removal during this call.
-    if (owned->Device->Provider.Operations->ReleaseDma != NULL) {
-        owned->Device->Provider.Operations->ReleaseDma(owned->Device->Provider.Context);
+    if (owned->Device->Bus.Operations->ReleaseDma != NULL) {
+        owned->Device->Bus.Operations->ReleaseDma(owned->Device->Bus.Context);
     }
 
     usched_mtx_lock(&g_devicesLock);
@@ -412,7 +414,7 @@ DmHandleIoctl(
     _In_ size_t              length)
 {
     struct __DmDevice*                       device;
-    const struct DmDeviceProviderOperations* operations;
+    const DmDeviceBusOperations_t* operations;
     uuid_t                                   driverId;
     oserr_t                                  status;
     TRACE("DmHandleIoctl(principal=%u, device=%u, request=0x%x, length=%zu)",
@@ -428,7 +430,7 @@ DmHandleIoctl(
                 deviceId, request, status);
         return status;
     }
-    operations = device->Provider.Operations;
+    operations = device->Bus.Operations;
 
     // Driver selection may change independently of an active request.
     usched_mtx_lock(&g_devicesLock);
@@ -447,18 +449,18 @@ DmHandleIoctl(
         }
     } else if (operations != NULL && operations->Control != NULL) {
         status = operations->Control(
-            device->Provider.Context,
+            device->Bus.Context,
             principal,
             request,
             buffer,
             length
         );
         if (status != OS_EOK) {
-            WARNING("DmHandleIoctl: provider failed request 0x%x for device %u, principal %u: %u",
+            WARNING("DmHandleIoctl: dma failed request 0x%x for device %u, principal %u: %u",
                     request, deviceId, principal, status);
         }
     } else {
-        TRACE("DmHandleIoctl: device %u has no provider for request 0x%x", deviceId, request);
+        TRACE("DmHandleIoctl: device %u has no dma for request 0x%x", deviceId, request);
         status = OS_ENOTSUPPORTED;
     }
 
@@ -475,9 +477,9 @@ DmHandleIoctl2(
     _In_  unsigned int width,
     _Out_ size_t*      valueOut)
 {
-    struct __DmDevice*                       device;
-    const struct DmDeviceProviderOperations* operations;
-    oserr_t                                  status;
+    struct __DmDevice*             device;
+    const DmDeviceBusOperations_t* operations;
+    oserr_t                        status;
     TRACE("DmHandleIoctl2(device=%u, direction=%i, command=0x%x, width=%u)",
           deviceId, direction, command, width);
 
@@ -489,20 +491,20 @@ DmHandleIoctl2(
         return status;
     }
 
-    operations = device->Provider.Operations;
+    operations = device->Bus.Operations;
     if (operations == NULL || operations->AccessRegister == NULL) {
-        TRACE("DmHandleIoctl2: device %u has no register provider", deviceId);
+        TRACE("DmHandleIoctl2: device %u has no register bus", deviceId);
         status = OS_ENOTSUPPORTED;
     } else {
         status = operations->AccessRegister(
-            device->Provider.Context,
+            device->Bus.Context,
             direction,
             command,
             valueOut,
             width
         );
         if (status != OS_EOK) {
-            WARNING("DmHandleIoctl2: provider failed command 0x%x for device %u: %u",
+            WARNING("DmHandleIoctl2: bus failed command 0x%x for device %u: %u",
                     command, deviceId, status);
         }
     }
@@ -701,69 +703,102 @@ DmDeviceEnableDriverBinding(
 
 static int
 __ValidDeviceRegistration(
-    _In_ const struct DmDeviceRegistration* registration)
+    _In_ const DmDeviceRegistration_t* registration)
 {
-    const Device_t*                          description = registration->Description;
-    const struct DmDeviceProviderOperations* operations = registration->Provider.Operations;
+    const Device_t*                description = registration->Description;
+    const DmDeviceBusOperations_t* operations = registration->Bus.Operations;
 
     if (description == NULL) {
+        WARNING("__ValidDeviceRegistration: missing description for kind %i", registration->Kind);
         return 0;
     }
 
     if (operations != NULL) {
-        if (operations->AddReference == NULL || operations->Release == NULL) {
+        if (operations->AddReference == NULL) {
+            WARNING("__ValidDeviceRegistration: kind %i has no AddReference callback",
+                    registration->Kind);
             return 0;
         }
-    } else if (registration->Provider.Context != NULL) {
+        if (operations->Release == NULL) {
+            WARNING("__ValidDeviceRegistration: kind %i has no Release callback",
+                    registration->Kind);
+            return 0;
+        }
+    } else if (registration->Bus.Context != NULL) {
+        WARNING("__ValidDeviceRegistration: kind %i has a context without operations",
+                registration->Kind);
         return 0;
     }
 
     switch (registration->Kind) {
         case DmDeviceDescriptionGeneric:
-            return description->Length == sizeof(Device_t);
+            if (description->Length != sizeof(Device_t)) {
+                WARNING("__ValidDeviceRegistration: generic description length %zu, expected %zu",
+                        (size_t)description->Length, sizeof(Device_t));
+                return 0;
+            }
+            return 1;
         case DmDeviceDescriptionBus:
-            return description->Length == sizeof(BusDevice_t);
+            if (description->Length != sizeof(BusDevice_t)) {
+                WARNING("__ValidDeviceRegistration: bus description length %zu, expected %zu",
+                        (size_t)description->Length, sizeof(BusDevice_t));
+                return 0;
+            }
+            return 1;
         case DmDeviceDescriptionUsb:
-            return description->Length == sizeof(UsbDevice_t);
+            if (description->Length != sizeof(UsbDevice_t)) {
+                WARNING("__ValidDeviceRegistration: USB description length %zu, expected %zu",
+                        (size_t)description->Length, sizeof(UsbDevice_t));
+                return 0;
+            }
+            return 1;
         case DmDeviceDescriptionPlatform:
-            return description->Length == sizeof(PlatformDevice_t) &&
-                PlatformDeviceValidate((const PlatformDevice_t*)description);
+            if (description->Length != sizeof(PlatformDevice_t)) {
+                WARNING("__ValidDeviceRegistration: platform description length %zu, expected %zu",
+                        (size_t)description->Length, sizeof(PlatformDevice_t));
+                return 0;
+            }
+            if (!PlatformDeviceValidate((const PlatformDevice_t*)description)) {
+                WARNING("__ValidDeviceRegistration: platform description for parent %u is invalid",
+                        description->ParentId);
+                return 0;
+            }
+            return 1;
         default:
+            WARNING("__ValidDeviceRegistration: unsupported description kind %i", registration->Kind);
             return 0;
     }
 }
 
 oserr_t
-DmDeviceCreateWithProvider(
-    _In_  const struct DmDeviceRegistration* registration,
-    _In_  unsigned int                      flags,
-    _Out_ uuid_t*                           idOut)
+DmDeviceCreateWithBus(
+    _In_  const DmDeviceRegistration_t* registration,
+    _In_  unsigned int                  flags,
+    _Out_ uuid_t*                       idOut)
 {
     struct __DmDevice* deviceNode;
     struct __DmDevice* parent;
     Device_t*          description;
     oserr_t            status;
-    TRACE("DmDeviceCreateWithProvider(kind=%i, flags=0x%x)", registration->Kind, flags);
+    TRACE("DmDeviceCreateWithBus(kind=%i, flags=0x%x)", registration->Kind, flags);
 
     *idOut = UUID_INVALID;
 
     if (!__ValidDeviceRegistration(registration)) {
-        WARNING("DmDeviceCreateWithProvider: invalid registration for description kind %i",
-                registration->Kind);
         return OS_EINVALPARAMS;
     }
 
     deviceNode = calloc(1, sizeof(*deviceNode));
     if (deviceNode == NULL) {
-        ERROR("DmDeviceCreateWithProvider: failed to allocate device registry entry");
+        ERROR("DmDeviceCreateWithBus: failed to allocate device registry entry");
         return OS_EOOM;
     }
 
-    deviceNode->Provider = registration->Provider;
-    if (deviceNode->Provider.Operations != NULL) {
-        status = deviceNode->Provider.Operations->AddReference(deviceNode->Provider.Context);
+    deviceNode->Bus = registration->Bus;
+    if (deviceNode->Bus.Operations != NULL) {
+        status = deviceNode->Bus.Operations->AddReference(deviceNode->Bus.Context);
         if (status != OS_EOK) {
-            WARNING("DmDeviceCreateWithProvider: failed to add provider reference: %u", status);
+            WARNING("DmDeviceCreateWithBus: failed to add bus reference: %u", status);
             free(deviceNode);
             return status;
         }
@@ -781,11 +816,11 @@ DmDeviceCreateWithProvider(
     if (description->ParentId != UUID_INVALID) {
         parent = __GetDeviceUnsafe(description->ParentId);
         if (parent == NULL || parent->Removing) {
-            WARNING("DmDeviceCreateWithProvider: parent %u is absent or being removed",
+            WARNING("DmDeviceCreateWithBus: parent %u is absent or being removed",
                     description->ParentId);
             usched_mtx_unlock(&g_devicesLock);
-            if (deviceNode->Provider.Operations != NULL) {
-                deviceNode->Provider.Operations->Release(deviceNode->Provider.Context);
+            if (deviceNode->Bus.Operations != NULL) {
+                deviceNode->Bus.Operations->Release(deviceNode->Bus.Context);
             }
             free(deviceNode);
             return OS_ENOENT;
@@ -798,7 +833,7 @@ DmDeviceCreateWithProvider(
     list_append(&g_devices, &deviceNode->Header);
 
     *idOut = description->Id;
-    TRACE("DmDeviceCreateWithProvider: registered device %u, parent %u, kind %i",
+    TRACE("DmDeviceCreateWithBus: registered device %u, parent %u, kind %i",
           description->Id, description->ParentId, registration->Kind);
     usched_mtx_unlock(&g_devicesLock);
 
@@ -816,7 +851,7 @@ DmDeviceCreate(
     _In_  unsigned int flags,
     _Out_ uuid_t*      idOut)
 {
-    struct DmDeviceRegistration registration = {
+    DmDeviceRegistration_t registration = {
         .Description = device,
         .Kind = DmDeviceDescriptionGeneric
     };
@@ -834,7 +869,7 @@ DmDeviceCreate(
             registration.Kind = DmDeviceDescriptionUsb;
         }
     }
-    status = DmDeviceCreateWithProvider(&registration, flags, idOut);
+    status = DmDeviceCreateWithBus(&registration, flags, idOut);
     if (status != OS_EOK) {
         WARNING("DmDeviceCreate: registration failed: %u", status);
         return status;
@@ -928,8 +963,8 @@ DmDeviceDestroy(
         free(protocol);
     }
 
-    if (device->Provider.Operations != NULL) {
-        device->Provider.Operations->Release(device->Provider.Context);
+    if (device->Bus.Operations != NULL) {
+        device->Bus.Operations->Release(device->Bus.Context);
     }
 
     identification = &device->Device->Identification;

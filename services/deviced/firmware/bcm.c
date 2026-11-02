@@ -29,13 +29,13 @@ FdtResolvePciMsi(
     _In_  const struct FdtPciHost* host,
     _Out_ struct FdtPciMsi*        msi)
 {
-    struct FdtResources provider;
+    struct FdtResources controller;
     struct FdtResources parent;
     struct FdtPciHost   source;
     enum FdtPciHostType type;
     uint64_t            doorbellBase = 0;
     uint64_t            doorbellLength = 0;
-    uint32_t            providerHandle;
+    uint32_t            controllerHandle;
     uint32_t            parentHandle;
     uint32_t            rangeType;
     uint32_t            msiOffset = 0;
@@ -62,59 +62,59 @@ FdtResolvePciMsi(
     }
 
     // The four-byte value names the firmware entry that provides MSI routing.
-    providerHandle = FdtReadBe32(host->MsiParent);
-    if (providerHandle == 0) {
+    controllerHandle = FdtReadBe32(host->MsiParent);
+    if (controllerHandle == 0) {
         ERROR("FdtResolvePciMsi msi-parent phandle is zero");
         return OS_EINVALPARAMS;
     }
 
-    status = FdtFindResources(host->Tree, providerHandle, &provider);
+    status = FdtFindResources(host->Tree, controllerHandle, &controller);
     if (status != OS_EOK) {
-        ERROR("FdtResolvePciMsi controller %u lookup failed: %u", providerHandle, status);
+        ERROR("FdtResolvePciMsi controller %u lookup failed: %u", controllerHandle, status);
         return status;
     }
 
     // The controller must use a phandle alone, with no extra MSI argument cells.
-    if (!provider.IsMsiController || provider.MsiCells != 0) {
-        WARNING("FdtResolvePciMsi controller %u is not a zero-cell MSI controller", providerHandle);
+    if (!controller.IsMsiController || controller.MsiCells != 0) {
+        WARNING("FdtResolvePciMsi controller %u is not a zero-cell MSI controller", controllerHandle);
         return OS_ENOTSUPPORTED;
     }
 
-    result.IsMip = FdtCompatible(&provider.View, "brcm,bcm2712-mip");
-    if (!result.IsMip && !FdtPciHostType(&provider.View, &type)) {
-        WARNING("FdtResolvePciMsi controller %u has an unsupported controller type", providerHandle);
+    result.IsMip = FdtCompatible(&controller.View, "brcm,bcm2712-mip");
+    if (!result.IsMip && !FdtPciHostType(&controller.View, &type)) {
+        WARNING("FdtResolvePciMsi controller %u has an unsupported controller type", controllerHandle);
         return OS_ENOTSUPPORTED;
     }
 
-    if (provider.RegisterStatus != OS_EOK) {
+    if (controller.RegisterStatus != OS_EOK) {
         ERROR("FdtResolvePciMsi controller %u has invalid registers: %u",
-            providerHandle, provider.RegisterStatus);
-        return provider.RegisterStatus;
+            controllerHandle, controller.RegisterStatus);
+        return controller.RegisterStatus;
     }
 
-    result.Controller = provider.Phandle;
-    result.RegisterBase = provider.PhysicalBase;
-    result.RegisterLength = provider.PhysicalLength;
+    result.Controller = controller.Phandle;
+    result.RegisterBase = controller.PhysicalBase;
+    result.RegisterLength = controller.PhysicalLength;
 
     if (result.IsMip) {
-        status = FdtScalar(&provider.View, "brcm,msi-offset", &msiOffset);
+        status = FdtScalar(&controller.View, "brcm,msi-offset", &msiOffset);
         if (status != OS_EOK && status != OS_ENOENT) {
             ERROR("FdtResolvePciMsi malformed brcm,msi-offset: %u", status);
             return OS_EINVALPARAMS;
         }
 
-        if (provider.RegLength != (provider.ParentAddressCells + provider.ParentSizeCells) * 8) {
+        if (controller.RegLength != (controller.ParentAddressCells + controller.ParentSizeCells) * 8) {
             ERROR("FdtResolvePciMsi MIP requires two register ranges");
             return OS_EINVALPARAMS;
         }
 
-        status = FdtRawRegister(&provider, 1, &doorbellBase, &doorbellLength);
+        status = FdtRawRegister(&controller, 1, &doorbellBase, &doorbellLength);
         if (status != OS_EOK) {
             ERROR("FdtResolvePciMsi doorbell register lookup failed: %u", status);
             return OS_EINVALPARAMS;
         }
 
-        if (provider.MsiRangesLength != 20 || provider.PhysicalLength < 0xc0) {
+        if (controller.MsiRangesLength != 20 || controller.PhysicalLength < 0xc0) {
             ERROR("FdtResolvePciMsi MIP register range or msi-ranges is truncated");
             return OS_EINVALPARAMS;
         }
@@ -124,26 +124,26 @@ FdtResolvePciMsi(
             return OS_EINVALPARAMS;
         }
 
-        parentHandle = FdtReadBe32(provider.MsiRanges);
+        parentHandle = FdtReadBe32(controller.MsiRanges);
         status = FdtFindResources(host->Tree, parentHandle, &parent);
         if (status != OS_EOK) {
             ERROR("FdtResolvePciMsi parent %u lookup failed: %u", parentHandle, status);
             return status;
         }
 
-        status = FdtGicInterrupt(&parent, provider.MsiRanges + 4, &result.Interrupt);
+        status = FdtGicInterrupt(&parent, controller.MsiRanges + 4, &result.Interrupt);
         if (status != OS_EOK) {
             ERROR("FdtResolvePciMsi GIC interrupt decoding failed: %u", status);
             return status;
         }
 
-        result.InterruptCount = FdtReadBe32(provider.MsiRanges + 16);
+        result.InterruptCount = FdtReadBe32(controller.MsiRanges + 16);
         result.Offset = msiOffset;
 
         // The Broadcom MIP block turns a device's MSI message value into an
         // interrupt for the Arm system. Firmware supplies the first interrupt
         // number and a message offset, so check that every possible message fits.
-        rangeType = FdtReadBe32(provider.MsiRanges + 12);
+        rangeType = FdtReadBe32(controller.MsiRanges + 12);
         if (rangeType != 1) {
             ERROR("FdtResolvePciMsi unsupported msi-ranges type %u", rangeType);
             return OS_EINVALPARAMS;
@@ -172,13 +172,13 @@ FdtResolvePciMsi(
         // This controller stores the shared "msi" interrupt route. Use a copy
         // of the PCI host description with the controller's interrupt fields.
         source = *host;
-        source.InterruptParent = provider.InterruptParent;
-        source.Interrupts = provider.Interrupts;
-        source.InterruptsLength = provider.InterruptsLength;
-        source.InterruptsExtended = provider.InterruptsExtended;
-        source.InterruptsExtendedLength = provider.InterruptsExtendedLength;
-        source.InterruptNames = provider.InterruptNames;
-        source.InterruptNamesLength = provider.InterruptNamesLength;
+        source.InterruptParent = controller.InterruptParent;
+        source.Interrupts = controller.Interrupts;
+        source.InterruptsLength = controller.InterruptsLength;
+        source.InterruptsExtended = controller.InterruptsExtended;
+        source.InterruptsExtendedLength = controller.InterruptsExtendedLength;
+        source.InterruptNames = controller.InterruptNames;
+        source.InterruptNamesLength = controller.InterruptNamesLength;
 
         status = FdtResolvePciNamedInterrupt(&source, "msi", &result.Interrupt);
         if (status != OS_EOK) {
@@ -196,7 +196,7 @@ FdtResolvePciDependencies(
     _In_  const struct FdtPciHost*   host,
     _Out_ struct FdtPciDependencies* dependencies)
 {
-    struct FdtResources       provider;
+    struct FdtResources       resource;
     uint32_t                  clockFrequency = 0;
     struct FdtPciDependencies result = { 0 };
     const uint8_t*            arguments;
@@ -246,7 +246,7 @@ FdtResolvePciDependencies(
                 "#reset-cells",
                 0,
                 &offset,
-                &provider,
+                &resource,
                 &arguments
             );
             if (status != OS_EOK) {
@@ -257,43 +257,43 @@ FdtResolvePciDependencies(
             if (index == rescal) {
                 // The calibration block has no reset number and needs at
                 // least three 32-bit registers.
-                if (provider.RegisterStatus != OS_EOK) {
-                    ERROR("FdtResolvePciDependencies rescal registers invalid: %u", provider.RegisterStatus);
+                if (resource.RegisterStatus != OS_EOK) {
+                    ERROR("FdtResolvePciDependencies rescal registers invalid: %u", resource.RegisterStatus);
                     return OS_ENOTSUPPORTED;
                 }
 
-                if (!FdtCompatible(&provider.View, "brcm,bcm7216-pcie-sata-rescal")) {
-                    WARNING("FdtResolvePciDependencies unsupported rescal controller %u", provider.Phandle);
+                if (!FdtCompatible(&resource.View, "brcm,bcm7216-pcie-sata-rescal")) {
+                    WARNING("FdtResolvePciDependencies unsupported rescal controller %u", resource.Phandle);
                     return OS_ENOTSUPPORTED;
                 }
 
-                if (provider.ResetCells != 0 || provider.PhysicalLength < 12) {
+                if (resource.ResetCells != 0 || resource.PhysicalLength < 12) {
                     ERROR("FdtResolvePciDependencies rescal cells or register length invalid");
                     return OS_ENOTSUPPORTED;
                 }
-                result.ResetBase = provider.PhysicalBase;
-                result.ResetLength = provider.PhysicalLength;
+                result.ResetBase = resource.PhysicalBase;
+                result.ResetLength = resource.PhysicalLength;
             } else if (index == bridge) {
                 // Bridge reset entries carry one reset number. Its registers
                 // are arranged in complete groups of 0x18 bytes.
-                if (provider.RegisterStatus != OS_EOK) {
+                if (resource.RegisterStatus != OS_EOK) {
                     ERROR("FdtResolvePciDependencies bridge reset registers invalid: %u",
-                        provider.RegisterStatus);
+                        resource.RegisterStatus);
                     return OS_ENOTSUPPORTED;
                 }
 
-                if (!FdtCompatible(&provider.View, "brcm,brcmstb-reset")) {
+                if (!FdtCompatible(&resource.View, "brcm,brcmstb-reset")) {
                     WARNING("FdtResolvePciDependencies unsupported bridge reset controller %u",
-                        provider.Phandle);
+                        resource.Phandle);
                     return OS_ENOTSUPPORTED;
                 }
 
-                if (provider.ResetCells != 1 || provider.PhysicalLength < 0x18) {
+                if (resource.ResetCells != 1 || resource.PhysicalLength < 0x18) {
                     ERROR("FdtResolvePciDependencies invalid bridge reset cells or register length");
                     return OS_ENOTSUPPORTED;
                 }
 
-                if (provider.PhysicalLength % 0x18) {
+                if (resource.PhysicalLength % 0x18) {
                     ERROR("FdtResolvePciDependencies bridge reset banks are truncated");
                     return OS_ENOTSUPPORTED;
                 }
@@ -302,15 +302,15 @@ FdtResolvePciDependencies(
                 // Each group of 32 reset signals uses six 32-bit registers:
                 // SET, CLEAR, STATUS, and three reserved locations. Counting
                 // only SET/CLEAR would allow reset IDs beyond the mapped range.
-                if (result.BridgeResetId / 32 >= provider.PhysicalLength / 0x18) {
+                if (result.BridgeResetId / 32 >= resource.PhysicalLength / 0x18) {
                     ERROR("FdtResolvePciDependencies bridge reset ID %u is outside the register range",
                         result.BridgeResetId);
                     return OS_EINVALPARAMS;
                 }
 
-                result.BridgeResetController = provider.Phandle;
-                result.BridgeResetBase = provider.PhysicalBase;
-                result.BridgeResetLength = provider.PhysicalLength;
+                result.BridgeResetController = resource.Phandle;
+                result.BridgeResetBase = resource.PhysicalBase;
+                result.BridgeResetLength = resource.PhysicalLength;
             } else {
                 WARNING("FdtResolvePciDependencies unsupported reset reference %u", index);
                 return OS_ENOTSUPPORTED;
@@ -349,26 +349,26 @@ FdtResolvePciDependencies(
         status = FdtFindResources(
             host->Tree,
             FdtReadBe32(host->Clocks),
-            &provider
+            &resource
         );
         if (status != OS_EOK) {
             ERROR("FdtResolvePciDependencies clock source lookup failed: %u", status);
             return status;
         }
 
-        status = FdtScalar(&provider.View, "clock-frequency", &clockFrequency);
+        status = FdtScalar(&resource.View, "clock-frequency", &clockFrequency);
         if (status != OS_EOK) {
             WARNING("FdtResolvePciDependencies clock-frequency lookup failed: %u", status);
             return OS_ENOTSUPPORTED;
         }
 
         // The clock must have a fixed frequency and take no argument cells.
-        if (!FdtCompatible(&provider.View, "fixed-clock") || !provider.HasClockCells) {
+        if (!FdtCompatible(&resource.View, "fixed-clock") || !resource.HasClockCells) {
             WARNING("FdtResolvePciDependencies clock source is not a declared fixed clock");
             return OS_ENOTSUPPORTED;
         }
 
-        if (provider.ClockCells != 0 || clockFrequency == 0) {
+        if (resource.ClockCells != 0 || clockFrequency == 0) {
             WARNING("FdtResolvePciDependencies invalid clock cells or zero frequency");
             return OS_ENOTSUPPORTED;
         }

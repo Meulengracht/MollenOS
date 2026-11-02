@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * Firmware table providers (ACPI and DeviceTree)
+ * Firmware tables (ACPI and DeviceTree)
  */
 
 #define __MODULE "FIRM"
@@ -27,7 +27,7 @@
 #include <acpiinterface.h>
 #endif
 
-struct __FirmwareProvider {
+struct __FirmwareHost {
     unsigned int Source;
     oserr_t     (*Query)(OSFirmwareInfo_t* infoOut);
     oserr_t     (*Locate)(const OSFirmwareTableKey_t* key, const void** dataOut, OSFirmwareTable_t* tableOut);
@@ -109,29 +109,27 @@ __DeviceTreeLocate(
     return OS_EOK;
 }
 
-// Ordered by preference, the first available provider is the primary one.
-static const struct __FirmwareProvider g_providers[] = {
+// Ordered by preference, the first available host is the primary one.
+static const struct __FirmwareHost g_firmwareHosts[] = {
 #ifdef __OSCONFIG_ACPI_SUPPORT
     { OSFIRMWARE_ACPI, __AcpiQuery, __AcpiLocate },
 #endif
     { OSFIRMWARE_DEVICETREE, __DeviceTreeQuery, __DeviceTreeLocate },
 };
 
-#define PROVIDER_COUNT (sizeof(g_providers) / sizeof(g_providers[0]))
-
 oserr_t
 FirmwareQuery(
     _Out_ OSFirmwareInfo_t* infoOut)
 {
     memset(infoOut, 0, sizeof(OSFirmwareInfo_t));
-    for (size_t i = 0; i < PROVIDER_COUNT; i++) {
-        if (g_providers[i].Query(infoOut) != OS_EOK) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(g_firmwareHosts); i++) {
+        if (g_firmwareHosts[i].Query(infoOut) != OS_EOK) {
             continue;
         }
 
-        infoOut->Available |= g_providers[i].Source;
+        infoOut->Available |= g_firmwareHosts[i].Source;
         if (infoOut->Primary == OSFIRMWARE_NONE) {
-            infoOut->Primary = g_providers[i].Source;
+            infoOut->Primary = g_firmwareHosts[i].Source;
         }
     }
     return OS_EOK;
@@ -143,9 +141,9 @@ FirmwareLocate(
     _Out_ const void**                dataOut,
     _Out_ OSFirmwareTable_t*          tableOut)
 {
-    for (size_t i = 0; i < PROVIDER_COUNT; i++) {
-        if (g_providers[i].Source == key->Source) {
-            return g_providers[i].Locate(key, dataOut, tableOut);
+    for (size_t i = 0; i < SIZEOF_ARRAY(g_firmwareHosts); i++) {
+        if (g_firmwareHosts[i].Source == key->Source) {
+            return g_firmwareHosts[i].Locate(key, dataOut, tableOut);
         }
     }
     return OS_ENOENT;

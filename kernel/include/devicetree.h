@@ -85,7 +85,7 @@ typedef struct DeviceTree {
  * alive; at most 16 argument cells are supported.
  */
 typedef struct DeviceTreeReference {
-    const DeviceTreeNode_t* Provider;   // Node identified by the entry's phandle.
+    const DeviceTreeNode_t* Node;       // Node identified by the entry's phandle.
     uint32_t                CellCount;  // Number of valid argument cells in Cells.
     uint32_t                Cells[16];  // Decoded provider-specific arguments; entries after CellCount are unused.
 } DeviceTreeReference_t;

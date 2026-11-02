@@ -99,7 +99,7 @@ struct Rp1Bus {
     struct PciDevice*        Parent;
     // Each child resource reference also keeps Parent alive. Atomic because registry
     // callbacks for different children may run concurrently.
-    atomic_uint              ProviderReferences;
+    atomic_uint              HostBusReferences;
 
     struct Rp1Child* Children;
     unsigned int     ChildCount;

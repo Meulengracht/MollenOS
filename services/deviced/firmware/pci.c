@@ -346,6 +346,8 @@ __ClassifyMemory(
     }
 
     if (node->Malformed || node->ParentMalformed) {
+        WARNING("__ClassifyMemory: node %u or its parent has malformed resources",
+            node->NodeOffset);
         return;
     }
 
@@ -648,6 +650,8 @@ FdtResolvePciInterrupt(
         }
         offset += stride;
     }
+    WARNING("FdtResolvePciInterrupt: domain %u has no interrupt-map entry for device %u:%u.%u pin %u",
+        host->Segment, bus, slot, function, pin);
     return OS_ENOENT;
 }
 
@@ -684,6 +688,9 @@ FdtResolvePciNamedInterrupt(
         if (status != OS_ENOENT) {
             ERROR("FdtResolvePciNamedInterrupt: domain %u name %s lookup failed (%u)",
                 host->Segment, name, status);
+        } else {
+            TRACE("FdtResolvePciNamedInterrupt: domain %u has no interrupt named %s",
+                host->Segment, name);
         }
         return status;
     }

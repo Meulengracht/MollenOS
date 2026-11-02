@@ -148,7 +148,7 @@ FdtWalkResources(
  *
  * @param tree Parsed firmware tree, kept alive while the returned resources are used.
  * @param phandle Numeric ID of the node to find. Duplicate IDs are rejected.
- * @param provider Receives the node's resources on success. Check RegisterStatus
+ * @param resources Receives the node's resources on success. Check RegisterStatus
  *                 before using its physical register address.
  * @return OS_EOK on success, OS_ENOENT if missing or disabled, or an error for
  *         invalid input or malformed resource properties.
@@ -157,7 +157,7 @@ __EXTERN oserr_t
 FdtFindResources(
     _In_  const struct FdtTree* tree,
     _In_  uint32_t              phandle,
-    _Out_ struct FdtResources*  provider);
+    _Out_ struct FdtResources*  resources);
 
 /**
  * @brief Read one register range as it is written in the device tree.
@@ -322,9 +322,9 @@ FdtContainsRange(
  * finds the node, checks its argument count, and returns the argument bytes.
  *
  * Some properties name the referenced node once for the whole list instead of
- * repeating the ID for every entry. In that case inheritedProvider supplies
+ * Some properties name the referenced node once for the whole list instead of
+ * repeating the ID for every entry. In that case inheritedPhandle supplies
  * the ID and each entry contains only arguments. The function advances offset
- * only after the entire reference is valid, allowing a caller to stop safely
  * on an error without losing its place. The returned pointers refer to the
  * original data. Keep both tree and cells available while using the outputs.
  *
@@ -333,12 +333,12 @@ FdtContainsRange(
  * @param length Number of bytes available in cells.
  * @param cellsName Name of the referenced node's property that states the argument
  *                  count, such as "#clock-cells".
- * @param inheritedProvider Zero when every entry starts with a node ID.
+ * @param inheritedPhandle Zero when every entry starts with a node ID.
  *                          Otherwise, this ID is used for each entry and the
  *                          entry starts directly with its arguments.
  * @param offset Byte position of the next entry to read. It advances past the
  *               entry only when that entry is valid.
- * @param provider Receives the resource information for the referenced node.
+ * @param resources Receives the resource information for the referenced node.
  * @param arguments Receives a pointer to this entry's argument bytes. The
  *                  original firmware data must remain available while the
  *                  pointer is used.
@@ -352,9 +352,9 @@ FdtNextReference(
     _In_    const uint8_t*        cells,
     _In_    uint32_t              length,
     _In_    const char*           cellsName,
-    _In_    uint32_t              inheritedProvider,
+    _In_    uint32_t              inheritedPhandle,
     _InOut_ uint32_t*             offset,
-    _Out_   struct FdtResources*  provider,
+    _Out_   struct FdtResources*  resources,
     _Out_   const uint8_t**       arguments);
 
 #endif //!__FIRMWARE_RESOURCES_H__

@@ -49,6 +49,8 @@ FdtStringListContains(
         const uint8_t* entry = list + offset;
         const uint8_t* end = memchr(entry, 0, length - offset);
         if (end == NULL) {
+            TRACE("FdtStringListContains: unterminated entry at byte %u of %u for %s",
+                  offset, length, needle);
             return 0;
         }
 
@@ -82,7 +84,15 @@ __FdtTranslateBusAddress(
     uint32_t       rangesLength;
     uint32_t       cells;
 
-    if (bus->Malformed || parentBus->Malformed) {
+    if (bus->Malformed) {
+        TRACE("__FdtTranslateBusAddress: bus node %u is malformed (dma %i)",
+              bus->NodeOffset, dma);
+        return 0;
+    }
+    
+    if (parentBus->Malformed) {
+        TRACE("__FdtTranslateBusAddress: parent node %u of bus %u is malformed (dma %i)",
+              parentBus->NodeOffset, bus->NodeOffset, dma);
         return 0;
     }
 
@@ -93,6 +103,8 @@ __FdtTranslateBusAddress(
     }
 
     if (ranges == NULL) {
+        TRACE("__FdtTranslateBusAddress: bus node %u has no ranges property",
+              bus->NodeOffset);
         return 0;
     }
     
@@ -103,11 +115,17 @@ __FdtTranslateBusAddress(
     if (!__FdtCellCountSupported(bus->AddressCells) ||
         !__FdtCellCountSupported(parentBus->AddressCells) ||
         !__FdtCellCountSupported(bus->SizeCells)) {
+        ERROR("__FdtTranslateBusAddress: bus %u to parent %u has unsupported %s cells "
+              "(address %u, parent address %u, size %u)",
+              bus->NodeOffset, parentBus->NodeOffset, dma ? "dma-ranges" : "ranges",
+              bus->AddressCells, parentBus->AddressCells, bus->SizeCells);
         return 0;
     }
 
     cells = bus->AddressCells + parentBus->AddressCells + bus->SizeCells;
     if (rangesLength % (cells * 4) != 0) {
+        ERROR("__FdtTranslateBusAddress: bus %u property %s has length %u, stride %u",
+              bus->NodeOffset, dma ? "dma-ranges" : "ranges", rangesLength, cells * 4);
         return 0;
     }
 
@@ -129,17 +147,25 @@ __FdtTranslateBusAddress(
         }
 
         if (*address - child > UINT64_MAX - parent) {
+            ERROR("__FdtTranslateBusAddress: bus %u property %s entry at byte %u "
+                  "overflows the parent address",
+                  bus->NodeOffset, dma ? "dma-ranges" : "ranges", offset);
             return 0;
         }
 
         parentAddress = parent + (*address - child);
         if (length == 0 || length - 1 > UINT64_MAX - parentAddress) {
+            ERROR("__FdtTranslateBusAddress: bus %u property %s entry at byte %u "
+                  "has an invalid parent range",
+                  bus->NodeOffset, dma ? "dma-ranges" : "ranges", offset);
             return 0;
         }
 
         *address = parentAddress;
         return 1;
     }
+    TRACE("__FdtTranslateBusAddress: bus %u property %s has no matching range",
+          bus->NodeOffset, dma ? "dma-ranges" : "ranges");
     return 0;
 }
 
@@ -154,6 +180,8 @@ FdtTranslateAddress(
     int translated;
 
     if (nodes[depth].Malformed) {
+        TRACE("FdtTranslateAddress: node %u at depth %i is malformed (dma %i)",
+              nodes[depth].NodeOffset, depth, dma);
         return 0;
     }
 
@@ -169,7 +197,19 @@ FdtTranslateAddress(
             return 0;
         }
     }
-    return length != 0 && length - 1 <= UINT64_MAX - *address;
+    
+    if (length == 0) {
+        TRACE("FdtTranslateAddress: node %u cannot translate an empty range (dma %i)",
+              nodes[depth].NodeOffset, dma);
+        return 0;
+    }
+
+    if (length - 1 > UINT64_MAX - *address) {
+        ERROR("FdtTranslateAddress: translated range overflows at node %u (dma %i)",
+              nodes[depth].NodeOffset, dma);
+        return 0;
+    }
+    return 1;
 }
 
 oserr_t
@@ -210,7 +250,10 @@ FdtNameIndex(
 
     *indexOut = selected;
     *countOut = count;
-    return selected == UINT32_MAX ? OS_ENOENT : OS_EOK;
+    if (selected == UINT32_MAX) {
+        return OS_ENOENT;
+    }
+    return OS_EOK;
 }
 
 int
@@ -328,26 +371,36 @@ __ResourceProperty(
     const uint8_t*       value = property;
 
     if ((!strcmp(name, "#address-cells") || !strcmp(name, "#size-cells")) && length != 4) {
+        WARNING("__ResourceProperty: node %u property %s has invalid length %u",
+                node->NodeOffset, name, length);
         node->Malformed = 1;
         return OS_EOK;
     }
 
     if ((!strcmp(name, "#interrupt-cells") || !strcmp(name, "#reset-cells")) && length != 4) {
+        WARNING("__ResourceProperty: node %u property %s has invalid length %u",
+                node->NodeOffset, name, length);
         node->Malformed = 1;
         return OS_EOK;
     }
 
     if (!strcmp(name, "#clock-cells") && length != 4) {
+        WARNING("__ResourceProperty: node %u property %s has invalid length %u",
+                node->NodeOffset, name, length);
         node->Malformed = 1;
         return OS_EOK;
     }
 
     if ((!strcmp(name, "#msi-cells") || !strcmp(name, "interrupt-parent")) && length != 4) {
+        WARNING("__ResourceProperty: node %u property %s has invalid length %u",
+                node->NodeOffset, name, length);
         node->Malformed = 1;
         return OS_EOK;
     }
 
     if ((!strcmp(name, "interrupt-controller") || !strcmp(name, "msi-controller")) && length) {
+        WARNING("__ResourceProperty: node %u property %s has invalid length %u",
+                node->NodeOffset, name, length);
         node->Malformed = 1;
         return OS_EOK;
     }
@@ -372,11 +425,26 @@ FdtRawRegister(
     uint32_t stride = (ac + sc) * 4;
 
     if (!__FdtCellCountSupported(ac) || !__FdtCellCountSupported(sc)) {
+        TRACE("FdtRawRegister: node %u reg index %u has unsupported parent cells "
+              "(address %u, size %u)", node->NodeOffset, index, ac, sc);
         return OS_EINVALPARAMS;
     }
 
-    if (!node->RegLength || node->RegLength % stride ||
-        index >= node->RegLength / stride) {
+    if (!node->RegLength) {
+        TRACE("FdtRawRegister: node %u has no reg data for index %u",
+              node->NodeOffset, index);
+        return OS_EINVALPARAMS;
+    }
+
+    if (node->RegLength % stride) {
+        ERROR("FdtRawRegister: node %u reg index %u has length %u, stride %u",
+              node->NodeOffset, index, node->RegLength, stride);
+        return OS_EINVALPARAMS;
+    }
+    
+    if (index >= node->RegLength / stride) {
+        TRACE("FdtRawRegister: node %u reg index %u exceeds the %u entries",
+              node->NodeOffset, index, node->RegLength / stride);
         return OS_EINVALPARAMS;
     }
 
@@ -438,6 +506,8 @@ FdtDecodeResources(
     }
 
     if (!index) {
+        WARNING("FdtDecodeResources: root node %u has a reg range with no parent bus",
+                node->NodeOffset);
         node->RegisterStatus = OS_EINVALPARAMS;
         return;
     }
@@ -460,14 +530,14 @@ FdtNextReference(
     _In_    const uint8_t*        cells,
     _In_    uint32_t              length,
     _In_    const char*           cellsName,
-    _In_    uint32_t              inheritedProvider,
+    _In_    uint32_t              inheritedPhandle,
     _InOut_ uint32_t*             offset,
-    _Out_   struct FdtResources*  provider,
+    _Out_   struct FdtResources*  resources,
     _Out_   const uint8_t**       arguments)
 {
     struct FdtResources result;
     uint32_t            cursor = *offset;
-    uint32_t            phandle = inheritedProvider;
+    uint32_t            phandle = inheritedPhandle;
     uint32_t            count;
     oserr_t             status;
 
@@ -483,31 +553,31 @@ FdtNextReference(
         return OS_EINVALPARAMS;
     }
 
-    if (!inheritedProvider) {
+    if (!inheritedPhandle) {
         phandle = FdtReadBe32(cells + cursor);
         cursor += 4;
     }
 
     status = FdtFindResources(tree, phandle, &result);
     if (status != OS_EOK) {
-        WARNING("FdtNextReference: %s provider %u unavailable (%u)", cellsName, phandle, status);
+        WARNING("FdtNextReference: %s resource %u unavailable (%u)", cellsName, phandle, status);
         return status;
     }
 
     status = FdtScalar(&result.View, cellsName, &count);
     if (status != OS_EOK) {
-        ERROR("FdtNextReference: provider %u lacks usable %s (%u)", phandle, cellsName, status);
+        ERROR("FdtNextReference: resource %u lacks usable %s (%u)", phandle, cellsName, status);
         return OS_EINVALPARAMS;
     }
 
     if (count > 16 || count * 4 > length - cursor ||
-        (inheritedProvider && !count)) {
-        ERROR("FdtNextReference: provider %u has invalid %s argument count %u",
+        (inheritedPhandle && !count)) {
+        ERROR("FdtNextReference: resource %u has invalid %s argument count %u",
             phandle, cellsName, count);
         return OS_EINVALPARAMS;
     }
 
-    *provider = result;
+    *resources = result;
     *arguments = cells + cursor;
     *offset = cursor + count * 4;
     return OS_EOK;

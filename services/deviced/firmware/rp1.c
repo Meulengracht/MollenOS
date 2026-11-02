@@ -79,10 +79,15 @@ __VisitRp1(
     int                        isBus = __IsRp1Node(node);
     int                        busDepth = isBus ? depth : depth - 1;
 
-    if (walk->Status != OS_EOK || busDepth < 1) {
+    if (walk->Status != OS_EOK) {
+        return;
+    }
+
+    if (busDepth < 1) {
         return;
     }
     if (node->Disabled || node->ParentDisabled) {
+        TRACE("__VisitRp1: node %u is disabled or has a disabled parent", node->NodeOffset);
         return;
     }
 
@@ -94,8 +99,16 @@ __VisitRp1(
         return;
     }
     
-    if (!FdtPciHostType(&host->View, &type) || type != walk->Host->Type) {
-        WARNING("__VisitRp1: node %u host type does not match the selected host", rp1->NodeOffset);
+    if (!FdtPciHostType(&host->View, &type)) {
+        WARNING("__VisitRp1: node %u host %u has an unsupported type",
+            rp1->NodeOffset, host->NodeOffset);
+        walk->Status = OS_ENOTSUPPORTED;
+        return;
+    }
+    
+    if (type != walk->Host->Type) {
+        WARNING("__VisitRp1: node %u host %u type %u does not match selected type %u",
+            rp1->NodeOffset, host->NodeOffset, type, walk->Host->Type);
         walk->Status = OS_ENOTSUPPORTED;
         return;
     }
@@ -147,10 +160,10 @@ __WalkRp1(
     if (walk.Buses != 1) {
         if (walk.Buses != 0) {
             ERROR("__WalkRp1: domain %u has %u matching RP1 buses", host->Segment, walk.Buses);
-        } else {
-            TRACE("__WalkRp1: domain %u has no RP1 bus", host->Segment);
+            return OS_EINVALPARAMS;
         }
-        return walk.Buses ? OS_EINVALPARAMS : OS_ENOENT;
+        TRACE("__WalkRp1: domain %u has no RP1 bus", host->Segment);
+        return OS_ENOENT;
     }
     return OS_EOK;
 }
@@ -356,6 +369,7 @@ __Rp1VisitChild(
     // Only return devices with a hardware type ("compatible") and register
     // ranges ("reg"). Other nodes may describe internal parts of a device.
     if (node->Compatible == NULL || node->Reg == NULL) {
+        TRACE("__Rp1VisitChild: node %u lacks compatible or reg and is skipped", node->NodeOffset);
         return OS_EOK;
     }
     
@@ -393,6 +407,8 @@ FdtEnumerateRp1Children(
     }
     
     if (rangeCount != 0 && ranges == NULL) {
+        ERROR("FdtEnumerateRp1Children: domain %u has %u ranges but no range array",
+            host->Segment, rangeCount);
         return OS_EINVALPARAMS;
     }
     
@@ -469,9 +485,14 @@ __Rp1DmaPath(
     // Every node on the path must use direct DMA translation. IOMMU mappings
     // require setup that this firmware resolver does not perform.
     for (int i = 0; i <= depth; i++) {
-        if (FdtProperty(&nodes[i].View, "iommus", &length) != NULL ||
-            FdtProperty(&nodes[i].View, "iommu-map", &length) != NULL) {
-            WARNING("__Rp1DmaPath: child %u uses an unsupported IOMMU path", walk->ChildNode);
+        if (FdtProperty(&nodes[i].View, "iommus", &length) != NULL) {
+            WARNING("__Rp1DmaPath: child %u node %u has unsupported iommus",
+                walk->ChildNode, nodes[i].NodeOffset);
+            return OS_ENOTSUPPORTED;
+        }
+        if (FdtProperty(&nodes[i].View, "iommu-map", &length) != NULL) {
+            WARNING("__Rp1DmaPath: child %u node %u has unsupported iommu-map",
+                walk->ChildNode, nodes[i].NodeOffset);
             return OS_ENOTSUPPORTED;
         }
     }

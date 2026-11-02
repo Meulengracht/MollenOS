@@ -116,6 +116,10 @@ __Rp1ProgramSource(
     }
 
     if (!source->MessageReady || runtime->Controller.Enabled[number]) {
+        WARNING("__Rp1ProgramSource: device %u source %u is not ready to program "
+                "(message ready %u, enabled %u)",
+                child->DeviceId, number, source->MessageReady,
+                runtime->Controller.Enabled[number]);
         return OS_EBUSY;
     }
 
@@ -173,6 +177,8 @@ __Rp1ReserveSource(
     };
 
     if (request->Index >= child->Firmware.InterruptCount) {
+        ERROR("__Rp1ReserveSource: device %u source index %u exceeds interrupt count %u",
+              child->DeviceId, request->Index, child->Firmware.InterruptCount);
         return OS_EINVALPARAMS;
     }
 
@@ -180,6 +186,9 @@ __Rp1ReserveSource(
     if (source->Owner != NULL) {
         if (source->Owner != child || source->Allocation != request->Allocation ||
             source->Principal != principal) {
+            WARNING("__Rp1ReserveSource: device %u source index %u is already reserved "
+                    "(allocation %u, principal %u)",
+                    child->DeviceId, request->Index, source->Allocation, source->Principal);
             return OS_EBUSY;
         }
     }
@@ -190,6 +199,9 @@ __Rp1ReserveSource(
         other = __Rp1ChildSource(child, i);
         if (i != request->Index && other->Owner == child &&
             other->Allocation == request->Allocation) {
+            ERROR("__Rp1ReserveSource: device %u allocation %u already uses source index %u, "
+                  "cannot reserve index %u",
+                  child->DeviceId, request->Allocation, i, request->Index);
             return OS_EINVALPARAMS;
         }
     }
@@ -203,7 +215,10 @@ __Rp1ReserveSource(
                 child->DeviceId, request->Index, request->Allocation, status);
 
         if (source->Owner != NULL && source->MessageReady) {
-            return status == OS_EBUSY ? OS_EUNKNOWN : status;
+            if (status == OS_EBUSY) {
+                return OS_EUNKNOWN;
+            }
+            return status;
         }
 
         // Copying the result to userspace can fail after attachment succeeds.
@@ -227,15 +242,25 @@ __Rp1ReserveSource(
     source->Allocation = request->Allocation;
     source->Principal = principal;
 
-    if (status == OS_EOK) {
-        source->Message = vector.Message;
-        source->MessageReady = 1;
-        status = __Rp1ProgramSource(child, request->Index);
-    }
-
     // EBUSY is reserved for an untouched reservation. After attachment the
     // client must still perform cleanup, even if programming could not finish.
-    return status == OS_EBUSY ? OS_EUNKNOWN : status;
+    if (status != OS_EOK) {
+        if (status == OS_EBUSY) {
+            return OS_EUNKNOWN;
+        }
+        return status;
+    }
+
+    source->Message = vector.Message;
+    source->MessageReady = 1;
+    status = __Rp1ProgramSource(child, request->Index);
+    if (status != OS_EOK) {
+        if (status == OS_EBUSY) {
+            return OS_EUNKNOWN;
+        }
+        return status;
+    }
+    return OS_EOK;
 }
 
 oserr_t
@@ -256,18 +281,28 @@ Rp1RuntimeControl(
           child->DeviceId, request->Allocation, request->Operation, request->Index);
 
     if (principal == UUID_INVALID || request->Allocation == UUID_INVALID) {
+        WARNING("Rp1RuntimeControl: device %u has invalid principal %u or allocation %u",
+                child->DeviceId, principal, request->Allocation);
         return OS_EPERMISSIONS;
     }
 
     if (request->Operation > DeviceInterruptSourceRelease) {
+        ERROR("Rp1RuntimeControl: device %u allocation %u has invalid operation %u",
+              child->DeviceId, request->Allocation, request->Operation);
         return OS_EINVALPARAMS;
     }
 
     if (request->Operation != DeviceInterruptSourceReserve && request->Index != 0) {
+        ERROR("Rp1RuntimeControl: device %u allocation %u operation %u requires index zero, got %u",
+              child->DeviceId, request->Allocation, request->Operation, request->Index);
         return OS_EINVALPARAMS;
     }
 
     if (runtime == NULL || !child->Bus->Ready || runtime->Quiescing) {
+        WARNING("Rp1RuntimeControl: device %u allocation %u operation %u requires a ready runtime "
+                "(missing %d, bus ready %d, quiescing %d)",
+                child->DeviceId, request->Allocation, request->Operation,
+                runtime == NULL, child->Bus->Ready, runtime != NULL && runtime->Quiescing);
         return OS_EBUSY;
     }
 
@@ -301,14 +336,26 @@ Rp1RuntimeControl(
                 principal,
                 child->DeviceId
             );
-            return status == OS_ENOENT ? OS_EOK : status;
+            if (status != OS_EOK) {
+                if (status == OS_ENOENT) {
+                    return OS_EOK;
+                }
+                ERROR("Rp1RuntimeControl: device %u allocation %u without a source could not close (%u)",
+                      child->DeviceId, request->Allocation, status);
+                return status;
+            }
+            return OS_EOK;
         }
+        WARNING("Rp1RuntimeControl: device %u allocation %u operation %u has no reserved source",
+                child->DeviceId, request->Allocation, request->Operation);
         return OS_ENOENT;
     }
 
     number = child->Firmware.Interrupts[index].Number;
     if (request->Operation == DeviceInterruptSourceEnable) {
         if (!source->Programmed) {
+            WARNING("Rp1RuntimeControl: device %u allocation %u source %u is not programmed",
+                    child->DeviceId, request->Allocation, number);
             return OS_EBUSY;
         }
 
@@ -318,6 +365,8 @@ Rp1RuntimeControl(
             child->DeviceId
         );
         if (status != OS_EOK) {
+            ERROR("Rp1RuntimeControl: device %u allocation %u source %u enabled check failed (%u)",
+                  child->DeviceId, request->Allocation, number, status);
             return status;
         }
 
@@ -333,8 +382,9 @@ Rp1RuntimeControl(
             cleanup = Rp1InterruptDisable(&runtime->Controller, number);
             ERROR("Rp1RuntimeControl: source %u enable failed: %u; stop result %u",
                   number, status, cleanup);
+            return status;
         }
-        return status;
+        return OS_EOK;
     }
 
     status = Rp1InterruptDisable(&runtime->Controller, number);

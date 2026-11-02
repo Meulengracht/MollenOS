@@ -17,6 +17,7 @@
  */
 
 #include <device-dma.h>
+#include <ddk/utils.h>
 
 #include "private.h"
 
@@ -33,29 +34,47 @@ PlatformPrepareDma(
 
     usched_mtx_lock(&bus->Lock);
     if (bus->Removing || !PlatformIsActivationReady(entry) || bus->DeviceId == UUID_INVALID) {
-        status = OS_EBUSY;
-    } else if (entry->DmaReferences == UINT32_MAX) {
-        status = OS_EOVERFLOW;
-    } else {
-        // The trusted internal lease API supplies no principal. Session queries
-        // always carry one and must match the prepared activation owner.
-        status = principal == UUID_INVALID ? OS_EOK :
-            PlatformActivationControl(entry, principal, DevicePrepare);
-        if (status == OS_EOK) {
-            status = FdtPlatformDma(bus->Tree, entry->Firmware.FirmwareNode, &result.Map);
-        }
+        TRACE("PlatformPrepareDma: node %u bus %u is removing or not ready for DMA",
+              entry->Firmware.FirmwareNode, bus->DeviceId);
+        usched_mtx_unlock(&bus->Lock);
+        return OS_EBUSY;
+    }
+    
+    if (entry->DmaReferences == UINT32_MAX) {
+        ERROR("PlatformPrepareDma: node %u DMA reference count overflow (%u)",
+              entry->Firmware.FirmwareNode, OS_EOVERFLOW);
+        usched_mtx_unlock(&bus->Lock);
+        return OS_EOVERFLOW;
+    }
 
-        if (status == OS_EOK) {
-            result.HostId = bus->DeviceId;
-            // Require software cache synchronization even for dma-coherent nodes
-            // until the backend can verify coherency for the entire DMA path.
-            result.CachePolicy = DmDmaCacheNonCoherent;
-            entry->DmaReferences++;
-            *description = result;
+    // The trusted internal lease API supplies no principal. Session queries
+    // always carry one and must match the prepared activation owner.
+    if (principal != UUID_INVALID) {
+        status = PlatformActivationControl(entry, principal, DevicePrepare);
+        if (status != OS_EOK) {
+            ERROR("PlatformPrepareDma: node %u preparation for principal %u failed (%u)",
+                  entry->Firmware.FirmwareNode, principal, status);
+            usched_mtx_unlock(&bus->Lock);
+            return status;
         }
     }
+
+    status = FdtPlatformDma(bus->Tree, entry->Firmware.FirmwareNode, &result.Map);
+    if (status != OS_EOK) {
+        ERROR("PlatformPrepareDma: node %u DMA map query failed (%u)",
+              entry->Firmware.FirmwareNode, status);
+        usched_mtx_unlock(&bus->Lock);
+        return status;
+    }
+
+    result.HostId = bus->DeviceId;
+    // Require software cache synchronization even for dma-coherent nodes
+    // until the backend can verify coherency for the entire DMA path.
+    result.CachePolicy = DmDmaCacheNonCoherent;
+    entry->DmaReferences++;
+    *description = result;
     usched_mtx_unlock(&bus->Lock);
-    return status;
+    return OS_EOK;
 }
 
 void

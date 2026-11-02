@@ -40,6 +40,7 @@ PciHostGetIdentityDma(
     return OS_EOK;
 #else
     (void)description;
+    WARNING("PciHostGetIdentityDma: host %p has no identity DMA support on this architecture", host);
     return OS_ENOTSUPPORTED;
 #endif
 }
@@ -55,20 +56,22 @@ PciHostGetDmaDescription(
     TRACE("PciHostGetDmaDescription(host=%p)", host);
 
     if (host == NULL || description == NULL) {
-        WARNING("PciHostGetDmaDescription missing host or output");
+        WARNING("PciHostGetDmaDescription: missing host or output (host=%p, description=%p)",
+                host, description);
         return OS_EINVALPARAMS;
     }
 
     // The controller must supply a DMA query callback before DMA can be used.
     if (host->Operations == NULL || host->Operations->GetDmaDescription == NULL) {
-        TRACE("PciHostGetDmaDescription host has no established DMA support");
+        TRACE("PciHostGetDmaDescription: host %u has no established DMA support",
+              host->Identification.HostId);
         return OS_ENOTSUPPORTED;
     }
 
     status = host->Operations->GetDmaDescription(host, &result);
     if (status != OS_EOK) {
-        WARNING("PciHostGetDmaDescription host %u query failed: %u",
-            host->Identification.HostId, status);
+        ERROR("PciHostGetDmaDescription: host %u DMA query failed (%u)",
+              host->Identification.HostId, status);
         return status;
     }
 

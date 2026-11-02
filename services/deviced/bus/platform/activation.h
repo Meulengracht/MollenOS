@@ -64,9 +64,9 @@ struct PlatformDependencyOperations {
  * @brief Register the runtime owner of one hardware dependency node.
  * Registration does not acquire resources or start waiting consumers. A failed
  * DevicePrepare can be retried after the required driver has registered.
- *
- * @param bus Native bus whose firmware tree contains providerNode.
- * @param providerNode Exact firmware node offset, not a phandle or device ID.
+
+ * @param bus Native bus whose firmware tree contains hostNode.
+ * @param hostNode Exact firmware node offset, not a phandle or device ID.
  * @param operations Table with both callbacks populated. Must remain valid until unregister.
  * @param context Hardware state owned by the registered driver.
  * @return OS_EOK, OS_EEXISTS for a duplicate owner, or validation/removal error.
@@ -74,7 +74,7 @@ struct PlatformDependencyOperations {
 oserr_t
 PlatformDependencyRegister(
     _In_ struct PlatformBus*                        bus,
-    _In_ uint32_t                                   providerNode,
+    _In_ uint32_t                                   hostNode,
     _In_ const struct PlatformDependencyOperations* operations,
     _In_ void*                                      context);
 
@@ -84,13 +84,13 @@ PlatformDependencyRegister(
  * hardware context only after successful removal.
  *
  * @param bus Native bus containing the registered node.
- * @param providerNode Registered node offset.
+ * @param hostNode Registered node offset.
  * @return OS_EOK when removed, OS_EBUSY while consumers hold tokens, or OS_ENOENT
  *         if no owner is registered.
  */
 oserr_t
 PlatformDependencyUnregister(
     _In_ struct PlatformBus* bus,
-    _In_ uint32_t            providerNode);
+    _In_ uint32_t            hostNode);
 
 #endif //!__DEVICED_PLATFORM_ACTIVATION_H__

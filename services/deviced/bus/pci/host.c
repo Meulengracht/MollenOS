@@ -53,7 +53,7 @@ PciInitialize(
 
     status = mtx_init(&g_pciDevicesLock, mtx_plain);
     if (status != thrd_success) {
-        ERROR("PciInitialize failed to initialize the device lock: %i", status);
+        ERROR("PciInitialize: failed to initialize the device lock (%u)", status);
     }
     
     PciFunctionHandlersInitialize(handlers, handlerCount);
@@ -74,7 +74,7 @@ PciCriticalSectionEnter(void)
 
     status = mtx_lock(&g_pciDevicesLock);
     if (status != thrd_success) {
-        ERROR("PciCriticalSectionEnter failed to lock devices: %i", status);
+        ERROR("PciCriticalSectionEnter: failed to lock devices (%u)", status);
     }
 }
 
@@ -85,7 +85,7 @@ PciCriticalSectionLeave(void)
 
     status = mtx_unlock(&g_pciDevicesLock);
     if (status != thrd_success) {
-        ERROR("PciCriticalSectionLeave failed to unlock devices: %i", status);
+        ERROR("PciCriticalSectionLeave: failed to unlock devices (%u)", status);
     }
 }
 
@@ -124,7 +124,6 @@ __PciDestroyDevice(
     while (device->Children.head != NULL) {
         status = __PciDestroyDevice(device->Children.head->value);
         if (status != OS_EOK) {
-            WARNING("__PciDestroyDevice child teardown incomplete: %u", status);
             return status;
         }
     }
@@ -132,7 +131,9 @@ __PciDestroyDevice(
     if (device->Attachment != NULL) {
         status = device->Handler->Destroy(device->Attachment);
         if (status != OS_EOK) {
-            WARNING("__PciDestroyDevice attachment teardown incomplete: %u", status);
+            WARNING("__PciDestroyDevice: attachment teardown incomplete for %u:%u:%u.%u (%u)",
+                device->Host->Identification.Segment, device->Bus,
+                device->Slot, device->Function, status);
             return status;
         }
     }
@@ -145,15 +146,15 @@ __PciDestroyDevice(
 }
 
 static int
-__PciHasProviderReferences(
+__PciHasHostBusReferences(
     _In_ PciDevice_t* device)
 {
-    if (device->ProviderReferences != 0 || device->Msi.Active || device->Msix != NULL) {
+    if (device->HostBusReferences != 0 || device->Msi.Active || device->Msix != NULL) {
         return 1;
     }
     
     foreach (element, &device->Children) {
-        if (__PciHasProviderReferences(element->value)) {
+        if (__PciHasHostBusReferences(element->value)) {
             return 1;
         }
     }
@@ -178,8 +179,9 @@ PciHostDestroy(
     if (bus->RootDevice != NULL && !bus->Removing) {
         status = PciUnpublishDevice(bus->RootDevice);
         if (status != OS_EOK) {
-            WARNING("PciHostDestroy host %u remains published: %u",
-                bus->Identification.HostId, status);
+            WARNING("PciHostDestroy: host %u segment %u buses %u-%u remains published (%u)",
+                bus->Identification.HostId, bus->Identification.Segment,
+                bus->Identification.BusStart, bus->Identification.BusEnd, status);
             return status;
         }
         bus->Removing = 1;
@@ -188,10 +190,10 @@ PciHostDestroy(
     PciCriticalSectionEnter();
     
     if (bus->RootDevice != NULL) {
-        if (__PciHasProviderReferences(bus->RootDevice)) {
+        if (__PciHasHostBusReferences(bus->RootDevice)) {
             PciCriticalSectionLeave();
-            WARNING("PciHostDestroy host %u still has device owners",
-                bus->Identification.HostId);
+            WARNING("PciHostDestroy: host %u segment %u still has device owners",
+                bus->Identification.HostId, bus->Identification.Segment);
             return OS_EBUSY;
         }
         
@@ -208,6 +210,9 @@ PciHostDestroy(
         status = bus->Operations->Destroy(bus);
         if (status != OS_EOK) {
             PciCriticalSectionLeave();
+            ERROR("PciHostDestroy: failed to destroy host %u segment %u buses %u-%u (%u)",
+                bus->Identification.HostId, bus->Identification.Segment,
+                bus->Identification.BusStart, bus->Identification.BusEnd, status);
             return status;
         }
     }
@@ -216,6 +221,9 @@ PciHostDestroy(
     status = DmIoRelease(&bus->IoSpace, &bus->IoAcquired);
     if (status != OS_EOK) {
         PciCriticalSectionLeave();
+        ERROR("PciHostDestroy: failed to release I/O for host %u segment %u buses %u-%u (%u)",
+            bus->Identification.HostId, bus->Identification.Segment,
+            bus->Identification.BusStart, bus->Identification.BusEnd, status);
         return status;
     }
     // Keep the host's bus range reserved until every owned resource is gone.
@@ -240,26 +248,36 @@ PciHostRegister(
 
     TRACE("PciHostRegister(host=%p)", host);
 
-    if (host == NULL || host->Operations == NULL) {
-        ERROR("PciHostRegister missing host or operations");
+    if (host == NULL) {
+        ERROR("PciHostRegister: host is missing");
+        return OS_EINVALPARAMS;
+    }
+    if (host->Operations == NULL) {
+        ERROR("PciHostRegister: segment %u buses %u-%u is missing operations",
+            host->Identification.Segment, host->Identification.BusStart,
+            host->Identification.BusEnd);
         return OS_EINVALPARAMS;
     }
     if (host->Operations->Read == NULL || host->Operations->Write == NULL) {
-        ERROR("PciHostRegister missing configuration access callbacks");
+        ERROR("PciHostRegister: segment %u buses %u-%u is missing configuration access callbacks",
+            host->Identification.Segment, host->Identification.BusStart,
+            host->Identification.BusEnd);
         return OS_EINVALPARAMS;
     }
     
     identification = &host->Identification;
     if (identification->BusStart > identification->BusEnd) {
-        ERROR("PciHostRegister inverted bus range %u-%u",
-            identification->BusStart, identification->BusEnd);
+        ERROR("PciHostRegister: segment %u has inverted bus range %u-%u",
+            identification->Segment, identification->BusStart, identification->BusEnd);
         return OS_EINVALPARAMS;
     }
 
     PciCriticalSectionEnter();
     if (identification->HostId != UUID_INVALID || host->RootDevice != NULL) {
         PciCriticalSectionLeave();
-        WARNING("PciHostRegister host is already registered");
+        WARNING("PciHostRegister: host %u segment %u buses %u-%u is already registered",
+            identification->HostId, identification->Segment,
+            identification->BusStart, identification->BusEnd);
         return OS_EEXISTS;
     }
     
@@ -271,7 +289,7 @@ PciHostRegister(
         if (identification->BusStart <= existing->Identification.BusEnd &&
             existing->Identification.BusStart <= identification->BusEnd) {
             PciCriticalSectionLeave();
-            WARNING("PciHostRegister segment %u buses %u-%u overlap an existing host",
+            WARNING("PciHostRegister: segment %u buses %u-%u overlap an existing host",
                 identification->Segment, identification->BusStart, identification->BusEnd);
             return OS_EEXISTS;
         }
@@ -279,14 +297,16 @@ PciHostRegister(
     
     if (g_nextPciHostId == UUID_INVALID) {
         PciCriticalSectionLeave();
-        ERROR("PciHostRegister host identifiers exhausted");
+        ERROR("PciHostRegister: host identifiers exhausted for segment %u buses %u-%u",
+            identification->Segment, identification->BusStart, identification->BusEnd);
         return OS_EOVERFLOW;
     }
 
     root = calloc(1, sizeof(PciDevice_t));
     if (root == NULL) {
         PciCriticalSectionLeave();
-        ERROR("PciHostRegister failed to allocate host root");
+        ERROR("PciHostRegister: failed to allocate root for segment %u buses %u-%u",
+            identification->Segment, identification->BusStart, identification->BusEnd);
         return OS_EOOM;
     }
 
@@ -317,7 +337,9 @@ PciHostAttach(
         bus->Identification.BusStart, bus->Identification.BusEnd);
 
     if (bus->Identification.HostId != UUID_INVALID || bus->FirmwareTree != NULL) {
-        WARNING("PciHostAttach host is already attached");
+        WARNING("PciHostAttach: host %u segment %u buses %u-%u is already attached",
+            bus->Identification.HostId, bus->Identification.Segment,
+            bus->Identification.BusStart, bus->Identification.BusEnd);
         return OS_EEXISTS;
     }
 
@@ -330,11 +352,9 @@ PciHostAttach(
     
     status = PciHostRegister(bus);
     if (status != OS_EOK) {
-        ERROR("PCI host registration failed for segment %u buses %u-%u: %u",
-            bus->Identification.Segment, bus->Identification.BusStart,
-            bus->Identification.BusEnd, status);
         bus->FirmwareTree = NULL;
         FdtTreeRelease(tree);
+        return status;
     }
-    return status;
+    return OS_EOK;
 }

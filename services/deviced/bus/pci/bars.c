@@ -50,6 +50,10 @@ PciValidateBarSize(
     // capability whose range ends exactly at the BAR boundary.
     size = encodedSize & ~(encodedSize - 1);
     if (base == maxBase && ((base | (size - 1)) & mask) != mask) {
+        ERROR("PciValidateBarSize: invalid BAR base 0x%llx, "
+            "size mask 0x%llx, address mask 0x%llx",
+            (unsigned long long)base, (unsigned long long)maxBase,
+            (unsigned long long)mask);
         return 0;
     }
     return size;
@@ -78,12 +82,16 @@ PciDescribeBar(
     }
     
     if (!address) {
+        TRACE("PciDescribeBar: unassigned BAR in space %u with size 0x%llx",
+            space, (unsigned long long)size);
         bar->State = PciBarUnassigned;
         return;
     }
     
     // The last byte of the bus range must fit in a 64-bit address.
     if (size - 1 > UINT64_MAX - address) {
+        ERROR("PciDescribeBar: space %u BAR bus range 0x%llx+0x%llx overflows",
+            space, (unsigned long long)address, (unsigned long long)size);
         bar->State = PciBarInvalid;
         return;
     }
@@ -98,8 +106,10 @@ PciDescribeBar(
             &bar->CpuAddress
         );
         if (oserr != OS_EOK) {
-            TRACE("PciDescribeBar translation failed for space %u at 0x%llx+0x%llx: %u",
-                space, (unsigned long long)address, (unsigned long long)size, oserr);
+            WARNING("PciDescribeBar: segment %u space %u BAR at 0x%llx+0x%llx "
+                "cannot be translated (%u)",
+                host->Identification.Segment, space, (unsigned long long)address,
+                (unsigned long long)size, oserr);
             bar->CpuAddress = 0;
             bar->State = PciBarOutsideWindow;
             return;
@@ -108,6 +118,10 @@ PciDescribeBar(
     
     // Translation must also leave the last byte within the CPU address range.
     if (size - 1 > UINT64_MAX - bar->CpuAddress) {
+        ERROR("PciDescribeBar: space %u BAR at bus address 0x%llx "
+            "has overflowing CPU range 0x%llx+0x%llx",
+            space, (unsigned long long)address, (unsigned long long)bar->CpuAddress,
+            (unsigned long long)size);
         bar->State = PciBarInvalid;
         return;
     }
@@ -175,6 +189,10 @@ PciProbeBars(
         // Bit 2 selects a 64-bit memory BAR, which uses two registers.
         else if (space32 & 0x4) {
             if (i + 1 >= count) {
+                ERROR("PciProbeBars: %u:%u:%u.%u BAR%u at register 0x%x "
+                    "has no upper register for a 64-bit BAR",
+                    bus->Identification.Segment, device->Bus, device->Slot,
+                    device->Function, (unsigned)i, (unsigned)offset);
                 bars[i].State = PciBarInvalid;
                 bars[i].Attributes = attributes;
                 bars[i].Space = 3;

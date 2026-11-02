@@ -28,7 +28,7 @@
 
 // Forward declarations
 struct PciHostOperations;
-struct __Bcm2712ResetProvider;
+struct __Bcm2712ResetMapping;
 
 /**
  * @brief Register locations and setup functions for one Broadcom chip type.
@@ -90,7 +90,7 @@ struct BcmPciHost {
 
     // Hosts using the same reset registers keep one mapping alive together.
     // BridgeResetId still selects only this host's signal within those registers.
-    struct __Bcm2712ResetProvider* BridgeReset;
+    struct __Bcm2712ResetMapping* BridgeReset;
     uint32_t                       BridgeResetId;
     int                            BridgeResetMapped;
 };

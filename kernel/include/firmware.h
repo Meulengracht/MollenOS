@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * Firmware table providers (ACPI and DeviceTree)
+ * Firmware tables (ACPI and DeviceTree)
  */
 
 #ifndef __FIRMWARE_H__

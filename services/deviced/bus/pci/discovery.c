@@ -106,6 +106,9 @@ __DiscardHost(
     }
     status = PciHostDestroy(host);
     if (status != OS_EOK) {
+        ERROR("__DiscardHost: failed to destroy host %u, segment %u, buses %u-%u (%u)",
+            host->Identification.HostId, host->Identification.Segment,
+            host->Identification.BusStart, host->Identification.BusEnd, status);
         host->CleanupNext = g_hostCleanup;
         g_hostCleanup = host;
         g_discoveryStatus = status;
@@ -125,12 +128,15 @@ __FinishHostCleanup(void)
         host = *link;
         next = host->CleanupNext;
         status = PciHostDestroy(host);
-        if (status == OS_EOK) {
-            *link = next;
-        } else {
+        if (status != OS_EOK) {
+            ERROR("__FinishHostCleanup: failed to destroy host %u, segment %u, buses %u-%u (%u)",
+                host->Identification.HostId, host->Identification.Segment,
+                host->Identification.BusStart, host->Identification.BusEnd, status);
             result = status;
             link = &host->CleanupNext;
+            continue;
         }
+        *link = next;
     }
     return result;
 }
@@ -161,7 +167,7 @@ __EnumerateLegacy(void)
 
     status = PciLegacyHostCreate(&host);
     if (status != OS_EOK) {
-        ERROR("__EnumerateLegacy failed to create host: %u", status);
+        ERROR("__EnumerateLegacy: failed to create host (%u)", status);
         __RecordDiscoveryError(status);
         __DiscardHost(host, NULL);
         return;
@@ -169,7 +175,7 @@ __EnumerateLegacy(void)
     
     status = PciHostAttach(host, NULL);
     if (status != OS_EOK) {
-        ERROR("__EnumerateLegacy failed to attach host: %u", status);
+        ERROR("__EnumerateLegacy: failed to attach host (%u)", status);
         __RecordDiscoveryError(status);
         __DiscardHost(host, NULL);
         return;
@@ -207,6 +213,8 @@ __EnumerateEcamWindow(
         segment, busStart, busEnd, (unsigned long long)base);
 
     if (__HostExists(segment, busStart, busEnd)) {
+        TRACE("__EnumerateEcamWindow: skipping existing segment %u, buses %u-%u",
+            segment, busStart, busEnd);
         return;
     }
 
@@ -218,7 +226,8 @@ __EnumerateEcamWindow(
     
     status = PciEcamHostCreate(&configuration, &host);
     if (status != OS_EOK) {
-        ERROR("__EnumerateEcamWindow failed to create segment %u: %u", segment, status);
+        ERROR("__EnumerateEcamWindow: failed to create segment %u, buses %u-%u, base 0x%llx (%u)",
+            segment, busStart, busEnd, (unsigned long long)base, status);
         __RecordDiscoveryError(status);
         __DiscardHost(host, tree);
         return;
@@ -226,7 +235,8 @@ __EnumerateEcamWindow(
     
     status = PciHostAttach(host, tree);
     if (status != OS_EOK) {
-        ERROR("__EnumerateEcamWindow failed to attach segment %u: %u", segment, status);
+        ERROR("__EnumerateEcamWindow: failed to attach segment %u, buses %u-%u (%u)",
+            segment, busStart, busEnd, status);
         __RecordDiscoveryError(status);
         __DiscardHost(host, tree);
         return;
@@ -246,13 +256,13 @@ __EnumerateMcfg(void)
 
     status = AcpiQueryTable(ACPI_SIG_MCFG, &header);
     if (status != OS_EOK) {
-        TRACE("__EnumerateMcfg MCFG unavailable: %u; legacy fallback may be used", status);
+        TRACE("__EnumerateMcfg: MCFG unavailable (%u); legacy fallback may be used", status);
         __RecordDiscoveryError(status);
         return;
     }
 
     if (header->Length < sizeof(ACPI_TABLE_MCFG)) {
-        ERROR("__EnumerateMcfg truncated MCFG, length %u", header->Length);
+        ERROR("__EnumerateMcfg: truncated MCFG, length %u", header->Length);
         free(header);
         return;
     }
@@ -261,12 +271,14 @@ __EnumerateMcfg(void)
     count = (header->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION);
     for (size_t i = 0; i < count; i++, entry++) {
         if (entry->EndBusNumber < entry->StartBusNumber) {
-            WARNING("__EnumerateMcfg ignoring segment %u with inverted bus range %u-%u",
+            WARNING("__EnumerateMcfg: ignoring segment %u with inverted bus range %u-%u",
                 entry->PciSegment, entry->StartBusNumber, entry->EndBusNumber);
             continue;
         }
         if (entry->Address > UINT64_MAX - ((uint64_t)entry->StartBusNumber << 20)) {
-            WARNING("__EnumerateMcfg ECAM base overflows for segment %u", entry->PciSegment);
+            WARNING("__EnumerateMcfg: ECAM base 0x%llx overflows for segment %u, buses %u-%u",
+                (unsigned long long)entry->Address, entry->PciSegment,
+                entry->StartBusNumber, entry->EndBusNumber);
             continue;
         }
 
@@ -295,6 +307,8 @@ __OnFdtPciHost(
         host->Segment, host->BusStart, host->BusEnd, host->Type);
 
     if (__HostExists(host->Segment, host->BusStart, host->BusEnd)) {
+        TRACE("__OnFdtPciHost: skipping existing segment %u, buses %u-%u",
+            host->Segment, host->BusStart, host->BusEnd);
         return;
     }
 
@@ -312,7 +326,8 @@ __OnFdtPciHost(
     
     status = BcmPciHostCreate(host, &bus);
     if (status != OS_EOK) {
-        ERROR("__OnFdtPciHost failed to create segment %u: %u", host->Segment, status);
+        ERROR("__OnFdtPciHost: failed to create segment %u, buses %u-%u, type %u (%u)",
+            host->Segment, host->BusStart, host->BusEnd, host->Type, status);
         __RecordDiscoveryError(status);
         __DiscardHost(bus, context);
         return;
@@ -320,14 +335,16 @@ __OnFdtPciHost(
 
     status = PciHostAttach(bus, context);
     if (status != OS_EOK) {
-        ERROR("__OnFdtPciHost failed to attach segment %u: %u", host->Segment, status);
+        ERROR("__OnFdtPciHost: failed to attach segment %u, buses %u-%u, type %u (%u)",
+            host->Segment, host->BusStart, host->BusEnd, host->Type, status);
         __RecordDiscoveryError(status);
         __DiscardHost(bus, context);
         return;
     }
     
     PciCheckBus(bus->RootDevice, host->BusStart);
-    TRACE("Broadcom PCIe host initialized and enumerated");
+    TRACE("__OnFdtPciHost: initialized and enumerated segment %u, buses %u-%u",
+        host->Segment, host->BusStart, host->BusEnd);
 }
 
 static void
@@ -340,6 +357,8 @@ __EnumerateDeviceTree(void)
     if (tree == NULL) {
         // Retry only while firmware startup can still produce a usable tree.
         FirmwareGetStartupResult(&result);
+        TRACE("__EnumerateDeviceTree: firmware tree unavailable, outcome %u (%u)",
+            result.Outcome, result.Status);
         if (result.Outcome == DmStartupRetry) {
             __RecordDiscoveryError(OS_EBUSY);
         }
@@ -366,13 +385,14 @@ __InitializeDiscoveryPolicy(void)
     status = AcpiQueryStatus(&acpi);
     __DmStartupFromStatus(status, &result);
     if (result.Outcome == DmStartupRetry) {
+        WARNING("__InitializeDiscoveryPolicy: ACPI status query requires a retry (%u)", status);
         return status;
     }
     
     if (status != OS_EOK) {
-        TRACE("__InitializeDiscoveryPolicy: ACPI unavailable: %u", status);
+        TRACE("__InitializeDiscoveryPolicy: ACPI unavailable (%u)", status);
     } else {
-        TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)",
+        TRACE("__InitializeDiscoveryPolicy: ACPI version 0x%x (BootFlags 0x%x)",
               acpi.Version, acpi.BootFlags);
         g_acpiAvailable = 1;
         g_msiDisabled = (acpi.BootFlags & ACPI_IA_NO_MSI) != 0;
@@ -411,7 +431,7 @@ __DiscoverHosts(void)
 
     status = FirmwareQuery(&firmware);
     if (status != OS_EOK) {
-        WARNING("__DiscoverHosts: firmware query failed: %u", status);
+        ERROR("__DiscoverHosts: firmware query failed (%u)", status);
         return status;
     }
     switch (firmware.Primary) {
@@ -422,6 +442,7 @@ __DiscoverHosts(void)
             __EnumerateDeviceTree();
             break;
         default:
+            TRACE("__DiscoverHosts: no PCI discovery method for firmware type %u", firmware.Primary);
             break;
     }
 
@@ -451,19 +472,24 @@ BusRecoverAndRepublish(
     // their setup error prevents further startup attempts.
     status = __FinishHostCleanup();
     __DmStartupRetryResult(status, result);
-    if (status == OS_EOK) {
-        if (g_discoveryFailure != OS_EOK) {
-            __DmStartupFromStatus(g_discoveryFailure, result);
-        } else {
-            __DmStartupFromStatus(__DiscoverHosts(), result);
-            if (g_hostCleanup != NULL) {
-                result->Outcome = DmStartupRetry;
-            } else if (result->Outcome == DmStartupFailed) {
-                g_discoveryFailure = result->Status;
-            }
-        }
+    if (status != OS_EOK) {
+        goto recover_hosts;
     }
 
+    if (g_discoveryFailure != OS_EOK) {
+        __DmStartupFromStatus(g_discoveryFailure, result);
+        goto recover_hosts;
+    }
+
+    status = __DiscoverHosts();
+    __DmStartupFromStatus(status, result);
+    if (g_hostCleanup != NULL) {
+        result->Outcome = DmStartupRetry;
+    } else if (result->Outcome == DmStartupFailed) {
+        g_discoveryFailure = result->Status;
+    }
+
+recover_hosts:
     // Continue startup for other hosts after one fails. A host with a permanent
     // startup error must not be restarted on later attempts.
     _foreach(element, &g_pciRoots) {
@@ -474,18 +500,27 @@ BusRecoverAndRepublish(
                 .Outcome = DmStartupFailed
             };
         } else {
-            __DmStartupFromStatus(PciRecoverScan(host), &next);
+            status = PciRecoverScan(host);
+            __DmStartupFromStatus(status, &next);
+            if (status != OS_EOK) {
+                ERROR("BusRecoverAndRepublish: scan recovery failed for host %u, "
+                      "segment %u, buses %u-%u (%u)",
+                    host->Identification.HostId, host->Identification.Segment,
+                    host->Identification.BusStart, host->Identification.BusEnd, status);
+            }
             if (next.Outcome == DmStartupComplete) {
                 PciPublishDevice(element->value, &next);
+                if (next.Outcome != DmStartupComplete) {
+                    ERROR("BusRecoverAndRepublish: publication failed for host %u, "
+                          "segment %u, buses %u-%u, outcome %u (%u)",
+                        host->Identification.HostId, host->Identification.Segment,
+                        host->Identification.BusStart, host->Identification.BusEnd,
+                        next.Outcome, next.Status);
+                }
             }
             
             if (next.Outcome == DmStartupFailed) {
                 host->StartupFailure = next.Status;
-            }
-            
-            if (next.Outcome != DmStartupComplete) {
-                ERROR("PCI startup failed for host %u: %u (outcome %u)",
-                    host->Identification.HostId, next.Status, next.Outcome);
             }
         }
         __DmStartupMerge(result, &next);

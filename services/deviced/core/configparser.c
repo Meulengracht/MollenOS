@@ -111,7 +111,8 @@ __AddProduct(
 
     product = malloc(sizeof(struct DriverProduct));
     if (!product) {
-        ERROR("__AddProduct out of memory for product!");
+        ERROR("__AddProduct: failed to allocate product 0x%x for vendor 0x%x (%u)",
+              productId, vendor->Id, OS_EOOM);
         return OS_EOOM;
     }
 
@@ -137,14 +138,14 @@ __AddCompatible(
 
     compatible = calloc(1, sizeof(*compatible));
     if (compatible == NULL) {
-        ERROR("__AddCompatible: failed to allocate compatible entry");
+        ERROR("__AddCompatible: failed to allocate compatible %s (%u)", value, OS_EOOM);
         return -1;
     }
 
     ELEMENT_INIT(&compatible->ListHeader, 0, compatible);
     compatible->Name = strdup(value);
     if (compatible->Name == NULL) {
-        ERROR("__AddCompatible: failed to copy compatible %s", value);
+        ERROR("__AddCompatible: failed to copy compatible %s (%u)", value, OS_EOOM);
         free(compatible);
         return -1;
     }
@@ -174,6 +175,7 @@ __ParseBoolean(
             return 0;
         }
     }
+    WARNING("__ParseBoolean: invalid boolean value %s (%i)", string, EINVAL);
     return EINVAL;
 }
 
@@ -196,7 +198,7 @@ __ConsumeEvent(
                     s->State = STATE_STREAM;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -210,7 +212,7 @@ __ConsumeEvent(
                     s->State = STATE_STOP;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -224,7 +226,7 @@ __ConsumeEvent(
                     s->State = STATE_STREAM;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -236,7 +238,7 @@ __ConsumeEvent(
                     if (strcmp(value, "driver") == 0) {
                         s->State = STATE_DRIVER;
                     } else {
-                        ERROR("__ConsumeEvent Unexpected scalar: %s, expected 'driver'", value);
+                        ERROR("__ConsumeEvent: unexpected scalar: %s, expected 'driver'", value);
                         return -1;
                     }
                     break;
@@ -244,7 +246,7 @@ __ConsumeEvent(
                     s->State = STATE_STREAM;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -258,7 +260,7 @@ __ConsumeEvent(
                     s->State = STATE_SECTION;
                     break;
                 default:
-                    ERROR("Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -278,7 +280,7 @@ __ConsumeEvent(
                     } else if (strcmp(value, "resources") == 0) {
                         s->State = STATE_DRIVERRESOURCES;
                     } else {
-                        ERROR("__ConsumeEvent Unexpected key: %s", value);
+                        ERROR("__ConsumeEvent: unexpected key: %s", value);
                         return -1;
                     }
                     break;
@@ -286,7 +288,7 @@ __ConsumeEvent(
                     s->State = STATE_DRIVER;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -309,12 +311,12 @@ __ConsumeEvent(
                     } else if (strcmp(value, "subclass") == 0) {
                         s->State = STATE_TYPESUBCLASS;
                     } else {
-                        ERROR("__ConsumeEvent Unexpected key: %s", value);
+                        ERROR("__ConsumeEvent: unexpected key: %s", value);
                         return -1;
                     }
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -333,7 +335,7 @@ __ConsumeEvent(
                     s->State = STATE_DRIVERTYPE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -352,7 +354,7 @@ __ConsumeEvent(
                     s->State = STATE_DRIVERTYPE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -371,7 +373,7 @@ __ConsumeEvent(
                     break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -393,7 +395,8 @@ __ConsumeEvent(
                     // The scalar key supplies the vendor ID for the product sequence.
                     s->Vendor = malloc(sizeof(struct DriverVendor));
                     if (!s->Vendor) {
-                        ERROR("__ConsumeEvent out of memory allocating yaml vendor");
+                        ERROR("__ConsumeEvent: failed to allocate vendor %s (%u)",
+                              event->data.scalar.value, OS_EOOM);
                         return -1;
                     }
                     ELEMENT_INIT(&s->Vendor->ListHeader, 0, s->Vendor);
@@ -406,7 +409,7 @@ __ConsumeEvent(
                     break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -424,19 +427,17 @@ __ConsumeEvent(
                         WARNING("__ConsumeEvent: invalid product value %s; keeping conversion result", value);
                     }
                     if (!productId) {
-                        WARNING("__ConsumeEvent failed to parse product id: %s",
+                        WARNING("__ConsumeEvent: failed to parse product id: %s",
                                 (const char*)event->data.scalar.value);
                     } else {
                         osStatus = __AddProduct(s->Vendor, productId);
                         if (osStatus != OS_EOK) {
-                            ERROR("__ConsumeEvent: adding product 0x%x to vendor 0x%x failed: %u",
-                                  productId, s->Vendor->Id, osStatus);
                             return -1;
                         }
                     }
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -450,7 +451,8 @@ __ConsumeEvent(
                     // Keep the entry separate until its mapping has been parsed.
                     s->Resource = malloc(sizeof(struct DriverResource));
                     if (!s->Resource) {
-                        ERROR("__ConsumeEvent out of memory allocating yaml resource");
+                        ERROR("__ConsumeEvent: failed to allocate resource at line %zu, column %zu (%u)",
+                              event->start_mark.line + 1, event->start_mark.column + 1, OS_EOOM);
                         return -1;
                     }
                     memset(s->Resource, 0, sizeof(struct DriverResource));
@@ -463,7 +465,7 @@ __ConsumeEvent(
                     break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.\n", event->type, s->State);
                     return -1;
             }
             break;
@@ -486,13 +488,13 @@ __ConsumeEvent(
                     } else if (strcmp(value, "length") == 0) {
                         s->State = STATE_RESOURCELENGTH;
                     } else {
-                        ERROR("__ConsumeEvent Unexpected key: %s", value);
+                        ERROR("__ConsumeEvent: unexpected key: %s", value);
                         return -1;
                     }
                     break;
 
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.\n", event->type, s->State);
                     return -1;
             }
             break;
@@ -508,7 +510,7 @@ __ConsumeEvent(
                     s->State = STATE_RESOURCE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -524,7 +526,7 @@ __ConsumeEvent(
                     s->State = STATE_RESOURCE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -540,7 +542,7 @@ __ConsumeEvent(
                     s->State = STATE_RESOURCE;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -551,7 +553,7 @@ __ConsumeEvent(
                     s->State = STATE_COMPATIBLES;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
@@ -562,7 +564,6 @@ __ConsumeEvent(
                     if (event->data.scalar.value != NULL) {
                         status = __AddCompatible(s, event);
                         if (status != 0) {
-                            ERROR("__ConsumeEvent: adding compatible failed: %i", status);
                             return status;
                         }
                         return 0;
@@ -573,14 +574,15 @@ __ConsumeEvent(
                     s->State = STATE_DRIVERKEY;
                     break;
                 default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->State);
+                    ERROR("__ConsumeEvent: unexpected event %d in state %d.", event->type, s->State);
                     return -1;
             }
             break;
 
         case STATE_CAPABILITIES_LIST:
             if (event->type != YAML_SEQUENCE_START_EVENT) {
-                ERROR("Driver capabilities must be a sequence");
+                ERROR("__ConsumeEvent: capabilities must be a sequence, event %d in state %d",
+                      event->type, s->State);
                 return -1;
             }
             s->State = STATE_CAPABILITIES;
@@ -593,13 +595,14 @@ __ConsumeEvent(
             }
 
             if (event->type != YAML_SCALAR_EVENT) {
-                ERROR("Driver capability must be a name");
+                ERROR("__ConsumeEvent: capability must be a name, event %d in state %d",
+                      event->type, s->State);
                 return -1;
             }
 
             capability = CapabilityParse((const char*)event->data.scalar.value);
             if (capability == 0) {
-                ERROR("Unknown driver capability: %s", event->data.scalar.value);
+                ERROR("__ConsumeEvent: unknown driver capability: %s", event->data.scalar.value);
                 return -1;
             }
 
@@ -690,15 +693,16 @@ DmDriverConfigParseYaml(
 
     status = yaml_parser_initialize(&parser);
     if (!status) {
-        ERROR("DmDriverConfigParseYaml: failed to initialize YAML parser");
+        ERROR("DmDriverConfigParseYaml: failed to initialize YAML parser (%u)", OS_EOOM);
         return OS_EOOM;
     }
     yaml_parser_set_input_string(&parser, yaml, length);
     do {
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
-            ERROR("DmDriverConfigParseYaml: YAML parser failed in state %i: %s",
-                  state.State, parser.problem != NULL ? parser.problem : "unknown error");
+            ERROR("DmDriverConfigParseYaml: YAML parser failed in state %i at line %zu, column %zu: %s",
+                  state.State, parser.problem_mark.line + 1, parser.problem_mark.column + 1,
+                  parser.problem != NULL ? parser.problem : "unknown error");
             __CleanupDriverConfiguration(&state.Driver);
             yaml_parser_delete(&parser);
             return OS_EUNKNOWN;
@@ -706,8 +710,9 @@ DmDriverConfigParseYaml(
 
         status = __ConsumeEvent(&state, &event);
         if (status) {
-            ERROR("DmDriverConfigParseYaml: event %i rejected in state %i: %i",
-                  event.type, state.State, status);
+            ERROR("DmDriverConfigParseYaml: event %i rejected in state %i at line %zu, column %zu (%i)",
+                  event.type, state.State, event.start_mark.line + 1,
+                  event.start_mark.column + 1, status);
             __CleanupDriverConfiguration(&state.Driver);
             yaml_event_delete(&event);
             yaml_parser_delete(&parser);

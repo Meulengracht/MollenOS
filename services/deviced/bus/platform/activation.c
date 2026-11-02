@@ -16,17 +16,13 @@
  *
  */
 
+#include <ddk/utils.h>
 #include <stdlib.h>
 
 #include "private.h"
 
-/**
- * @brief Registered dependency callbacks and the number of active tokens.
- * The bus lock protects this list and References. A nonzero count prevents
- * unregistering the callbacks while an activation still needs them.
- */
-struct PlatformDependencyProvider {
-    struct PlatformDependencyProvider*         Next;
+struct PlatformDependencyRegistration {
+    struct PlatformDependencyRegistration*         Next;
     uint32_t                                   Node;
     uint32_t                                   References;
     const struct PlatformDependencyOperations* Operations;
@@ -34,15 +30,10 @@ struct PlatformDependencyProvider {
 };
 
 struct __PlatformDependencyLease {
-    struct PlatformDependencyProvider* Provider;
-    void*                              Token;
+    struct PlatformDependencyRegistration* Registration;
+    void*                                  Token;
 };
 
-/**
- * @brief Activation owner and dependency tokens in preparation order.
- * Count includes only successful requests. Failed cleanup leaves the remaining
- * tokens here for a later retry, with Prepared cleared.
- */
 struct PlatformActivation {
     uuid_t                           Principal;
     int                              Prepared;
@@ -50,16 +41,16 @@ struct PlatformActivation {
     struct __PlatformDependencyLease Leases[FDT_PLATFORM_MAX_DEPENDENCIES];
 };
 
-static struct PlatformDependencyProvider*
+static struct PlatformDependencyRegistration*
 __PlatformDependencyFind(
     _In_ struct PlatformBus* bus,
     _In_ uint32_t            node)
 {
-    struct PlatformDependencyProvider* provider;
+    struct PlatformDependencyRegistration* registration;
 
-    for (provider = bus->Dependencies; provider != NULL; provider = provider->Next) {
-        if (provider->Node == node) {
-            return provider;
+    for (registration = bus->Dependencies; registration != NULL; registration = registration->Next) {
+        if (registration->Node == node) {
+            return registration;
         }
     }
     return NULL;
@@ -68,41 +59,52 @@ __PlatformDependencyFind(
 oserr_t
 PlatformDependencyRegister(
     _In_ struct PlatformBus*                        bus,
-    _In_ uint32_t                                   providerNode,
+    _In_ uint32_t                                   hostNode,
     _In_ const struct PlatformDependencyOperations* operations,
     _In_ void*                                      context)
 {
-    const struct FdtResources*         node = FdtTreeNode(bus->Tree, providerNode);
-    struct PlatformDependencyProvider* provider;
-    oserr_t                            status = OS_EOK;
+    const struct FdtResources*             node = FdtTreeNode(bus->Tree, hostNode);
+    struct PlatformDependencyRegistration* registration;
+    oserr_t                                status = OS_EOK;
 
     if (operations == NULL || operations->Acquire == NULL || operations->Release == NULL) {
+        ERROR("PlatformDependencyRegister: node %u has invalid dependency callbacks (%u)",
+              hostNode, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
     if (node == NULL || node->Malformed || node->ParentMalformed) {
+        ERROR("PlatformDependencyRegister: node %u is missing or malformed (%u)",
+              hostNode, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
     if (node->Disabled || node->ParentDisabled) {
+        TRACE("PlatformDependencyRegister: node %u or its parent is disabled", hostNode);
         return OS_ENOENT;
     }
 
     usched_mtx_lock(&bus->Lock);
     if (bus->Removing) {
+        WARNING("PlatformDependencyRegister: node %u cannot register during bus removal (%u)",
+                hostNode, OS_EBUSY);
         status = OS_EBUSY;
-    } else if (__PlatformDependencyFind(bus, providerNode) != NULL) {
+    } else if (__PlatformDependencyFind(bus, hostNode) != NULL) {
+        WARNING("PlatformDependencyRegister: node %u already has dependency callbacks (%u)",
+                hostNode, OS_EEXISTS);
         status = OS_EEXISTS;
     } else {
-        provider = calloc(1, sizeof(struct PlatformDependencyProvider));
-        if (provider == NULL) {
+        registration = calloc(1, sizeof(struct PlatformDependencyRegistration));
+        if (registration == NULL) {
+            ERROR("PlatformDependencyRegister: node %u could not allocate dependency state (%u)",
+                  hostNode, OS_EOOM);
             status = OS_EOOM;
         } else {
-            provider->Node = providerNode;
-            provider->Operations = operations;
-            provider->Context = context;
-            provider->Next = bus->Dependencies;
-            bus->Dependencies = provider;
+            registration->Node = hostNode;
+            registration->Operations = operations;
+            registration->Context = context;
+            registration->Next = bus->Dependencies;
+            bus->Dependencies = registration;
         }
     }
     usched_mtx_unlock(&bus->Lock);
@@ -112,25 +114,27 @@ PlatformDependencyRegister(
 oserr_t
 PlatformDependencyUnregister(
     _In_ struct PlatformBus* bus,
-    _In_ uint32_t            providerNode)
+    _In_ uint32_t            hostNode)
 {
-    struct PlatformDependencyProvider** link;
-    struct PlatformDependencyProvider*  provider;
+    struct PlatformDependencyRegistration** link;
+    struct PlatformDependencyRegistration*  registration;
     oserr_t                             status = OS_ENOENT;
 
     usched_mtx_lock(&bus->Lock);
     for (link = &bus->Dependencies; *link != NULL; link = &(*link)->Next) {
-        provider = *link;
+        registration = *link;
 
-        if (provider->Node != providerNode) {
+        if (registration->Node != hostNode) {
             continue;
         }
 
-        if (provider->References) {
+        if (registration->References) {
+            WARNING("PlatformDependencyUnregister: node %u still has %u dependency references (%u)",
+                    hostNode, registration->References, OS_EBUSY);
             status = OS_EBUSY;
         } else {
-            *link = provider->Next;
-            free(provider);
+            *link = registration->Next;
+            free(registration);
             status = OS_EOK;
         }
         break;
@@ -151,16 +155,19 @@ __PlatformActivationRelease(
     while (activation->Count) {
         lease = &activation->Leases[activation->Count - 1];
 
-        status = lease->Provider->Operations->Release(
-            lease->Provider->Context,
+        status = lease->Registration->Operations->Release(
+            lease->Registration->Context,
             lease->Token
         );
         if (status != OS_EOK) {
+            ERROR("__PlatformActivationRelease: node %u dependency %u node %u release failed (%u)",
+                  entry->Firmware.FirmwareNode, activation->Count - 1,
+                  lease->Registration->Node, status);
             // Preserve this and all earlier dependencies. Turning off a parent
             // while a child release failed would violate dependency ordering.
             return status;
         }
-        lease->Provider->References--;
+        lease->Registration->References--;
         activation->Count--;
     }
 
@@ -174,67 +181,84 @@ __PlatformActivationPrepare(
     _InOut_ struct PlatformEntry* entry,
     _In_    uuid_t                principal)
 {
-    struct FdtPlatformDependencies     plan;
-    struct PlatformDependencyProvider* providers[FDT_PLATFORM_MAX_DEPENDENCIES] = { 0 };
-    struct PlatformActivation*         activation;
-    struct __PlatformDependencyLease*  lease;
-    oserr_t                            status;
-    oserr_t                            cleanup;
-    uint32_t                           i;
+    struct FdtPlatformDependencies         dependencies;
+    struct PlatformDependencyRegistration* registrations[FDT_PLATFORM_MAX_DEPENDENCIES] = { 0 };
+    struct PlatformActivation*             activation;
+    struct __PlatformDependencyLease*      lease;
+    oserr_t                                status;
+    oserr_t                                cleanup;
 
-    status = FdtPlatformDependencies(entry->Bus->Tree, entry->Firmware.FirmwareNode, &plan);
+    status = FdtPlatformDependencies(entry->Bus->Tree, entry->Firmware.FirmwareNode, &dependencies);
     if (status != OS_EOK) {
+        ERROR("__PlatformActivationPrepare: node %u could not build dependency plan (%u)",
+              entry->Firmware.FirmwareNode, status);
         return status;
     }
 
     // All mutable dependencies must have callbacks before hardware changes.
     // If a dependency driver has not registered yet, preparation can be retried
     // after it starts.
-    for (i = 0; i < plan.Count; i++) {
-        if (plan.Entries[i].Immutable) {
+    for (uint32_t i = 0; i < dependencies.Count; i++) {
+        if (dependencies.Entries[i].Immutable) {
             continue;
         }
 
-        providers[i] = __PlatformDependencyFind(entry->Bus, plan.Entries[i].Provider);
-        if (providers[i] == NULL) {
+        registrations[i] = __PlatformDependencyFind(entry->Bus, dependencies.Entries[i].NodeOffset);
+        if (registrations[i] == NULL) {
+            WARNING("__PlatformActivationPrepare: node %u dependency %u node %u has no callbacks (%u)",
+                    entry->Firmware.FirmwareNode, i, dependencies.Entries[i].NodeOffset, OS_ENOTSUPPORTED);
             return OS_ENOTSUPPORTED;
         }
 
-        if (providers[i]->References == UINT32_MAX) {
+        if (registrations[i]->References == UINT32_MAX) {
+            ERROR("__PlatformActivationPrepare: node %u dependency %u node %u reference count overflow (%u)",
+                  entry->Firmware.FirmwareNode, i, registrations[i]->Node, OS_EOVERFLOW);
             return OS_EOVERFLOW;
         }
     }
 
     activation = calloc(1, sizeof(struct PlatformActivation));
     if (activation == NULL) {
+        ERROR("__PlatformActivationPrepare: node %u could not allocate activation state (%u)",
+              entry->Firmware.FirmwareNode, OS_EOOM);
         return OS_EOOM;
     }
 
     activation->Principal = principal;
     entry->Activation = activation;
 
-    for (i = 0; i < plan.Count; i++) {
-        if (providers[i] == NULL) {
+    for (uint32_t i = 0; i < dependencies.Count; i++) {
+        if (registrations[i] == NULL) {
             continue;
         }
 
         lease = &activation->Leases[activation->Count];
-        lease->Provider = providers[i];
-        if (providers[i]->References == UINT32_MAX) {
+        lease->Registration = registrations[i];
+        if (registrations[i]->References == UINT32_MAX) {
+            ERROR("__PlatformActivationPrepare: node %u dependency %u node %u reference count overflow (%u)",
+                  entry->Firmware.FirmwareNode, i, registrations[i]->Node, OS_EOVERFLOW);
             cleanup = __PlatformActivationRelease(entry);
-            return cleanup == OS_EOK ? OS_EOVERFLOW : cleanup;
+            if (cleanup != OS_EOK) {
+                return cleanup;
+            }
+            return OS_EOVERFLOW;
         }
 
-        status = providers[i]->Operations->Acquire(
-            providers[i]->Context,
-            &plan.Entries[i],
+        status = registrations[i]->Operations->Acquire(
+            registrations[i]->Context,
+            &dependencies.Entries[i],
             &lease->Token
         );
         if (status != OS_EOK) {
+            ERROR("__PlatformActivationPrepare: node %u dependency %u node %u request failed (%u)",
+                  entry->Firmware.FirmwareNode, i, registrations[i]->Node, status);
             cleanup = __PlatformActivationRelease(entry);
-            return cleanup == OS_EOK ? status : cleanup;
+            if (cleanup != OS_EOK) {
+                return cleanup;
+            }
+            return status;
         }
-        providers[i]->References++;
+        registrations[i]->References++;
         activation->Count++;
     }
 
@@ -276,19 +300,27 @@ PlatformActivationControl(
     unsigned int i;
 
     if (principal == UUID_INVALID) {
+        ERROR("PlatformActivationControl: node %u stage %u has no valid principal (%u)",
+              entry->Firmware.FirmwareNode, stage, OS_EPERMISSIONS);
         return OS_EPERMISSIONS;
     }
 
     if (stage != DevicePrepare && stage != DeviceStart && stage != DeviceStop) {
+        ERROR("PlatformActivationControl: node %u has invalid activation stage %u (%u)",
+              entry->Firmware.FirmwareNode, stage, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 
     if (entry->Activation != NULL && entry->Activation->Principal != principal) {
+        ERROR("PlatformActivationControl: node %u stage %u requested by a different principal (%u)",
+              entry->Firmware.FirmwareNode, stage, OS_EPERMISSIONS);
         return OS_EPERMISSIONS;
     }
 
     if (stage == DeviceStart) {
         if (!PlatformIsActivationReady(entry)) {
+            WARNING("PlatformActivationControl: node %u cannot start before preparation (%u)",
+                    entry->Firmware.FirmwareNode, OS_EBUSY);
             return OS_EBUSY;
         }
         // Native masters have no generic bus-master bit. The peripheral driver
@@ -302,11 +334,15 @@ PlatformActivationControl(
 
     if (entry->Activation != NULL) {
         if (entry->DmaReferences != 0) {
+            WARNING("PlatformActivationControl: node %u stage %u still has %u DMA references (%u)",
+                    entry->Firmware.FirmwareNode, stage, entry->DmaReferences, OS_EBUSY);
             return OS_EBUSY;
         }
 
         for (i = 0; i < entry->Firmware.InterruptCount; i++) {
             if (entry->Interrupts[i].Allocation != UUID_INVALID) {
+                WARNING("PlatformActivationControl: node %u stage %u interrupt %u is still allocated (%u)",
+                        entry->Firmware.FirmwareNode, stage, i, OS_EBUSY);
                 return OS_EBUSY;
             }
         }
@@ -316,5 +352,14 @@ PlatformActivationControl(
             return status;
         }
     }
-    return stage == DeviceStop ? OS_EOK : __PlatformActivationPrepare(entry, principal);
+
+    if (stage == DeviceStop) {
+        return OS_EOK;
+    }
+
+    status = __PlatformActivationPrepare(entry, principal);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return OS_EOK;
 }

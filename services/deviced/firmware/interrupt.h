@@ -38,7 +38,7 @@ struct FdtResources;
 /**
  * @brief Read a shared peripheral interrupt (SPI) description for an Arm GIC.
  *
- * @param provider Resources for the interrupt controller referenced by firmware.
+ * @param resources Resources for the interrupt controller referenced by firmware.
  * @param cells Three big-endian 32-bit device-tree values: interrupt type, number,
  *              and trigger settings. The caller must check that all 12 bytes are
  *              available.
@@ -49,7 +49,7 @@ struct FdtResources;
  */
 oserr_t
 FdtGicInterrupt(
-    _In_  const struct FdtResources* provider,
+    _In_  const struct FdtResources* resources,
     _In_  const uint8_t*             cells,
     _Out_ struct FdtInterrupt*       interrupt);
 

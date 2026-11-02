@@ -367,9 +367,11 @@ __SetMask(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
-        ERROR("__SetMask failed to write mask 0x%x: %u", mask, status);
+        ERROR("__SetMask: capability 0x%x failed to write mask 0x%x (%u)",
+              state->Capability, mask, status);
+        return status;
     }
-    return status;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -417,12 +419,16 @@ PciInterruptRequestIsValid(
     } else if (request->Strategy == INTERRUPT_STRATEGY_MSIX) {
         capacity = MSIX_MESSAGE_MAX_COUNT;
     } else {
+        WARNING("PciInterruptRequestIsValid: allocation %u has unsupported strategy %u",
+                request->Allocation, request->Strategy);
         return 0;
     }
 
     // Reject invalid operation, allocation, or reserved fields.
     if (request->Operation > PciInterruptRelease ||
         request->Allocation == UUID_INVALID || request->Reserved != 0) {
+        WARNING("PciInterruptRequestIsValid: invalid operation %u, allocation %u or reserved field %u",
+                request->Operation, request->Allocation, request->Reserved);
         return 0;
     }
     
@@ -430,24 +436,52 @@ PciInterruptRequestIsValid(
         // MSI is handled as a single message here, while MSI-X has a bounded
         // table size that fits the request interface.
         if (request->Count == 0 || request->Count > capacity) {
+            WARNING("PciInterruptRequestIsValid: allocation %u strategy %u requests %u messages, capacity %u",
+                    request->Allocation, request->Strategy, request->Count, capacity);
             return 0;
         }
     } else if (request->Count != 0) {
+        WARNING("PciInterruptRequestIsValid: allocation %u operation %u has unused count %u",
+                request->Allocation, request->Operation, request->Count);
         return 0;
     }
     
     if (request->Operation == PciInterruptProgram) {
         // Message addresses must be dword-aligned before they are written to
         // the device's MSI registers.
-        return request->Index < capacity &&
-            (request->AddressLow & (PCI_CAPABILITY_ALIGNMENT - 1U)) == 0;
+        if (request->Index >= capacity) {
+            WARNING("PciInterruptRequestIsValid: allocation %u message index %u exceeds capacity %u",
+                    request->Allocation, request->Index, capacity);
+            return 0;
+        }
+
+        if ((request->AddressLow & (PCI_CAPABILITY_ALIGNMENT - 1U)) != 0) {
+            WARNING("PciInterruptRequestIsValid: allocation %u message %u has misaligned address 0x%x",
+                    request->Allocation, request->Index, request->AddressLow);
+            return 0;
+        }
+        return 1;
     }
     
     // These fields are used only by Program.
     if (request->Index != 0 || request->Data != 0) {
+        WARNING("PciInterruptRequestIsValid: allocation %u operation %u has unused index %u or data 0x%x",
+                request->Allocation, request->Operation, request->Index, request->Data);
         return 0;
     }
-    return request->AddressLow == 0 && request->AddressHigh == 0;
+
+    if (request->AddressLow != 0) {
+        WARNING("PciInterruptRequestIsValid: allocation %u operation %u has unused lower address 0x%x",
+                request->Allocation, request->Operation, request->AddressLow);
+        return 0;
+    }
+
+    if (request->AddressHigh != 0) {
+        WARNING("PciInterruptRequestIsValid: allocation %u operation %u has unused upper address 0x%x",
+                request->Allocation, request->Operation, request->AddressHigh);
+        return 0;
+    }
+    return 1;
 }
 
 static oserr_t
@@ -737,9 +771,13 @@ PciMsiControl(
     oserr_t status;
 
     // Direct callers must meet the same request requirements as the bus interface.
-    if (!PciInterruptRequestIsValid(request) || request->Strategy != INTERRUPT_STRATEGY_MSI) {
-        ERROR("PciMsiControl invalid request (operation %u, strategy %u)",
-              request->Operation, request->Strategy);
+    if (!PciInterruptRequestIsValid(request)) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (request->Strategy != INTERRUPT_STRATEGY_MSI) {
+        ERROR("PciMsiControl: allocation %u operation %u has unsupported strategy %u (%u)",
+              request->Allocation, request->Operation, request->Strategy, OS_EINVALPARAMS);
         return OS_EINVALPARAMS;
     }
 

@@ -252,17 +252,17 @@ DeviceTreeReadReference(
     
     while (offset < property->Length) {
         const unsigned char*    bytes = property->Value;
-        const DeviceTreeNode_t* provider;
+        const DeviceTreeNode_t* cellNode;
         uint32_t                cells;
         oserr_t                 status;
 
-        provider = DeviceTreeFindPhandle(tree, FdtReadBe32(bytes + offset));
+        cellNode = DeviceTreeFindPhandle(tree, FdtReadBe32(bytes + offset));
         offset += 4;
-        if (!provider) {
+        if (!cellNode) {
             return OS_EINVALPARAMS;
         }
         
-        status = __CellCount(provider, cellsName, UINT32_MAX, &cells);
+        status = __CellCount(cellNode, cellsName, UINT32_MAX, &cells);
         if (status != OS_EOK) {
             return status;
         }
@@ -274,8 +274,9 @@ DeviceTreeReadReference(
         }
         
         if (!index) {
-            referenceOut->Provider = provider;
+            referenceOut->Node = cellNode;
             referenceOut->CellCount = cells;
+            
             for (uint32_t i = 0; i < cells; i++) {
                 referenceOut->Cells[i] = FdtReadBe32(bytes + offset + i * 4);
             }
@@ -296,7 +297,7 @@ DeviceTreeReadInterrupt(
 {
     const DeviceTreeProperty_t* property;
     const DeviceTreeNode_t*     ancestor;
-    const DeviceTreeNode_t*     provider = NULL;
+    const DeviceTreeNode_t*     interruptNode = NULL;
     uint32_t                    cells;
     uint32_t                    stride;
     oserr_t                     status;
@@ -325,20 +326,20 @@ DeviceTreeReadInterrupt(
             if (parent->Length != 4) {
                 return OS_EINVALPARAMS;
             }
-            provider = DeviceTreeFindPhandle(tree, FdtReadBe32(parent->Value));
+            interruptNode = DeviceTreeFindPhandle(tree, FdtReadBe32(parent->Value));
             break;
         }
         if (ancestor != node && DeviceTreeGetProperty(ancestor, "#interrupt-cells")) {
-            provider = ancestor;
+            interruptNode = ancestor;
             break;
         }
     }
     
-    if (!provider) {
+    if (!interruptNode) {
         return OS_EINVALPARAMS;
     }
     
-    status = __CellCount(provider, "#interrupt-cells", 0, &cells);
+    status = __CellCount(interruptNode, "#interrupt-cells", 0, &cells);
     if (status != OS_EOK) {
         return status;
     }
@@ -354,7 +355,7 @@ DeviceTreeReadInterrupt(
         return OS_ENOENT;
     }
     
-    interruptOut->Provider = provider;
+    interruptOut->Node = interruptNode;
     interruptOut->CellCount = cells;
     for (uint32_t i = 0; i < cells; i++) {
         interruptOut->Cells[i] = FdtReadBe32(

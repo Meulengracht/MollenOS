@@ -27,8 +27,10 @@
 static void
 __CreateBarResource(
     _In_  PciHost_t*           bus,
+    _In_  const BusDevice_t*   device,
     _Out_ DeviceIo_t*          resource,
-    _In_  const struct PciBar* bar)
+    _In_  const struct PciBar* bar,
+    _In_  unsigned int         index)
 {
     uint64_t   physical = bar->CpuAddress;
     uint64_t   length = bar->Size;
@@ -42,21 +44,28 @@ __CreateBarResource(
     if (bar->Space == 1 && bus->IoResourcePolicy == PciIoResourcePorts) {
         // The complete port range must fit before narrowing its base to 16 bits.
         if (length == 0 || physical > UINT16_MAX || length - 1 > UINT16_MAX - physical) {
-            WARNING("__CreateBarResource port range 0x%llx+0x%llx exceeds 16 bits",
-                (unsigned long long)physical, (unsigned long long)length);
+            WARNING("__CreateBarResource: PCI %u:%u:%u.%u BAR%u port range 0x%llx+0x%llx exceeds 16 bits",
+                bus->Identification.Segment, device->Bus, device->Slot, device->Function,
+                index, (unsigned long long)physical, (unsigned long long)length);
             return;
         }
         status = CreateDevicePortIo(&io, (uint16_t)physical, (size_t)length);
-        if (status == OS_EOK) {
-            *resource = io;
+        if (status != OS_EOK) {
+            ERROR("__CreateBarResource: PCI %u:%u:%u.%u BAR%u failed to register port range 0x%llx+0x%llx (%u)",
+                bus->Identification.Segment, device->Bus, device->Slot, device->Function,
+                index, (unsigned long long)physical, (unsigned long long)length, status);
+            return;
         }
+        *resource = io;
     } else {
         // Hosts without port I/O expose PCI I/O ranges through CPU memory addresses.
         status = DmIoCreateMemory(resource, physical, length);
-    }
-    if (status != OS_EOK) {
-        ERROR("__CreateBarResource failed to register range 0x%llx+0x%llx: %u",
-            (unsigned long long)physical, (unsigned long long)length, status);
+        if (status != OS_EOK) {
+            ERROR("__CreateBarResource: PCI %u:%u:%u.%u BAR%u failed to register memory range 0x%llx+0x%llx (%u)",
+                bus->Identification.Segment, device->Bus, device->Slot, device->Function,
+                index, (unsigned long long)physical, (unsigned long long)length, status);
+            return;
+        }
     }
 }
 
@@ -66,11 +75,19 @@ PciRegisterBars(
     _In_ BusDevice_t*        device,
     _In_ const struct PciBar bars[6])
 {
+    unsigned int i;
+
     TRACE("PciRegisterBars(%u:%u:%u.%u)", host->Identification.Segment,
         device->Bus, device->Slot, device->Function);
 
-    for (unsigned int i = 0; i < 6; i++) {
-        __CreateBarResource(host, &device->IoSpaces[i], &bars[i]);
+    for (i = 0; i < 6; i++) {
+        __CreateBarResource(
+            host,
+            device,
+            &device->IoSpaces[i],
+            &bars[i],
+            i
+        );
     }
 }
 
@@ -82,14 +99,14 @@ PciDiagnoseBars(
 {
     for (unsigned int i = 0; i < 6; i++) {
         if (bars[i].State == PciBarUnassigned) {
-            WARNING("PCI %u:%u:%u.%u BAR%u is unassigned (size 0x%llx); firmware-assigned BAR required",
+            WARNING("PciDiagnoseBars: PCI %u:%u:%u.%u BAR%u is unassigned (size 0x%llx); firmware-assigned BAR required",
                 host->Identification.Segment, device->Bus, device->Slot, device->Function,
                 i, (unsigned long long)bars[i].Size);
         } else if (bars[i].State == PciBarOutsideWindow) {
-            WARNING("PCI %u:%u:%u.%u BAR%u is outside host windows",
+            WARNING("PciDiagnoseBars: PCI %u:%u:%u.%u BAR%u is outside host windows",
                 host->Identification.Segment, device->Bus, device->Slot, device->Function, i);
         } else if (bars[i].State == PciBarInvalid) {
-            WARNING("PCI %u:%u:%u.%u BAR%u has an invalid encoding or extent",
+            WARNING("PciDiagnoseBars: PCI %u:%u:%u.%u BAR%u has an invalid encoding or extent",
                 host->Identification.Segment, device->Bus, device->Slot, device->Function, i);
         }
     }

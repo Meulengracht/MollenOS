@@ -60,7 +60,8 @@ __GetPciDeviceNativeHeader(
 
     nativeHeader = (PciNativeHeader_t*)malloc(sizeof(PciNativeHeader_t));
     if (!nativeHeader) {
-        ERROR("__GetPciDeviceNativeHeader allocation failed for %i:%i.%i", bus, slot, function);
+        ERROR("__GetPciDeviceNativeHeader: header allocation failed for %u:%i:%i.%i (%u)",
+            parent->Host->Identification.Segment, bus, slot, function, OS_EOOM);
         return OS_EOOM;
     }
 
@@ -103,7 +104,8 @@ __PciCheckFunction(
 
     device = calloc(1, sizeof(PciDevice_t));
     if (!device) {
-        ERROR("PciCheckFunction allocation failed for %i:%i.%i", bus, slot, function);
+        ERROR("__PciCheckFunction: device allocation failed for %u:%i:%i.%i (%u)",
+            parent->Host->Identification.Segment, bus, slot, function, OS_EOOM);
         return OS_EOOM;
     }
 
@@ -129,7 +131,7 @@ __PciCheckFunction(
 
     // Suppress repeated VMware device traces for device ID 0x7a0.
     if (device->Header->DeviceId != 0x7a0) {
-        TRACE(" - [%x:%x:%x] %s", bus, slot, function,
+        TRACE("__PciCheckFunction: [%x:%x:%x] %s", bus, slot, function,
               PciToString(device->Header->Class, device->Header->Subclass, device->Header->Interface));
     }
 
@@ -162,12 +164,12 @@ __PciCheckFunction(
     }
     
     if (device->Handler != NULL && !device->IsBridge) {
-        TRACE("PciCheckFunction attaching handler to %u:%u:%u.%u",
+        TRACE("__PciCheckFunction: attaching handler to %u:%u:%u.%u",
             device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
         oserr = device->Handler->Attach(device, &device->Resources, &device->Attachment);
         device->AttachmentStatus = oserr;
         if (oserr != OS_EOK) {
-            WARNING("PCI %u:%u:%u.%u function attachment failed (%u)",
+            WARNING("__PciCheckFunction: function attachment failed for %u:%u:%u.%u (%u)",
                 device->Host->Identification.Segment, device->Bus, device->Slot, device->Function, oserr);
         }
     }
@@ -207,12 +209,13 @@ PciCheckDevice(
 
     // A vendor ID of 0xFFFF indicates that the function is absent.
     if (vendorId == 0xFFFF) {
+        TRACE("PciCheckDevice: skipping absent function %u:%i:%i.%i",
+            parent->Host->Identification.Segment, bus, slot, function);
         return;
     }
 
     status = __PciCheckFunction(parent, bus, slot, function);
     if (status != OS_EOK) {
-        ERROR("PciCheckDevice failed to enumerate %i:%i.%i: %u", bus, slot, function, status);
         parent->Host->ScanStatus = status;
     }
 
@@ -225,13 +228,15 @@ PciCheckDevice(
     );
     if (headerType & 0x80) {
         for (function = 1; function < 8; function++) {
-            if (PciReadVendorId(parent->Host, bus, slot, function) != 0xFFFF) {
-                status = __PciCheckFunction(parent, bus, slot, function);
-                if (status != OS_EOK) {
-                    parent->Host->ScanStatus = status;
-                    ERROR("PciCheckDevice failed to enumerate %i:%i.%i: %u",
-                        bus, slot, function, status);
-                }
+            if (PciReadVendorId(parent->Host, bus, slot, function) == 0xFFFF) {
+                TRACE("PciCheckDevice: skipping absent function %u:%i:%i.%i",
+                    parent->Host->Identification.Segment, bus, slot, function);
+                continue;
+            }
+
+            status = __PciCheckFunction(parent, bus, slot, function);
+            if (status != OS_EOK) {
+                parent->Host->ScanStatus = status;
             }
         }
     }
@@ -245,12 +250,12 @@ PciCheckBus(
     int device;
 
     if (parent == NULL) {
-        WARNING("PciCheckBus missing parent for bus %i", bus);
+        WARNING("PciCheckBus: missing parent for bus %i", bus);
         return;
     }
 
     if (bus < parent->Host->Identification.BusStart || bus > parent->Host->Identification.BusEnd) {
-        WARNING("PciCheckBus bus %i is outside segment %u range %u-%u", bus,
+        WARNING("PciCheckBus: bus %i is outside segment %u range %u-%u", bus,
             parent->Host->Identification.Segment, parent->Host->Identification.BusStart,
             parent->Host->Identification.BusEnd);
         return;
@@ -259,11 +264,11 @@ PciCheckBus(
     // Each bus belongs to one path through this host. Broken bridge routing
     // and legacy root aliases must not create cycles or duplicate functions.
     if (parent->Host->ScannedBuses[bus / 8] & (1U << (bus % 8))) {
-        TRACE("PciCheckBus skipping previously scanned segment %u bus %i",
+        TRACE("PciCheckBus: skipping previously scanned segment %u bus %i",
             parent->Host->Identification.Segment, bus);
         return;
     }
-    TRACE("PciCheckBus(segment=%u, bus=%i)", parent->Host->Identification.Segment, bus);
+    TRACE("PciCheckBus: segment=%u, bus=%i", parent->Host->Identification.Segment, bus);
     parent->Host->ScannedBuses[bus / 8] |= 1U << (bus % 8);
 
     // A PCI bus has 32 possible device slots.
@@ -277,6 +282,8 @@ PciRecoverScan(
     _In_ PciHost_t* host)
 {
     if (host->Removing) {
+        WARNING("PciRecoverScan: host %u segment %u is being removed (%u)",
+            host->Identification.HostId, host->Identification.Segment, OS_EBUSY);
         return OS_EBUSY;
     }
     if (host->ScanStatus == OS_EOK) {
@@ -305,7 +312,7 @@ PciScanLegacyRoots(
 {
     int function;
 
-    TRACE("PciScanLegacyRoots(host=%u)", host->Identification.HostId);
+    TRACE("PciScanLegacyRoots: host=%u", host->Identification.HostId);
 
     if (!(PciReadHeaderType(host, 0, 0, 0) & 0x80)) {
         PciCheckBus(host->RootDevice, 0);
@@ -314,6 +321,8 @@ PciScanLegacyRoots(
     
     for (function = 0; function < 8; function++) {
         if (PciReadVendorId(host, 0, 0, function) == 0xFFFF) {
+            TRACE("PciScanLegacyRoots: skipping absent function %u:0:0.%i",
+                host->Identification.Segment, function);
             continue;
         }
         PciCheckBus(host->RootDevice, function);

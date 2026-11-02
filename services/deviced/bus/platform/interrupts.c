@@ -52,22 +52,33 @@ PlatformInterruptQuery(
     oserr_t                            status;
 
     if (query == NULL || length != sizeof(*query)) {
+        WARNING("PlatformInterruptQuery: device %u has invalid query buffer %p or length %zu",
+                entry->DeviceId, buffer, length);
         return OS_EINVALPARAMS;
     }
 
     if (query->Kind || query->ControllerID) {
+        WARNING("PlatformInterruptQuery: device %u source %u has kind %u or controller %u set",
+                entry->DeviceId, query->Index, query->Kind, query->ControllerID);
         return OS_EINVALPARAMS;
     }
 
     if (query->Line.Line || query->Line.Pin || query->Line.AcpiConform) {
+        WARNING("PlatformInterruptQuery: device %u source %u has line %d, pin %d or flags %u set",
+                entry->DeviceId, query->Index, query->Line.Line,
+                query->Line.Pin, query->Line.AcpiConform);
         return OS_EINVALPARAMS;
     }
 
     if (!PlatformIsActivationReady(entry)) {
+        WARNING("PlatformInterruptQuery: device %u is not ready for source %u",
+                entry->DeviceId, query->Index);
         return OS_EBUSY;
     }
 
     if (query->Index >= entry->Firmware.InterruptCount) {
+        WARNING("PlatformInterruptQuery: device %u source %u exceeds interrupt count %u",
+                entry->DeviceId, query->Index, entry->Firmware.InterruptCount);
         return OS_ENOTSUPPORTED;
     }
 
@@ -80,8 +91,8 @@ PlatformInterruptQuery(
 
     status = __PlatformInterruptIdentity(source, &result.ControllerID);
     if (status != OS_EOK) {
-        WARNING("PlatformInterruptQuery: device %u source %u identity failed: %u",
-                entry->DeviceId, query->Index, status);
+        ERROR("PlatformInterruptQuery: device %u source %u controller %u line %u identity failed (%u)",
+              entry->DeviceId, query->Index, source->Controller, source->Number, status);
         return status;
     }
 
@@ -121,26 +132,37 @@ __PlatformInterruptReserve(
     TRACE("__PlatformInterruptReserve(device=%u, allocation=%u, source=%u)",
           entry->DeviceId, request->Allocation, request->Index);
     if (request->Index >= entry->Firmware.InterruptCount) {
+        WARNING("__PlatformInterruptReserve: device %u source %u exceeds interrupt count %u",
+                entry->DeviceId, request->Index, entry->Firmware.InterruptCount);
         return OS_EINVALPARAMS;
     }
 
     if (!PlatformIsActivationReady(entry)) {
+        WARNING("__PlatformInterruptReserve: device %u is not ready for source %u",
+                entry->DeviceId, request->Index);
         return OS_EBUSY;
     }
 
     status = PlatformActivationControl(entry, principal, DevicePrepare);
     if (status != OS_EOK) {
+        ERROR("__PlatformInterruptReserve: device %u source %u preparation for principal %u failed (%u)",
+              entry->DeviceId, request->Index, principal, status);
         return status;
     }
 
     lease = &entry->Interrupts[request->Index];
     if (lease->Allocation != UUID_INVALID &&
         (lease->Allocation != request->Allocation || lease->Principal != principal)) {
+        WARNING("__PlatformInterruptReserve: device %u source %u allocation %u principal %u conflicts with allocation %u principal %u",
+                entry->DeviceId, request->Index, request->Allocation, principal,
+                lease->Allocation, lease->Principal);
         return OS_EBUSY;
     }
 
     for (uint32_t i = 0; i < entry->Firmware.InterruptCount; i++) {
         if (i != request->Index && entry->Interrupts[i].Allocation == request->Allocation) {
+            WARNING("__PlatformInterruptReserve: device %u source %u allocation %u already uses source %u",
+                    entry->DeviceId, request->Index, request->Allocation, i);
             return OS_EINVALPARAMS;
         }
     }
@@ -150,6 +172,10 @@ __PlatformInterruptReserve(
         &attach.ControllerID
     );
     if (status != OS_EOK) {
+        ERROR("__PlatformInterruptReserve: device %u source %u controller %u line %u identity failed (%u)",
+              entry->DeviceId, request->Index,
+              entry->Firmware.Interrupts[request->Index].Controller,
+              entry->Firmware.Interrupts[request->Index].Number, status);
         return status;
     }
     attach.Line = entry->Firmware.Interrupts[request->Index].Number;
@@ -161,34 +187,41 @@ __PlatformInterruptReserve(
     }
 
     status = DeviceInterruptProviderAttach(&attach);
-    if (status == OS_EOK) {
-        lease->Principal = principal;
-        lease->Allocation = request->Allocation;
-        lease->Attached = 1;
-        return OS_EOK;
+    if (status != OS_EOK) {
+        ERROR("__PlatformInterruptReserve: device %u source %u allocation %u controller %u line %u attachment failed (%u)",
+              entry->DeviceId, request->Index, request->Allocation,
+              attach.ControllerID, attach.Line, status);
+        if (lease->Allocation != UUID_INVALID) {
+            if (status == OS_EBUSY) {
+                return OS_EUNKNOWN;
+            }
+            return status;
+        }
+
+        // If copying the reply fails, the kernel may already have attached the
+        // line. Close the allocation before leaving its lease empty. If cleanup
+        // cannot confirm the line is detached, keep the allocation ID so device
+        // stop and removal remain blocked.
+        cleanup = DeviceInterruptProviderClose(request->Allocation, principal, entry->DeviceId);
+        if (cleanup != OS_EOK && cleanup != OS_ENOENT && cleanup != OS_EPERMISSIONS &&
+            cleanup != OS_ENOTSUPPORTED) {
+            ERROR("__PlatformInterruptReserve: device %u source %u allocation %u close failed; lease kept (%u)",
+                  entry->DeviceId, request->Index, request->Allocation, cleanup);
+
+            lease->Principal = principal;
+            lease->Allocation = request->Allocation;
+            if (status == OS_EBUSY) {
+                return OS_EUNKNOWN;
+            }
+            return status;
+        }
+        return status;
     }
 
-    WARNING("__PlatformInterruptReserve: device %u source %u attachment failed: %u",
-            entry->DeviceId, request->Index, status);
-    if (lease->Allocation != UUID_INVALID) {
-        return status == OS_EBUSY ? OS_EUNKNOWN : status;
-    }
-
-    // If copying the reply fails, the kernel may already have attached the
-    // line. Close the allocation before leaving its lease empty. If cleanup
-    // cannot confirm the line is detached, keep the allocation ID so device
-    // stop and removal remain blocked.
-    cleanup = DeviceInterruptProviderClose(request->Allocation, principal, entry->DeviceId);
-    if (cleanup != OS_EOK && cleanup != OS_ENOENT && cleanup != OS_EPERMISSIONS &&
-        cleanup != OS_ENOTSUPPORTED) {
-        ERROR("__PlatformInterruptReserve: allocation %u close failed: %u; lease kept",
-              request->Allocation, cleanup);
-
-        lease->Principal = principal;
-        lease->Allocation = request->Allocation;
-        return status == OS_EBUSY ? OS_EUNKNOWN : status;
-    }
-    return status;
+    lease->Principal = principal;
+    lease->Allocation = request->Allocation;
+    lease->Attached = 1;
+    return OS_EOK;
 }
 
 oserr_t
@@ -204,24 +237,36 @@ PlatformInterruptControl(
     uint32_t                                   i;
 
     if (buffer == NULL || length != sizeof(*request)) {
+        WARNING("PlatformInterruptControl: device %u has invalid request buffer %p or length %zu",
+                entry->DeviceId, buffer, length);
         return OS_EINVALPARAMS;
     }
 
     if (principal == UUID_INVALID || request->Allocation == UUID_INVALID) {
+        WARNING("PlatformInterruptControl: device %u has invalid principal %u or allocation %u",
+                entry->DeviceId, principal, request->Allocation);
         return OS_EPERMISSIONS;
     }
 
     TRACE("PlatformInterruptControl(device=%u, allocation=%u, operation=%u)",
           entry->DeviceId, request->Allocation, request->Operation);
     if (request->Operation > DeviceInterruptSourceRelease) {
+        WARNING("PlatformInterruptControl: device %u allocation %u has invalid operation %u",
+                entry->DeviceId, request->Allocation, request->Operation);
         return OS_EINVALPARAMS;
     }
 
     if (request->Operation == DeviceInterruptSourceReserve) {
-        return __PlatformInterruptReserve(entry, principal, request);
+        status = __PlatformInterruptReserve(entry, principal, request);
+        if (status != OS_EOK) {
+            return status;
+        }
+        return OS_EOK;
     }
 
     if (request->Index) {
+        WARNING("PlatformInterruptControl: device %u allocation %u operation %u requires index 0, got %u",
+                entry->DeviceId, request->Allocation, request->Operation, request->Index);
         return OS_EINVALPARAMS;
     }
 
@@ -233,6 +278,8 @@ PlatformInterruptControl(
     }
 
     if (lease != NULL && lease->Principal != principal) {
+        WARNING("PlatformInterruptControl: device %u source %u allocation %u belongs to principal %u, not %u",
+                entry->DeviceId, i, request->Allocation, lease->Principal, principal);
         return OS_EPERMISSIONS;
     }
 
@@ -244,24 +291,42 @@ PlatformInterruptControl(
     }
 
     if (request->Operation == DeviceInterruptSourceEnable) {
-        return lease == NULL ? OS_ENOENT : DeviceInterruptProviderCheckEnabled(
+        if (lease == NULL) {
+            WARNING("PlatformInterruptControl: device %u allocation %u has no lease to enable",
+                    entry->DeviceId, request->Allocation);
+            return OS_ENOENT;
+        }
+
+        status = DeviceInterruptProviderCheckEnabled(
             request->Allocation,
             principal,
             entry->DeviceId
         );
+        if (status != OS_EOK) {
+            ERROR("PlatformInterruptControl: device %u source %u allocation %u enabled check failed (%u)",
+                  entry->DeviceId, i, request->Allocation, status);
+            return status;
+        }
+        return OS_EOK;
     }
 
     status = DeviceInterruptProviderClose(request->Allocation, principal, entry->DeviceId);
     if (status == OS_ENOENT) {
+        TRACE("PlatformInterruptControl: device %u allocation %u is already closed",
+              entry->DeviceId, request->Allocation);
         status = OS_EOK;
     }
 
     if (status != OS_EOK) {
         if (lease == NULL || lease->Attached) {
+            ERROR("PlatformInterruptControl: device %u allocation %u close failed (%u)",
+                  entry->DeviceId, request->Allocation, status);
             return status;
         }
 
         if (status != OS_EPERMISSIONS && status != OS_ENOTSUPPORTED) {
+            ERROR("PlatformInterruptControl: device %u source %u pending allocation %u close failed (%u)",
+                  entry->DeviceId, i, request->Allocation, status);
             return status;
         }
         // OS_EBUSY can occur before owner and allocation-kind checks during

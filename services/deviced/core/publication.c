@@ -34,10 +34,10 @@ struct __DmPublicationEntry {
 
 oserr_t
 DmPublicationAdd(
-    _InOut_ struct DmPublicationGroup*         group,
-    _In_    const struct DmDeviceRegistration* registration,
-    _In_    int                                allowBinding,
-    _InOut_ uuid_t*                            deviceId)
+    _InOut_ struct DmPublicationGroup*    group,
+    _In_    const DmDeviceRegistration_t* registration,
+    _In_    int                           allowBinding,
+    _InOut_ uuid_t*                       deviceId)
 {
     struct __DmPublicationEntry* entry;
     oserr_t                      status;
@@ -60,7 +60,7 @@ DmPublicationAdd(
         return OS_EOOM;
     }
 
-    status = DmDeviceCreateWithProvider(registration, 0, deviceId);
+    status = DmDeviceCreateWithBus(registration, 0, deviceId);
     if (status != OS_EOK) {
         WARNING("DmPublicationAdd: device registration for group %p failed: %u", group, status);
         // Failed registration leaves the description with the caller.

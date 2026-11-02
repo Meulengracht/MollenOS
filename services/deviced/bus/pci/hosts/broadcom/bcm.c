@@ -186,7 +186,18 @@ BcmPciRescal(
 
 cleanup:
     cleanupStatus = DmIoRelease(reset, &controller->RescalAcquired);
-    return status == OS_EOK ? cleanupStatus : status;
+    if (cleanupStatus != OS_EOK) {
+        ERROR("BcmPciRescal: failed to release calibration registers at 0x%llx (%u)",
+            (unsigned long long)dependencies->ResetBase, cleanupStatus);
+        if (status != OS_EOK) {
+            return status;
+        }
+        return cleanupStatus;
+    }
+    if (status != OS_EOK) {
+        return status;
+    }
+    return OS_EOK;
 }
 
 oserr_t
@@ -389,15 +400,23 @@ __BcmTranslate(
     _Out_ uint64_t*  physical)
 {
     struct BcmPciHost* controller = bus->OpContext;
+    oserr_t            status;
 
     // Translate a PCI device address using the ranges installed during setup.
-    return FdtTranslatePciAddress(
+    status = FdtTranslatePciAddress(
         &controller->Firmware,
         (FdtPciSpace_t)space,
         address,
         length,
         physical
     );
+    if (status != OS_EOK) {
+        ERROR("__BcmTranslate: segment %u space %u address 0x%llx length 0x%llx translation failed (%u)",
+            controller->Firmware.Segment, space,
+            (unsigned long long)address, (unsigned long long)length, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -411,9 +430,10 @@ __BcmInterrupt(
     _Out_ unsigned int* flags)
 {
     struct BcmPciHost* controller = bus->OpContext;
+    oserr_t            status;
 
     // The firmware interrupt map routes each device's INTx pin to a CPU interrupt.
-    return FdtResolvePciInterrupt(
+    status = FdtResolvePciInterrupt(
         &controller->Firmware,
         number,
         slot,
@@ -422,6 +442,12 @@ __BcmInterrupt(
         line,
         flags
     );
+    if (status != OS_EOK) {
+        ERROR("__BcmInterrupt: segment %u device %u:%u.%u pin %u resolution failed (%u)",
+            controller->Firmware.Segment, number, slot, function, pin, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -921,6 +947,8 @@ BcmPciDestroy(
     // Stop configuration accesses while clearing the ready flags and hardware.
     lockStatus = mtx_lock(&controller->ConfigLock);
     if (lockStatus != thrd_success) {
+        ERROR("BcmPciDestroy: segment %u failed to lock configuration (%u)",
+            controller->Firmware.Segment, (unsigned int)lockStatus);
         return OS_EUNKNOWN;
     }
     controller->Ready = 0;
@@ -931,19 +959,28 @@ BcmPciDestroy(
         value = (uint32_t)ReadDeviceIo(&controller->RescalIo, 0, 4);
         status = WriteDeviceIo(&controller->RescalIo, 0, value & ~1U, 4);
         if (status != OS_EOK) {
+            ERROR("BcmPciDestroy: segment %u failed to clear calibration register 0x0 (%u)",
+                controller->Firmware.Segment, status);
             result = status;
         } else {
             controller->RescalPendingClear = 0;
         }
     }
     if (!controller->RescalPendingClear) {
-        result = DmIoRelease(&controller->RescalIo, &controller->RescalAcquired);
+        status = DmIoRelease(&controller->RescalIo, &controller->RescalAcquired);
+        if (status != OS_EOK) {
+            ERROR("BcmPciDestroy: segment %u failed to release calibration registers (%u)",
+                controller->Firmware.Segment, status);
+        }
+        result = status;
     }
 
     // Always stop partial controller setup, even if calibration cleanup failed.
     if (!controller->Stopped) {
         status = controller->Variant->Stop(bus);
         if (status != OS_EOK) {
+            ERROR("BcmPciDestroy: segment %u controller type %u failed to stop (%u)",
+                controller->Firmware.Segment, controller->Firmware.Type, status);
             if (result == OS_EOK) {
                 result = status;
             }
