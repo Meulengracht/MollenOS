@@ -31,7 +31,8 @@
 #include <ddk/interrupts/interrupt.h>
 #include <ds/list.h>
 #include <os/types/handle.h>
-#include <os/types/shm.h>
+#include <ddk/dma.h>
+#include <ddk/barrier.h>
 #include <os/spinlock.h>
 
 // SATA includes
@@ -101,7 +102,7 @@ PACKED_TYPESTRUCT(AHCIPrdtEntry, {
      */
     reg32_t Descriptor;
 });
-#define AHCI_PRDT_IOC (1 << 31)  // Interrupt on Completion
+#define AHCI_PRDT_IOC (1U << 31)  // Interrupt on Completion
 
 #define AHCI_COMMAND_TABLE_PRDT_SIZE    16 // == sizeof(AHCIPrdtEntry_t)
 #define AHCI_PRDT_MAX_LENGTH            (4 * 1024 * 1024) // Max number of bytes per PRDT
@@ -111,7 +112,7 @@ PACKED_TYPESTRUCT(AHCICommandTable, {
     uint8_t         FISCommand[64];
     uint8_t         FISAtapi[16];
     uint8_t         Reserved[48];
-    AHCIPrdtEntry_t PrdtEntry[1];    // Between 0...65535 entries
+    AHCIPrdtEntry_t PrdtEntry[];    // Between 0...65535 entries
 });
 
 #define AHCI_COMMAND_TABLE_HEADER_SIZE  128 // == sizeof(AHCICommandTable_t)
@@ -200,11 +201,11 @@ PACKED_TYPESTRUCT(AHCIFis, {
 
 /* Port Interrupt Bits (InterruptStatus)
  * - Generic Registers */
-#define AHCI_INTERRUPT_PORT(Port)           (1 << Port)
+#define AHCI_INTERRUPT_PORT(Port)           (1U << (Port))
 
 /* Ports Implemented (PortsImplemented)
  * - Generic Registers */
-#define AHCI_IMPLEMENTED_PORT(Port)         (1 << Port)
+#define AHCI_IMPLEMENTED_PORT(Port)         (1U << (Port))
 
 /* AHCI Version (Version)
  * - Generic Registers */
@@ -317,21 +318,26 @@ PACKED_TYPESTRUCT(AHCIFis, {
 #define AHCI_PORT_SERR_ERROR(reg) (reg & 0xFFFF)
 #define AHCI_PORT_SERR_DIAG(reg)  ((reg >> 16) & 0xFFFF)
 
-typedef struct AhciPort {
-    int                     Id;
-    int                     Index;
-    int                     MultiplierIndex;
-    int                     Connected;
-    AHCIPortRegisters_t*    Registers;
-    
-    OSHandle_t              InternalBuffer;
-    OSHandle_t              CommandListDMA;
-    OSHandle_t              CommandTableDMA;
-    OSHandle_t              RecievedFisDMA;
+typedef struct AhciPortDma {
+    struct DMABuffer* InternalBuffer;
+    struct DMABuffer* CommandList;
+    struct DMABuffer* CommandTables;
+    struct DMABuffer* ReceivedFis;
+} AhciPortDma_t;
 
-    _Atomic(int)            Slots;
-    int                     SlotCount;
-    list_t                  Transactions;
+typedef struct AhciPort {
+    int                   Id;
+    int                   Index;
+    int                   MultiplierIndex;
+    int                   Connected;
+    AHCIPortRegisters_t*  Registers;
+    
+    AhciPortDma_t         Dma;
+    list_t                CleanupTransactions;
+
+    _Atomic(unsigned int) Slots;
+    int                   SlotCount;
+    list_t                Transactions;
 } AhciPort_t;
 
 /* AhciInterruptResource
@@ -350,6 +356,11 @@ typedef struct AhciController {
     spinlock_t              Lock;
     int                     event_descriptor;
     bool                    Bits64;
+    bool                    Stopping;
+    unsigned int            Cleaning; // Active handlers and callbacks that can yield during IPC.
+    bool                    CleanupQueued;
+    element_t               CleanupHeader;
+    struct DMAContext*      DmaContext;
 
     DeviceIo_t*             IoBase;
     AHCIGenericRegisters_t* Registers;
@@ -360,18 +371,45 @@ typedef struct AhciController {
     int                     CommandSlotCount;
 } AhciController_t;
 
-/* AhciControllerCreate
- * Registers a new controller with the AHCI driver */
-__EXTERN AhciController_t*
+/**
+ * @brief Create a controller and its DMA context.
+ *
+ * @param busDevice Device description. Ownership moves to a non-NULL output.
+ * @param controllerOut Empty output. On failure, destroy a non-NULL output.
+ * @return OS_EOK or the setup error. Failed setup can leave resources to clean up.
+ */
+__EXTERN oserr_t
 AhciControllerCreate(
-    _In_ BusDevice_t* busDevice);
+    _In_  BusDevice_t*       busDevice,
+    _Out_ AhciController_t** controllerOut);
 
-/* AhciControllerDestroy
- * Destroys an existing controller instance and cleans up
- * any resources related to it */
+/**
+ * @brief Stop hardware and destroy the controller after all DMA cleanup succeeds.
+ *
+ * @param controller Controller indexed by the driver. On failure it stays indexed.
+ * @return OS_EOK or cleanup error. Retry with the same controller after failure.
+ */
 __EXTERN oserr_t
 AhciControllerDestroy(
-    _In_ AhciController_t*  controller);
+    _In_ AhciController_t* controller);
+
+/**
+ * @brief Queue another cleanup attempt without polling healthy controllers.
+ *
+ * @param controller Controller with failed request cleanup or teardown.
+ */
+__EXTERN void
+AhciControllerScheduleCleanup(
+    _In_ AhciController_t* controller);
+
+/**
+ * @brief Remove a fully cleaned controller from the driver and cleanup lists.
+ *
+ * @param controller Controller whose interrupts, DMA and I/O resources are gone.
+ */
+__EXTERN void
+AhciControllerRemove(
+    _In_ AhciController_t* controller);
 
 /* AhciPortCreate
  * Initializes the port structure, but not memory structures yet */
@@ -381,12 +419,27 @@ AhciPortCreate(
     _In_ int                portIndex,
     _In_ int                mapIndex);
 
-/* AhciPortCleanup
- * Destroys a port, cleans up device, cleans up memory and resources */
-__EXTERN void
+/**
+ * @brief Stop a port and release requests before freeing its DMA buffers.
+ *
+ * @param controller Stopping controller with interrupts disconnected.
+ * @param port Port to clean up. Failure leaves it in the controller's port table.
+ * @return OS_EOK or a stop/cleanup error. Retry the same port on failure.
+ */
+__EXTERN oserr_t
 AhciPortCleanup(
-    _In_ AhciController_t*  Controller, 
-    _In_ AhciPort_t*        Port);
+    _In_ AhciController_t* controller,
+    _In_ AhciPort_t*       port);
+
+/**
+ * @brief Disable both DMA engines and wait for CR and FR to clear.
+ *
+ * @param port Port with valid MMIO registers.
+ * @return OS_EOK when hardware no longer accesses port memory, or OS_ETIMEOUT.
+ */
+__EXTERN oserr_t
+AhciPortStop(
+    _In_ AhciPort_t* port);
 
 /* AhciPortInitiateSetup
  * Initiates the setup sequence, this function needs at-least 500ms to complete before calling finish setup. */

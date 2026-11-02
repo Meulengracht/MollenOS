@@ -36,7 +36,9 @@
 typedef enum {
     TransactionCreated,
     TransactionQueued,
-    TransactionInProgress
+    TransactionInProgress,
+    TransactionCompleting,
+    TransactionCleanup
 } TransactionState_t;
 
 typedef enum {
@@ -75,17 +77,30 @@ typedef struct AhciDevice {
 #define AHCI_DEVICE_MODE_LBA28  1
 #define AHCI_DEVICE_MODE_LBA48  2
 
+typedef struct AhciTransactionDma {
+    struct DMAMapping*       Mapping;
+    const struct DMASegment* Segments;
+    uint32_t                 SegmentCount;
+    size_t                   Length;
+    size_t                   Completed;
+    bool                     DeviceOwned;
+} AhciTransactionDma_t;
+
 typedef struct AhciTransation {
-    element_t             Header;
-    uuid_t                Id;
-    int                   Internal;
-    TransactionState_t    State;
-    TransactionType_t     Type;
-    AtaCommand_t          Command;
-    int                   Direction;
-    AHCIFis_t             Response;
-    OSHandle_t            SHM;
-    SHMSGTable_t          SHMTable;
+    element_t            Header;
+    uuid_t               Id;
+    int                  Internal;
+    TransactionState_t   State;
+    TransactionType_t    Type;
+    AtaCommand_t         Command;
+    int                  Direction;
+    AHCIFis_t            Response;
+    AhciTransactionDma_t Dma;
+    element_t            CleanupHeader;
+    bool                 CleanupQueued;
+    bool                 Notified;
+    oserr_t              Result;
+    size_t               CommandBytes;
 
     struct {
         DeviceType_t Type;
@@ -140,12 +155,28 @@ AhciTransactionControlCreate(
     _In_ size_t        length,
     _In_ int           direction);
 
-/** 
- * AhciDeviceCancelTransaction
+/**
+ * @brief Cancel all requests after the port engines have stopped.
+ *
+ * @param controller Stopping controller.
+ * @param port Port whose CR and FR bits are clear.
+ * @return OS_EOK or DMA cleanup error. Failed requests stay in the port list.
  */
 __EXTERN oserr_t
-AhciManagerCancelTransaction(
-    _In_ AhciTransaction_t* transaction);
+AhciTransactionsCancel(
+    _In_ AhciController_t* controller,
+    _In_ AhciPort_t*       port);
+
+/**
+ * @brief Retry each failed completion or cleanup once.
+ *
+ * @param controller Controller protected against teardown by Cleaning.
+ * @param port Port with queued cleanup work.
+ */
+__EXTERN void
+AhciTransactionsRetry(
+    _In_ AhciController_t* controller,
+    _In_ AhciPort_t*       port);
 
 /**
  * Handles response of a transfer

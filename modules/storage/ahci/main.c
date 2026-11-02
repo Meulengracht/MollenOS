@@ -34,10 +34,98 @@
 #include <ctt_driver_service_server.h>
 #include <ctt_storage_service_server.h>
 #include <io.h>
+#include <os/usched/job.h>
 
 extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t controllers = LIST_INIT;
+
+static list_t g_cleanupControllers = LIST_INIT;
+static bool   g_cleanupWorkerRunning;
+
+static void
+__CleanupWorker(
+    _In_ void* argument,
+    _In_ void* cancellationToken)
+{
+    _CRT_UNUSED(argument);
+    while (!usched_is_cancelled(cancellationToken) && g_cleanupControllers.head != NULL) {
+        struct timespec wakeUp;
+        int             remaining;
+        
+        timespec_get(&wakeUp, TIME_UTC);
+        wakeUp.tv_sec++;
+        usched_job_sleep(&wakeUp);
+        
+        remaining = g_cleanupControllers.count;
+        while (remaining-- > 0 && g_cleanupControllers.head != NULL) {
+            bool              pending = false;
+            AhciController_t* controller = g_cleanupControllers.head->value;
+            list_remove(&g_cleanupControllers, &controller->CleanupHeader);
+            
+            controller->CleanupQueued = false;
+            if (controller->Stopping) {
+                if (AhciControllerDestroy(controller) != OS_EOK) {
+                    AhciControllerScheduleCleanup(controller);
+                }
+                continue;
+            }
+            
+            if (controller->Cleaning) {
+                AhciControllerScheduleCleanup(controller);
+                continue;
+            }
+            
+            // Request completion may send IPC. Prevent teardown from freeing
+            // the port table while this pass is using it.
+            controller->Cleaning++;
+            
+            for (int i = 0; i < AHCI_MAX_PORTS; i++) {
+                if (controller->Ports[i] != NULL) {
+                    AhciTransactionsRetry(controller, controller->Ports[i]);
+                    pending |= controller->Ports[i]->CleanupTransactions.count != 0;
+                }
+            }
+
+            controller->Cleaning--;
+            if (pending || controller->Stopping) {
+                AhciControllerScheduleCleanup(controller);
+            }
+        }
+    }
+
+    g_cleanupWorkerRunning = false;
+}
+
+void
+AhciControllerScheduleCleanup(
+    _In_ AhciController_t* controller)
+{
+    if (!controller->CleanupQueued) {
+        ELEMENT_INIT(&controller->CleanupHeader, 0, controller);
+        list_append(&g_cleanupControllers, &controller->CleanupHeader);
+        controller->CleanupQueued = true;
+    }
+
+    // Healthy controllers need no timer or request-time job allocation.
+    if (!g_cleanupWorkerRunning) {
+        g_cleanupWorkerRunning = true;
+        if (usched_job_queue(__CleanupWorker, NULL) == UUID_INVALID) {
+            g_cleanupWorkerRunning = false;
+            ERROR("AHCI: could not start cleanup worker; controller stays indexed");
+        }
+    }
+}
+
+void
+AhciControllerRemove(
+    _In_ AhciController_t* controller)
+{
+    if (controller->CleanupQueued) {
+        list_remove(&g_cleanupControllers, &controller->CleanupHeader);
+    }
+    list_remove(&controllers, &controller->header);
+}
 
 irqstatus_t
 OnFastInterrupt(
@@ -57,7 +145,7 @@ OnFastInterrupt(
 
     // Save the status to port that made it and clear
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if ((interruptStatus & (1 << i)) != 0) {
+        if ((interruptStatus & (1U << i)) != 0) {
             volatile AHCIPortRegisters_t* portRegister = (volatile AHCIPortRegisters_t*)((uintptr_t)registers + AHCI_REGISTER_PORTBASE(i));
             atomic_fetch_or(&resource->PortInterruptStatus[i], portRegister->InterruptStatus);
             portRegister->InterruptStatus = portRegister->InterruptStatus;
@@ -76,14 +164,21 @@ OnInterrupt(
     _In_ AhciController_t* controller)
 {
     reg32_t interruptStatus = atomic_exchange(&controller->InterruptResource.ControllerInterruptStatus, 0);
-    int     i;
     TRACE("OnInterrupt(controller=0x%" PRIxIN ")", controller);
+
+    if (controller->Stopping) {
+        return;
+    }
+
+    // Device removal and completion callbacks can send IPC. Count the entire
+    // handler so teardown cannot free its controller or ports while it yields.
+    controller->Cleaning++;
 
 handler_loop:
     // Iterate the port-map and check if the interrupt
     // came from that port
-    for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if (controller->Ports[i] != NULL && ((interruptStatus & (1 << i)) != 0)) {
+    for (int i = 0; i < AHCI_MAX_PORTS; i++) {
+        if (controller->Ports[i] != NULL && ((interruptStatus & (1U << i)) != 0)) {
             AhciPortInterruptHandler(controller, controller->Ports[i]);
         }
     }
@@ -92,6 +187,7 @@ handler_loop:
     if (interruptStatus) {
         goto handler_loop;
     }
+    controller->Cleaning--;
 }
 
 oserr_t
@@ -106,18 +202,19 @@ OnLoad(void)
     return AhciManagerInitialize();
 }
 
-static void
-ClearControllerCallback(
-    _In_ element_t* element,
-    _In_ void*      context)
-{
-    AhciControllerDestroy((AhciController_t*)element->value);
-}
-
 void
 OnUnload(void)
 {
-    list_clear(&controllers, ClearControllerCallback, NULL);
+    AhciController_t* controller;
+
+    while (controllers.head != NULL) {
+        controller = controllers.head->value;
+        if (AhciControllerDestroy(controller) != OS_EOK) {
+            // OnUnload runs from atexit. A queued job cannot finish after the
+            // process exits, so wait here until hardware and DMA cleanup finish.
+            thrd_sleep(&(struct timespec) { .tv_sec = 1 }, NULL);
+        }
+    }
     AhciManagerDestroy();
 }
 
@@ -132,7 +229,15 @@ oserr_t OnEvent(struct ioset_event* event)
             return OS_EUNKNOWN;
         }
 
-        OnInterrupt(controller);
+        if (!controller->Stopping) {
+            OnInterrupt(controller);
+        }
+
+        // Retry worker creation after a previous allocation failure, without
+        // adding scheduler work to the normal interrupt path.
+        if (controller->CleanupQueued && !g_cleanupWorkerRunning) {
+            AhciControllerScheduleCleanup(controller);
+        }
         return OS_EOK;
     }
     return OS_ENOENT;
@@ -141,12 +246,26 @@ oserr_t OnEvent(struct ioset_event* event)
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
     BusDevice_t*      busDevice = (BusDevice_t*)from_sys_device(device);
-    AhciController_t* controller = AhciControllerCreate(busDevice);
-    if (controller == NULL) {
-        ERROR("OnRegister failed to create ahci device");
+    AhciController_t* controller = NULL;
+    oserr_t           status;
+
+    if (busDevice == NULL) {
+        ERROR("AHCI: could not allocate device description");
         return;
     }
+    status = AhciControllerCreate(busDevice, &controller);
+    if (controller == NULL) {
+        free(busDevice);
+        return;
+    }
+
     list_append(&controllers, &controller->header);
+    if (status != OS_EOK) {
+        ERROR("AHCI controller %u: setup failed (%u)", busDevice->Base.Id, status);
+        if (AhciControllerDestroy(controller) != OS_EOK) {
+            AhciControllerScheduleCleanup(controller);
+        }
+    }
 }
 
 oserr_t
@@ -154,12 +273,16 @@ OnUnregister(
     _In_ Device_t* device)
 {
     AhciController_t* controller = list_find_value(&controllers, (void*)(uintptr_t)device->Id);
+    oserr_t           status;
     if (controller == NULL) {
         return OS_ENOENT;
     }
     
-    list_remove(&controllers, &controller->header);
-    return AhciControllerDestroy(controller);
+    status = AhciControllerDestroy(controller);
+    if (status != OS_EOK) {
+        AhciControllerScheduleCleanup(controller);
+    }
+    return status;
 }
 
 void ctt_driver_ioctl_invocation(
@@ -170,7 +293,9 @@ void ctt_driver_ioctl_invocation(
         _In_ const uint32_t         out_count)
 {
     enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
-    AhciController_t*   device = list_find_value(&controllers, (void*)(uintptr_t)deviceId);
+    // Filesystems address the registered disk, whose ID differs from the PCI
+    // controller ID used by device registration and DMAOpen.
+    AhciDevice_t*      device = AhciManagerGetDevice(deviceId);
     if (device == NULL) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
         return;
@@ -178,16 +303,12 @@ void ctt_driver_ioctl_invocation(
 
     switch (req) {
         case OSIOCTLREQUEST_IO_REQUIREMENTS: {
-            // MSD driver does not pose any memory conformity requirements
-            // on its I/O requests. So we need to query the controller itself
-            // for this.
             struct OSIOCtlRequestRequirements ioRequirements;
-            ioRequirements.BufferAlignment = 0;
-            if (device->Bits64) {
-                ioRequirements.Conformity = OSMEMORYCONFORMITY_BITS64;
-            } else {
-                ioRequirements.Conformity = OSMEMORYCONFORMITY_BITS32;
-            }
+
+            // PRDs require word alignment. Address limits and cache handling
+            // belong to the DMA context, so callers can use ordinary SHM.
+            ioRequirements.BufferAlignment = 2;
+            ioRequirements.Conformity = OSMEMORYCONFORMITY_NONE;
             ctt_driver_ioctl_response(
                     message,
                     (uint8_t*)&ioRequirements,

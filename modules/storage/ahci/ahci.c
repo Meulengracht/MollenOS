@@ -42,11 +42,12 @@ extern gracht_server_t* __crt_get_module_server(void);
 
 // Prototypes
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
-oserr_t        AhciSetup(AhciController_t* controller);
+oserr_t     AhciSetup(AhciController_t* controller);
 
-AhciController_t*
+oserr_t
 AhciControllerCreate(
-    _In_ BusDevice_t* busDevice)
+    _In_  BusDevice_t*       busDevice,
+    _Out_ AhciController_t** controllerOut)
 {
     AhciController_t* controller;
     uint32_t          count;
@@ -57,20 +58,24 @@ AhciControllerCreate(
 
     controller = (AhciController_t*)malloc(sizeof(AhciController_t));
     if (!controller) {
-        return NULL;
+        return OS_EOOM;
     }
-    
+
     memset(controller, 0, sizeof(AhciController_t));
     spinlock_init(&controller->Lock);
     ELEMENT_INIT(&controller->header, (void*)(uintptr_t)busDevice->Base.Id, controller);
     controller->Device = busDevice;
+    controller->event_descriptor = -1;
+    DeviceInterruptInitialize(&controller->Interrupt, &busDevice->Base);
+
+    // Store it already, let the caller clean it up
+    *controllerOut = controller;
 
     // Create the event descriptor used to receive irqs
     controller->event_descriptor = eventd(0, EVT_RESET_EVENT);
     if (controller->event_descriptor < 0) {
-        free(controller);
         ERROR("[AhciControllerCreate] failed to create event descriptor");
-        return NULL;
+        return OS_EUNKNOWN;
     }
 
     // register it with the io set
@@ -91,8 +96,7 @@ AhciControllerCreate(
     // Sanitize that we found the io-space
     if (ioBase == NULL) {
         ERROR("No memory space found for ahci-controller");
-        free(controller);
-        return NULL;
+        return OS_EUNKNOWN;
     }
     TRACE("Found Io-Space (Type %u, Physical 0x%" PRIxIN ", Size 0x%" PRIxIN ")",
           ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
@@ -101,19 +105,16 @@ AhciControllerCreate(
     osStatus = AcquireDeviceIo(ioBase);
     if (osStatus != OS_EOK) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
-        free(controller);
-        return NULL;
+        return OS_EUNKNOWN;
     }
 
     controller->IoBase = ioBase;
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN, ioBase->Access.Memory.VirtualBase);
     controller->Registers = (AHCIGenericRegisters_t*)ioBase->Access.Memory.VirtualBase;
-    
+
     // Stop this device's source before preparing its interrupt handler.
     WRITE_VOLATILE(controller->Registers->GlobalHostControl,
         READ_VOLATILE(controller->Registers->GlobalHostControl) & ~AHCI_HOSTCONTROL_IE);
-    DeviceInterruptInitialize(&controller->Interrupt, &busDevice->Base);
-    
     osStatus = DeviceInterruptAllocatePci(
         &controller->Interrupt,
         1, // Min
@@ -122,24 +123,24 @@ AhciControllerCreate(
         &count
     );
     if (osStatus != OS_EOK) {
-        goto interrupt_error;
+        return osStatus;
     }
-    
+
     osStatus = DeviceInterruptSetDescriptor(&controller->Interrupt, 0, controller->event_descriptor);
     if (osStatus != OS_EOK) {
-        goto interrupt_error;
+        return osStatus;
     }
-    
+
     osStatus = DeviceInterruptSetHandler(&controller->Interrupt, 0, (InterruptHandler_t)OnFastInterrupt);
     if (osStatus != OS_EOK) {
-        goto interrupt_error;
+        return osStatus;
     }
-    
+
     osStatus = DeviceInterruptAddIoResource(&controller->Interrupt, 0, ioBase);
     if (osStatus != OS_EOK) {
-        goto interrupt_error;
+        return osStatus;
     }
-    
+
     osStatus = DeviceInterruptAddMemoryResource(
         &controller->Interrupt,
         0,
@@ -148,12 +149,12 @@ AhciControllerCreate(
         0
     );
     if (osStatus != OS_EOK) {
-        goto interrupt_error;
+        return osStatus;
     }
-    
+
     osStatus = DeviceInterruptEnable(&controller->Interrupt);
     if (osStatus != OS_EOK) {
-        goto interrupt_error;
+        return osStatus;
     }
 
     // Enable device
@@ -167,60 +168,80 @@ AhciControllerCreate(
     );
     if (osStatus != OS_EOK) {
         ERROR("Failed to enable the ahci-controller");
-        goto interrupt_error;
+        return osStatus;
     }
 
-    // Now that all formalities has been taken care
-    // off we can actually setup controller
-    if (AhciSetup(controller) == OS_EOK) {
-        return controller;
-    }
-    else {
-        AhciControllerDestroy(controller);
-        return NULL;
-    }
-
-interrupt_error:
-    // The controller has no running queues yet; release only setup resources.
-    if (DeviceInterruptDestroy(&controller->Interrupt) != OS_EOK) {
-        ERROR("Failed to release AHCI interrupt; keeping its resources alive");
-        return NULL;
-    }
-    ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
-        IOSET_DEL, controller->event_descriptor, NULL);
-    close(controller->event_descriptor);
-    ReleaseDeviceIo(controller->IoBase);
-    free(controller);
-    return NULL;
+    return AhciSetup(controller);
 }
 
 oserr_t
 AhciControllerDestroy(
     _In_ AhciController_t* controller)
 {
-    int i;
     oserr_t status;
 
-    // Stop device assertions before detaching from a possibly shared INTx line.
-    WRITE_VOLATILE(controller->Registers->GlobalHostControl,
-        READ_VOLATILE(controller->Registers->GlobalHostControl) & ~AHCI_HOSTCONTROL_IE);
-    status = DeviceInterruptDestroy(&controller->Interrupt);
-    if (status != OS_EOK) {
-        return status;
+    controller->Stopping = true;
+
+    // Cleanup can yield during device or interrupt RPCs. Another teardown
+    // request must leave the object valid until that operation has returned.
+    if (controller->Cleaning) {
+        return OS_EBUSY;
+    }
+    controller->Cleaning = 1;
+
+    if (controller->Registers != NULL) {
+        WRITE_VOLATILE(controller->Registers->GlobalHostControl,
+            READ_VOLATILE(controller->Registers->GlobalHostControl) & ~AHCI_HOSTCONTROL_IE);
     }
 
-    // First step is to clear out all ports
-    // this releases devices and resources
-    for (i = 0; i < AHCI_MAX_PORTS; i++) {
-        if (controller->Ports[i]) {
-            AhciPortCleanup(controller, controller->Ports[i]);
+    status = DeviceInterruptDestroy(&controller->Interrupt);
+    if (status != OS_EOK) {
+        goto retry;
+    }
+
+    for (int i = 0; i < AHCI_MAX_PORTS; i++) {
+        if (controller->Ports[i] != NULL) {
+            status = AhciPortCleanup(controller, controller->Ports[i]);
+            if (status != OS_EOK) {
+                goto retry;
+            }
         }
     }
 
-    ReleaseDeviceIo(controller->IoBase);
+    status = DMAClose(&controller->DmaContext);
+    if (status != OS_EOK) {
+        goto retry;
+    }
+
+    if (controller->IoBase != NULL) {
+        status = ReleaseDeviceIo(controller->IoBase);
+        if (status != OS_EOK) {
+            goto retry;
+        }
+        controller->IoBase = NULL;
+        controller->Registers = NULL;
+    }
+
+    if (controller->event_descriptor >= 0) {
+        ioset_ctrl(
+            gracht_server_get_aio_handle(__crt_get_module_server()),
+            IOSET_DEL,
+            controller->event_descriptor,
+            NULL
+        );
+        close(controller->event_descriptor);
+        controller->event_descriptor = -1;
+    }
+
+    AhciControllerRemove(controller);
     free(controller->Device);
     free(controller);
     return OS_EOK;
+
+retry:
+    controller->Cleaning = 0;
+    WARNING("AHCI controller %u: cleanup failed (%u), will retry", controller->Device->Base.Id, status);
+    return status;
 }
 
 oserr_t
@@ -237,8 +258,8 @@ AhciReset(
     ghc = READ_VOLATILE(controller->Registers->GlobalHostControl);
     WRITE_VOLATILE(controller->Registers->GlobalHostControl, ghc | AHCI_HOSTCONTROL_HR);
 
-    // The bit shall be cleared to 0 by the HBA when the reset is complete. 
-    // If the HBA has not cleared GHC.HR to 0 within 1 second of 
+    // The bit shall be cleared to 0 by the HBA when the reset is complete.
+    // If the HBA has not cleared GHC.HR to 0 within 1 second of
     // software setting GHC.HR to 1, the HBA is in a hung or locked state.
     WaitForConditionWithFault(hung,
                               ((READ_VOLATILE(controller->Registers->GlobalHostControl) & AHCI_HOSTCONTROL_HR) == 0),
@@ -247,10 +268,10 @@ AhciReset(
         return OS_EUNKNOWN;
     }
 
-    // If the HBA supports staggered spin-up, the PxCMD.SUD bit will be reset to 0; 
-    // software is responsible for setting the PxCMD.SUD and PxSCTL.DET fields 
-    // appropriately such that communication can be established on the Serial ATA link. 
-    // If the HBA does not support staggered spin-up, the HBA reset shall cause 
+    // If the HBA supports staggered spin-up, the PxCMD.SUD bit will be reset to 0;
+    // software is responsible for setting the PxCMD.SUD and PxSCTL.DET fields
+    // appropriately such that communication can be established on the Serial ATA link.
+    // If the HBA does not support staggered spin-up, the HBA reset shall cause
     // a COMRESET to be sent on the port.
 
     // Indicate that system software is AHCI aware by setting GHC.AE to 1.
@@ -286,8 +307,8 @@ AhciTakeOwnership(
     // Wait 25 ms, to determine how long time BIOS needs to release
     thrd_sleep(&(struct timespec) { .tv_nsec = 25 * NSEC_PER_MSEC }, NULL);
 
-    // If the BIOS Busy (BOHC.BB) has been set to 1 within 25 milliseconds, 
-    // then the OS driver shall provide the BIOS a minimum of two seconds 
+    // If the BIOS Busy (BOHC.BB) has been set to 1 within 25 milliseconds,
+    // then the OS driver shall provide the BIOS a minimum of two seconds
     // for finishing outstanding commands on the HBA.
     if (READ_VOLATILE(Controller->Registers->OSControlAndStatus) & AHCI_CONTROLSTATUS_BB) {
         thrd_sleep(&(struct timespec) { .tv_sec = 2 }, NULL);
@@ -298,7 +319,7 @@ AhciTakeOwnership(
                               ((READ_VOLATILE(Controller->Registers->OSControlAndStatus) & AHCI_CONTROLSTATUS_BOS) == 0),
                               10, 25);
 
-    // Sanitize if we got the ownership 
+    // Sanitize if we got the ownership
     if (hung) {
         return OS_EUNKNOWN;
     }
@@ -316,6 +337,7 @@ AhciSetup(
     int     fullResetRequired = 0;
     int     activePortCount   = 0;
     int     i;
+    oserr_t status;
     TRACE("AhciSetup()");
 
     // Take ownership of the controller
@@ -336,8 +358,8 @@ AhciSetup(
         controller->Bits64 = true;
     }
 
-    // Determine which ports are implemented by the HBA, by reading the PI register. 
-    // This bit map value will aid software in determining how many ports are 
+    // Determine which ports are implemented by the HBA, by reading the PI register.
+    // This bit map value will aid software in determining how many ports are
     // available and which port registers need to be initialized.
     controller->ValidPorts       = READ_VOLATILE(controller->Registers->PortsImplemented);
     controller->CommandSlotCount = AHCI_CAPABILITIES_NCS(capabilities);
@@ -363,8 +385,10 @@ AhciSetup(
 
         // Create a port descriptor and get register access
         controller->Ports[i] = AhciPortCreate(controller, activePortCount++, i);
+        if (controller->Ports[i] == NULL) {
+            return OS_EOOM;
+        }
         AhciPortInitiateSetup(controller, controller->Ports[i]);
-        AhciPortRebase(controller, controller->Ports[i]);
     }
 
     // Finish the stop sequences
@@ -386,7 +410,30 @@ AhciSetup(
         }
     }
 
-    // To enable the HBA to generate interrupts, 
+    // Both engines are stopped before opening the device's DMA context.
+    // CAP.S64A limits tables and streaming mappings, including on 32-bit CPUs.
+    status = DMAOpen(
+        controller->Device->Base.Id,
+        controller->Bits64 ? UINT64_MAX : UINT32_MAX,
+        &controller->DmaContext
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // All engines have stopped, either per port or through the HBA reset.
+    // A failed allocation leaves its buffers on the port for normal teardown.
+    for (i = 0; i < AHCI_MAX_PORTS; i++) {
+        if (controller->Ports[i] != NULL) {
+            status = AhciPortRebase(controller, controller->Ports[i]);
+            if (status != OS_EOK) {
+                ERROR("AHCI port %i: DMA setup failed (%u)", i, status);
+                return status;
+            }
+        }
+    }
+
+    // To enable the HBA to generate interrupts,
     // system software must also set GHC.IE to a 1
     ghc = READ_VOLATILE(controller->Registers->GlobalHostControl);
     WRITE_VOLATILE(controller->Registers->InterruptStatus, 0xFFFFFFFF);

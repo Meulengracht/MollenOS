@@ -28,7 +28,6 @@
 #include <ddk/utils.h>
 #include <internal/_utils.h>
 #include <os/memory.h>
-#include <os/shm.h>
 #include "manager.h"
 
 #include <ctt_storage_service_server.h>
@@ -226,10 +225,14 @@ AhciManagerUnregisterDevice(
             break;
         }
     }
-    assert(device != NULL);
-
+    
+    // Ports without a connected device still have DMA tables to clean up.
+    if (device == NULL) {
+        return;
+    }
     __UnregisterStorage(device->Descriptor.DeviceID, 1);
     list_remove(&devices, &device->header);
+    free(device);
 }
 
 static void
@@ -237,7 +240,7 @@ HandleIdentifyCommand(
     _In_ AhciDevice_t* device)
 {
     ATAIdentify_t* deviceInformation =
-        (ATAIdentify_t*)SHMBuffer(&device->Port->InternalBuffer);
+        (ATAIdentify_t*)DMABufferData(device->Port->Dma.InternalBuffer);
 
     // Flip the data in the strings as it's inverted
     __flipbuffer(deviceInformation->SerialNo, 20);
@@ -263,17 +266,16 @@ HandleIdentifyCommand(
         device->AddressingMode = 0; // CHS
     }
 
-    // Calculate sector size if neccessary
-    if (deviceInformation->SectorSize & (1 << 12)) {
-        device->SectorSize = deviceInformation->WordsPerLogicalSector * 2;
+    // ATA LBAs and request lengths use logical sectors. Word 106 is valid
+    // only when bits 15:14 are 01; bit 12 then selects words 117:118.
+    // The physical-sector ratio in bits 3:0 must not change this unit.
+    if ((deviceInformation->SectorSize & 0xD000) == 0x5000 &&
+        deviceInformation->WordsPerLogicalSector > 256 &&
+        deviceInformation->WordsPerLogicalSector <= UINT32_MAX / 2) {
+        device->SectorSize = (size_t)deviceInformation->WordsPerLogicalSector * 2;
     }
     else {
         device->SectorSize = 512;
-    }
-
-    // Calculate sector count per physical sector
-    if (deviceInformation->SectorSize & (1 << 13)) {
-        device->SectorSize *= (deviceInformation->SectorSize & 0xF);
     }
 
     // Now, get the number of sectors for this particular disk
@@ -287,6 +289,8 @@ HandleIdentifyCommand(
     // At this point the ahcidisk structure is filled,
     // and we can continue to fill out the descriptor
     memset(&device->Descriptor, 0, sizeof(StorageDescriptor_t));
+    
+    device->Descriptor.DeviceID    = (uuid_t)(uintptr_t)device->header.key;
     device->Descriptor.DriverID    = UUID_INVALID;
     device->Descriptor.Flags       = 0;
     device->Descriptor.SectorCount = device->SectorCount;

@@ -27,7 +27,6 @@
 #define __need_minmax
 #include <assert.h>
 #include <ddk/utils.h>
-#include <os/shm.h>
 #include "manager.h"
 #include "dispatch.h"
 #include <string.h>
@@ -73,99 +72,134 @@ static int __CommandIsNQC(uint8_t command)
     return 0;
 }
 
-static void __BuildPRDTTable(
-    _In_  AhciTransaction_t*  transaction,
-    _In_  AHCICommandTable_t* commandTable,
-    _In_  size_t              sectorSize,
-    _Out_ int*                prdtCountOut)
+static oserr_t
+__BuildPRDTTable(
+    _In_ AhciTransaction_t*  transaction,
+    _In_ AHCICommandTable_t* table,
+    _In_ size_t              sectorSize,
+    _Out_ int*               countOut)
 {
-    size_t bytesQueued = 0;
-    int    i;
-    TRACE("__BuildPRDTTable(transaction=0x%" PRIxIN ", commandTable=0x%" PRIxIN ", sectorSize=%u)",
-          transaction, commandTable, sectorSize);
+    const struct DMASegment* segments = transaction->Dma.Segments;
+    uint32_t                 index = transaction->SgIndex;
+    size_t                   offset = transaction->SgOffset;
+    size_t                   queued = 0;
+    size_t                   length;
+    size_t                   trim;
+    size_t                   remove;
+    uint64_t                 address;
+    int                      count = 0;
 
-    for (i = 0; i < AHCI_COMMAND_TABLE_PRDT_COUNT && transaction->BytesLeft > 0; i++) {
-        AHCIPrdtEntry_t* prdt = &commandTable->PrdtEntry[i];
-        uintptr_t        address = transaction->SHMTable.Entries[transaction->SgIndex].Address + transaction->SgOffset;
-        size_t           transferLength = MIN(AHCI_PRDT_MAX_LENGTH,
-                                              MIN(
-                                               transaction->BytesLeft,
-                                               transaction->SHMTable.Entries[transaction->SgIndex].Length - transaction->SgOffset));
+    // Segments describe this mapping's device addresses. Consume at most one
+    // command table and leave the mapping intact for subsequent ATA commands.
+    while (count < AHCI_COMMAND_TABLE_PRDT_COUNT && queued < transaction->BytesLeft) {
+        if (index >= transaction->Dma.SegmentCount || offset >= segments[index].Length) {
+            return OS_EINVALPARAMS;
+        }
+
+        address = segments[index].Address + offset;
+        length = MIN(
+            AHCI_PRDT_MAX_LENGTH,
+            MIN(
+                transaction->BytesLeft - queued,
+                segments[index].Length - offset
+            )
+        );
+        if ((address & 1) != 0 || (length & 1) != 0) {
+            return OS_EINVALPARAMS;
+        }
         
-        // On some transfers (sector transfers) we would like to have sector alignment
-        // on the transfer we read. This should only ever be neccessary if we cannot fit
-        // the entire transaction into <AHCI_COMMAND_TABLE_PRDT_COUNT> prdt entries. Then 
-        // we should make sure we transfer on sector boundaries between rounds. So on the last
-        // PRDT entry, we must make sure that the total transfer length is on boundaries
-        if (i == (AHCI_COMMAND_TABLE_PRDT_COUNT - 1) && transaction->SectorAlignment &&
-            transferLength != transaction->BytesLeft) {
-            if ((bytesQueued + transferLength) % sectorSize != 0) {
-                if (transferLength < sectorSize) {
-                    assert(0);
-                    // Perform a larger correctional action as no longer have space to reduce
-                    // to the next boundary. Instead of correcting the number of bytes to transfer
-                    // we drop the previous PRDT entry entirely and let the next transaction round
-                    // take care of this.
-                    i--;
-                    break;
-                }
-                transferLength -= (bytesQueued + transferLength) % sectorSize;
-            }
+        table->PrdtEntry[count].DataBaseAddress = (uint32_t)address;
+        table->PrdtEntry[count].DataBaseAddressUpper = (uint32_t)(address >> 32);
+        table->PrdtEntry[count].Reserved = 0;
+        table->PrdtEntry[count].Descriptor = (uint32_t)(length - 1);
+        
+        count++;
+        queued += length;
+        offset += length;
+        
+        if (offset == segments[index].Length) {
+            offset = 0;
+            index++;
         }
-
-        prdt->DataBaseAddress      = LODWORD(address);
-        prdt->DataBaseAddressUpper = (sizeof(void*) > 4) ? HIDWORD(address) : 0;
-        prdt->Descriptor           = transferLength - 1; // N - 1
-
-        TRACE("__BuildPRDTTable i=%i, address=0x%" PRIxIN ", transferLength=0x%" PRIxIN,
-              i, address, transferLength);
-
-        // Adjust frame index and offset
-        transaction->SgOffset += transferLength;
-        if (transaction->SgOffset == transaction->SHMTable.Entries[transaction->SgIndex].Length) {
-            transaction->SgOffset = 0;
-            transaction->SgIndex++;
-        }
-        transaction->BytesLeft -= transferLength;
-        bytesQueued            += transferLength;
     }
 
-    // Set IOC on the last PRDT entry
-    commandTable->PrdtEntry[i].Descriptor |= AHCI_PRDT_IOC;
-    *prdtCountOut = i;
+    if (count == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    // A split ATA command must end on a sector boundary. Small final segments
+    // can require trimming more than one PRD. Only this split case walks back.
+    if (queued < transaction->BytesLeft && transaction->SectorAlignment) {
+        trim = queued % sectorSize;
+        queued -= trim;
+        if (queued == 0) {
+            return OS_ENOTSUPPORTED;
+        }
+
+        remove = trim;
+        while (remove != 0) {
+            length = (size_t)table->PrdtEntry[count - 1].Descriptor + 1;
+            if (remove >= length) {
+                remove -= length;
+                count--;
+            } else {
+                table->PrdtEntry[count - 1].Descriptor -= (uint32_t)remove;
+                remove = 0;
+            }
+        }
+        
+        while (trim != 0) {
+            if (offset == 0) {
+                index--;
+                offset = (size_t)segments[index].Length;
+            }
+            remove = MIN(trim, offset);
+            offset -= remove;
+            trim -= remove;
+        }
+    }
+
+    table->PrdtEntry[count - 1].Descriptor |= AHCI_PRDT_IOC;
+    
+    transaction->SgIndex = index;
+    transaction->SgOffset = offset;
+    transaction->BytesLeft -= queued;
+    transaction->CommandBytes = queued;
+    
+    *countOut = count;
+    return OS_EOK;
 }
 
-static size_t __PrepareCommandSlot(
+static oserr_t
+__PrepareCommandSlot(
     _In_ AhciPort_t*        port,
     _In_ AhciTransaction_t* transaction,
     _In_ size_t             sectorSize,
-    _In_ int                commandSlot)
+    _In_ int                slot)
 {
-    AHCICommandList_t*   commandList;
-    AHCICommandHeader_t* commandHeader;
-    AHCICommandTable_t*  commandTable;
-    size_t               bytesQueued = transaction->BytesLeft;
-    int                  prdtCount;
+    AHCICommandList_t*   list = DMABufferData(port->Dma.CommandList);
+    AHCICommandTable_t*  table;
+    AHCICommandHeader_t* header = &list->Headers[slot];
+    oserr_t              status;
+    int                  count;
 
-    TRACE("__PrepareCommandSlot(port=0x%" PRIxIN ", transaction=0x%" PRIxIN ", sectorSize=0x%" PRIxIN ")",
-          port, transaction, sectorSize);
+    // Each header points to its own table. Sharing slot zero's table would
+    // overwrite commands that the controller is still fetching for other slots.
+    table = (AHCICommandTable_t*)((uint8_t*)DMABufferData(port->Dma.CommandTables) +
+        slot * AHCI_COMMAND_TABLE_SIZE);
+    
+    status = __BuildPRDTTable(transaction, table, sectorSize, &count);
+    if (status != OS_EOK) {
+        return status;
+    }
 
-    // Get a reference to the command slot and reset the data in the command table
-    commandList   = (AHCICommandList_t*)SHMBuffer(&port->CommandListDMA);
-    commandTable  = (AHCICommandTable_t*)SHMBuffer(&port->CommandTableDMA);
-    commandHeader = &commandList->Headers[commandSlot];
-
-    // Build the PRDT table
-    __BuildPRDTTable(transaction, commandTable, sectorSize, &prdtCount);
-
-    // Update command table to the new command
-    commandHeader->PRDByteCount = 0;
-    commandHeader->TableLength  = (uint16_t)(prdtCount & 0xFFFF);
-    TRACE("__PrepareCommandSlot returns=%" PRIuIN, bytesQueued - transaction->BytesLeft);
-    return bytesQueued - transaction->BytesLeft;
+    header->PRDByteCount = 0;
+    header->TableLength = (uint16_t)count;
+    return OS_EOK;
 }
 
-static oserr_t __DispatchCommand(
+static oserr_t
+__DispatchCommand(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,
     _In_ AhciTransaction_t* transaction,
@@ -180,6 +214,7 @@ static oserr_t __DispatchCommand(
     AHCICommandTable_t*  commandTable;
     size_t               commandLength = 0;
     int                  commandSlot = __GetTransferKey(transaction);
+    oserr_t              status;
 
     TRACE("__DispatchCommand(transaction=0x%" PRIxIN ", flags=0x%x, ataCommandLength=0x%" PRIuIN ")",
           transaction, flags, ataCommandLength);
@@ -188,23 +223,15 @@ static oserr_t __DispatchCommand(
     __DumpCurrentState(controller, port);
 #endif
 
-    // Assert that buffer is WORD aligned, this must be true
-    // The number of bytes to transfer must also be WORD aligned, however as
-    // the storage interface is implemented one can only transfer in sectors so
-    // this is always true.
-    if (((uintptr_t)transaction->SgOffset & 0x1) != 0) {
-        ERROR("__DispatchCommand FrameOffset was not dword aligned (0x%x)", transaction->SgOffset);
-        return OS_EINVALPARAMS;
-    }
-
-    if (commandLength > 64 || atapiCommandLength > 16) {
+    if (ataCommandLength > 64 || atapiCommandLength > 16) {
         ERROR("__DispatchCommand Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)",
               commandLength, atapiCommandLength);
         return OS_EINVALPARAMS;
     }
 
-    commandList   = (AHCICommandList_t*)SHMBuffer(&port->CommandListDMA);
-    commandTable  = (AHCICommandTable_t*)SHMBuffer(&port->CommandTableDMA);
+    commandList   = (AHCICommandList_t*)DMABufferData(port->Dma.CommandList);
+    commandTable  = (AHCICommandTable_t*)((uint8_t*)DMABufferData(port->Dma.CommandTables) +
+        commandSlot * AHCI_COMMAND_TABLE_SIZE);
     commandHeader = &commandList->Headers[commandSlot];
 
     if (ataCommand != NULL) {
@@ -238,6 +265,18 @@ static oserr_t __DispatchCommand(
 
     TRACE("__DispatchCommand transaction->Slot=%u, commandHeader->Flags=0x%x",
           commandSlot, commandHeader->Flags);
+    
+    // One handoff covers the complete request, including all command splits.
+    // Only the persistent command tables are touched by the CPU in between.
+    if (transaction->Dma.Mapping != NULL && !transaction->Dma.DeviceOwned) {
+        status = DMABeginTransfer(transaction->Dma.Mapping, 0, transaction->Dma.Length);
+        if (status != OS_EOK) {
+            return status;
+        }
+        transaction->Dma.DeviceOwned = true;
+    }
+    
+    transaction->State = TransactionInProgress;
     AhciPortStartCommandSlot(port, commandSlot, __CommandIsNQC(transaction->Command));
 
 #ifdef __TRACE
@@ -268,7 +307,7 @@ PrintTaskDataErrorString(uint8_t taskDataError)
 static void __FillRegisterFIS(
     _In_ AhciTransaction_t* transaction,
     _In_ FISRegisterH2D_t*  registerH2D,
-    _In_ int                bytesQueued,
+    _In_ size_t             bytesQueued,
     _In_ size_t             sectorSize,
     _In_ int                addressingMode)
 {
@@ -276,7 +315,7 @@ static void __FillRegisterFIS(
     size_t   sectorCount = bytesQueued / sectorSize;
     int      deviceLun   = 0; // TODO: Is this LUN or what is it?
 
-    TRACE("__FillRegisterFIS(bytesQueued=%i, sectorSize=0x%" PRIxIN ", addressingMode=%i)",
+    TRACE("__FillRegisterFIS(bytesQueued=%zu, sectorSize=0x%" PRIxIN ", addressingMode=%i)",
           bytesQueued, sectorSize, addressingMode);
     TRACE("__FillRegisterFIS sector=%" PRIuIN ", sectorCount=%" PRIuIN ", command=%x",
           sector, sectorCount, transaction->Command);
@@ -320,17 +359,25 @@ AhciDispatchRegisterFIS(
 {
     FISRegisterH2D_t fis = { 0 };
     unsigned int     flags;
-    int              bytesQueued;
+    oserr_t          status;
     int              commandSlot = __GetTransferKey(transaction);
 
-    TRACE("AhciDispatchRegisterFIS(controller=0x%" PRIxIN ", port=0x%" PRIxIN, ", transaction=0x%" PRIxIN ")",
+    TRACE("AhciDispatchRegisterFIS(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", transaction=0x%" PRIxIN ")",
           controller, port, transaction);
     
     // Initialize the command
-    bytesQueued = __PrepareCommandSlot(port, transaction, transaction->Target.SectorSize, commandSlot);
-    __FillRegisterFIS(transaction, &fis, bytesQueued,
-                      transaction->Target.SectorSize,
-                      transaction->Target.AddressingMode);
+    status = __PrepareCommandSlot(port, transaction, transaction->Target.SectorSize, commandSlot);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    __FillRegisterFIS(
+        transaction,
+        &fis,
+        transaction->CommandBytes,
+        transaction->Target.SectorSize,
+        transaction->Target.AddressingMode
+    );
     
     // Start out by building dispatcher flags here
     flags = DISPATCH_MULTIPLIER(transaction->Target.PortMultiplier);
@@ -349,7 +396,14 @@ AhciDispatchRegisterFIS(
         flags |= DISPATCH_PREFETCH;
     }
 
-    return __DispatchCommand(controller, port, transaction, flags,
-                             &fis, sizeof(FISRegisterH2D_t),
-                             NULL, 0);
+    return __DispatchCommand(
+        controller,
+        port,
+        transaction,
+        flags,
+        &fis,
+        sizeof(FISRegisterH2D_t),
+        NULL,
+        0
+    );
 }
