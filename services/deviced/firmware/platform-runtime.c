@@ -17,10 +17,16 @@
  */
 
 #include <firmware/platform-runtime.h>
+#include <firmware/ethernet.h>
 #include <ddk/utils.h>
 #include <string.h>
 #include <stdio.h>
 
+/**
+ * @brief Collects physical RAM ranges and the first error from the tree walk.
+ * The visitor cannot return an error. Status stops collection after a failure,
+ * which FdtPlatformDma reports once the walk finishes.
+ */
 struct __PlatformRam {
     DmDmaMap_t Map;
     oserr_t    Status;
@@ -30,6 +36,8 @@ static int
 __PlatformHasManagedProperties(
     _In_ const struct FdtNode* node)
 {
+    // A resource with a constant output rate may still need setup. Check for
+    // properties that require runtime callbacks before treating it as fixed.
     for (size_t i = 0; i < node->PropertyCount; i++) {
         const char* name = node->Properties[i].Name;
         size_t      length = strlen(name);
@@ -56,6 +64,8 @@ __PlatformDependencyAppend(
     _InOut_ struct FdtPlatformDependencies*     plan,
     _In_    const struct FdtPlatformDependency* dependency)
 {
+    // Boards needing more entries exceed this build's limit. Report them as
+    // unsupported, since their firmware description may still be valid.
     if (plan->Count == FDT_PLATFORM_MAX_DEPENDENCIES) {
         ERROR("__PlatformDependencyAppend: dependency of kind %u exceeds the %u entry limit",
               (uint32_t)dependency->Kind, (uint32_t)FDT_PLATFORM_MAX_DEPENDENCIES);
@@ -78,6 +88,9 @@ __PlatformReferences(
     uint32_t       length;
     uint32_t       offset = 0;
 
+    // Each reference starts with a firmware node handle followed by argument
+    // cells. The referenced node specifies their count, so entry sizes can
+    // vary within the same property.
     bytes = FdtProperty(&node->View, property, &length);
     while (offset < length) {
         struct FdtPlatformDependency dependency;
@@ -121,6 +134,8 @@ __PlatformReferences(
         dependency.NodeOffset = resource.NodeOffset;
         dependency.ArgumentCount = count;
         
+        // Firmware stores cells in big-endian order. Copy decoded values into
+        // the plan so runtime callbacks do not need to parse firmware bytes.
         for (uint32_t i = 0; i < count; i++) {
             dependency.Arguments[i] = FdtReadBe32(arguments + 4 * i);
         }
@@ -168,6 +183,8 @@ __PlatformSupplies(
     struct FdtPlatformDependency dependency = { .Kind = FdtPlatformSupply };
     oserr_t                      status;
 
+    // Find supply properties by their -supply suffix, as in vdd-supply.
+    // Each property contains one controller handle.
     for (size_t i = 0; i < node->View.PropertyCount; i++) {
         const struct FdtProperty* property = &node->View.Properties[i];
         size_t                    length = strlen(property->Name);
@@ -176,6 +193,7 @@ __PlatformSupplies(
             continue;
         }
         
+        // A controller handle must occupy exactly four bytes.
         if (property->Length != 4) {
             ERROR("__PlatformSupplies: node %u property %s has length %u, expected 4",
                   node->NodeOffset, property->Name, property->Length);
@@ -216,6 +234,8 @@ __PlatformPins(
     int            found = 0;
     oserr_t        status;
 
+    // The position of "default" in pinctrl-names selects pinctrl-N.
+    // Use pinctrl-0 when no names list is present.
     names = FdtProperty(&node->View, "pinctrl-names", &length);
     while (offset < length) {
         const char* end = memchr(names + offset, 0, length - offset);
@@ -238,7 +258,7 @@ __PlatformPins(
         index++;
     }
     if (names != NULL && !found) {
-        // Do not guess which named state would make a device safe to start.
+        // A named state list must identify the default state before setup.
         ERROR("__PlatformPins: node %u has no default pinctrl state", node->NodeOffset);
         return OS_ENOTSUPPORTED;
     }
@@ -272,6 +292,8 @@ __PlatformPins(
             return status;
         }
 
+        // Skip grouping nodes without a compatible string to find the pin
+        // controller. Its driver receives the state node as an argument.
         parent = FdtTreeParent(tree, state.NodeOffset);
         while (parent != NULL && parent->Compatible == NULL) {
             parent = FdtTreeParent(tree, parent->NodeOffset);
@@ -302,10 +324,13 @@ static oserr_t
 __PlatformNodeDependencies(
     _In_    const struct FdtTree*           tree,
     _In_    const struct FdtResources*      resource,
-    _InOut_ struct FdtPlatformDependencies* plan)
+    _InOut_ struct FdtPlatformDependencies* plan,
+    _In_    int                            ethernetPhy)
 {
-    uint32_t length;
-    oserr_t  status;
+    struct DeviceEthernetConfiguration ethernet;
+    uint32_t                           length;
+    oserr_t                            status;
+    int                                hasEthernet = 0;
 
     if (resource == NULL || resource->Malformed || resource->ParentMalformed) {
         ERROR("__PlatformNodeDependencies: node is missing or malformed");
@@ -325,12 +350,32 @@ __PlatformNodeDependencies(
         return OS_ENOTSUPPORTED;
     }
 
+    // Before accepting Ethernet properties below, validate the full MAC/PHY
+    // layout, including reset and MDIO support. A phy-handle alone is insufficient.
+    if (FdtProperty(&resource->View, "phy-handle", &length) != NULL) {
+        status = FdtEthernetConfiguration(tree, resource->NodeOffset, &ethernet);
+        if (status != OS_EOK) {
+            return status;
+        }
+        hasEthernet = 1;
+    }
+
     // GPIO-controlled resets, enables, and legacy PHY references require a
     // driver that understands their binding before the device can start.
     for (size_t i = 0; i < resource->View.PropertyCount; i++) {
         const char* name = resource->View.Properties[i].Name;
         size_t      nameLength = strlen(name);
         
+        // The Ethernet parser has checked these reset descriptions. Reject
+        // other GPIO uses until their setup is supported.
+        if (ethernetPhy && !strcmp(name, "reset-gpios")) {
+            continue;
+        }
+        
+        if (hasEthernet && (!strcmp(name, "phy-handle") || !strcmp(name, "phy-reset-gpios"))) {
+            continue;
+        }
+
         if (!strcmp(name, "gpios") || !strcmp(name, "phy-handle") || !strcmp(name, "usb-phy")) {
             ERROR("__PlatformNodeDependencies: node %u property %s needs a driver",
                   resource->NodeOffset, name);
@@ -344,6 +389,8 @@ __PlatformNodeDependencies(
         }
     }
     
+    // Record power and supplies before clocks, resets and pin settings. Runtime
+    // setup follows this order, and cleanup releases the list in reverse.
     status = __PlatformReferences(
         tree,
         resource,
@@ -414,7 +461,54 @@ __PlatformNodeDependencies(
         return status;
     }
 
+    if (hasEthernet) {
+        // Platform setup also handles the MDIO and PHY nodes' dependencies.
+        // The MAC's Ethernet interface handles MDIO transactions and the
+        // validated PHY reset line.
+        if (ethernet.MdioNode != resource->NodeOffset) {
+            status = __PlatformNodeDependencies(
+                tree,
+                FdtTreeNode(tree, ethernet.MdioNode),
+                plan,
+                0
+            );
+            if (status != OS_EOK) {
+                return status;
+            }
+        }
+        return __PlatformNodeDependencies(
+            tree,
+            FdtTreeNode(tree, ethernet.PhyNode),
+            plan,
+            1
+        );
+    }
     return OS_EOK;
+}
+
+oserr_t
+FdtPlatformLocalDependencies(
+    _In_  const struct FdtTree*           tree,
+    _In_  uint32_t                        node,
+    _Out_ struct FdtPlatformDependencies* dependencies)
+{
+    struct FdtPlatformDependencies result = { 0 };
+    oserr_t                        status;
+
+    // The parent bus must already be prepared, as it is for RP1 children.
+    // Decode this device and its linked Ethernet nodes without adding bus requirements.
+    status = __PlatformNodeDependencies(
+        tree,
+        FdtTreeNode(tree, node),
+        &result,
+        0
+    );
+    if (status == OS_EOK) {
+        // Return the plan only after the full parse succeeds. Entries from a
+        // failed parse would allow the caller to prepare only part of the device.
+        *dependencies = result;
+    }
+    return status;
 }
 
 oserr_t
@@ -433,6 +527,8 @@ FdtPlatformDependencies(
         return OS_ENOENT;
     }
 
+    // Collect this node and its parents. Walk the list backwards below to
+    // process the root first.
     while (resource != NULL) {
         if (count == FDT_MAX_DEPTH) {
             ERROR("FdtPlatformDependencies: node %u is nested deeper than %u levels",
@@ -446,7 +542,7 @@ FdtPlatformDependencies(
     // Simple-bus parents can also require power or clocks. List their dependencies
     // first so runtime setup enables them before the child's dependencies.
     while (count) {
-        oserr_t status = __PlatformNodeDependencies(tree, parentNodes[--count], &ldeps);
+        oserr_t status = __PlatformNodeDependencies(tree, parentNodes[--count], &ldeps, 0);
         if (status != OS_EOK) {
             ERROR("FdtPlatformDependencies: node %u rejected at tree depth %u (%u)",
                   node, count, status);
@@ -454,6 +550,7 @@ FdtPlatformDependencies(
         }
     }
 
+    // Every level must succeed before the caller receives the dependency list.
     memcpy(dependencies, &ldeps, sizeof(struct FdtPlatformDependencies));
     return OS_EOK;
 }
@@ -468,14 +565,18 @@ __PlatformCollectRam(
     const struct FdtResources* node = &nodes[depth];
     uint32_t                   stride;
 
+    // The tree walk visits every node. Collect only enabled memory nodes.
     if (!node->IsMemory || node->Disabled || node->ParentDisabled) {
         return;
     }
     
+    // After the first error, skip remaining nodes. The walk itself cannot stop.
     if (ram->Status != OS_EOK) {
         return;
     }
     
+    // A memory node needs a parent to supply its address and size cell counts.
+    // Reject memory at the root.
     if (!depth || node->Malformed || node->ParentMalformed) {
         ERROR("__PlatformCollectRam: memory node %u is at the root or malformed",
               node->NodeOffset);
@@ -483,6 +584,8 @@ __PlatformCollectRam(
         return;
     }
     
+    // Each memory reg entry uses its parent's address and size cell counts.
+    // Require whole entries before walking the property in fixed-size steps.
     stride = (node->ParentAddressCells + node->ParentSizeCells) * 4;
     if (!stride || !node->RegLength || node->RegLength % stride) {
         ERROR("__PlatformCollectRam: memory node %u has reg length %u for a stride of %u",
@@ -502,6 +605,8 @@ __PlatformCollectRam(
             return;
         }
         
+        // Resolve physical CPU addresses first. Bus-specific DMA addresses
+        // are derived later, when the device's parent path is known.
         if (!length || length - 1 > UINT64_MAX - base ||
             !FdtTranslateAddress(nodes, depth - 1, length, &base, 0)) {
             ERROR("__PlatformCollectRam: memory node %u range %u cannot be translated",
@@ -548,6 +653,9 @@ FdtPlatformDma(
         return OS_ENOENT;
     }
 
+    // This routine requires a simple-bus path for direct DMA. Check every parent
+    // before building the map. PCI and IOMMU translation require separate setup
+    // that these ranges cannot describe.
     while (resource != NULL) {
         uint32_t length;
 
@@ -592,6 +700,8 @@ FdtPlatformDma(
         resource = FdtTreeParent(tree, resource->NodeOffset);
     }
 
+    // Start with RAM ranges. Bus windows can also cover registers or address
+    // space without memory, which cannot be used for DMA buffers.
     status = FdtWalkResources(tree, __PlatformCollectRam, &ram);
     if (status != OS_EOK) {
         ERROR("FdtPlatformDma: node %u could not walk the tree for RAM (%u)", node, status);
@@ -615,6 +725,9 @@ FdtPlatformDma(
         return status;
     }
 
+    // Translate from the outermost bus toward the device. Each bus limits the
+    // reachable RAM and translates its bus address. Keep the CPU address so both
+    // addresses identify the same memory.
     for (uint32_t i = count - 1; i > 1; i--) {
         resource = parentNodes[i - 1];
         if (!resource->IsSimpleBus) {

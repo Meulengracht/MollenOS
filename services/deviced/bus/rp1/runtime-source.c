@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "runtime-private.h"
+#include <bus/rp1/ethernet.h>
 
 #define RP1_VECTOR_BYTES   16U
 #define RP1_VECTOR_CONTROL 12U
@@ -112,6 +113,8 @@ __Rp1ProgramSource(
     oserr_t  status;
 
     if (source->Programmed) {
+        // All users of this source share the table entry. Once programmed,
+        // leave the message unchanged on repeated calls.
         return OS_EOK;
     }
 
@@ -134,6 +137,9 @@ __Rp1ProgramSource(
     words[1] = source->Message.AddressHigh;
     words[2] = source->Message.Data;
 
+    // Check each address and data word by reading it back after writing.
+    // If a write or readback fails, keep the source masked and Programmed clear.
+    // A retry must write all three words again.
     for (uint32_t i = 0; i < 3; i++) {
         offset = number * RP1_VECTOR_BYTES + i * sizeof(uint32_t);
 
@@ -175,6 +181,13 @@ __Rp1ReserveSource(
         .Count = 1,
         .Vectors = &vector
     };
+
+    // For GEM, the requesting process must prepare the device before reserving
+    // a source. Its clock setup stays in use until the source is released.
+    status = Rp1EthernetStatus(child, principal);
+    if (status != OS_EOK) {
+        return status;
+    }
 
     if (request->Index >= child->Firmware.InterruptCount) {
         ERROR("__Rp1ReserveSource: device %u source index %u exceeds interrupt count %u",
@@ -328,6 +341,8 @@ Rp1RuntimeControl(
     }
 
     if (source == NULL) {
+        // A kernel attachment may remain after the local source was cleared or
+        // an attach reply was lost. Release must still close that attachment.
         if (request->Operation == DeviceInterruptSourceDisable) {
             return OS_EOK;
         }

@@ -47,8 +47,7 @@ __Rp1ValidateChildren(
             return status;
         }
         
-        // A child needs a registered DMA host to transfer data directly to or
-        // from memory.
+        // DMA requires a registered host before a child can access memory.
         if (dma.Host.HostId == UUID_INVALID) {
             WARNING("__Rp1ValidateChildren: node %u has no registered DMA host", child->Firmware.NodeOffset);
             return OS_ENOTSUPPORTED;
@@ -63,8 +62,8 @@ __Rp1ValidateChildren(
         for (unsigned int i = 0; i < child->Firmware.InterruptCount; i++) {
             interrupt = &child->Firmware.Interrupts[i];
             
-            // Check that this interrupt belongs to the RP1 controller and fits
-            // its interrupt table before allocating runtime state.
+            // Before allocating runtime state, check that the source uses the
+            // RP1 controller and its number fits the interrupt table.
             if (interrupt->Controller != child->Firmware.Controller ||
                 interrupt->Number >= FDT_RP1_INTERRUPT_COUNT) {
                 WARNING("__Rp1ValidateChildren: node %u interrupt %u has controller %u, source %u (expected controller %u)",
@@ -80,8 +79,8 @@ __Rp1ValidateChildren(
             }
             
             if (used[interrupt->Number]) {
-                // Each RP1 interrupt can belong to only one child. Reject
-                // duplicates so two children cannot configure or release it.
+                // Each source can be used by only one child, so two drivers cannot
+                // configure or release the same interrupt.
                 WARNING("__Rp1ValidateChildren: node %u duplicates source %u",
                         child->Firmware.NodeOffset, interrupt->Number);
                 return OS_ENOTSUPPORTED;
@@ -97,15 +96,25 @@ oserr_t
 Rp1RuntimePrepareRemoval(
     _InOut_ struct Rp1Bus* bus)
 {
-    unsigned int i;
+    struct Rp1Child* child;
+
+    // Before removal, drivers must finish restoring Ethernet registers and
+    // release all DMA references. Keep requests available until cleanup has
+    // removed the saved Ethernet state, even if the MAC has already stopped.
+    for (child = bus->Children; child != NULL; child = child->Next) {
+        if (child->Ethernet != NULL || child->Resources.DmaReferences != 0) {
+            return OS_EBUSY;
+        }
+    }
 
     TRACE("Rp1RuntimePrepareRemoval(bus=%p)", bus);
     if (bus->Runtime == NULL) {
         return OS_EOK;
     }
+
     // Every child must release its interrupts before removal can block new
     // reservations.
-    for (i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
+    for (unsigned int i = 0; i < FDT_RP1_INTERRUPT_COUNT; i++) {
         if (bus->Runtime->Sources[i].Owner != NULL) {
             TRACE("Rp1RuntimePrepareRemoval: source %u kept by device %u, allocation %u, principal %u",
                   i, bus->Runtime->Sources[i].Owner->DeviceId,
@@ -113,6 +122,7 @@ Rp1RuntimePrepareRemoval(
             return OS_EBUSY;
         }
     }
+    
     bus->Runtime->Quiescing = 1;
     return OS_EOK;
 }
@@ -129,8 +139,8 @@ Rp1RuntimeStop(
         return OS_EOK;
     }
 
-    // If a child still owns a source, keep the runtime active so the child can
-    // release it. Otherwise, block new reservations before stopping delivery.
+    // Children must release their sources before the runtime can stop.
+    // Once they are released, block new reservations before stopping delivery.
     status = Rp1RuntimePrepareRemoval(bus);
     if (status != OS_EOK) {
         TRACE("Rp1RuntimeStop: Rp1RuntimePrepareRemoval bus %p failed: %u", bus, status);
@@ -138,7 +148,9 @@ Rp1RuntimeStop(
     }
     bus->Ready = 0;
 
-    // Stop PCI interrupt messages before removing interrupt vectors or shared mappings.
+    // Stop PCI message delivery before removing interrupt vectors and shared
+    // mappings. Release the kernel group last. If a step fails, keep the
+    // remaining resources so a later stop can retry the cleanup sequence.
     status = Rp1PciMessagesQuiesce(runtime);
     if (status != OS_EOK) {
         ERROR("Rp1RuntimeStop: Rp1PciMessagesQuiesce bus %p failed: %u", bus, status);
@@ -199,8 +211,8 @@ Rp1RuntimeStart(
     };
     
     TRACE("Rp1RuntimeStart(bus=%p, ready=%d)", bus, bus->Ready);
-    // Reuse a ready runtime while it accepts requests. Stop a runtime that is
-    // shutting down before allocating resources and registering callbacks again.
+    // A ready runtime can be reused while it accepts requests. If shutdown has
+    // started, finish it before allocating resources or registering callbacks.
     if (bus->Ready && !bus->Runtime->Quiescing) {
         return OS_EOK;
     }
@@ -222,8 +234,8 @@ Rp1RuntimeStart(
         return status;
     }
 
-    // Check firmware and DMA settings before enabling PCI bus mastering, which
-    // lets devices transfer data directly to or from memory.
+    // Firmware and DMA settings must be valid before PCI bus mastering allows
+    // devices to access memory.
     runtime = calloc(1, sizeof(*runtime));
     if (runtime == NULL) {
         ERROR("Rp1RuntimeStart: runtime allocation failed for bus %p", bus);
@@ -274,8 +286,8 @@ Rp1RuntimeStart(
         for (i = 0; i < child->Firmware.InterruptCount; i++) {
             interrupt = &child->Firmware.Interrupts[i];
             
-            // Set up all child interrupts before marking the runtime ready, so
-            // drivers cannot use it while setup is still in progress.
+            // All child interrupts must be configured before Ready allows
+            // drivers to use the runtime.
             status = Rp1InterruptConfigure(
                 &runtime->Controller,
                 interrupt->Number,

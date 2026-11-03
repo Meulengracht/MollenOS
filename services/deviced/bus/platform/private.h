@@ -35,11 +35,11 @@ struct PlatformActivation;
 struct PlatformDependencyRegistration;
 
 /**
- * @brief Tracks an interrupt allocation and the process that owns it.
- * The lease keeps activation active until the kernel attachment closes.
- * Attached records a confirmed attachment. An unconfirmed lease may represent a
- * busy group whose owner or kind has not yet been checked; a later terminal
- * rejection can release that pending lease without discarding confirmed ownership.
+ * @brief Interrupt allocation and the process responsible for it.
+ * The lease keeps device dependencies in use until the kernel attachment closes.
+ * Attached is set once attachment is confirmed. An unconfirmed lease may refer
+ * to a busy group whose process or kind has not yet been checked. A later final
+ * rejection can release that pending lease. Confirmed attachments must stay intact.
  */
 struct PlatformInterruptLease {
     uuid_t Principal;
@@ -48,10 +48,10 @@ struct PlatformInterruptLease {
 };
 
 /**
- * @brief One published firmware node and its platform runtime state.
- * Resources owns memory-mapped I/O handles. Activation owns dependency tokens.
- * IRQ and DMA references prevent Stop from releasing dependencies.
- * Bus->Lock serializes these fields.
+ * @brief Published firmware node and its runtime state.
+ * Resources stores memory-mapped I/O handles. Activation stores dependency tokens.
+ * Stop can release dependencies only after IRQ and DMA references are released.
+ * Hold Bus->Lock when accessing these fields.
  */
 struct PlatformEntry {
     struct PlatformEntry*         Next;
@@ -67,9 +67,9 @@ struct PlatformEntry {
 };
 
 /**
- * @brief Owns platform device records, their publication group and firmware tree.
+ * @brief Platform device records, publication group and firmware tree.
  * Lock protects runtime state and dependency registrations. References counts
- * active device users. Destruction requires these users to release their
+ * active device users. Before destruction, these users must release their
  * references and resources.
  */
 struct PlatformBus {
@@ -84,10 +84,10 @@ struct PlatformBus {
 };
 
 /**
- * @brief Prepare, start or stop a device for the verified owning process.
- * Repeating a completed stage succeeds without acquiring resources again.
+ * @brief Prepare, start or stop a device for its verified driver process.
+ * Repeating a completed stage succeeds without requesting resources again.
  *
- * @param entry Native device; caller holds Bus->Lock.
+ * @param entry Native device. The caller must hold Bus->Lock.
  * @param principal Verified nonzero process identity.
  * @param stage Stop requires a halted engine and released IRQ/DMA leases.
  * @return OS_EOK, OS_EBUSY while IRQ or DMA leases are active, or a dependency
@@ -103,10 +103,10 @@ PlatformActivationControl(
 /**
  * @brief Query fixed sources after checking their controllers with the kernel.
  *
- * @param entry Prepared device; caller holds Bus->Lock.
- * @param buffer DeviceInterruptSourceQuery selecting one firmware index; updated on success.
+ * @param entry Prepared device. The caller must hold Bus->Lock.
+ * @param buffer DeviceInterruptSourceQuery selecting one firmware index. Updated on success.
  * @param length Must equal sizeof(DeviceInterruptSourceQuery).
- * @return OS_EOK, OS_EBUSY before preparation, or validation/controller error.
+ * @return OS_EOK, OS_EBUSY before preparation, or a validation or controller error.
  */
 __EXTERN oserr_t
 PlatformInterruptQuery(
@@ -117,12 +117,13 @@ PlatformInterruptQuery(
 /**
  * @brief Reserve, enable, disable or release a fixed interrupt source.
  *
- * @param entry Owner of the source list; caller holds Bus->Lock.
+ * @param entry Device containing the source list. The caller must hold Bus->Lock.
  * @param principal Verified process identity, never read from the request body.
- * @param buffer DeviceInterruptSourceRequest; Reserve selects one source by Index.
+ * @param buffer DeviceInterruptSourceRequest. Reserve selects one source by Index.
  * @param length Exact wire request size.
- * @return OS_EOK or a validation, ownership or kernel error. Uncertain attachment
- *         or failed close keeps the lease active and prevents activation teardown.
+ * @return OS_EOK or a validation, access or kernel error. If attachment
+ *         is uncertain or closing fails, the lease stays active and prevents
+ *         device dependencies from being released.
  */
 __EXTERN oserr_t
 PlatformInterruptControl(
@@ -132,14 +133,14 @@ PlatformInterruptControl(
     _In_    size_t                length);
 
 /**
- * @brief Describe reachable RAM and keep activation active for DMA.
+ * @brief Describe reachable RAM and keep device dependencies in use for DMA.
  *
  * @param context Prepared PlatformEntry kept alive by the registry request guard.
  * @param principal Authenticated driver, or zero for a trusted internal query.
  * @param description Output changed only on success.
- * @return OS_EOK or a preparation, ownership, firmware or reference-count error.
- *         Each success requires one PlatformReleaseDma call. Both callbacks
- *         acquire Bus->Lock internally.
+ * @return OS_EOK or a preparation, access, firmware or reference-count
+ *         error. Call PlatformReleaseDma once for each successful call.
+ *         Both callbacks lock Bus->Lock internally.
  */
 __EXTERN oserr_t
 PlatformPrepareDma(
@@ -158,11 +159,11 @@ PlatformReleaseDma(
     _In_ void* context);
 
 /**
- * @brief Collect publishable devices using validated common firmware descriptions.
+ * @brief Collect devices for publication from validated firmware descriptions.
  *
- * @param bus Empty inventory; partial entries remain owned by bus on failure.
+ * @param bus Empty inventory. On failure, bus keeps any entries already added.
  * @param tree Shared parsed firmware inventory.
- * @return OS_EOK or a description/allocation error.
+ * @return OS_EOK or a description or allocation error.
  */
 __EXTERN oserr_t
 PlatformCollectDevices(
@@ -170,9 +171,9 @@ PlatformCollectDevices(
     _In_    struct FdtTree*     tree);
 
 /**
- * @brief Check whether all activation dependencies were acquired.
+ * @brief Check whether all device dependencies are ready.
  *
- * @param entry Device to check; caller holds Bus->Lock.
+ * @param entry Device to check. The caller must hold Bus->Lock.
  * @return Nonzero when preparation completed successfully.
  */
 __EXTERN int
@@ -180,13 +181,29 @@ PlatformIsActivationReady(
     _In_ const struct PlatformEntry* entry);
 
 /**
- * @brief Check whether activation or interrupt allocations prevent removal.
+ * @brief Check whether device setup or interrupt allocations prevent removal.
  *
- * @param entry Device to check; caller holds Bus->Lock.
- * @return Nonzero while activation state or interrupt allocations exist.
+ * @param entry Device to check. The caller must hold Bus->Lock.
+ * @return Nonzero while device setup state or interrupt allocations exist.
  */
 __EXTERN int
 PlatformIsRuntimeBusy(
     _In_ const struct PlatformEntry* entry);
 
-#endif
+/**
+ * @brief Validate a prepared MAC's PHY reset request.
+ *
+ * @param entry Prepared native MAC. The caller must hold Bus->Lock.
+ * @param principal Verified process that prepared the device.
+ * @param buffer Reserved uint32_t, which must be zero.
+ * @param length Exact buffer size.
+ * @return OS_EOK for a MAC without a reset GPIO, otherwise a support or state error.
+ */
+oserr_t
+PlatformEthernetReset(
+    _InOut_ struct PlatformEntry* entry,
+    _In_    uuid_t                principal,
+    _In_    const void*           buffer,
+    _In_    size_t                length);
+
+#endif //!__DEVICED_PLATFORM_PRIVATE_H__

@@ -1,6 +1,7 @@
 add_library(deviced-firmware STATIC
     bcm.c
     dma.c
+    ethernet.c
     fdt.c
     gic.c
     mapping.c

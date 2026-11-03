@@ -22,6 +22,7 @@
 
 #include <ddk/types/interrupt-source.h>
 #include <bus/rp1/rp1.h>
+#include <bus/rp1/ethernet.h>
 #include <bus/rp1/dma.h>
 #include <bus/rp1/runtime-private.h>
 #include <bus/pci/device.h>
@@ -29,7 +30,7 @@
 #include <core/publication.h>
 #include <ddk/devices/bus.h>
 #include <ddk/interrupts/interrupt.h>
-#include <ddk/types/pci-interrupt.h>
+#include <ddk/types/interrupt-pci.h>
 #include <ddk/devices/platform.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -69,9 +70,9 @@ __Rp1BusRelease(
     struct Rp1Bus*    bus = child->Bus;
     struct PciDevice* parent = bus->Parent;
 
-    // Decrease the child count before releasing the parent, then stop accessing
-    // both objects. The publication group may still need the child's saved ID,
-    // so the attachment owner decides when to free the child list.
+    // Decrease the child count before releasing the parent. Neither object may
+    // be accessed afterwards. Leave the child list for attachment cleanup, since
+    // the publication group may still need the saved device IDs.
     atomic_fetch_sub(&bus->HostBusReferences, 1);
 
     PciDeviceRelease(parent);
@@ -87,8 +88,8 @@ __Rp1BusPrepareDma(
     struct PciDmaDescription configured;
     oserr_t                  status;
 
-    (void)principal;
     TRACE("__Rp1BusPrepareDma(child=%u)", child->Firmware.NodeOffset);
+    
     // Use this child's PCI device to read the DMA map configured for its hardware.
     status = Rp1GetDmaDescription(
         child->Bus->Parent,
@@ -106,15 +107,52 @@ __Rp1BusPrepareDma(
         WARNING("__Rp1BusPrepareDma: child %u host is not registered", child->Firmware.NodeOffset);
         return OS_EBUSY;
     }
+
     if (configured.CachePolicy == DmDmaCacheUnknown) {
         WARNING("__Rp1BusPrepareDma: child %u cache policy is unknown", child->Firmware.NodeOffset);
         return OS_ENOTSUPPORTED;
+    }
+
+    // Hold the bus lock while checking readiness and adding the DMA reference.
+    // Stop must not disable the Ethernet clocks between these two operations.
+    usched_mtx_lock(&child->Bus->Lock);
+    if (!child->Bus->Ready ||
+        (child->Bus->Runtime != NULL && child->Bus->Runtime->Quiescing)) {
+        status = OS_EBUSY;
+    } else {
+        status = Rp1EthernetStatus(child, principal);
+    }
+
+    if (status == OS_EOK && child->Resources.DmaReferences == UINT32_MAX) {
+        status = OS_EOVERFLOW;
+    }
+
+    if (status == OS_EOK) {
+        child->Resources.DmaReferences++;
+    }
+
+    usched_mtx_unlock(&child->Bus->Lock);
+    if (status != OS_EOK) {
+        return status;
     }
 
     description->HostId = configured.Host.HostId;
     description->CachePolicy = configured.CachePolicy;
     description->Map = configured.Map;
     return OS_EOK;
+}
+
+static void
+__Rp1BusReleaseDma(
+    _In_ void* context)
+{
+    struct Rp1Child* child = context;
+
+    // Call once for each successful PrepareDma. Releasing the final reference
+    // allows a later Ethernet stop. This call does not change hardware.
+    usched_mtx_lock(&child->Bus->Lock);
+    child->Resources.DmaReferences--;
+    usched_mtx_unlock(&child->Bus->Lock);
 }
 
 static oserr_t
@@ -127,6 +165,8 @@ __Rp1QueryInterruptSupport(
     struct DeviceInterruptSourceQuery  result = { 0 };
     oserr_t                            status = OS_EBUSY;
 
+    // Only Index may be set on entry. Reject nonzero result fields.
+    // Until the bus is ready, return OS_EBUSY so the driver can retry the query.
     if (query == NULL || length != sizeof(*query)) {
         ERROR("__Rp1QueryInterruptSupport: device %u invalid query buffer %p or length %zu",
               child->DeviceId, buffer, length);
@@ -178,10 +218,15 @@ __Rp1BusControl(
 
     TRACE("__Rp1BusControl(device=%u, principal=%u, request=0x%x, length=%zu)",
           child->DeviceId, principal, request, length);
-    
-    if (request == OSIOCTLREQUEST_DEVICE_RESOURCES || request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
+
+    // Resource, start/stop and Ethernet requests require the bus lock here.
+    // Interrupt requests take the same lock in their separate paths below.
+    if (request == OSIOCTLREQUEST_DEVICE_RESOURCES || request == OSIOCTLREQUEST_DEVICE_ACTIVATE ||
+        request == OSIOCTLREQUEST_ETHERNET_CONFIG || request == OSIOCTLREQUEST_ETHERNET_PHY_RESET) {
+        // Resource setup, PHY reset and stop share saved register state. Keep
+        // them serialized with DMA and interrupt requests on the same bus.
         usched_mtx_lock(&child->Bus->Lock);
-        status = Rp1ChildResourceControl(child, request, buffer, length);
+        status = Rp1ChildResourceControl(child, principal, request, buffer, length);
         usched_mtx_unlock(&child->Bus->Lock);
         if (status != OS_EOK) {
             if (status == OS_ENOTSUPPORTED || status == OS_EBUSY) {
@@ -229,6 +274,7 @@ static const DmDeviceBusOperations_t g_rp1ChildBusOperations = {
     .AddReference = __Rp1BusAddReference,
     .Release = __Rp1BusRelease,
     .PrepareDma = __Rp1BusPrepareDma,
+    .ReleaseDma = __Rp1BusReleaseDma,
     .Control = __Rp1BusControl
 };
 
@@ -246,8 +292,8 @@ __Rp1PublishChild(
 
     TRACE("__Rp1PublishChild(node=%u)", firmware->NodeOffset);
     
-    // The destination arrays have fixed limits. Reject descriptions that do
-    // not fit, so hardware names, register ranges, and interrupts are not lost.
+    // The full description must fit in the destination arrays. Reject larger
+    // descriptions before copying hardware names, register ranges or interrupts.
     if (firmware->CompatibleLength > PLATFORM_DEVICE_MAX_COMPATIBLES ||
         firmware->RegisterCount > PLATFORM_DEVICE_MAX_REGISTERS ||
         firmware->InterruptCount > PLATFORM_DEVICE_MAX_INTERRUPTS) {
@@ -264,8 +310,8 @@ __Rp1PublishChild(
     device->Base.Length = sizeof(PlatformDevice_t);
     device->Base.ParentId = parentId;
     
-    // The name points into firmware data. Copy it into separately allocated
-    // memory so this name remains available if the firmware mapping is released.
+    // Copy the name from firmware so the device record remains valid after
+    // the firmware mapping is released.
     device->Base.Identification.Description = strdup(firmware->Name);
     if (device->Base.Identification.Description == NULL) {
         ERROR("__Rp1PublishChild: node %u description allocation failed", firmware->NodeOffset);
@@ -294,9 +340,8 @@ __Rp1PublishChild(
         device->Interrupts[i].Type = firmware->Interrupts[i].Type;
     }
     
-    // Add the record without asking for a driver yet. The PCI code first adds
-    // all device-manager entries. If a later addition fails, it can remove the
-    // entries already added before any device drivers have started.
+    // Defer driver binding until the PCI code has added every device record.
+    // If an addition fails, the records can be removed before drivers start.
     registration.Description = &device->Base;
     registration.Bus.Operations = &g_rp1ChildBusOperations;
     registration.Bus.Context = child;
@@ -330,8 +375,8 @@ Rp1BusPublish(
         return OS_EINVALPARAMS;
     }
     
-    // Only the endpoint that created this attachment can publish its children.
-    // Changing the parent would make existing references protect the wrong PCI device.
+    // The endpoint must match the attachment's parent. Existing references keep
+    // that PCI device available while the children are in use.
     if (bus->Parent != endpoint) {
         WARNING("Rp1BusPublish: endpoint does not own this RP1 attachment");
         return OS_EINVALPARAMS;

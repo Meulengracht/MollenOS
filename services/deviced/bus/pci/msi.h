@@ -21,7 +21,7 @@
 #ifndef __PCI_MSI_H__
 #define __PCI_MSI_H__
 
-#include <ddk/types/pci-interrupt.h>
+#include <ddk/types/interrupt-pci.h>
 #include <ddk/types/interrupt.h>
 
 // Callbacks for reading and writing PCI configuration space.
@@ -72,8 +72,9 @@ struct PciMsiState {
 /**
  * @brief Inspect disabled MSI and MSI-X capabilities without writing registers.
  *
- * Rejects malformed chains, duplicate capabilities, and enabled message modes.
- * The caller holds the PCI lock. The output stays unchanged on failure.
+ * The caller must hold the PCI lock. Rejects malformed capability chains,
+ * duplicate capabilities and enabled message modes. On failure, the output
+ * stays unchanged.
  *
  * @param access Configuration access for one endpoint.
  * @param capabilities Receives capability offsets and hardware capacities.
@@ -99,10 +100,11 @@ PciInterruptRequestIsValid(
 /**
  * @brief Walk the conventional capability chain and find a disabled MSI capability.
  *
- * Rejects cycles, misaligned or out-of-range links, duplicate MSI capabilities,
- * and truncated layouts. The function must be an endpoint with MSI and MSI-X
- * disabled. Hold the PCI lock and check platform MSI policy before calling.
- * This probe writes no registers and leaves the output unchanged on failure.
+ * Before calling, hold the PCI lock and check that the platform permits MSI.
+ * The PCI function must be an endpoint with MSI and MSI-X disabled. The probe
+ * rejects cycles, misaligned or out-of-range links, duplicate MSI capabilities
+ * and truncated layouts. It writes no registers. On failure, the output stays
+ * unchanged.
  *
  * @param access Configuration access for one endpoint.
  * @param capability Receives the MSI capability's byte offset.
@@ -115,14 +117,14 @@ PciMsiProbe(
     _Out_ uint16_t*                         capability);
 
 /**
- * @brief Reserve, program, enable, disable or release MSI under the caller's lock.
+ * @brief Reserve, program, enable, disable or release MSI.
  *
- * Stop the device before disabling or releasing MSI. A failed Reserve can leave
- * Active set, so call Release before freeing the kernel allocation. Disable and
- * Release return OS_EOK when the reservation is already gone, making retries
- * safe after a lost service response.
+ * The caller must hold the PCI lock. Stop the device before disabling or
+ * releasing MSI. If Reserve fails with Active still set, call Release before
+ * freeing the kernel allocation. Disable and Release return OS_EOK when the
+ * reservation is already gone, so they can be retried after a lost response.
  *
- * OS_EBUSY means another reservation owns the function, MSI or MSI-X was
+ * OS_EBUSY means another reservation is using the function, MSI or MSI-X was
  * already enabled, or Enable came before preparation finished. OS_EUNKNOWN
  * means a write did not pass readback. This function does not check device access.
  *

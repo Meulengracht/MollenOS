@@ -16,13 +16,16 @@
  */
 
 #include <bus/rp1/rp1.h>
+#include <bus/rp1/ethernet.h>
 #include <bus/pci/device.h>
 #include <core/io.h>
+#include <firmware/ethernet.h>
 #include <ddk/utils.h>
 
 oserr_t
 Rp1ChildResourceControl(
     _InOut_ struct Rp1Child*    child,
+    _In_    uuid_t              principal,
     _In_    enum OSIOCtlRequest request,
     _InOut_ void*               buffer,
     _In_    size_t              length)
@@ -37,9 +40,29 @@ Rp1ChildResourceControl(
         return OS_EBUSY;
     }
 
+    // Allow firmware configuration queries before preparing Ethernet. Clock
+    // setup needs the same wiring information.
+    if (request == OSIOCTLREQUEST_ETHERNET_CONFIG) {
+        if (buffer == NULL || length != sizeof(struct DeviceEthernetConfiguration)) {
+            return OS_EINVALPARAMS;
+        }
+        return FdtEthernetConfiguration(child->Bus->Host->Tree, child->Firmware.NodeOffset, buffer);
+    }
+
+    // GEM needs clock setup and reset validation. Handle its requests before
+    // the generic child path, which only records preparation state.
+    if (request == OSIOCTLREQUEST_ETHERNET_PHY_RESET ||
+        request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
+        if (Rp1EthernetIsDevice(child)) {
+            return Rp1EthernetControl(child, principal, request, buffer, length);
+        }
+    }
+
     if (request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
         enum DeviceActivation stage;
         
+        // For children other than GEM, only record preparation state here for
+        // the start and stop checks. These requests do not change hardware.
         if (buffer == NULL || length != sizeof(enum DeviceActivation)) {
             ERROR("Rp1ChildResourceControl: device %u invalid activation buffer %p, length %zu, expected %zu",
                   child->DeviceId, buffer, length, sizeof(enum DeviceActivation));
@@ -129,6 +152,13 @@ Rp1ChildResourcesDestroy(
 {
     oserr_t status;
 
+    // Before destroying the child's public handles, restore the Ethernet clock
+    // and GPIO settings. If cleanup fails, keep the child so it can be retried.
+    status = Rp1EthernetRelease(child);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
     status = DmIoDestroy(child->Resources.Published.Registers, DEVICE_MAX_REGISTERS);
     if (status != OS_EOK) {
         ERROR("Rp1ChildResourcesDestroy: device %u could not destroy registered resources (%u)",
@@ -137,4 +167,3 @@ Rp1ChildResourcesDestroy(
     }
     return OS_EOK;
 }
-

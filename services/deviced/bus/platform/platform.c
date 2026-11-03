@@ -18,9 +18,10 @@
 
 #include <ddk/utils.h>
 #include <core/io.h>
+#include <firmware/ethernet.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ddk/types/pci-interrupt.h>
+#include <ddk/types/interrupt-pci.h>
 
 #include "private.h"
 
@@ -32,8 +33,13 @@ __PlatformAddReference(
     struct PlatformBus*   bus = entry->Bus;
     oserr_t               status = OS_EOK;
 
+    // References keep the saved records and I/O handles available to drivers.
+    // Hold the lock while checking removal and updating the count, so removal
+    // cannot start between these two operations.
     usched_mtx_lock(&bus->Lock);
     if (bus->Removing) {
+        // Reject new references once removal starts, since the saved records
+        // may be destroyed.
         TRACE("__PlatformAddReference: node %u bus %u is being removed",
               entry->Firmware.FirmwareNode, bus->DeviceId);
         status = OS_EBUSY;
@@ -50,7 +56,7 @@ __PlatformRelease(
 {
     struct PlatformEntry* entry = context;
 
-    // The bus owns saved IDs and I/O handles until PlatformBusDestroy succeeds.
+    // Saved IDs and I/O handles stay with the bus until PlatformBusDestroy succeeds.
     atomic_fetch_sub(&entry->Bus->References, 1);
 }
 
@@ -62,6 +68,9 @@ __PlatformResources(
     const struct PlatformRegister* range;
     oserr_t                        status;
 
+    // A previous request may have created some or all of the memory handles.
+    // Skip those ranges so repeated requests use the same handles, including
+    // when an earlier request failed partway through.
     for (unsigned int i = 0; i < entry->Firmware.RegisterCount; i++) {
         if (entry->Resources.Registers[i].Id != UUID_INVALID) {
             continue;
@@ -76,11 +85,12 @@ __PlatformResources(
         if (status != OS_EOK) {
             ERROR("__PlatformResources: node %u register %u memory creation failed (%u)",
                   entry->Firmware.FirmwareNode, i, status);
-            // Earlier handles remain owned by the inventory for retry or teardown.
+            // Keep earlier handles in the inventory for retry or cleanup.
             return status;
         }
     }
 
+    // All ranges must have handles before the resource list is returned.
     entry->Resources.Count = entry->Firmware.RegisterCount;
     *resources = entry->Resources;
     return OS_EOK;
@@ -98,6 +108,9 @@ __PlatformControl(
     struct PlatformBus*   bus = entry->Bus;
     oserr_t               status;
 
+    // Hold the bus lock while reading or changing saved device state. Requests
+    // must be serialized with each other and with publication and removal.
+    // Check each request's buffer size before reading its contents.
     usched_mtx_lock(&bus->Lock);
     if (bus->Removing) {
         TRACE("__PlatformControl: node %u bus %u request %u rejected during removal",
@@ -111,6 +124,20 @@ __PlatformControl(
         } else {
             status = __PlatformResources(entry, buffer);
         }
+    } else if (request == OSIOCTLREQUEST_ETHERNET_CONFIG) {
+        // Reading the firmware configuration does not change hardware.
+        // Drivers can query the wiring before preparing the device.
+        if (buffer == NULL || length != sizeof(struct DeviceEthernetConfiguration)) {
+            status = OS_EINVALPARAMS;
+        } else {
+            status = FdtEthernetConfiguration(
+                bus->Tree,
+                entry->Firmware.FirmwareNode,
+                buffer
+            );
+        }
+    } else if (request == OSIOCTLREQUEST_ETHERNET_PHY_RESET) {
+        status = PlatformEthernetReset(entry, principal, buffer, length);
     } else if (request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
         if (buffer == NULL || length != sizeof(enum DeviceActivation)) {
             ERROR("__PlatformControl: node %u has invalid activation buffer %p length %zu (%u)",
@@ -230,6 +257,8 @@ __PublishEntry(
     uuid_t                 parentId = bus->DeviceId;
     oserr_t                status;
 
+    // The parent must be published before its saved node offset can be resolved
+    // to a device-manager ID. Firmware parsing does not assign these IDs.
     if (entry->ParentNode != UINT32_MAX) {
         for (parent = bus->Entries; parent != NULL; parent = parent->Next) {
             if (parent->Firmware.FirmwareNode == entry->ParentNode) {
@@ -253,6 +282,8 @@ __PublishEntry(
         return OS_EOOM;
     }
 
+    // Publication needs a separate record and name. The inventory remains
+    // available for resource requests and cleanup after this record is removed.
     *device = entry->Firmware;
     
     device->Base.ParentId = parentId;
@@ -299,6 +330,8 @@ PlatformBusPublish(
         return OS_EBUSY;
     }
     
+    // Finish a previous failed rollback before adding records again. Its saved
+    // IDs may still refer to entries that the device manager has not removed.
     if (bus->Publication.State == DmPublicationRemoving) {
         status = DmPublicationRemove(&bus->Publication);
         if (status != OS_EOK) {
@@ -329,6 +362,8 @@ PlatformBusPublish(
         }
     }
 
+    // Drivers may request resources as soon as binding begins. Publish the
+    // complete parent/child inventory before allowing any of them to start.
     status = DmPublicationEnableBinding(&bus->Publication);
     if (status != OS_EOK) {
         ERROR("PlatformBusPublish: bus %u binding enable failed (%u)",
@@ -393,6 +428,8 @@ PlatformBusDestroy(
         return OS_EBUSY;
     }
     
+    // Destroy all I/O handles before freeing any entry. If destruction fails,
+    // the remaining inventory and its handles must stay available for retry.
     for (entry = bus->Entries; entry != NULL; entry = entry->Next) {
         status = DmIoDestroy(entry->Resources.Registers, entry->Firmware.RegisterCount);
         if (status != OS_EOK) {

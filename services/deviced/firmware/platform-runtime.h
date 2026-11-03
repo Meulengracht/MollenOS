@@ -34,6 +34,12 @@ enum FdtPlatformDependencyKind {
     FdtPlatformPhy
 };
 
+/**
+ * @brief Device setup requirement decoded from firmware.
+ * NodeOffset selects the controller driver. Arguments contains the decoded
+ * binding cells, or the pin-state node for FdtPlatformPins. Fixed is set for
+ * validated resources that need no runtime callback.
+ */
 struct FdtPlatformDependency {
     enum FdtPlatformDependencyKind Kind;
     uint32_t                       NodeOffset;
@@ -42,22 +48,27 @@ struct FdtPlatformDependency {
     int                            Fixed;
 };
 
+/**
+ * @brief Ordered device setup requirements, copied without changing hardware.
+ * Process Entries from first to last during setup. Release completed requests
+ * in reverse order so parent resources stay available until children are done.
+ */
 struct FdtPlatformDependencies {
     uint32_t                     Count;
     struct FdtPlatformDependency Entries[FDT_PLATFORM_MAX_DEPENDENCIES];
 };
 
 /**
- * @brief Decode and validate activation dependencies from the shared inventory.
+ * @brief Decode and validate device setup dependencies from the shared inventory.
  *
- * The caller must hold a tree reference during this call. Decoding does not write
- * registers, change clocks, or take references to runtime devices. Assigned-clock
- * programming is unsupported. Missing or disabled dependency nodes cause failure.
- * An empty list means firmware describes no external prerequisites.
+ * The caller must hold a tree reference during this call. Decoding leaves
+ * registers and clocks unchanged and takes no references to runtime devices.
+ * Assigned-clock programming is unsupported. Every dependency node must exist
+ * and be enabled. An empty list means firmware specifies no external dependencies.
  *
  * @param tree Parsed tree with a reference held by the caller.
  * @param node Structure offset of the native device.
- * @param dependencies Receives a copied plan on success. Unchanged on failure.
+ * @param dependencies Receives a copy of the decoded requirements. Unchanged on failure.
  * @return OS_EOK, an invalid-reference error, or OS_ENOTSUPPORTED for a binding
  *         or capacity this interface cannot represent.
  */
@@ -68,19 +79,33 @@ FdtPlatformDependencies(
     _Out_ struct FdtPlatformDependencies* dependencies);
 
 /**
+ * @brief Decode only the device's dependencies when its bus is already prepared.
+ *
+ * @param tree Shared tree. The caller must hold a reference during this call.
+ * @param node Child of a bus with separate runtime setup, such as RP1.
+ * @param dependencies Receives a copy of the decoded requirements. Unchanged on error.
+ * @return OS_EOK or a firmware validation or support error.
+ */
+oserr_t
+FdtPlatformLocalDependencies(
+    _In_  const struct FdtTree*           tree,
+    _In_  uint32_t                        node,
+    _Out_ struct FdtPlatformDependencies* dependencies);
+
+/**
  * @brief Compute the RAM ranges reachable by DMA through each parent bus.
  *
  * The caller must hold a tree reference during this call. Translation starts
- * with enabled memory ranges from the device tree. Every non-root bus must have
- * dma-ranges. An empty property maps addresses unchanged. An absent property is
- * unsupported, as are PCI and IOMMU paths. The result describes address ranges
- * only. The caller must separately allocate buffers, enable DMA and arrange any
- * required cache synchronization.
+ * with enabled memory ranges from the device tree. Every bus except the root
+ * must have dma-ranges. An empty property leaves addresses unchanged. Missing
+ * dma-ranges, PCI paths and IOMMU paths are unsupported.
+ * The result contains address ranges only. The caller handles buffer allocation,
+ * enabling DMA and any required cache synchronization separately.
  *
- * @param tree Parsed tree held by the caller.
+ * @param tree Parsed tree with a reference held by the caller.
  * @param node Structure offset of the DMA master.
  * @param map Receives reachable RAM ranges. Unchanged on failure.
- * @return OS_EOK, OS_ENOENT for no reachable RAM, or validation/support error.
+ * @return OS_EOK, OS_ENOENT for no reachable RAM, or a validation or support error.
  */
 oserr_t
 FdtPlatformDma(

@@ -40,7 +40,7 @@
 
 // RP1's peripheral-control registers (APBS) occupy 0x1000 bytes at this offset
 // inside BAR1. A PCI Base Address Register (BAR) describes a device address
-// range; BAR1 is the second slot, counted from zero.
+// range. BAR1 is the second slot, counted from zero.
 #define RP1_PCIE_APBS_OFFSET 0x108000U
 #define RP1_PCIE_APBS_LENGTH 0x1000U
 
@@ -49,26 +49,30 @@ struct PciDevice;
 struct DmPublicationGroup;
 struct PciFunctionHandler;
 struct Rp1Runtime;
+struct Rp1Ethernet;
 
-// Identifies the PCI attachment owned by RP1 when serving child resource queries.
+// Identifies RP1's PCI attachment when handling child resource queries.
 extern const struct PciFunctionHandler g_rp1PciHandler;
 
 /**
- * @brief Registered memory resources and activation state for one RP1 child.
- * Published records resources already created, including partial setup after an
- * error. Prepared records whether the child has completed DevicePrepare.
+ * @brief Registered memory resources and preparation state for one RP1 child.
+ * Published stores resources already created, including partial setup after an
+ * error. Prepared is set once DevicePrepare completes. Before Ethernet shutdown,
+ * all DMA leases counted by DmaReferences must be released.
  */
 struct Rp1ChildResources {
     struct DeviceResources Published;
     int                    Prepared;
+    uint32_t               DmaReferences;
 };
 
 /**
  * @brief One hardware block inside RP1 and its device-manager state.
  * Firmware contains names and other data that point into the device tree.
- * Bus owns this child. Each resource reference keeps the bus and its PCI parent
- * alive, and the parent keeps firmware mapped. Without a resource reference,
- * the caller must keep the bus and host alive while accessing the child.
+ * The child stays with Bus until bus destruction. Each resource reference keeps
+ * the bus and its PCI parent alive, and the parent keeps firmware mapped.
+ * Before accessing a child without a resource reference, the caller must ensure
+ * that the bus and host stay alive for the duration of the access.
  */
 struct Rp1Child {
     struct Rp1Child*         Next;
@@ -76,24 +80,24 @@ struct Rp1Child {
     uuid_t                   DeviceId;
     struct FdtRp1Device      Firmware;
     struct Rp1ChildResources Resources;
+    struct Rp1Ethernet*      Ethernet;
 };
 
 /**
- * @brief List of hardware blocks inside one RP1 PCI device and their saved IDs.
- * Creating this object reads their descriptions but does not add device-manager
- * entries or set up interrupts or direct memory access (DMA), which lets devices
- * access memory themselves. PCI address ranges are copied here. Host and the
- * firmware strings point to existing data, which the PCI host must keep
- * available and mapped while this object exists.
+ * @brief Hardware blocks inside one RP1 PCI device and their saved IDs.
+ * Creation reads the firmware descriptions. Device-manager registration, interrupt
+ * setup and DMA setup happen separately. PCI address ranges are copied here.
+ * Host and firmware strings point to existing data, which the PCI host must keep
+ * available and mapped until this object is destroyed.
  */
 struct Rp1Bus {
     // Protects Ready, Runtime and every child's Resources. When both are needed,
     // take the PCI lock before this lock. Child requests take only this lock
     // and must not enter PCI or registry locking paths while holding it. PCI
-    // access may take the host's configuration lock last during setup/teardown.
+    // access may take the host's configuration lock last during setup or cleanup.
     struct usched_mtx Lock;
 
-    // The PCI host owns this description; do not free it when releasing the bus.
+    // Description supplied by the PCI host. Do not free it when releasing the bus.
     const struct FdtPciHost* Host;
     // Set by PCI attachment. Child resource callbacks take their own parent references.
     struct PciDevice*        Parent;
@@ -107,19 +111,18 @@ struct Rp1Bus {
     // Copies of the six PCI address ranges used to check that each child's
     // registers fit within memory assigned to RP1.
     struct PciBar      Bars[6];
-    // Owns messages and mappings, including unfinished startup/shutdown.
+    // Stores messages and mappings, including partial setup or cleanup.
     struct Rp1Runtime* Runtime;
     int                Ready;
 };
 
 /**
  * @brief Adds device-manager entries for RP1's firmware-described hardware blocks.
- * Each entry is placed below the RP1 PCI device. This does not ask the device
- * manager to find drivers or prepare hardware yet. PCI prepares DMA and interrupts
- * separately after adding all device entries, then enables driver binding.
- * Preparation failure leaves these descriptions registered for retry.
- * If adding an entry fails, the group remembers entries already added so PCI
- * can remove them. The group clears each saved child ID after successful removal.
+ * Each entry is placed below the RP1 PCI device. PCI prepares DMA and interrupts
+ * separately after all entries are added, then enables driver binding.
+ * If preparation fails, the descriptions stay registered for retry.
+ * If adding an entry fails, the group keeps the entries already added so PCI
+ * can remove them. Each saved child ID is cleared after successful removal.
  *
  * @param bus List of RP1 hardware blocks to add.
  * @param endpoint RP1 PCI device, already registered with the device manager.
@@ -135,11 +138,10 @@ Rp1BusPublish(
     _InOut_ struct DmPublicationGroup* group);
 
 /**
- * @brief Builds an in-memory list of the hardware blocks firmware places inside
- * this RP1 device. It checks their addresses against the PCI memory ranges.
- * Device-manager registration, direct memory access (DMA), and interrupt setup
- * happen separately. Keep the host description and its firmware data available
- * until Rp1BusDestroy has freed the list.
+ * @brief Builds a list of RP1 hardware blocks from firmware descriptions.
+ * Checks each block's addresses against the PCI memory ranges. Device-manager
+ * registration, DMA and interrupt setup happen separately. The host description
+ * and its firmware data must stay available until Rp1BusDestroy frees the list.
  *
  * @param host Firmware description for the PCI host containing RP1.
  * @param bars Six address ranges reported for the RP1 PCI device. BAR1 must be
@@ -157,28 +159,29 @@ Rp1BusCreate(
     _Out_ struct Rp1Bus**          busOut);
 
 /**
- * @brief Free the list after all of its device-manager entries have been removed.
- * Published IDs and outstanding resource references both keep the list alive.
- * The group still needs the stored IDs while removing entries, even after the
- * registry has released its resource reference. Release callbacks never free it.
+ * @brief Free the list after all device-manager entries have been removed.
+ * Published IDs and resource references must be cleared first. The group needs
+ * the stored IDs while removing entries, even after the registry releases its
+ * resource reference. Release callbacks leave the list allocated.
  *
  * @param bus List to release. NULL is allowed.
- *            The owner must exclude publication, removal of registry entries,
- *            and new resource references while calling this function.
- *            Hold the PCI lock if a runtime exists; this function takes bus->Lock.
+ *            The caller must prevent publication, registry entry removal and
+ *            new resource references during this call. Hold the PCI lock if a
+ *            runtime exists. This function takes bus->Lock.
  * @return OS_EOK after freeing the list (or for NULL), OS_EBUSY without freeing
  *         anything while IDs or resource references remain. The caller must
- *         preserve the parent and retry, rather than continue enclosing cleanup.
+ *         keep the parent alive and retry before continuing cleanup.
  */
 __EXTERN oserr_t
 Rp1BusDestroy(
     _In_ struct Rp1Bus* bus);
 
 /**
- * @brief Supply register resources or handle a child's activation request.
+ * @brief Query a child's resources and Ethernet configuration, prepare it or reset its PHY.
  * 
- * @param child Child kept alive by a resource reference. Caller holds Bus->Lock.
- * @param request Resource query or activation request.
+ * @param child Child kept alive by a resource reference. The caller must hold Bus->Lock.
+ * @param principal Transport-verified driver process.
+ * @param request Resource or configuration query, device stage or PHY reset.
  * @param buffer Request/result storage.
  * @param length Size of the request buffer.
  * @return OS_EOK on success or the request error. Resources created before an
@@ -186,7 +189,8 @@ Rp1BusDestroy(
  */
 __EXTERN oserr_t
 Rp1ChildResourceControl(
-    _InOut_ struct Rp1Child*     child,
+    _InOut_ struct Rp1Child*    child,
+    _In_    uuid_t              principal,
     _In_    enum OSIOCtlRequest request,
     _InOut_ void*               buffer,
     _In_    size_t              length);
@@ -195,7 +199,7 @@ Rp1ChildResourceControl(
  * @brief Release registered resources after all child users have stopped.
  * 
  * @param child Unpublished child whose hardware has stopped.
- * @return Cleanup status; failure leaves the remaining resources owned for retry.
+ * @return Cleanup status. On failure, keep the remaining resources for retry.
  */
 __EXTERN oserr_t
 Rp1ChildResourcesDestroy(

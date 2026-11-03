@@ -1,5 +1,6 @@
 add_library(deviced-rp1 STATIC
     completion.c
+    ethernet.c
     dma.c
     interrupt.c
     resources.c

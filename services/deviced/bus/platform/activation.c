@@ -18,9 +18,15 @@
 
 #include <ddk/utils.h>
 #include <stdlib.h>
+#include <firmware/ethernet.h>
 
 #include "private.h"
 
+/**
+ * @brief Connects a firmware controller node to its runtime callbacks.
+ * References counts completed requests that still need release. The callbacks
+ * must stay registered until this count reaches zero.
+ */
 struct PlatformDependencyRegistration {
     struct PlatformDependencyRegistration*         Next;
     uint32_t                                   Node;
@@ -29,11 +35,20 @@ struct PlatformDependencyRegistration {
     void*                                      Context;
 };
 
+/**
+ * @brief Saves the callback registration and token for one completed request.
+ * The matching release callback receives the token when setup is undone.
+ */
 struct __PlatformDependencyLease {
     struct PlatformDependencyRegistration* Registration;
     void*                                  Token;
 };
 
+/**
+ * @brief Tracks one process's device preparation, including partial setup.
+ * Count covers completed requests in setup order. Set Prepared only after all
+ * requests succeed. If cleanup fails, keep the remaining tokens for retry.
+ */
 struct PlatformActivation {
     uuid_t                           Principal;
     int                              Prepared;
@@ -48,6 +63,8 @@ __PlatformDependencyFind(
 {
     struct PlatformDependencyRegistration* registration;
 
+    // The caller must hold Bus->Lock. Each controller has one entry, so the
+    // list is short enough to search by firmware node.
     for (registration = bus->Dependencies; registration != NULL; registration = registration->Next) {
         if (registration->Node == node) {
             return registration;
@@ -67,6 +84,9 @@ PlatformDependencyRegister(
     struct PlatformDependencyRegistration* registration;
     oserr_t                                status = OS_EOK;
 
+    // The callbacks and firmware node cannot change here, so validate them
+    // before taking the lock. Report a disabled controller as absent. Invalid
+    // callbacks and malformed nodes are caller errors.
     if (operations == NULL || operations->Acquire == NULL || operations->Release == NULL) {
         ERROR("PlatformDependencyRegister: node %u has invalid dependency callbacks (%u)",
               hostNode, OS_EINVALPARAMS);
@@ -84,6 +104,8 @@ PlatformDependencyRegister(
         return OS_ENOENT;
     }
 
+    // Registration and device preparation share this lock, so callbacks cannot
+    // disappear between a dependency lookup and its reference-count update.
     usched_mtx_lock(&bus->Lock);
     if (bus->Removing) {
         WARNING("PlatformDependencyRegister: node %u cannot register during bus removal (%u)",
@@ -120,6 +142,8 @@ PlatformDependencyUnregister(
     struct PlatformDependencyRegistration*  registration;
     oserr_t                             status = OS_ENOENT;
 
+    // Walk with a pointer to each link so the matching entry can be unlinked
+    // without tracking the previous node separately.
     usched_mtx_lock(&bus->Lock);
     for (link = &bus->Dependencies; *link != NULL; link = &(*link)->Next) {
         registration = *link;
@@ -128,6 +152,8 @@ PlatformDependencyUnregister(
             continue;
         }
 
+        // A prepared device may need these callbacks long after its setup
+        // request returns. Keep them registered until every token is released.
         if (registration->References) {
             WARNING("PlatformDependencyUnregister: node %u still has %u dependency references (%u)",
                     hostNode, registration->References, OS_EBUSY);
@@ -151,6 +177,8 @@ __PlatformActivationRelease(
     struct __PlatformDependencyLease* lease;
     oserr_t                           status;
 
+    // Clear Prepared before releasing dependencies, even if cleanup fails.
+    // Release children before parents by reversing the setup order.
     activation->Prepared = 0;
     while (activation->Count) {
         lease = &activation->Leases[activation->Count - 1];
@@ -163,8 +191,8 @@ __PlatformActivationRelease(
             ERROR("__PlatformActivationRelease: node %u dependency %u node %u release failed (%u)",
                   entry->Firmware.FirmwareNode, activation->Count - 1,
                   lease->Registration->Node, status);
-            // Preserve this and all earlier dependencies. Turning off a parent
-            // while a child release failed would violate dependency ordering.
+            // Keep this and all earlier dependencies. A parent must stay
+            // available until its children have been released.
             return status;
         }
         lease->Registration->References--;
@@ -182,6 +210,7 @@ __PlatformActivationPrepare(
     _In_    uuid_t                principal)
 {
     struct FdtPlatformDependencies         dependencies;
+    struct DeviceEthernetConfiguration     config;
     struct PlatformDependencyRegistration* registrations[FDT_PLATFORM_MAX_DEPENDENCIES] = { 0 };
     struct PlatformActivation*             activation;
     struct __PlatformDependencyLease*      lease;
@@ -193,6 +222,25 @@ __PlatformActivationPrepare(
         ERROR("__PlatformActivationPrepare: node %u could not build dependency plan (%u)",
               entry->Firmware.FirmwareNode, status);
         return status;
+    }
+
+    // Native GENET cannot drive a PHY reset GPIO here. Reject this configuration
+    // before enabling dependencies, since the PHY could remain in reset.
+    if (FdtCompatible(&FdtTreeNode(entry->Bus->Tree, entry->Firmware.FirmwareNode)->View,
+            "brcm,bcm2711-genet-v5")) {
+
+        status = FdtEthernetConfiguration(
+            entry->Bus->Tree,
+            entry->Firmware.FirmwareNode,
+            &config
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        if (config.Reset.GpioPresent) {
+            return OS_ENOTSUPPORTED;
+        }
     }
 
     // All mutable dependencies must have callbacks before hardware changes.
@@ -225,8 +273,12 @@ __PlatformActivationPrepare(
     }
 
     activation->Principal = principal;
+    // Save state before invoking callbacks. If later setup or cleanup fails,
+    // the same process can retry without losing tokens that still need release.
     entry->Activation = activation;
 
+    // The firmware plan lists parents first. Fixed entries need no callback.
+    // Each completed request adds a token to release during cleanup.
     for (uint32_t i = 0; i < dependencies.Count; i++) {
         if (registrations[i] == NULL) {
             continue;
@@ -234,6 +286,8 @@ __PlatformActivationPrepare(
 
         lease = &activation->Leases[activation->Count];
         lease->Registration = registrations[i];
+        // Several entries can use the same registration. Earlier requests in
+        // this loop may have increased its count since the initial checks.
         if (registrations[i]->References == UINT32_MAX) {
             ERROR("__PlatformActivationPrepare: node %u dependency %u node %u reference count overflow (%u)",
                   entry->Firmware.FirmwareNode, i, registrations[i]->Node, OS_EOVERFLOW);
@@ -258,6 +312,8 @@ __PlatformActivationPrepare(
             }
             return status;
         }
+        // Count only successful requests so cleanup never passes a token from
+        // a failed request to the release callback.
         registrations[i]->References++;
         activation->Count++;
     }
@@ -279,6 +335,8 @@ PlatformIsRuntimeBusy(
 {
     unsigned int i;
 
+    // Partial setup may still have dependency tokens. These must be released
+    // before removal, even if preparation never completed.
     if (entry->Activation != NULL) {
         return 1;
     }
@@ -332,6 +390,8 @@ PlatformActivationControl(
         return OS_EOK;
     }
 
+    // Before stopping or preparing again, DMA and IRQ users must finish cleanup.
+    // They may still need clocks or power after the driver stops its engine.
     if (entry->Activation != NULL) {
         if (entry->DmaReferences != 0) {
             WARNING("PlatformActivationControl: node %u stage %u still has %u DMA references (%u)",
@@ -362,4 +422,34 @@ PlatformActivationControl(
         return status;
     }
     return OS_EOK;
+}
+
+oserr_t
+PlatformEthernetReset(
+    _InOut_ struct PlatformEntry* entry,
+    _In_    uuid_t                principal,
+    _In_    const void*           buffer,
+    _In_    size_t                length)
+{
+    struct DeviceEthernetConfiguration config;
+    oserr_t                            status;
+
+    if (buffer == NULL || length != sizeof(uint32_t) || *(const uint32_t*)buffer != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    // DeviceStart validates preparation and the requesting process here. It
+    // does not start the native MAC engine or perform another preparation.
+    status = PlatformActivationControl(entry, principal, DeviceStart);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = FdtEthernetConfiguration(entry->Bus->Tree, entry->Firmware.FirmwareNode, &config);
+    if (status != OS_EOK) {
+        return status;
+    }
+    // No reset GPIO needs no action. If firmware specifies one, report it as
+    // unsupported until this bus can drive the line.
+    return config.Reset.GpioPresent ? OS_ENOTSUPPORTED : OS_EOK;
 }

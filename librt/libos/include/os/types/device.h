@@ -27,30 +27,33 @@ enum OSIOCtlRequest {
     OSIOCTLREQUEST_IO_REQUIREMENTS     = 1 | __IOCTL_IN,
     OSIOCTLREQUEST_PCI_INTERRUPT_QUERY = 2 | __IOCTL_IN,
     OSIOCTLREQUEST_PCI_INTERRUPT       = 3,
-    // Platform sources use DeviceInterruptSourceRequest lifecycle commands.
+    // Controls a platform interrupt source with DeviceInterruptSourceRequest.
     OSIOCTLREQUEST_INTERRUPT_CONTROL   = 4,
-    // Queries one DeviceInterruptSourceQuery by firmware index.
+    // Queries one source by firmware index using DeviceInterruptSourceQuery.
     OSIOCTLREQUEST_INTERRUPT_QUERY     = 5 | __IOCTL_IN,
-    // Copies registered IO resources, without mapping them into the driver.
+    // Copies registered IO resources without mapping them into the driver.
     OSIOCTLREQUEST_DEVICE_RESOURCES    = 6 | __IOCTL_IN,
-    // Prepares the device for register access, then enables/stops DMA separately.
+    // Prepares register access. Enabling and stopping DMA are separate steps.
     OSIOCTLREQUEST_DEVICE_ACTIVATE     = 7,
-    // Retains the configured DMA path until the caller releases it after closing DMA.
+    // Keeps the configured DMA path until the caller closes DMA and releases it.
     OSIOCTLREQUEST_DMA_QUERY           = 8 | __IOCTL_IN,
-    OSIOCTLREQUEST_DMA_RELEASE         = 9
+    OSIOCTLREQUEST_DMA_RELEASE         = 9,
+    // Copies MAC/PHY wiring and reset timings without changing hardware.
+    OSIOCTLREQUEST_ETHERNET_CONFIG     = 10 | __IOCTL_IN,
+    // Requires a prepared device and a zero uint32_t. Pulses the firmware reset line.
+    OSIOCTLREQUEST_ETHERNET_PHY_RESET  = 11
 };
 
 /**
- * @brief Allows manipulation of certain bus-aspects of an device.
+ * @brief Bus control flags for a device.
  */
 struct OSIOCtlBusControl {
     unsigned int Flags;
 };
 
 /**
- * @brief If a device supports IO requests, it can provide io requirements
- * for those requests. The IO manager will then take these into
- * account when an IO request is made for that specific device.
+ * @brief Buffer requirements for a device's IO requests.
+ * The IO manager uses these requirements when submitting requests to the device.
  */
 struct OSIOCtlRequestRequirements {
     uint32_t                BufferAlignment;
