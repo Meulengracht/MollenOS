@@ -84,6 +84,10 @@ AllocateSyncAddress(
         return oserr;
     }
 
+    // Translation includes the counter's offset. Map the page base so the
+    // offset cannot become page descriptor attributes; add it to the user pointer below.
+    dmaAddress -= offsetInPage;
+
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
             &(struct MemorySpaceMapOptions) {
