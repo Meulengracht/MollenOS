@@ -73,23 +73,27 @@ extern oserr_t ScFirmwareTableLocate(const OSFirmwareTableKey_t* key, OSFirmware
 extern oserr_t ScFirmwareTableRead(const OSFirmwareTableKey_t* key, void* buffer, size_t size, size_t* lengthOut);
 extern oserr_t ScFirmwareTableMap(const OSFirmwareTableKey_t* key, const void** mappingOut, size_t* lengthOut);
 extern oserr_t ScAcpiQueryInterrupt(int, int, int, int*, unsigned int*);
+
 extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern oserr_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceMap(uuid_t, size_t, size_t, uintptr_t*);
+
 extern oserr_t ScInterruptAllocate(InterruptGroupRequest_t*, InterruptGroupResult_t*);
 extern oserr_t ScInterruptBind(uuid_t, InterruptBindRequest_t*);
 extern oserr_t ScInterruptEnable(uuid_t);
 extern oserr_t ScInterruptDisable(uuid_t);
 extern oserr_t ScInterruptRelease(uuid_t);
 extern oserr_t ScInterruptReap(uuid_t);
+
 extern oserr_t ScInterruptBusHandlerCreate(uuid_t*);
 extern oserr_t ScInterruptBusHandlerBind(uuid_t, const InterruptResourceTable_t*);
 extern oserr_t ScInterruptBusHandlerRelease(uuid_t);
 extern oserr_t ScInterruptBusAttach(const InterruptBusAttachRequest_t*);
 extern oserr_t ScInterruptBusStatus(uuid_t, uuid_t, uuid_t);
 extern oserr_t ScInterruptBusClose(uuid_t, uuid_t, uuid_t);
+
 extern oserr_t ScInterruptGetMessage(uuid_t, uint32_t, DeviceInterruptMessage_t*);
 extern oserr_t ScInterruptLineSourceResolve(const InterruptLineSourceIdentity_t*, uuid_t*);
 extern oserr_t ScInterruptMessageControllerResolve(const InterruptMessageControllerIdentity_t*, uuid_t*);

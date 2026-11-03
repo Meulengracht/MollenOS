@@ -189,7 +189,8 @@ MbrEnumerate(
     // otherwise we treat the entire disk as one partition
     oserr = __EnumeratePartitions(storage, &context, bufferHandle, buffer, 0);
     if (oserr != OS_EOK) {
-        return VFSStorageDetectFileSystem(storage, bufferHandle, buffer, 0);
+        UInteger64_t sector = { .QuadPart = 0 };
+        return VFSStorageDetectFileSystem(storage, bufferHandle, buffer, &sector);
     }
     return oserr;
 }
