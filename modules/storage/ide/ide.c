@@ -549,6 +549,47 @@ IdeDeviceIdentify(
     return OS_EOK;
 }
 
+static oserr_t
+__MapTransferBuffer(
+    _In_  uuid_t       bufferHandle,
+    _In_  size_t       offset,
+    _In_  size_t       count,
+    _In_  unsigned int access,
+    _Out_ OSHandle_t*  buffer)
+{
+    size_t  capacity;
+    size_t  length;
+    oserr_t status;
+
+    // The PIO engine transfers 512-byte sectors and accepts at most 256 per
+    // request. Check before multiplication and before attaching client memory.
+    if (count == 0 || count > 256) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    length = count * 512;
+    status = SHMAttach(bufferHandle, buffer);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    capacity = SHMBufferCapacity(buffer);
+    if (offset > capacity || length > capacity - offset) {
+        OSHandleDestroy(buffer);
+        return OS_EINVALPARAMS;
+    }
+
+    // Attaching only creates a reference; it does not give this process a CPU
+    // mapping. PIO needs a CPU view, with no device-address or cache constraints.
+    // Map the prefix so the caller's absolute byte offset remains valid.
+    status = SHMMap(buffer, 0, offset + length, access);
+    if (status != OS_EOK) {
+        WARNING("IDE transfer buffer mapping failed: %u", status);
+        OSHandleDestroy(buffer);
+    }
+    return status;
+}
+
 oserr_t
 IdeDeviceRead(
     _In_ IdeDevice_t* device,
@@ -565,7 +606,13 @@ IdeDeviceRead(
         return OS_EINVALPARAMS;
     }
 
-    status = SHMAttach(bufferHandle, &buffer);
+    status = __MapTransferBuffer(
+        bufferHandle,
+        offset,
+        count,
+        SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+        &buffer
+    );
     if (status != OS_EOK) {
         return status;
     }
@@ -592,7 +639,7 @@ IdeDeviceWrite(
         return OS_EINVALPARAMS;
     }
 
-    status = SHMAttach(bufferHandle, &buffer);
+    status = __MapTransferBuffer(bufferHandle, offset, count, SHM_ACCESS_READ, &buffer);
     if (status != OS_EOK) {
         return status;
     }

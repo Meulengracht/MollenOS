@@ -119,8 +119,7 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
 
     oserr = SHMCreate(
             &(SHM_t) {
-                .Flags = SHM_DEVICE,
-                .Conformity = OSMEMORYCONFORMITY_LOW,
+                .Flags = SHM_COMMIT,
                 .Size = MB(1),
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },

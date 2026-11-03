@@ -397,9 +397,8 @@ __InitializePool(
 
     status = SHMCreate(
         &(SHM_t) {
-            .Flags = SHM_DEVICE | SHM_CLEAN,
+            .Flags = SHM_COMMIT | SHM_CLEAN,
             .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-            .Conformity = OSMEMORYCONFORMITY_NONE,
             .Size = (size_t)bytes
         },
         &pool->Handle

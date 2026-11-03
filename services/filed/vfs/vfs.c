@@ -137,13 +137,12 @@ __CreateRootNode(
 }
 
 static oserr_t
-__CreateDMABuffer(
+__CreateTransferBuffer(
         _In_ OSHandle_t* shmHandle)
 {
     return SHMCreate(
             &(SHM_t) {
-                .Flags = SHM_DEVICE,
-                .Conformity = OSMEMORYCONFORMITY_LOW,
+                .Flags = SHM_COMMIT,
                 .Size = MB(1),
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -182,7 +181,7 @@ VFSNew(
         return osStatus;
     }
 
-    osStatus = __CreateDMABuffer(&vfs->Buffer);
+    osStatus = __CreateTransferBuffer(&vfs->Buffer);
     if (osStatus != OS_EOK) {
         VFSDestroy(vfs);
         return osStatus;

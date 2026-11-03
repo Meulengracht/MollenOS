@@ -30,9 +30,15 @@ _CODE_BEGIN
 
 struct dma_pool;
 
-/* BufferPoolCreate
- * Creates a new buffer-pool from the given buffer object. 
- * This allows sub-allocations from a buffer-object. */
+/**
+ * @brief Create CPU suballocations within a mapped shared-memory buffer.
+ *
+ * The caller must keep the SHM attachment and its CPU mapping until the pool is
+ * destroyed. This helper does not prepare DMA or expose device addresses.
+ * @param shm Mapped buffer used for all pool allocations.
+ * @param poolOut Receives the pool on success.
+ * @return OS_EOK, or an argument/allocation error.
+ */
 DDKDECL(oserr_t,
 dma_pool_create(
     _In_  OSHandle_t*       shm,
@@ -45,10 +51,13 @@ DDKDECL(oserr_t,
 dma_pool_destroy(
     _In_ struct dma_pool* pool));
 
-/* BufferPoolAllocate
- * Allocates the requested size and outputs two addresses. The
- * virtual pointer to the accessible data, and the address of its 
- * corresponding physical address for hardware. */
+/**
+ * @brief Allocate CPU-accessible bytes within the pool.
+ * @param pool Pool created from a mapped SHM buffer.
+ * @param length Number of bytes to allocate.
+ * @param address_out Receives a CPU pointer. Use dma_pool_offset for SHM I/O.
+ * @return OS_EOK or OS_EOOM when the pool cannot fit the allocation.
+ */
 DDKDECL(oserr_t,
 dma_pool_allocate(
     _In_  struct dma_pool* pool,

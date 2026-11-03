@@ -94,8 +94,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
 
     oserr = SHMCreate(
         &(SHM_t) {
-            .Flags = SHM_DEVICE,
-            .Conformity = OSMEMORYCONFORMITY_LOW, // TODO: Use conformity from device
+            .Flags = SHM_COMMIT,
             .Size = MB(1),
             .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
         },

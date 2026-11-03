@@ -391,8 +391,7 @@ __FileSystemMFSNew(
     // Create a generic transfer buffer for us to use
     oserr = SHMCreate(
             &(SHM_t) {
-                .Flags = SHM_DEVICE,
-                .Conformity = OSMEMORYCONFORMITY_LOW, // TODO: Use conformity from device
+                .Flags = SHM_COMMIT,
                 .Size = storageStats->SectorSize,
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },

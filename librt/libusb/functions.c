@@ -46,11 +46,12 @@ UsbInitialize(void)
 {
     oserr_t oserr;
 
+    // USB clients share ordinary CPU memory. Each host controller applies its
+    // own address limits and cache policy when mapping a submitted transfer.
     oserr = SHMCreate(
             &(SHM_t) {
                 .Key = NULL,
-                .Flags = SHM_DEVICE,
-                .Conformity = OSMEMORYCONFORMITY_LOW,
+                .Flags = SHM_COMMIT,
                 .Size = LIBUSB_SHAREDBUFFER_SIZE,
                 .Access = SHM_ACCESS_WRITE | SHM_ACCESS_READ
             },

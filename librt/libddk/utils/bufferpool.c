@@ -32,7 +32,6 @@
 struct dma_pool {
     struct bytepool* pool;
     OSHandle_t       handle;
-    SHMSGTable_t     table;
 };
 
 oserr_t
@@ -52,17 +51,16 @@ dma_pool_create(
         return OS_EOOM;
     }
     
+    // Only CPU addresses and SHM byte offsets are needed here. The controller
+    // maps each submitted range for DMA; querying physical pages would add two
+    // syscalls without contributing to pool allocation or transfer submission.
     memcpy(&pool->handle, shm, sizeof(OSHandle_t));
 
-    oserr = SHMGetSGTable(shm, &pool->table, -1);
-    if (oserr != OS_EOK) {
-        free(pool);
-        return oserr;
-    }
-
+    // bpool accepts an existing allocator when extending a pool. This is the
+    // first region, so its input slot must not contain uninitialized heap data.
+    pool->pool = NULL;
     oserr = bpool(SHMBuffer(shm), (long)SHMBufferLength(shm), &pool->pool);
     if (oserr != OS_EOK) {
-        free(pool->table.Entries);
         free(pool);
         return oserr;
     }
@@ -75,7 +73,6 @@ oserr_t
 dma_pool_destroy(
     _In_ struct dma_pool* pool)
 {
-    free(pool->table.Entries);
     free(pool->pool);
     free(pool);
     return OS_EOK;

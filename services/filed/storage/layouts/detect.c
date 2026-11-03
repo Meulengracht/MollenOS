@@ -123,8 +123,7 @@ VFSStorageParse(
 	// on the given disk, we need it to parse the disk
     oserr = SHMCreate(
             &(SHM_t) {
-                .Flags = SHM_DEVICE,
-                .Conformity = OSMEMORYCONFORMITY_LOW,
+                .Flags = SHM_COMMIT,
                 .Size = storage->Stats.SectorSize,
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
