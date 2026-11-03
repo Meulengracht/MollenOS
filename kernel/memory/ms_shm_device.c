@@ -431,7 +431,7 @@ SHMDeviceContextBuildSegments(
  * when the mapping uses the buffer directly. Both views are kernel mappings,
  * so the sync calls can copy between them with plain memory copies.
  */
-struct SHMDeviceBounce {
+struct __SHMDeviceBounce {
     vaddr_t                       Source;       // Kernel view of the buffer's pages.
     size_t                        SourceLength;
     size_t                        SourceOffset; // Where the mapped range starts inside that view.
@@ -440,25 +440,32 @@ struct SHMDeviceBounce {
 };
 
 /**
- * Remember which part of a buffer a device may use, and where.
- * Everything except DeviceOwned is fixed at creation. DeviceOwned is only
- * changed by the sync calls, which the mapping's owner must not overlap.
- * Segments contains exactly SegmentCount entries. Extents holds the same bytes
- * as physical blocks, which the sync calls need for cache work. When bouncing,
- * both describe the bounce pages, since those are what the device uses.
+ * Transfer state and copy storage for serialized streaming DMA. Calls on the
+ * same stream must not overlap. Only DeviceOwned changes during transfers.
+ * Shared allocations reject streaming sync calls.
+ */
+struct __SHMDeviceStream {
+    enum DMADirection        Direction;
+    bool                     DeviceOwned;
+    bool                     Shared;
+    struct __SHMDeviceBounce Bounce;
+};
+
+/**
+ * Buffer and context references with fixed address and cache information.
+ * Extents and Segments describe the actual device backing, including bounce
+ * pages. Segments contains SegmentCount entries. Stream is inline so each
+ * mapping still uses one heap allocation and transfer calls need no additional
+ * allocation or pointer lookup.
  */
 struct SHMDeviceMapping {
     uuid_t                   SHMID;
+    // Describes the actual device backing, which may be cached bounce pages.
+    bool                     Cached;
     struct SHMDeviceContext* Context;
     size_t                   Offset;
     size_t                   Length;
-    enum DMADirection        Direction;
-    bool                     DeviceOwned;
-    // Allocated controller memory is continuously shared, never handed off.
-    bool                     Shared;
-    // Describes the actual device backing, which may be cached bounce pages.
-    bool                     Cached;
-    struct SHMDeviceBounce   Bounce;
+    struct __SHMDeviceStream Stream;
     SHMSG_t*                 Extents;
     int                      ExtentCount;
     uint32_t                 SegmentCount;
@@ -582,7 +589,7 @@ __GatherExtents(
 
 static void
 __ReleaseBounce(
-    _In_ struct SHMDeviceBounce* bounce)
+    _In_ struct __SHMDeviceBounce* bounce)
 {
     // The bounce view is persistent, so its pages are returned to the pool
     // separately. The buffer view is persistent too, so removing it leaves
@@ -608,11 +615,11 @@ __ReleaseBounce(
  */
 static oserr_t
 __MapSourceView(
-    _In_    struct SHMBuffer*       buffer,
-    _In_    size_t                  offset,
-    _In_    size_t                  length,
-    _In_    size_t                  pageSize,
-    _InOut_ struct SHMDeviceBounce* bounce)
+    _In_    struct SHMBuffer*         buffer,
+    _In_    size_t                    offset,
+    _In_    size_t                    length,
+    _In_    size_t                    pageSize,
+    _InOut_ struct __SHMDeviceBounce* bounce)
 {
     size_t       start = buffer->Offset + offset;
     unsigned int flags = MAPPING_COMMIT | MAPPING_PERSISTENT;
@@ -651,11 +658,11 @@ __MapSourceView(
  */
 static oserr_t
 __AllocateCopy(
-    _In_    size_t                  length,
-    _In_    size_t                  pageSize,
-    _InOut_ struct SHMDeviceBounce* bounce,
-    _Out_   SHMSG_t*                extents,
-    _Out_   int*                    extentCountOut)
+    _In_    size_t                    length,
+    _In_    size_t                    pageSize,
+    _InOut_ struct __SHMDeviceBounce* bounce,
+    _Out_   SHMSG_t*                  extents,
+    _Out_   int*                      extentCountOut)
 {
     paddr_t*           pages;
     size_t             pageCount = DIVUP(length, pageSize);
@@ -713,13 +720,13 @@ __AllocateCopy(
  */
 static oserr_t
 __PrepareBounce(
-    _In_    struct SHMBuffer*       buffer,
-    _In_    size_t                  offset,
-    _In_    size_t                  length,
-    _In_    size_t                  pageSize,
-    _InOut_ struct SHMDeviceBounce* bounce,
-    _Out_   SHMSG_t*                extents,
-    _Out_   int*                    extentCountOut)
+    _In_    struct SHMBuffer*         buffer,
+    _In_    size_t                    offset,
+    _In_    size_t                    length,
+    _In_    size_t                    pageSize,
+    _InOut_ struct __SHMDeviceBounce* bounce,
+    _Out_   SHMSG_t*                  extents,
+    _Out_   int*                      extentCountOut)
 {
     oserr_t status;
 
@@ -754,7 +761,7 @@ __CreateMapping(
     _Out_ struct SHMDeviceMapping** mappingOut)
 {
     struct SHMDeviceMapping* mapping = NULL;
-    struct SHMDeviceBounce   bounce = { 0 };
+    struct __SHMDeviceBounce bounce = { 0 };
     SHMSG_t*                 extents;
     size_t                   pageSize = GetMemorySpacePageSize();
     size_t                   pageCount;
@@ -832,15 +839,18 @@ __CreateMapping(
     mapping->Context = context;
     mapping->Offset = offset;
     mapping->Length = length;
-    mapping->Direction = direction;
     mapping->Cached = needsBounce ? bounce.Allocation.Cached : __BufferHasCachedAlias(buffer);
+    
     // The caller built the mapping from the CPU side, so the CPU owns it first.
-    mapping->DeviceOwned = false;
-    mapping->Shared = false;
-    mapping->Bounce = bounce;
+    mapping->Stream.DeviceOwned = false;
+    mapping->Stream.Shared = false;
+    mapping->Stream.Bounce = bounce;
+    mapping->Stream.Direction = direction;
+
     mapping->Extents = extents;
     mapping->ExtentCount = extentCount;
     mapping->SegmentCount = segmentCount;
+    
     *mappingOut = mapping;
     return OS_EOK;
 
@@ -1052,7 +1062,7 @@ SHMDeviceAllocate(
         return status;
     }
 
-    (*mappingOut)->Shared = true;
+    (*mappingOut)->Stream.Shared = true;
     *bufferOut = handle;
     return OS_EOK;
 }
@@ -1071,7 +1081,7 @@ SHMDeviceUnmap(
     // While the device owns the range it may still read or write it, and
     // releasing could free those pages under it. The owner must first take
     // the range back with SHMDeviceSyncForCpu, after the device has stopped.
-    if ((*mapping)->DeviceOwned) {
+    if ((*mapping)->Stream.DeviceOwned) {
         return OS_EBUSY;
     }
 
@@ -1081,8 +1091,9 @@ SHMDeviceUnmap(
     *mapping = NULL;
 
     SHMDeviceContextRelease(&owned->Context);
+    
     // The buffer view must go before the buffer reference that keeps its pages.
-    __ReleaseBounce(&owned->Bounce);
+    __ReleaseBounce(&owned->Stream.Bounce);
     (void)DestroyHandle(owned->SHMID);
     kfree(owned->Extents);
     kfree(owned);
@@ -1151,7 +1162,7 @@ SHMDeviceSyncForDevice(
     _In_ size_t                   length)
 {
     // Handing over nothing would leave the device with no bytes to use.
-    if (mapping == NULL || mapping->Shared || length == 0) {
+    if (mapping == NULL || mapping->Stream.Shared || length == 0) {
         return OS_EINVALPARAMS;
     }
     if (!__RangeInMapping(mapping, offset, length)) {
@@ -1160,16 +1171,16 @@ SHMDeviceSyncForDevice(
 
     // A second hand-over means the driver lost track of a transfer that may
     // still be running, so refuse instead of silently accepting it.
-    if (mapping->DeviceOwned) {
+    if (mapping->Stream.DeviceOwned) {
         return OS_EBUSY;
     }
 
     // When bouncing, the device reads the copy, so the CPU's data must be put
     // there first. A device that only writes would overwrite it anyway.
-    if (mapping->Bounce.Copy != 0 && mapping->Direction != DMAFromDevice) {
+    if (mapping->Stream.Bounce.Copy != 0 && mapping->Stream.Direction != DMAFromDevice) {
         memcpy(
-            (void*)(mapping->Bounce.Copy + offset),
-            (const void*)(mapping->Bounce.Source + mapping->Bounce.SourceOffset + offset),
+            (void*)(mapping->Stream.Bounce.Copy + offset),
+            (const void*)(mapping->Stream.Bounce.Source + mapping->Stream.Bounce.SourceOffset + offset),
             length
         );
     }
@@ -1184,13 +1195,13 @@ SHMDeviceSyncForDevice(
     // Uncached backing still needs ordering and ownership, but has no dirty
     // or stale cache lines to maintain. Bounce storage follows its own pool.
     if (mapping->Cached && mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent) {
-        if (mapping->Direction == DMAToDevice) {
+        if (mapping->Stream.Direction == DMAToDevice) {
             __MaintainRange(mapping, offset, length, CpuDataCacheClean);
         } else {
             __MaintainRange(mapping, offset, length, CpuDataCacheCleanInvalidate);
         }
     }
-    mapping->DeviceOwned = true;
+    mapping->Stream.DeviceOwned = true;
     return OS_EOK;
 }
 
@@ -1202,7 +1213,7 @@ SHMDeviceSyncForCpu(
 {
     // An empty completed range is valid: a transfer can stop before the device
     // wrote anything, and the CPU must still be able to take the range back.
-    if (mapping == NULL || mapping->Shared) {
+    if (mapping == NULL || mapping->Stream.Shared) {
         return OS_EINVALPARAMS;
     }
     if (!__RangeInMapping(mapping, offset, length)) {
@@ -1210,7 +1221,7 @@ SHMDeviceSyncForCpu(
     }
 
     // Taking back a range the device never had points to a driver bug.
-    if (!mapping->DeviceOwned) {
+    if (!mapping->Stream.DeviceOwned) {
         return OS_EINVALPARAMS;
     }
 
@@ -1223,20 +1234,21 @@ SHMDeviceSyncForCpu(
     // cached old values. Throw those away for the bytes the device wrote.
     // Map made sure this range's lines belong to the mapping alone.
     if (mapping->Cached && mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent &&
-        mapping->Direction != DMAToDevice) {
+        mapping->Stream.Direction != DMAToDevice) {
         __MaintainRange(mapping, offset, length, CpuDataCacheInvalidate);
     }
 
     // When bouncing, the device wrote the copy. Bring back only the completed
     // bytes, so the rest of the buffer keeps whatever the CPU put there.
-    if (mapping->Bounce.Copy != 0 && mapping->Direction != DMAToDevice) {
+    if (mapping->Stream.Bounce.Copy != 0 && mapping->Stream.Direction != DMAToDevice) {
         memcpy(
-            (void*)(mapping->Bounce.Source + mapping->Bounce.SourceOffset + offset),
-            (const void*)(mapping->Bounce.Copy + offset),
+            (void*)(mapping->Stream.Bounce.Source + mapping->Stream.Bounce.SourceOffset + offset),
+            (const void*)(mapping->Stream.Bounce.Copy + offset),
             length
         );
     }
-    mapping->DeviceOwned = false;
+
+    mapping->Stream.DeviceOwned = false;
     return OS_EOK;
 }
 
