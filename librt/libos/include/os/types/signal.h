@@ -41,6 +41,6 @@ enum OSPageFaultCode {
 #define SIGNAL_FLAG_SEPERATE_STACK 0x00000001U // Signal is executing in a separate stack
 #define SIGNAL_FLAG_HARDWARE_TRAP  0x00000002U // Signal originated from a hardware signal
 #define SIGNAL_FLAG_PAGEFAULT      0x00000004U // Signal contains a page-fault address and code
-#define SIGNAL_FLAG_NO(flags)      ((flags >> 24) && 0xFF)
+#define SIGNAL_FLAG_NO(flags)      (((flags) >> 24) & 0xFFU)
 
 #endif //!__TYPES_SIGNAL_H__

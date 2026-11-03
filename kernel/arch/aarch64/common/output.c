@@ -54,6 +54,11 @@ SerialPutCharacter(
     if (!g_uart) {
         return;
     }
+
+    // Serial terminals need a carriage return to start the next line at column zero.
+    if (character == '\n') {
+        SerialPutCharacter('\r');
+    }
     
     // Do not write DR until FR.TXFF clears: a full FIFO cannot accept a byte.
     while (g_uart[ARM64_UART_FLAGS / ARM64_MMIO_REGISTER_SIZE] & ARM64_UART_TX_FULL) {
@@ -121,5 +126,6 @@ void
 VideoPutCharacter(
     _In_ int character)
 {
-    SerialPutCharacter(character);
+    // No framebuffer is available; the log already writes to serial separately.
+    (void)character;
 }

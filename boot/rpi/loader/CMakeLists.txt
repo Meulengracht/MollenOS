@@ -24,7 +24,21 @@ elseif(VALI_PLATFORM_VARIANT STREQUAL "5")
     set(RPI_BOARD "5")
 endif()
 
-find_program(RPI_LD NAMES ld.lld REQUIRED)
+# The loader is linked with a custom script and no system libraries, so we need
+# lld. It ships with the same LLVM installation as the compiler we were handed,
+# which is not required to be on PATH. Look there first.
+get_filename_component(RPI_TOOLCHAIN_BIN "${CMAKE_C_COMPILER}" DIRECTORY)
+find_program(RPI_LD
+    NAMES ld.lld
+    HINTS "${RPI_TOOLCHAIN_BIN}"
+)
+if(NOT RPI_LD)
+    message(FATAL_ERROR
+        "Could not find ld.lld. It was not next to the compiler "
+        "(${RPI_TOOLCHAIN_BIN}) nor on PATH. Install the LLVM linker (lld) or "
+        "point RPI_LD at it."
+    )
+endif()
 
 get_filename_component(VALI_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
 
