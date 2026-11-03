@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
- * Device lifecycle, storage publication, and recovery orchestration.
+ * Virtio block device setup, storage registration, and recovery.
  */
 
 #define __TRACE
@@ -52,10 +52,9 @@ VirtioBlkDeviceRegisterStorage(
     TRACE("VirtioBlkDeviceRegisterStorage(device=%u)", device->Descriptor.DeviceID);
     
     message = (struct vali_link_message)VALI_MSG_INIT_HANDLE(GetFileService());
-    // Registration occurs only after DRIVER_OK. filed immediately queries the
-    // descriptor and may start partition I/O once this message is delivered.
-    // The caller must therefore insert the device into its lookup collection
-    // before invoking this function.
+    // The device must be in the lookup collection and have DRIVER_OK set before
+    // we register it. filed queries the descriptor immediately and may start
+    // partition I/O as soon as it receives this message.
     status = sys_storage_register(
         GetGrachtClient(),
         &message.base,
@@ -117,7 +116,7 @@ VirtioBlkRecoverDevice(
         goto error;
     }
 
-    // Update the device descriptor flags based on the negotiated features.
+    // The read-only flag may have changed when we renegotiated features.
     device->Descriptor.Flags &= ~STORAGE_READONLY;
     if (device->Features & VIRTIO_BLK_F_RO) {
         device->Descriptor.Flags |= STORAGE_READONLY;
@@ -131,7 +130,7 @@ VirtioBlkRecoverDevice(
     if (oserr != OS_EOK) {
         goto error;
     }
-    // Finish the PCI initialization if all previous steps succeeded.
+    // The queue must be ready before we set DRIVER_OK.
     oserr = VirtioPciFinishInitialization(&device->Transport);
     if (oserr != OS_EOK) {
         goto error;
@@ -201,7 +200,7 @@ VirtioBlkDeviceCreate(
     if (device->Features & VIRTIO_BLK_F_RO) {
         device->Descriptor.Flags |= STORAGE_READONLY;
     }
-    // Enable the PCI interrupt mode before assigning a queue's MSI-X vector.
+    // PCI interrupts must be enabled before we assign the queue's MSI-X vector.
     oserr = VirtioBlkRegisterInterrupt(device);
     if (oserr != OS_EOK) {
         goto error;
@@ -227,44 +226,56 @@ VirtioBlkDeviceCreate(
 error:
     ERROR("Failed to initialize Virtio block device: %u", oserr);
     VirtioPciSetFailed(&device->Transport);
-    VirtioBlkDeviceDestroy(device);
+    if (VirtioBlkDeviceDestroy(device) != OS_EOK) {
+        VirtioBlkDeferDestroy(device);
+    }
     return NULL;
 }
 
-void
+oserr_t
 VirtioBlkDeviceDestroy(
     _In_ VirtioBlkDevice_t* device)
 {
     oserr_t oserr;
 
     if (device == NULL) {
-        return;
+        return OS_EOK;
     }
     TRACE("VirtioBlkDeviceDestroy(device=%u)", device->Descriptor.DeviceID);
 
-    // Stop externally visible I/O before tearing down interrupts and queue DMA.
+    // Stop new storage requests before removing interrupts and freeing queue memory.
     __UnregisterStorage(device);
 
-    if (device->Transport.Device != NULL) {
+    if (device->Transport.Device != NULL && !device->Transport.Closing) {
         oserr = VirtioBlkResetRequestQueue(device);
         if (oserr != OS_EOK) {
-            // Freeing queue or transport memory while reset failed would leave
-            // the device able to DMA into released memory. Leak deliberately
-            // rather than turn a teardown failure into memory corruption.
+            // If reset fails, the device may still access queue or transport
+            // memory through DMA. Keep the device and its resources so we can
+            // retry cleanup without freeing memory still in use.
             ERROR("Refusing unsafe Virtio block teardown after reset failure: %u", oserr);
-            return;
+            return oserr;
         }
     }
     
     oserr = VirtioBlkUnregisterInterrupt(device);
     if (oserr != OS_EOK) {
         ERROR("Refusing Virtio block teardown while its interrupt remains owned");
-        return;
+        return oserr;
     }
     
-    VirtioPciTransportDestroy(&device->Transport);
+    oserr = VirtioBlkRetryRequests(device);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    
+    oserr = VirtioPciTransportDestroy(&device->Transport);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    
     free(device->BusDevice);
     free(device);
+    return OS_EOK;
 }
 
 oserr_t
@@ -290,8 +301,8 @@ VirtioBlkDeviceHandleConfigurationChange(
 
     status = (uint8_t)value;
     if (status & VIRTIO_STATUS_DEVICE_NEEDS_RESET) {
-        // Recovery cancels in-flight requests, renegotiates features, rebuilds
-        // the queue, and only then returns the device to DRIVER_OK.
+        // Cancel in-flight requests and renegotiate features. Recovery rebuilds
+        // the queue before setting DRIVER_OK again.
         return VirtioBlkRecoverDevice(device);
     }
     if (status & VIRTIO_STATUS_FAILED) {

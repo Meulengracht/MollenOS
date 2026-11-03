@@ -39,8 +39,8 @@ VirtioBlkRegisterInterrupt(
     int         status;
     TRACE("VirtioBlkRegisterInterrupt()");
 
-    // The fast handler records interrupt causes and signals this descriptor.
-    // Queue draining and protocol responses stay in the normal module context.
+    // The fast handler saves the interrupt status and signals this event.
+    // We process completed requests and send responses in module context.
     device->EventDescriptor = eventd(0, EVT_RESET_EVENT);
     if (device->EventDescriptor < 0) {
         ERROR("Failed to create Virtio block interrupt event descriptor");
@@ -52,7 +52,7 @@ VirtioBlkRegisterInterrupt(
         IOSET_ADD,
         device->EventDescriptor,
         &(struct ioset_event) {
-            .data.context = device,
+            .data.context = (void*)(uintptr_t)device->Descriptor.DeviceID,
             .events = IOSETSYN
         }
     );
@@ -117,7 +117,7 @@ VirtioBlkRegisterInterrupt(
     return OS_EOK;
 
 cleanup:
-    // Keep the event if handler cleanup fails; it may still be referenced.
+    // If interrupt cleanup fails, leave the event open. The handler may still use it.
     VirtioBlkUnregisterInterrupt(device);
     return oserr;
 }
@@ -128,8 +128,8 @@ VirtioBlkUnregisterInterrupt(
 {
     oserr_t status;
 
-    // Device teardown stops the hardware first. Wait for its last handler before
-    // removing the event or allowing the caller to free the device state.
+    // Device teardown stops the hardware first. We must also wait for any running
+    // handler before closing the event or freeing the device state.
     status = DeviceInterruptDestroy(&device->Interrupt);
     if (status != OS_EOK) {
         ERROR("Failed to release Virtio interrupt; keeping its resources alive");

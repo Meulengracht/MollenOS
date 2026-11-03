@@ -16,14 +16,13 @@
  
  * Internal interfaces between the virtio-blk implementation files.
  *
- * These helpers operate on a device owned by the module lifecycle. Callers must
- * serialize lifecycle, configuration, and request processing for that device;
- * the common virtqueue lock does not protect block-driver state. None of these
- * helpers may run in the fast interrupt handler.
+ * Callers must serialize device setup, teardown, configuration and request
+ * processing. The common virtqueue lock does not protect block-driver state.
+ * These helpers must not run in the fast interrupt handler.
  *
- * Request objects and their DMA attachments remain private to request.c.
- * device.c orchestrates recovery, while request.c alone cancels and releases
- * the outstanding request contexts after hardware ownership has ended.
+ * Request objects and their DMA attachments are private to request.c. Device
+ * recovery runs in device.c, but request.c cancels and frees outstanding
+ * requests once the hardware has stopped using their memory.
  */
 
 #ifndef __VIRTIO_BLK_PRIVATE_H__
@@ -34,11 +33,13 @@
 /**
  * @brief Read capacity, logical sector size, and negotiated SG limits.
  *
- * Requires an initialized transport with device->Features already negotiated.
- * Retries when ConfigGeneration changes during the read. Returns OS_EOK for a
- * stable, supported geometry, OS_EBUSY if retries are exhausted, or a read/
- * geometry error. Fields are updated while reading; failure does not roll back
- * the previous configuration, so the caller must not treat it as a new snapshot.
+ * Requires an initialized transport and negotiated device->Features. If
+ * ConfigGeneration changes during the read, we retry. Fields are updated as
+ * they are read, so the caller must not use the configuration after a failure.
+ *
+ * @param device Device whose configuration is being read.
+ * @return OS_EOK for stable, supported geometry. OS_EBUSY if all retries fail,
+ *         otherwise a read or geometry error.
  */
 oserr_t
 VirtioBlkReadConfiguration(
@@ -47,11 +48,14 @@ VirtioBlkReadConfiguration(
 /**
  * @brief Reset the device, cancel outstanding requests, and destroy its queue.
  *
- * Requires a live transport; RequestQueue may be NULL. Successful cancellation
- * sends each deferred response once and releases its DMA attachments. On
- * success RequestQueue is NULL. If reset fails, requests and queue memory stay
- * allocated because the device may still access them. A later abort/destroy
- * failure likewise leaves the remaining queue state with the caller.
+ * Requires a live transport. RequestQueue may be NULL. Cancellation releases
+ * each request's DMA attachments before sending its deferred response once.
+ * On success, RequestQueue is NULL. If reset fails, we keep the requests and
+ * queue memory because the device may still access them. If cancellation or
+ * queue destruction fails, the remaining state is kept for another attempt.
+ *
+ * @param device Device whose request queue is being stopped.
+ * @return OS_EOK after reset and cleanup, otherwise a reset or cleanup error.
  */
 oserr_t
 VirtioBlkResetRequestQueue(
@@ -60,13 +64,16 @@ VirtioBlkResetRequestQueue(
 /**
  * @brief Cancel pending work and restart the device with a new request queue.
  *
- * Requires an initialized device and its existing interrupt registration.
- * Resets requests, renegotiates features, refreshes configuration, creates the
- * queue, and sets DRIVER_OK. On failure marks the device failed and unregisters
- * storage. A failed reset retains DMA ownership as described above.
+ * Requires an initialized device with interrupts registered. Resets requests
+ * and renegotiates features, then reads the configuration and creates a new
+ * queue before setting DRIVER_OK. On failure, marks the device failed and
+ * unregisters storage. If reset fails, the device may still use request memory.
  *
- * May complete and free any queued request, including the request whose failed
- * notification triggered recovery; callers must not access it afterwards.
+ * Any queued request may be completed and freed here, including the request
+ * whose notification failed. Callers must not access that request afterwards.
+ *
+ * @param device Device to restart.
+ * @return OS_EOK after restart, otherwise a reset or initialization error.
  */
 oserr_t
 VirtioBlkRecoverDevice(
@@ -75,25 +82,45 @@ VirtioBlkRecoverDevice(
 /**
  * @brief Create the module event and register the fast interrupt handler.
  *
- * Requires mapped ISR capability resources, no allocated interrupt, and
- * EventDescriptor == -1. Call before DRIVER_OK so initial completions can wake
- * the module. On failure releases any event created here; on success the device
- * owns the event and interrupt registration until unregister.
+ * Requires mapped ISR resources, no allocated interrupt and EventDescriptor
+ * set to -1. Call before DRIVER_OK so the first completions can wake the module.
+ * On failure, tries to release the event and interrupt resources created here.
+ * If cleanup fails, the remaining resources are kept for another unregister
+ * attempt. On success, they remain until VirtioBlkUnregisterInterrupt is called.
+ *
+ * @param device Device receiving the interrupt registration.
+ * @return OS_EOK on success, otherwise an event or interrupt setup error.
  */
 oserr_t
 VirtioBlkRegisterInterrupt(
     _InOut_ VirtioBlkDevice_t* device);
 
 /**
- * @brief Unregister the fast handler and remove/close its module event.
+ * @brief Unregister the fast handler and close its module event.
  *
- * Accepts a partially initialized device and repeated calls. Stop device
- * interrupts before calling this, then release the ISR mapping and device memory
- * only after success. On failure, the allocation and event remain owned so the
- * caller can retry. Queue reset and request cancellation are handled separately.
+ * Stop device interrupts before calling this. Release the ISR mapping and
+ * device memory only after success. A partially initialized device and repeated
+ * calls are accepted. On failure, the interrupt allocation and event are kept
+ * so the caller can retry. Queue reset and request cancellation are separate.
+ *
+ * @param device Device whose interrupt resources are being released.
+ * @return OS_EOK on success, otherwise an interrupt cleanup error.
  */
 oserr_t
 VirtioBlkUnregisterInterrupt(
+    _InOut_ VirtioBlkDevice_t* device);
+
+/**
+ * @brief Retry DMA cleanup for completed requests.
+ *
+ * Requires serialized device processing. Deferred replies wait until the
+ * device has stopped using the buffers and all request resources are released.
+ *
+ * @param device Device with requests waiting for cleanup.
+ * @return OS_EOK when no requests need cleanup, otherwise a cleanup error.
+ */
+oserr_t
+VirtioBlkRetryRequests(
     _InOut_ VirtioBlkDevice_t* device);
 
 #endif //!__VIRTIO_BLK_PRIVATE_H__

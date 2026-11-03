@@ -28,9 +28,7 @@
 #include <ddk/barrier.h>
 #include <ddk/io.h>
 #include <ddk/utils.h>
-#include <os/handle.h>
 #include <os/memory.h>
-#include <os/shm.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,92 +97,45 @@ __FloorPowerOfTwo(
     return result;
 }
 
-static void
-__DmaRegionDestroy(
-    _In_ VirtioDmaRegion_t* region)
-{
-    if (region->Handle.ID != UUID_INVALID) {
-        OSHandleDestroy(&region->Handle);
-    }
-    free(region->SgTable.Entries);
-    memset(region, 0, sizeof(VirtioDmaRegion_t));
-}
-
 static oserr_t
-__DmaRegionCreate(
-    _In_  size_t             length,
-    _In_  size_t             alignment,
-    _Out_ VirtioDmaRegion_t* region)
-{
-    oserr_t oserr;
-    TRACE("__DmaRegionCreate(length=%" PRIuIN ", alignment=%" PRIuIN ")",
-          length, alignment);
-
-    if (length == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Virtio 1.x exposes 64-bit queue addresses, but low physical memory keeps
-    // the queue usable by both 32-bit and 64-bit Vali targets without an IOMMU.
-    memset(region, 0, sizeof(VirtioDmaRegion_t));
-    oserr = SHMCreate(
-        &(SHM_t) {
-            .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-            .Conformity = OSMEMORYCONFORMITY_BITS32,
-            .Size = length,
-            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-        },
-        &region->Handle
-    );
-    if (oserr != OS_EOK) {
-        ERROR("__DmaRegionCreate failed to allocate DMA memory: %u", oserr);
-        return oserr;
-    }
-
-    // The common queue representation programs one physical base address for
-    // each split-ring component. Consequently, each allocation must resolve to
-    // one contiguous SG entry covering the complete region; accepting a
-    // fragmented table here would make the device walk into unrelated memory.
-    oserr = SHMGetSGTable(&region->Handle, &region->SgTable, -1);
-    if (oserr != OS_EOK) {
-        ERROR("__DmaRegionCreate failed to retrieve the SG table: %u", oserr);
-        __DmaRegionDestroy(region);
-        return oserr;
-    }
-
-    // Verify both the geometry promised to the device and the alignment
-    // required by the specific split-ring structure being allocated.
-    if (region->SgTable.Count != 1 ||
-        region->SgTable.Entries[0].Length < length ||
-        (region->SgTable.Entries[0].Address & (alignment - 1)) != 0) {
-        ERROR("__DmaRegionCreate received incompatible DMA geometry");
-        __DmaRegionDestroy(region);
-        return OS_ENOTSUPPORTED;
-    }
-
-    region->Buffer          = SHMBuffer(&region->Handle);
-    region->PhysicalAddress = region->SgTable.Entries[0].Address;
-    region->Length          = length;
-    if (region->Buffer == NULL) {
-        ERROR("__DmaRegionCreate failed to map the DMA allocation");
-        __DmaRegionDestroy(region);
-        return OS_EOOM;
-    }
-    return OS_EOK;
-}
-
-static void
 __QueueMemoryDestroy(
     _In_ VirtioSplitQueue_t* queue)
 {
-    __DmaRegionDestroy(&queue->UsedRegion);
-    __DmaRegionDestroy(&queue->AvailableRegion);
-    __DmaRegionDestroy(&queue->DescriptorRegion);
+    oserr_t status;
+
+    // The hardware must be stopped first. DMAFree clears each pointer on
+    // success, so we can retry a failed release without freeing memory twice.
+    status = DMAFree(&queue->UsedRegion);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = DMAFree(&queue->AvailableRegion);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = DMAFree(&queue->DescriptorRegion);
+    if (status != OS_EOK) {
+        return status;
+    }
+
     free(queue->Contexts);
     free(queue->Allocated);
     free(queue->ChainLengths);
     free(queue->FreeList);
-    free(queue);
+    return OS_EOK;
+}
+
+static uint64_t
+__QueueAddress(
+    _In_ const struct DMABuffer* buffer)
+{
+    uint32_t count;
+
+    // Queue memory must have one segment. Use its device address, keeping all
+    // 64 bits even on 32-bit targets.
+    return DMABufferSegments(buffer, &count)[0].Address;
 }
 
 static oserr_t
@@ -200,9 +151,9 @@ __QueueMemoryCreate(
     TRACE("__QueueMemoryCreate(queue=%u, size=%u)",
           queue->QueueIndex, queue->QueueSize);
 
-    // These arrays are driver-only bookkeeping. They keep device-visible
-    // descriptors free of software pointers and associate each submitted head
-    // descriptor with its complete chain and caller context.
+    // Keep the chain length and caller context for each head descriptor here.
+    // The device only needs the descriptors, so software pointers stay in
+    // these separate arrays.
     queue->FreeList = malloc(sizeof(uint16_t) * queue->QueueSize);
     queue->ChainLengths = calloc(queue->QueueSize, sizeof(uint16_t));
     queue->Allocated = calloc(queue->QueueSize, sizeof(uint8_t));
@@ -213,39 +164,45 @@ __QueueMemoryCreate(
         return OS_EOOM;
     }
 
-    // Split virtqueues have independent alignment requirements: 16 bytes for
-    // descriptors, 2 bytes for the available ring, and 4 bytes for the used
-    // ring. Separate allocations also let each component be programmed through
-    // its corresponding common-configuration address field.
-    oserr = __DmaRegionCreate(descriptorBytes, 16, &queue->DescriptorRegion);
+    // The descriptor table needs 16-byte alignment, the available ring needs
+    // 2-byte alignment, and the used ring needs 4-byte alignment. Allocate them
+    // separately so each has its own address in the common configuration.
+    oserr = DMAAllocate(queue->Transport->DmaContext,
+        &(struct DMARequirements) { .Length = descriptorBytes, .Alignment = 16, .Contiguous = true },
+        &queue->DescriptorRegion);
     if (oserr != OS_EOK) {
         ERROR("__QueueMemoryCreate failed to allocate the descriptor table: %u", oserr);
         return oserr;
     }
-    oserr = __DmaRegionCreate(availableBytes, 2, &queue->AvailableRegion);
+
+    oserr = DMAAllocate(queue->Transport->DmaContext,
+        &(struct DMARequirements) { .Length = availableBytes, .Alignment = 2, .Contiguous = true },
+        &queue->AvailableRegion);
     if (oserr != OS_EOK) {
         ERROR("__QueueMemoryCreate failed to allocate the available ring: %u", oserr);
         return oserr;
     }
-    oserr = __DmaRegionCreate(usedBytes, 4, &queue->UsedRegion);
+
+    oserr = DMAAllocate(queue->Transport->DmaContext,
+        &(struct DMARequirements) { .Length = usedBytes, .Alignment = 4, .Contiguous = true },
+        &queue->UsedRegion);
     if (oserr != OS_EOK) {
         ERROR("__QueueMemoryCreate failed to allocate the used ring: %u", oserr);
         return oserr;
     }
 
-    queue->Descriptors = queue->DescriptorRegion.Buffer;
-    queue->Available   = queue->AvailableRegion.Buffer;
-    queue->Used        = queue->UsedRegion.Buffer;
+    queue->Descriptors = DMABufferData(queue->DescriptorRegion);
+    queue->Available   = DMABufferData(queue->AvailableRegion);
+    queue->Used        = DMABufferData(queue->UsedRegion);
 
-    // When EVENT_IDX is negotiated, the optional event fields immediately
-    // follow the variable-length ring arrays. Space is reserved unconditionally
-    // so feature negotiation does not change the DMA layout.
+    // EVENT_IDX adds an event field after each ring array. We always reserve
+    // space for these fields so feature negotiation leaves the DMA layout unchanged.
     queue->UsedEvent = &queue->Available->Ring[queue->QueueSize];
     queue->AvailableEvent = (uint16_t*)&queue->Used->Ring[queue->QueueSize];
     queue->FreeDescriptors = queue->QueueSize;
 
-    // FreeList is a stack. Reverse initialization makes the first allocation
-    // return descriptor zero and keeps early chains deterministic and compact.
+    // FreeList is a stack. Fill it in reverse order so the first chain starts
+    // at descriptor zero and uses consecutive descriptors.
     for (uint16_t i = 0; i < queue->QueueSize; i++) {
         queue->FreeList[i] = (uint16_t)(queue->QueueSize - i - 1);
     }
@@ -262,9 +219,8 @@ __ReadQueueLimits(
     oserr_t  oserr;
     TRACE("__ReadQueueLimits(queue=%u)", queueIndex);
 
-    // QueueSelect controls which queue all subsequent queue fields describe.
-    // Hold the transport lock across the complete select/read sequence so a
-    // second queue cannot redirect those accesses midway through the query.
+    // QueueSelect must stay unchanged while we read the queue fields. Hold the
+    // transport lock so another queue cannot change it between reads.
     spinlock_acquire(&transport->ConfigurationLock);
     oserr = __CommonRead(
         transport,
@@ -321,8 +277,8 @@ __ProgramQueue(
     TRACE("__ProgramQueue(queue=%u, size=%u)",
           queue->QueueIndex, queue->QueueSize);
 
-    // QueueSelect is shared by every queue in the function. Keep it stable
-    // until all addresses, notification metadata, and QueueEnable are written.
+    // All queues in the PCI function share QueueSelect. Keep the transport
+    // locked until the addresses, notification settings and QueueEnable are written.
     spinlock_acquire(&transport->ConfigurationLock);
     oserr = __SelectQueue(transport, queue->QueueIndex);
     if (oserr != OS_EOK) {
@@ -339,8 +295,8 @@ __ProgramQueue(
         goto exit;
     }
 
-    // MSI-X uses table entry zero for every queue. Program and verify the
-    // route before QueueEnable, including when rebuilding queues after reset.
+    // We use MSI-X table entry zero for every queue. Set and verify the vector
+    // before enabling the queue, also when rebuilding it after a reset.
     if (transport->MsixEnabled) {
         oserr = __CommonWrite(
             transport,
@@ -367,9 +323,8 @@ __ProgramQueue(
         }
     }
 
-    // Publish the chosen size and the three independent split-ring physical
-    // bases. The DMA allocator has already guaranteed each base describes the
-    // entire corresponding component without SG discontinuities.
+    // Write the queue size and the device address of each ring allocation.
+    // DMAAllocate guarantees that each allocation is one contiguous device range.
     oserr = __CommonWrite(
         transport,
         offsetof(VirtioPciCommonConfiguration_t, QueueSize),
@@ -383,7 +338,7 @@ __ProgramQueue(
     oserr = __CommonWrite(
         transport,
         offsetof(VirtioPciCommonConfiguration_t, QueueDesc),
-        queue->DescriptorRegion.PhysicalAddress,
+        __QueueAddress(queue->DescriptorRegion),
         sizeof(((VirtioPciCommonConfiguration_t*)0)->QueueDesc)
     );
     if (oserr != OS_EOK) {
@@ -393,7 +348,7 @@ __ProgramQueue(
     oserr = __CommonWrite(
         transport,
         offsetof(VirtioPciCommonConfiguration_t, QueueDriver),
-        queue->AvailableRegion.PhysicalAddress,
+        __QueueAddress(queue->AvailableRegion),
         sizeof(((VirtioPciCommonConfiguration_t*)0)->QueueDriver)
     );
     if (oserr != OS_EOK) {
@@ -403,16 +358,16 @@ __ProgramQueue(
     oserr = __CommonWrite(
         transport,
         offsetof(VirtioPciCommonConfiguration_t, QueueDevice),
-        queue->UsedRegion.PhysicalAddress,
+        __QueueAddress(queue->UsedRegion),
         sizeof(((VirtioPciCommonConfiguration_t*)0)->QueueDevice)
     );
     if (oserr != OS_EOK) {
         goto exit;
     }
 
-    // QueueNotifyOff is expressed in multiplier units, not bytes. Resolve and
-    // bounds-check the final offset before the queue is made visible to the
-    // device so later submissions can notify without touching QueueSelect.
+    // Multiply QueueNotifyOff to get the byte offset and check that it fits
+    // before enabling the queue. Submissions can then notify the device without
+    // changing QueueSelect.
     oserr = __CommonRead(
         transport,
         offsetof(VirtioPciCommonConfiguration_t, QueueNotifyOff),
@@ -457,8 +412,8 @@ __ProgramQueue(
     }
     queue->NotifyOffset = (uint32_t)notifyOffset;
 
-    // All queue configuration and zeroed ring memory must be globally visible
-    // before QueueEnable transfers asynchronous ownership to the device.
+    // The device must see the queue configuration and cleared ring memory
+    // before QueueEnable allows it to access the queue.
     dma_wmb();
     oserr = __CommonWrite(
         transport,
@@ -471,12 +426,11 @@ __ProgramQueue(
     }
     queue->Enabled = 1;
     queue->ProgrammedGeneration = transport->ResetGeneration;
-    transport->ActiveQueues++;
-        TRACE("__ProgramQueue desc=0x%" PRIxIN ", avail=0x%" PRIxIN
-            ", used=0x%" PRIxIN ", notify=0x%x/%u, data=0x%x",
-            queue->DescriptorRegion.PhysicalAddress,
-            queue->AvailableRegion.PhysicalAddress,
-            queue->UsedRegion.PhysicalAddress,
+        TRACE("__ProgramQueue desc=0x%" PRIx64 ", avail=0x%" PRIx64
+            ", used=0x%" PRIx64 ", notify=0x%x/%u, data=0x%x",
+            __QueueAddress(queue->DescriptorRegion),
+            __QueueAddress(queue->AvailableRegion),
+            __QueueAddress(queue->UsedRegion),
             queue->NotifyOffset,
             queue->NotificationWidth,
             queue->NotifyData);
@@ -495,20 +449,19 @@ __NeedsNotification(
     uint16_t eventIndex;
     uint16_t flags;
 
-    // The suppression fields are device-owned. Order their reads after the
-    // available-ring publication before deciding whether a doorbell is needed.
+    // Make the available-ring update visible before reading the device's
+    // notification settings. We use them to decide whether to notify it.
     dma_mb();
     if (queue->EventIndex) {
-        // EVENT_IDX requests notification only when this publication crosses
-        // the device-selected event index. Unsigned arithmetic intentionally
-        // preserves the Virtio 16-bit wraparound semantics.
+        // With EVENT_IDX, notify when the available index passes the event
+        // index set by the device. The unsigned calculation handles 16-bit wraparound.
         ReadVolatileMemory(queue->AvailableEvent, &eventIndex, sizeof(eventIndex));
         return (uint16_t)(newIndex - eventIndex - 1) <
                (uint16_t)(newIndex - previousIndex);
     }
 
-    // Without EVENT_IDX, the used-ring flag provides coarse notification
-    // suppression for all newly available buffers.
+    // Without EVENT_IDX, the used-ring flag disables notifications for all
+    // newly available buffers.
     ReadVolatileMemory(&queue->Used->Flags, &flags, sizeof(flags));
     return !(flags & VIRTIO_SPLIT_USED_F_NO_NOTIFY);
 }
@@ -521,8 +474,8 @@ __NotifyQueue(
     uint32_t notificationData = queue->NotifyData;
 
     if (queue->NotificationWidth == sizeof(uint32_t)) {
-        // With NOTIFICATION_DATA, bits 31:16 carry the next split available
-        // index while the device-provided queue notification data stays low.
+        // With NOTIFICATION_DATA, bits 31:16 hold the next available index.
+        // Bits 15:0 keep the queue notification data supplied by the device.
         notificationData |= (uint32_t)availableIndex << 16;
     }
     return VirtioPciRegionWrite(
@@ -542,17 +495,17 @@ __ResetQueue(
     oserr_t               oserr;
     TRACE("__ResetQueue(queue=%u)", queue->QueueIndex);
 
-    // QueueEnable cannot be cleared by the driver. Individual queue teardown
-    // is safe only when RING_RESET is negotiated; otherwise the caller must
-    // reset the complete device before reclaiming this queue's DMA memory.
+    // The driver cannot clear QueueEnable. Resetting one queue requires
+    // RING_RESET. Otherwise, the caller must reset the whole device before
+    // freeing this queue's DMA memory.
     if (!(transport->DriverFeatures & VIRTIO_F_RING_RESET) ||
         transport->Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1].Length <
                 sizeof(VirtioPciCommonConfiguration_t)) {
         return OS_EBUSY;
     }
 
-    // QueueReset, like all per-queue common fields, is selected through the
-    // shared QueueSelect register and must remain serialized until completion.
+    // QueueReset uses the shared QueueSelect register. Hold the transport lock
+    // until the reset finishes so another queue cannot change the selection.
     spinlock_acquire(&transport->ConfigurationLock);
     oserr = __SelectQueue(transport, queue->QueueIndex);
     if (oserr == OS_EOK) {
@@ -591,7 +544,7 @@ VirtioSplitQueueCreate(
     _In_  VirtioPciTransport_t* transport,
     _In_  uint16_t              queueIndex,
     _In_  uint16_t              requestedSize,
-    _Out_ VirtioSplitQueue_t**  queueOut)
+    _InOut_ VirtioSplitQueue_t** queueOut)
 {
     VirtioSplitQueue_t* queue;
     size_t              pageSize;
@@ -604,7 +557,9 @@ VirtioSplitQueueCreate(
     if (transport == NULL || queueOut == NULL || transport->Device == NULL) {
         return OS_EINVALPARAMS;
     }
-    *queueOut = NULL;
+    if (*queueOut != NULL || transport->Closing) {
+        return OS_EBUSY;
+    }
     if (transport->DriverFeatures == 0 ||
         (transport->DriverFeatures & VIRTIO_F_RING_PACKED)) {
         return OS_ENOTSUPPORTED;
@@ -617,10 +572,9 @@ VirtioSplitQueueCreate(
         return oserr;
     }
 
-    // This implementation requires one contiguous SG entry per split-ring
-    // component. Limiting every component to one page makes that geometry
-    // deterministic with the current SHM allocator. This is an implementation
-    // policy, not a Virtio queue-size limit.
+    // We limit each ring allocation to one page. DMAAllocate makes each one
+    // a contiguous device address range. The page limit comes from this driver and
+    // is separate from the queue size supported by Virtio.
     pageSize = MemoryPageSize();
     allocationLimit = (uint16_t)MIN(pageSize / sizeof(VirtioSplitDescriptor_t), UINT16_MAX);
     maximumSize = MIN(maximumSize, allocationLimit);
@@ -631,8 +585,8 @@ VirtioSplitQueueCreate(
         return OS_ENOTSUPPORTED;
     }
 
-    // Split queues require a power-of-two size. Round down so a request or
-    // device maximum that is not a power of two never exceeds either limit.
+    // Split queues require a power-of-two size. Round down to stay within the
+    // requested size and the device's maximum.
     maximumSize = __FloorPowerOfTwo(maximumSize);
     if ((sizeof(VirtioSplitDescriptor_t) * maximumSize) > pageSize ||
         (offsetof(VirtioSplitAvailableRing_t, Ring) +
@@ -653,12 +607,20 @@ VirtioSplitQueueCreate(
     queue->QueueSize  = maximumSize;
     queue->EventIndex = (transport->DriverFeatures & VIRTIO_F_RING_EVENT_IDX) != 0;
     spinlock_init(&queue->Lock);
+    
+    // Count the queue before allocating memory. If setup and cleanup both fail,
+    // the transport must stay open until this queue is freed.
+    spinlock_acquire(&transport->ConfigurationLock);
+    transport->ActiveQueues++;
+    spinlock_release(&transport->ConfigurationLock);
 
     oserr = __QueueMemoryCreate(queue);
     if (oserr != OS_EOK) {
         ERROR("VirtioSplitQueueCreate failed to allocate queue %u: %u",
               queueIndex, oserr);
-        __QueueMemoryDestroy(queue);
+        if (VirtioSplitQueueDestroy(queue) != OS_EOK) {
+            *queueOut = queue;
+        }
         return oserr;
     }
     
@@ -666,7 +628,9 @@ VirtioSplitQueueCreate(
     if (oserr != OS_EOK) {
         ERROR("VirtioSplitQueueCreate failed to program queue %u: %u",
               queueIndex, oserr);
-        __QueueMemoryDestroy(queue);
+        if (VirtioSplitQueueDestroy(queue) != OS_EOK) {
+            *queueOut = queue;
+        }
         return oserr;
     }
 
@@ -690,8 +654,7 @@ VirtioSplitQueueDestroy(
     spinlock_acquire(&queue->Lock);
     if (queue->Enabled &&
         queue->ProgrammedGeneration == transport->ResetGeneration) {
-        // Block new submissions before releasing the queue lock to perform the
-        // potentially yielding hardware reset.
+        // Reset can yield. Block new submissions before releasing the queue lock.
         queue->Quiescing = 1;
         spinlock_release(&queue->Lock);
         oserr = __ResetQueue(queue);
@@ -703,20 +666,26 @@ VirtioSplitQueueDestroy(
     queue->Enabled = 0;
     queue->Quiescing = 1;
 
-    // A reset stops DMA but does not complete caller-owned requests. Preserve
-    // their contexts until VirtioSplitQueueAbort has returned each one.
+    // Reset stops DMA. The caller must still collect each pending request
+    // through VirtioSplitQueueAbort before we can free its context entry.
     if (queue->InFlight != 0) {
         spinlock_release(&queue->Lock);
         return OS_EBUSY;
     }
     spinlock_release(&queue->Lock);
 
+    oserr = __QueueMemoryDestroy(queue);
+    if (oserr != OS_EOK) {
+        WARNING("Virtio queue %u DMA cleanup deferred: %u", queue->QueueIndex, oserr);
+        return oserr;
+    }
+    
     spinlock_acquire(&transport->ConfigurationLock);
     if (transport->ActiveQueues > 0) {
         transport->ActiveQueues--;
     }
     spinlock_release(&transport->ConfigurationLock);
-    __QueueMemoryDestroy(queue);
+    free(queue);
     return OS_EOK;
 }
 
@@ -747,9 +716,8 @@ VirtioSplitQueueSubmit(
 
     spinlock_acquire(&queue->Lock);
 
-    // A transport reset invalidates the device-side queue configuration. The
-    // generation check prevents submission through a stale queue object even
-    // if its local Enabled flag has not yet been cleared by teardown.
+    // The device loses its queue configuration on reset. Check the generation
+    // so we reject submissions even if teardown has not cleared Enabled yet.
     if (!queue->Enabled || queue->Quiescing || queue->Faulted ||
         queue->NotificationFailed ||
         queue->ProgrammedGeneration != queue->Transport->ResetGeneration) {
@@ -761,9 +729,8 @@ VirtioSplitQueueSubmit(
         goto exit;
     }
 
-    // Pop descriptors from the private free stack and construct a direct
-    // chain. NEXT is generated here so callers cannot create cycles or refer
-    // to descriptors owned by another request.
+    // Build the chain from free descriptors. We set NEXT here so callers cannot
+    // create loops or link descriptors that belong to another request.
     for (uint16_t i = 0; i < bufferCount; i++) {
         uint16_t descriptorIndex = queue->FreeList[--queue->FreeDescriptors];
         VirtioSplitDescriptor_t* descriptor = &queue->Descriptors[descriptorIndex];
@@ -789,8 +756,8 @@ VirtioSplitQueueSubmit(
     previousIndex = queue->AvailableIndex;
     queue->Available->Ring[previousIndex % queue->QueueSize] = headDescriptor;
 
-    // The device treats RingIndex as publication. Ensure descriptor contents
-    // and the available-ring entry reach device-visible memory first.
+    // The descriptors and available-ring entry must be visible to the device
+    // before RingIndex tells it that the chain is ready.
     dma_wmb();
     newIndex = (uint16_t)(previousIndex + 1);
     WriteVolatileMemory(&queue->Available->RingIndex, &newIndex, sizeof(newIndex));
@@ -806,9 +773,9 @@ VirtioSplitQueueSubmit(
     if (__NeedsNotification(queue, previousIndex, newIndex)) {
         oserr = __NotifyQueue(queue, newIndex);
         if (oserr != OS_EOK) {
-            // The chain is already published and cannot be rolled back safely.
-            // Report it as in progress and prevent further submissions until
-            // the owning driver resets or otherwise recovers the queue.
+            // The device may already be using this chain, so we must leave it
+            // queued. Report it as in progress and block submissions until
+            // the driver resets or recovers the queue.
             queue->NotificationFailed = 1;
             oserr = OS_EINPROGRESS;
         }
@@ -830,9 +797,9 @@ __ValidateCompletedChain(
 {
     uint16_t descriptorIndex = headDescriptor;
 
-    // The used ring is device-controlled, but descriptor chains are not.
-    // Validate the saved chain before using its links to reclaim bookkeeping;
-    // this turns corruption or an invalid completion into a protocol fault.
+    // The device writes the used ring, while we build the descriptor chains.
+    // Check the saved chain before following its links and freeing descriptors.
+    // Invalid links or completions must return a protocol error.
     for (uint16_t i = 0; i < chainLength; i++) {
         VirtioSplitDescriptor_t* descriptor;
 
@@ -898,9 +865,8 @@ VirtioSplitQueuePoll(
 
     spinlock_acquire(&queue->Lock);
 
-    // Completion polling is valid only for the device generation to which the
-    // ring addresses were programmed. After a reset, outstanding contexts must
-    // instead be recovered through VirtioSplitQueueAbort.
+    // Poll only while the device still has this queue's configuration. After
+    // reset, the caller must collect pending contexts through VirtioSplitQueueAbort.
     if (!queue->Enabled || queue->Quiescing || queue->Faulted ||
         queue->ProgrammedGeneration != queue->Transport->ResetGeneration) {
         oserr = OS_EDEVFAULT;
@@ -913,16 +879,16 @@ VirtioSplitQueuePoll(
         goto exit;
     }
 
-    // The device cannot legitimately advance more than one complete ring ahead
-    // of the driver. A larger delta means used-ring state was corrupted.
+    // The device can be at most one full ring ahead of the driver. A larger
+    // difference means the used-ring state is corrupt.
     if ((uint16_t)(deviceUsedIndex - queue->UsedIndex) > queue->QueueSize) {
         queue->Faulted = 1;
         oserr = OS_EPROTOCOL;
         goto exit;
     }
 
-    // RingIndex is the device's publication point. Once observed, order the
-    // used-element read after it so the completion payload cannot be stale.
+    // Read the used element after the updated RingIndex so we get the
+    // completion data that the device wrote before updating the index.
     dma_rmb();
     ReadVolatileMemory(
             &queue->Used->Ring[queue->UsedIndex % queue->QueueSize],
@@ -931,8 +897,8 @@ VirtioSplitQueuePoll(
     );
     queue->UsedIndex++;
     if (queue->EventIndex) {
-        // Tell the device which future used index should trigger an interrupt.
-        // Publish prior completion processing before exposing the new event.
+        // Finish prior memory writes before telling the device which used
+        // index should trigger the next interrupt.
         dma_wmb();
         WriteVolatileMemory(queue->UsedEvent, &queue->UsedIndex, sizeof(queue->UsedIndex));
     }
@@ -985,8 +951,8 @@ VirtioSplitQueueAbort(
 
     spinlock_acquire(&queue->Lock);
 
-    // Reclaiming a published chain is safe only after queue reset has revoked
-    // device ownership of the descriptor and ring memory.
+    // The queue must be reset before we free a submitted chain. The device
+    // must have stopped using its descriptors and ring memory.
     if (queue->Enabled &&
         queue->ProgrammedGeneration == queue->Transport->ResetGeneration) {
         oserr = OS_EBUSY;

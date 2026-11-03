@@ -16,7 +16,7 @@
  *
  *
  * Flush, discard, write-zeroes, multi-queue operation, and packed rings are not
- * negotiated yet
+ * negotiated yet.
  *
  * MollenOS MCore - Virtio Driver
  * - Contains the implementation of a shared virtio driver
@@ -60,19 +60,19 @@
 
 /** Virtio block request sectors are always expressed in 512-byte units. */
 #define VIRTIO_BLK_SECTOR_SIZE 512
-/** Preferred upper bound for the single split request queue. */
+/** Maximum requested size of the single split request queue. */
 #define VIRTIO_BLK_QUEUE_SIZE  128
 
 /**
  * @brief Device-readable header at the start of every block request chain.
  *
- * The fields use the little-endian Virtio wire format. Sector is measured in
- * VIRTIO_BLK_SECTOR_SIZE units, regardless of the negotiated logical block
- * size. A device-writable status byte terminates the descriptor chain.
+ * Fields are little-endian. Sector is measured in VIRTIO_BLK_SECTOR_SIZE units,
+ * regardless of the negotiated logical block size. The last descriptor points
+ * to a status byte written by the device.
  */
 PACKED_TYPESTRUCT(VirtioBlkRequestHeader, {
     uint32_t Type;      /**< VIRTIO_BLK_T_* operation requested by the driver. */
-    uint32_t Reserved;  /**< Reserved by Virtio; the driver must write zero. */
+    uint32_t Reserved;  /**< Reserved by Virtio. The driver must write zero. */
     uint64_t Sector;    /**< First 512-byte sector accessed by the request. */
 });
 
@@ -80,8 +80,8 @@ PACKED_TYPESTRUCT(VirtioBlkRequestHeader, {
  * @brief State shared with the fast interrupt handler.
  *
  * The ISR capability offset is relative to IoSpace. Reading it acknowledges
- * legacy INTx interrupts. PendingStatus carries the causes to the module event
- * loop; MSI-X reports both causes because they share one vector.
+ * legacy INTx interrupts. PendingStatus saves the interrupt causes for the module
+ * event loop. MSI-X reports both causes because they share one vector.
  */
 typedef struct VirtioBlkInterruptResource {
     uint32_t            IsrOffset;
@@ -90,6 +90,13 @@ typedef struct VirtioBlkInterruptResource {
     atomic_uint_fast8_t PendingStatus;
 } VirtioBlkInterruptResource_t;
 
+struct VirtioBlkRequest;
+
+/**
+ * @brief Block device configuration, request queue, and interrupt state.
+ *
+ * CleanupRequests contains requests whose resources could not be released.
+ */
 typedef struct VirtioBlkDevice {
     element_t                    Header;
     BusDevice_t*                 BusDevice;
@@ -103,10 +110,23 @@ typedef struct VirtioBlkDevice {
     uint32_t                     SizeMax;
     uint32_t                     SegmentMax;
     int                          Registered;
+    struct VirtioBlkRequest*     CleanupRequests;
 } VirtioBlkDevice_t;
 
 /**
- * @brief Acknowledges an INTx interrupt and wakes the module event loop.
+ * @brief Add a device to the cleanup list after initialization or teardown fails.
+ *
+ * The device must be removed from public lookup before calling this function.
+ *
+ * @param device Device whose DMA, interrupt or transport cleanup needs a retry.
+ */
+void
+VirtioBlkDeferDestroy(
+    _In_ VirtioBlkDevice_t* device);
+
+/**
+ * @brief Save interrupt status and wake the module event loop.
+ * Reads the ISR byte to acknowledge INTx interrupts.
  */
 irqstatus_t
 OnFastInterrupt(
@@ -114,9 +134,11 @@ OnFastInterrupt(
     _In_ InterruptResourceTable_t* resourceTable);
 
 /**
- * @brief Creates and starts one modern PCI virtio block device.
- * @param busDevice Device supplied by the device manager. This function always
- *                  consumes ownership, including when initialization fails.
+ * @brief Create and start one modern PCI virtio block device.
+ *
+ * @param busDevice Device supplied by the device manager. The driver frees this
+ *                  descriptor during cleanup, including when initialization fails.
+ *                  The caller must not free it after this call.
  * @param storageDeviceId Driver-local identifier exposed to the storage service.
  * @return An initialized device, or NULL when setup fails.
  */
@@ -126,28 +148,35 @@ VirtioBlkDeviceCreate(
     _In_ uuid_t       storageDeviceId);
 
 /**
- * @brief Publishes an initialized block device to the file service.
+ * @brief Register an initialized block device with the file service.
  *
- * The caller must first make the device discoverable through the driver's
- * storage callbacks because registration may immediately trigger a stat query.
+ * The device must be in the driver's lookup collection before registration.
+ * The file service may query its storage descriptor as soon as it is registered.
  */
 oserr_t
 VirtioBlkDeviceRegisterStorage(
     _InOut_ VirtioBlkDevice_t* device);
 
 /**
- * @brief Stops a block device and releases all requests and transport resources.
+ * @brief Stop a block device and release all requests and transport resources.
+ *
+ * The caller must serialize device processing and remove the device from public
+ * lookup first. If cleanup fails, the device and remaining resources are kept so
+ * cleanup can be retried.
+ *
+ * @param device Device to destroy. NULL is accepted.
+ * @return OS_EOK after release, otherwise a reset or cleanup error.
  */
-void
+oserr_t
 VirtioBlkDeviceDestroy(
     _In_ VirtioBlkDevice_t* device);
 
 /**
- * @brief Queues a storage transfer and defers its protocol response.
+ * @brief Queue a storage transfer and send its response after completion.
  *
- * The supplied shared-memory handle remains attached until the device returns
- * the descriptor chain. A successful return therefore means that the response
- * will be sent later by VirtioBlkDeviceHandleInterrupt().
+ * The shared-memory handle must stay attached while the device uses the request
+ * buffers. On success, request completion sends the response after DMA and
+ * resource cleanup. The caller must not send another response.
  */
 oserr_t
 VirtioBlkDeviceTransfer(
@@ -160,14 +189,14 @@ VirtioBlkDeviceTransfer(
     _In_ size_t                   sectorCount);
 
 /**
- * @brief Drains completed request chains after a queue interrupt.
+ * @brief Process completed request chains after a queue interrupt.
  */
 oserr_t
 VirtioBlkDeviceHandleInterrupt(
     _In_ VirtioBlkDevice_t* device);
 
 /**
- * @brief Refreshes device configuration or recovers a device that requests reset.
+ * @brief Read device configuration or recover a device that requests a reset.
  */
 oserr_t
 VirtioBlkDeviceHandleConfigurationChange(

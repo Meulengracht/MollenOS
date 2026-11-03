@@ -14,17 +14,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
- * The module lock keeps protocol requests and deferred interrupt work from
- * changing device state at the same time. The fast interrupt handler only
- * acknowledges the interrupt and wakes the executor; it does not process
- * packets. Shared packet memory stays attached until the device has been
- * reset successfully, so hardware cannot keep using memory that was released.
+ * Hold VirtioNetLock when calling these internal functions, except from the
+ * fast interrupt handler. Device creation and destruction also require the
+ * registry lock. Device and packet slot pointers must not be used after the
+ * lock protecting them is released.
  *
- * Callers of these internal functions hold VirtioNetLock, except for the fast
- * interrupt handler. Device creation and destruction also require the device
- * registry lock. Pointers returned from the registry, and pointers to packet
- * slots, are temporary references: do not keep or use them after the lock that
- * protects them has been released.
+ * The module lock serializes protocol requests and deferred interrupt work.
+ * The fast handler acknowledges the interrupt and wakes the executor, which
+ * processes packets. Reset must succeed before shared packet memory can be
+ * detached, because the hardware may still be using it.
  */
 
 #ifndef __VIRTIO_NET_H__
@@ -59,13 +57,13 @@ typedef struct VirtioNetPool   VirtioNetPool_t;
 #define VIRTIO_NET_BATCH 16
 // Number of recent submit results kept so a client can safely retry a request.
 #define VIRTIO_NET_WINDOW 4
-// Number of completion records retained until the client acknowledges them.
+// Number of completion records kept until the client acknowledges them.
 #define VIRTIO_NET_JOURNAL 128
 // Number of entries requested for each device packet queue.
 #define VIRTIO_NET_QUEUE_SIZE 128
 // Maximum shared-memory capacity accepted for one packet pool.
 #define VIRTIO_NET_POOL_BYTES (128 * 1024)
-// Bytes reserved per slot for the device header and safe short-frame padding.
+// Bytes reserved per slot for the device header and zero-filled frame padding.
 #define VIRTIO_NET_METADATA_STRIDE 64
 // Initial allocation for closed sessions remembered for retry handling.
 #define VIRTIO_NET_INITIAL_CLOSED_SESSIONS 16
@@ -73,21 +71,15 @@ typedef struct VirtioNetPool   VirtioNetPool_t;
 /** 
  * @brief Header placed before each frame in device-visible packet memory.
  *
- * This modern header always includes NumBuffers, even though this adapter does
- * not use merged receive frames. Transmit requests do not use checksum or
- * segmentation offload, so their offload fields are zero. A received frame
- * without offload information occupies one buffer.
- * 
- * NumBuffers is present only when VIRTIO_NET_F_MRG_RXBUF is negotiated.
- * However this is not an issue for this driver. This would only be an issue
- * for legacy VirtIO.
- * 
- * This driver negotiates MAC/STATUS.
+ * Modern Virtio always includes NumBuffers. For legacy Virtio, that field
+ * requires VIRTIO_NET_F_MRG_RXBUF. This driver uses the modern header and
+ * negotiates MAC/STATUS, without merged receive frames or offload support.
+ * Transmit offload fields are zero. Each received frame uses one buffer.
  */
 PACKED_TYPESTRUCT(VirtioNetHeader, {
-    // Checksum/offload flags; zero for transmit.
+    // Checksum/offload flags. Zero for transmit.
     uint8_t  Flags;
-    // Segmentation type; zero when offload is unused.
+    // Segmentation type. Zero when offload is unused.
     uint8_t  GsoType;
     // Header length used by segmentation offload.
     uint16_t HeaderLength;
@@ -97,36 +89,43 @@ PACKED_TYPESTRUCT(VirtioNetHeader, {
     uint16_t ChecksumStart;
     // Byte offset of the checksum field.
     uint16_t ChecksumOffset;
-    // Number of buffers in this frame; one for normal RX. 0 for TX.
+    // Number of buffers in this frame. One for normal RX, zero for TX.
     uint16_t NumBuffers;
 });
 
 _Static_assert(sizeof(VirtioNetHeader_t) == 12, "modern Virtio network header");
 
+/**
+ * @brief Packet description, sequence and DMA state for one pool slot.
+ */
 typedef struct VirtioNetSlot {
-    // Pool containing this slot; valid while the pool is attached.
+    // Pool containing this slot. Valid while the pool is attached.
     VirtioNetPool_t*             Pool;
     // Most recently accepted packet description for this slot.
     struct ctt_netadapter_packet Packet;
-    // Last used submission sequence; rejected requests use theirs too.
+    // Last used submission sequence, including rejected requests.
     uint64_t                     Sequence;
     // Offset of this slot's private header area in device metadata.
     uint32_t                     MetadataOffset;
     // True while a queued packet still needs a completion.
     bool                         Owned;
+    // Mapped at pool registration. Each slot can start and end DMA separately.
+    struct DMAMapping*           Mapping;
+    // True between a successful DMA begin and end.
+    bool                         DmaActive;
 } VirtioNetSlot_t;
 
 /** Shared memory registered by a client as a group of packet slots. */
 struct VirtioNetPool {
-    // Attached client memory and device-visible scatter-gather table.
+    // Attached client shared memory.
     OSHandle_t                 Memory;
-    // Device-visible memory segments used to build queue entries.
-    SHMSGTable_t               ScatterGather;
+    // CPU physical ranges used to reject overlapping pools, not to build descriptors.
+    SHMSGTable_t               AliasGeometry;
     // Fixed direction and layout supplied at registration.
     struct ctt_netadapter_pool Description;
     // Client key kept reserved until the session closes.
     uint64_t                   Registration;
-    // Whether Memory and ScatterGather are ready for packet use.
+    // Whether Memory and slot mappings are ready for packet use.
     bool                       Mapped;
     // Per-slot sequence and in-flight packet state.
     VirtioNetSlot_t            Slots[VIRTIO_NET_SLOTS];
@@ -151,18 +150,21 @@ typedef struct VirtioNetBatch {
 enum VirtioNetState {
     // Session exists, but queues and packet pools are not ready for work.
     VIRTIO_NET_OPENED,
-    // Queues are ready; receive buffers may be submitted before start.
+    // Queues are ready. Receive buffers may be submitted before start.
     VIRTIO_NET_PREPARED,
     // Device is active and may process transmit and receive packets.
     VIRTIO_NET_RUNNING,
     // New work is blocked while the device is being reset.
     VIRTIO_NET_STOPPING,
-    // Device is inactive; acknowledged work may be prepared for another run.
+    // Device is inactive. Acknowledged work may be prepared for another run.
     VIRTIO_NET_STOPPED
 };
 
+/**
+ * @brief Client session, packet pools, and saved request and completion results.
+ */
 typedef struct VirtioNetSession {
-    // Whether a client currently owns this session.
+    // Whether a client has an active session.
     bool                             Active;
     // Whether the device configuration has been read for this session.
     bool                             Configured;
@@ -172,7 +174,7 @@ typedef struct VirtioNetSession {
     gracht_conn_t                    Owner;
     // Token clients must present to identify this session.
     struct ctt_netadapter_session    Identity;
-    // Current point in the device-session lifecycle.
+    // Current session state.
     enum VirtioNetState              State;
     // Identifier for the current start/stop cycle.
     uint64_t                         Run;
@@ -204,7 +206,7 @@ typedef struct VirtioNetSession {
 typedef struct VirtioNetClosedSession {
     // Identity of the session that was closed.
     struct ctt_netadapter_session Identity;
-    // Connection that owned that session.
+    // Connection that opened that session.
     gracht_conn_t                 Owner;
 } VirtioNetClosedSession_t;
 
@@ -222,7 +224,7 @@ typedef struct VirtioNetInterruptResource {
 struct VirtioNetDevice {
     // Registry entry used to find this device.
     element_t                    Header;
-    // Discovered bus device; owned by this object.
+    // Discovered bus descriptor, freed when this device is destroyed.
     BusDevice_t*                 BusDevice;
     // PCI access and device-reset state.
     VirtioPciTransport_t         Transport;
@@ -230,10 +232,11 @@ struct VirtioNetDevice {
     VirtioSplitQueue_t*          ReceiveQueue;
     // Queue where frames to send are submitted.
     VirtioSplitQueue_t*          TransmitQueue;
-    // Shared storage for VirtIO headers and safe padding.
-    OSHandle_t                   Metadata;
+    // DMA memory for Virtio headers and zero-filled frame padding.
+    struct DMABuffer*            Metadata;
     // Device-visible segments for Metadata.
-    SHMSGTable_t                 MetadataSg;
+    const struct DMASegment*     MetadataSegments;
+    uint32_t                     MetadataSegmentCount;
     // Features successfully negotiated with the device.
     uint64_t                     Features;
     // Adapter information reported to clients.
@@ -259,7 +262,7 @@ struct VirtioNetDevice {
 /**
  * @brief Free a converted bus descriptor and its separately allocated identification.
  * 
- * @param busDevice Descriptor to release; NULL is allowed.
+ * @param busDevice Descriptor to release. NULL is allowed.
  */
 __EXTERN void
 VirtioNetBusDeviceDestroy(
@@ -267,12 +270,13 @@ VirtioNetBusDeviceDestroy(
 
 /** 
  * @brief Create and initialize a device from a discovered bus descriptor.
- * This function takes ownership of busDevice whether it succeeds or fails. If
- * creation fails, it releases the descriptor as part of cleanup unless reset
- * fails; then the live device and descriptor remain on a private cleanup list
- * for retry, without being exposed to clients.
+ *
+ * The caller must not free busDevice after this call, including on failure.
+ * The driver releases it during cleanup. If reset or resource release fails,
+ * the device stays on a private cleanup list for another attempt and cannot
+ * be found by clients.
  * 
- * @param busDevice Discovered device descriptor to consume.
+ * @param busDevice Discovered bus descriptor to initialize.
  * @return The initialized device, or NULL if setup fails.
  */
 __EXTERN VirtioNetDevice_t*
@@ -282,10 +286,10 @@ VirtioNetDeviceCreate(
 /**
  * @brief Resolve a metadata cell to its device-visible address.
  *
- * The allocation may span multiple physical segments. Each cell must fit
- * entirely within one segment for its header and padding descriptors.
+ * Each cell must fit within one DMA segment so its header and padding can be
+ * described to the device. The full allocation may span several segments.
  *
- * @param device Device owning the metadata allocation.
+ * @param device Device containing the metadata allocation.
  * @param offset Byte offset of the cell within the allocation.
  * @param addressOut Device-visible start of the cell on success.
  * @return OS_EOK, or an error if the cell is absent or crosses a segment.
@@ -294,17 +298,18 @@ __EXTERN oserr_t
 VirtioNetMetadataAddress(
     _In_  VirtioNetDevice_t* device,
     _In_  size_t             offset,
-    _Out_ uintptr_t*         addressOut);
+    _Out_ uint64_t*         addressOut);
 
 /**
  * @brief Stop and release a device whose queues are no longer in use.
- * If the device cannot be reset, it may still be using its queues or shared
- * memory. In that case this function does not free the device; its caller must
- * keep the device object and its resources available rather than reuse them.
+ *
+ * If reset fails, the device may still use its queues or shared memory.
+ * The caller must keep the device and its resources allocated for another
+ * cleanup attempt.
  * 
  * @param device Device to destroy.
- * @return OS_EOK if released, or a reset/queue cleanup error. On error, the
- *         caller still owns the live device and must retain it for retry.
+ * @return OS_EOK if released, otherwise a reset or cleanup error. On error, the
+ *         caller must keep the device for another cleanup attempt.
  */
 __EXTERN oserr_t
 VirtioNetDeviceDestroy(
@@ -312,10 +317,11 @@ VirtioNetDeviceDestroy(
 
 /**
  * @brief Keep a device on the private cleanup list after destruction fails.
- * Retained devices are not available through device or session lookup.
- * The caller holds the module lock and the device must not already be listed.
  *
- * @param device Live device to retain for a later destruction attempt.
+ * The caller must hold the module lock, and the device must not already be on
+ * the list. Devices on this list cannot be found by device or session lookup.
+ *
+ * @param device Device whose cleanup needs another attempt.
  */
 __EXTERN void
 VirtioNetRetainDevice(
@@ -324,9 +330,8 @@ VirtioNetRetainDevice(
 /**
  * @brief Read a consistent snapshot of the device address and link state.
  *
- * If the link state changed, the client is sent a notification. That message is
- * only a convenience; clients can call get_link to read the current state if a
- * notification was missed.
+ * Sends a notification if the link state changed. Clients can call get_link
+ * to read the current state if they miss a notification.
  * 
  * @param device Device to read.
  * @return OS_EOK on success, or the error that prevented a consistent read.
@@ -359,7 +364,7 @@ VirtioNetFindDevice(
     _In_ uuid_t deviceId);
 
 /**
- * @brief Find the active session owned by a request's connection and session token.
+ * @brief Find the active session matching the request connection and session token.
  * 
  * @param message Request whose connection identifies the client.
  * @param identity Session token supplied by that client.
@@ -420,7 +425,7 @@ VirtioNetUnregisterInterrupt(
     _In_ VirtioNetDevice_t* device);
 
 /**
- * @brief Fast interrupt entry point; acknowledges the interrupt and wakes the executor.
+ * @brief Acknowledge the interrupt and wake the executor from the fast handler.
  * 
  * @param functionTable Interrupt function table provided by the kernel.
  * @param resourceTable Interrupt resource table provided by the kernel.
@@ -434,10 +439,10 @@ OnFastInterrupt(
 /**
  * @brief Prepare the packet queues without allowing the device to process packets.
  *
- * The queues are created with the negotiated features, but the device remains
- * stopped until the session start path marks it ready. Reset the device
- * successfully before destroying queues or cancelling their packets, because
- * reset is what confirms that the device no longer uses their memory.
+ * Creates queues using the negotiated features. The device stays stopped
+ * until the session starts and marks it ready. Before destroying queues or
+ * cancelling packets, reset must succeed so the device has stopped using
+ * their memory.
  * 
  * @param device Device whose queues are being prepared.
  * @return OS_EOK on success, or the first error that prevents setup.
@@ -463,14 +468,15 @@ VirtioNetQueuesReset(
  * @brief Submit a reserved packet slot to the receive or transmit queue.
  *
  * The caller must reserve the slot and its completion space first. OS_EOK means
- * the queue accepted the packet. OS_EINPROGRESS also means it was accepted, but
- * the device was not notified successfully; the device must be treated as
- * faulted. Any other error means the queue did not accept it, so the caller may
- * undo its reservation.
+ * the queue accepted the packet. On OS_EINPROGRESS, keep the packet accepted
+ * because notification or DMA cleanup failed. Treat the device as faulted and
+ * reset it to finish cleanup. On any other error, the caller may undo the
+ * reservation.
  * 
  * @param device Device that will process the packet.
  * @param slot Reserved packet slot to submit.
- * @return OS_EOK or OS_EINPROGRESS if submitted, otherwise the submission error.
+ * @return OS_EOK if submitted, OS_EINPROGRESS if recovery is needed, otherwise
+ *         the submission error.
  */
 __EXTERN oserr_t
 VirtioNetQueuePacket(
@@ -480,8 +486,8 @@ VirtioNetQueuePacket(
 /**
  * @brief Process completed queue entries and send any resulting completion records.
  *
- * Each call processes only a bounded amount of work. It can be called after an
- * interrupt or during drain recovery if an interrupt notification was missed.
+ * Each call limits the number of completions it processes. Call after an
+ * interrupt, or during drain recovery if the interrupt was missed.
  * 
  * @param device Device whose queues are checked.
  */
@@ -492,8 +498,8 @@ VirtioNetPoll(
 /**
  * @brief Stop accepting new packets and notify the client about a device fault.
  *
- * This does not reset the device or release packet memory; the queues may still
- * be using it.
+ * The device is not reset here. Keep packet memory allocated because the
+ * queues may still be using it.
  * 
  * @param device Faulted device.
  * @param status Error reported to the client.
@@ -506,13 +512,16 @@ VirtioNetFault(
 /**
  * @brief Attach a client's shared memory as a packet pool.
  *
- * Pools can only be added while the session is idle. A key identifies one pool
- * for the whole session: repeating it with the same layout returns the existing
- * ID, while changing its layout is an error. The memory range must not overlap
- * any registered pool, even if it was registered through another handle.
- * Unregistering a pool does not make its key or slot sequence numbers reusable;
- * they remain reserved until the session closes. On failure, no new mapping is
- * kept and *idOut is zero.
+ * The session must be idle before adding a pool. Each key identifies one pool
+ * for the whole session.
+ * Registering the same key and layout again returns its existing ID. Changing
+ * the layout is an error. Pool memory must not overlap another registered pool,
+ * including memory attached through a different handle.
+ *
+ * The key and slot sequence numbers stay reserved until the session closes,
+ * even after unregistering the pool. On failure, *idOut is zero. If cleanup
+ * also fails, the pool stays unavailable to clients and cleanup is retried on
+ * the next registration or session close.
  * 
  * @param device Device with the session receiving the pool.
  * @param key Client-chosen identifier that must remain unique in this session.
@@ -532,8 +541,10 @@ VirtioNetPoolRegister(
  *
  * The pool's key and per-slot submission sequence history remain reserved until
  * session close, so an old packet identifier cannot later refer to new memory.
+ * A cleanup failure disables the pool and keeps the remaining resources for a
+ * repeated unregister or session close.
  * 
- * @param device Device whose session owns the pool.
+ * @param device Device whose session contains the pool.
  * @param id ID returned when the pool was registered.
  * @return OS_EOK on success, or an error if the pool cannot be unregistered.
  */
@@ -545,20 +556,22 @@ VirtioNetPoolUnregister(
 /**
  * @brief Detach all registered pools after the device has stopped using their memory.
  *
- * Call this only after a successful queue reset. It releases attached handles
- * and their device-visible memory descriptions.
+ * Requires a successful queue reset. Releases DMA mappings and attached
+ * handles, including pools left after registration and cleanup both failed.
+ * If a release fails, the remaining resources stay available for another attempt.
  * 
  * @param device Device whose session pools are being detached.
+ * @return OS_EOK after all pools are released, otherwise a cleanup error.
  */
-__EXTERN void
+__EXTERN oserr_t
 VirtioNetPoolsDetach(
     _In_ VirtioNetDevice_t* device);
 
 /**
- * @brief Get the CPU address of a packet slot that is currently owned by the device.
+ * @brief Get the CPU address of a packet slot after its DMA transfer has ended.
  *
- * The address is temporary and is only valid while the slot's pool remains
- * attached. It is used to inspect received frames before reporting them.
+ * The DMA transfer must have ended before inspecting received bytes. The
+ * address is valid only while the slot's pool is attached.
  * 
  * @param slot Slot whose packet bytes are requested.
  * @return Address of the slot's packet data, or NULL if it is not available.
@@ -574,10 +587,10 @@ VirtioNetPacketBytes(
  * also record cancellations during reset without allocating memory. A slot
  * that has already received a result is ignored.
  * 
- * @param device Device and session that own the packet.
+ * @param device Device whose session contains the packet.
  * @param slot Packet slot being completed.
  * @param status Final packet result.
- * @param length Number of frame bytes transferred on success; ignored on error.
+ * @param length Number of frame bytes transferred on success. Ignored on error.
  */
 __EXTERN void
 VirtioNetComplete(
@@ -589,10 +602,10 @@ VirtioNetComplete(
 /**
  * @brief Send saved completion records newer than the client's known sequence.
  *
- * Sending is best effort. Whether delivery succeeds or fails, records remain
- * saved until a valid cumulative acknowledgement retires them.
+ * Records stay saved after sending, including when delivery fails. They are
+ * removed only after a valid cumulative acknowledgement.
  * 
- * @param device Device whose session owns the records.
+ * @param device Device whose session contains the records.
  * @param after Sequence number the client has already received.
  */
 __EXTERN void
@@ -630,7 +643,7 @@ VirtioNetAcknowledge(
  * @param batchId Ordered request identifier, also used to recognize retries.
  * @param ack Client progress positions to validate before processing the batch.
  * @param packets Packet descriptions in this request.
- * @param count Number of entries in packets; must not exceed VIRTIO_NET_BATCH.
+ * @param count Number of entries in packets. Must not exceed VIRTIO_NET_BATCH.
  * @param direction Whether these packets are for receive or transmit.
  */
 __EXTERN void
@@ -647,7 +660,7 @@ VirtioNetSubmit(
  * @brief Stop a device run and prevent further packets from being accepted.
  *
  * The stop boundary is saved before reset is attempted. If reset fails, the
- * session stays closed to new work and memory still in use is retained.
+ * session stays closed to new work and memory still in use stays allocated.
  * 
  * @param device Device to stop.
  * @param run Run identifier that must match the active run.
@@ -663,14 +676,13 @@ VirtioNetStop(
 /**
  * @brief Close the active session after the device has stopped using its memory.
  *
- * A successful reset allows queues and pools to be released and leaves a short-
- * lived record so a retried close can be recognized. If reset fails, the
- * session remains closed to new requests, but queues and pools are retained
- * because the device may still be using them.
+ * Reset must succeed before queues and pools can be released. A saved close
+ * record lets the client retry the request. If reset fails, the session stays
+ * closed to new requests and we keep its queues and pools because the device
+ * may still be using them.
  * 
  * @param device Device whose active session is being closed.
- * @return OS_EOK on success, or the reset error if the device could not be
- *         confirmed stopped.
+ * @return OS_EOK on success, otherwise a reset or cleanup error.
  */
 __EXTERN oserr_t
 VirtioNetClose(
@@ -683,7 +695,7 @@ VirtioNetClose(
  * for results, and every saved completion has been acknowledged.
  * 
  * @param device Device to check.
- * @return true if the session is idle; otherwise false.
+ * @return true if the session is idle, otherwise false.
  */
 __EXTERN bool
 VirtioNetIsIdle(

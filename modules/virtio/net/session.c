@@ -19,8 +19,8 @@
 #include "virtio-net.h"
 #include <string.h>
 
-// Keep the client's two progress markers within work the device has actually
-// accepted or completed, so neither side can retire records it still needs.
+// The client can acknowledge only batches we have accepted and packets we have
+// completed. Keep newer records available until the client acknowledges them.
 oserr_t
 VirtioNetAcknowledge(
     _InOut_ VirtioNetDevice_t*            device,
@@ -28,8 +28,8 @@ VirtioNetAcknowledge(
 {
     struct ctt_netadapter_progress* progress = &device->Session.Progress;
     
-    // Both markers describe one acknowledgement. Rejecting both together avoids
-    // leaving the client and device with different views of retired work.
+    // Check both markers before updating either one. A rejected acknowledgement
+    // must leave the saved progress unchanged.
     if (ack->through_batch_id > progress->consumed_batch_id ||
         ack->through_completion_sequence > progress->highest_completion_sequence) {
         return OS_EINVALPARAMS;
@@ -43,9 +43,8 @@ VirtioNetAcknowledge(
     return OS_EOK;
 }
 
-// Turn a device-owned packet into one durable result and release the resources
-// it was using. Keeping the result in the journal lets the client recover it
-// even when the first notification cannot be delivered.
+// Save one completion in the journal and make the packet slot available again.
+// The client can read the saved result if its notification is lost.
 void
 VirtioNetComplete(
         _InOut_ VirtioNetDevice_t* device,
@@ -55,8 +54,7 @@ VirtioNetComplete(
 {
     VirtioNetSession_t* session = &device->Session;
     if (!slot->Owned) {
-        // A slot has only one terminal result; ignoring later callbacks protects
-        // completion counts and packet statistics from being updated twice.
+        // No completion is pending for this slot. Leave its counters unchanged.
         return;
     }
 
@@ -94,9 +92,8 @@ VirtioNetComplete(
     }
 }
 
-// Notify the client about journaled results after its last known position.
-// Results stay in the journal until acknowledged, so a failed notification can
-// be recovered later without losing or changing the original result.
+// Send saved completions after the given sequence. Results stay in the journal
+// until acknowledged, so the client can request them again if delivery fails.
 void
 VirtioNetPushCompletions(
     _In_ VirtioNetDevice_t* device,
@@ -113,8 +110,7 @@ VirtioNetPushCompletions(
             records[count++] = session->Journal[after++ % VIRTIO_NET_JOURNAL];
         }
 
-        // A failed send only delays notice. The client can request these same
-        // saved results later and acknowledge them after receiving them.
+        // If sending fails, leave the results in the journal for the client to read.
         status = ctt_netadapter_event_completions_single(
             VirtioNetServer(),
             session->Owner,
@@ -130,9 +126,8 @@ VirtioNetPushCompletions(
     }
 }
 
-// Decide whether a repeated batch contains the same request as the first one.
-// Batch identifiers can be retried after a lost reply, but must never name new
-// packet data on a retry.
+// A retried batch must contain the same packet descriptors as the first request.
+// Compare the identifiers, buffer range and flags.
 static bool
 __SamePacket(
     _In_ const struct ctt_netadapter_packet* left,
@@ -149,9 +144,8 @@ __SamePacket(
     return left->flags == right->flags;
 }
 
-// Resolve a packet's pool and slot only when both belong to the requested
-// direction. Keeping this check separate prevents an invalid identifier from
-// being used to access session-owned memory.
+// Find the packet slot in a mapped pool with the requested direction.
+// Check the pool and slot identifiers before using them as array indices.
 static oserr_t
 __FindPacketSlot(
     _In_  VirtioNetSession_t*                 session,
@@ -179,8 +173,8 @@ __FindPacketSlot(
     return OS_EOK;
 }
 
-// Keep packet data within its registered slot and enforce the size each
-// direction can safely handle.
+// Packet data must fit within the registered slot. Check the frame size for TX
+// and require enough space for a full frame on RX.
 static bool
 __PacketSizeValid(
         _In_ const VirtioNetPool_t*              pool,
@@ -203,9 +197,8 @@ __PacketSizeValid(
     return true;
 }
 
-// Admit one packet only when its pool, slot, sequence, size, and session state
-// make it safe to give the packet to the device. Reserving completion space
-// before queueing ensures every accepted packet can later report its result.
+// Check the packet and session state before queueing. Every accepted packet
+// needs space in the completion journal before the device can use it.
 static oserr_t
 __AdmitPacket(
     _InOut_ VirtioNetDevice_t*                  device,
@@ -227,8 +220,8 @@ __AdmitPacket(
         return OS_EINVALPARAMS;
     }
 
-    // A rejected descriptor still uses its sequence, preventing an old request
-    // from being replayed later as if it were new.
+    // Save the sequence even if a later check rejects the packet. The same
+    // sequence must not be accepted again as a new request.
     slot->Sequence = packet->id.submission_sequence;
     if (slot->Owned) {
         return OS_EBUSY;
@@ -260,8 +253,8 @@ __AdmitPacket(
     
     slot->Packet = *packet;
     
-    // Reserve space for a future result before the device can see the packet.
-    // Once queued, it may be too late to withdraw the packet safely.
+    // Reserve its completion before queueing. Once the device can access the
+    // packet, we cannot safely withdraw it.
     slot->Owned = true;
     session->Outstanding[index]++;
     
@@ -280,8 +273,8 @@ __AdmitPacket(
     return status;
 }
 
-// Verify whether a batch is a valid retry or the next new batch. A retry is
-// accepted only when every identifying detail matches the saved request.
+// A retry must match the saved batch, including every packet descriptor.
+// New batches must follow the last consumed batch and fit within the window.
 static oserr_t
 __ValidateBatch(
     _In_  VirtioNetSession_t*                 session,
@@ -338,8 +331,8 @@ __ValidateBatch(
     return OS_EOK;
 }
 
-// Save a new batch before admission so the original results remain available
-// if the caller needs to retry after losing the response.
+// Save the batch and each packet's admission result so we can answer a retry
+// after a lost response.
 static void
 __AdmitBatch(
     _InOut_ VirtioNetDevice_t*               device,
@@ -361,8 +354,8 @@ __AdmitBatch(
     };
     memcpy(batch->Packets, packets, count * sizeof(*packets));
     
-    // The batch is consumed even if individual packets are rejected. Its
-    // saved answers let the caller retry delivery without changing history.
+    // Consume the batch even if some packets are rejected. A retry must return
+    // the same saved results.
     for (i = 0; i < count; ++i) {
         batch->Admissions[i].id = batch->Packets[i].id;
         batch->Admissions[i].status = __AdmitPacket(
@@ -374,9 +367,8 @@ __AdmitBatch(
     session->Progress.consumed_batch_id = batchId;
 }
 
-// Process a batch once and save its per-packet admission results. Saving the
-// request and its results makes retries safe: a repeated batch gets the same
-// answer instead of queueing its packets a second time.
+// Process each new batch once. A retry returns the saved admission results
+// without queueing the packets again.
 void
 VirtioNetSubmit(
     _InOut_ VirtioNetDevice_t*                  device,
@@ -428,9 +420,9 @@ reply:
     );
 }
 
-// Stop accepting work at the caller's batch boundary, reset the queues, and
-// mark the last completion produced by that reset. Repeating the same stop is
-// allowed so a lost reply does not make the caller uncertain about the result.
+// The stop fence must match the last consumed batch. Stop accepting packets,
+// reset the queues and save the last completion sequence. The caller can retry
+// with the same fence if the response is lost.
 oserr_t
 VirtioNetStop(
     _InOut_ VirtioNetDevice_t* device,
@@ -462,8 +454,8 @@ VirtioNetStop(
         session->State = VIRTIO_NET_STOPPING;
     }
 
-    // Queue reset may finish packets that were still in progress. Remember the
-    // earlier position so those newly produced results are sent to the client.
+    // Reset may complete pending packets. Save the current sequence so we can
+    // send those new completions to the client afterwards.
     before = session->Progress.highest_completion_sequence;
     status = VirtioNetQueuesReset(device);
     if (status != OS_EOK) {
@@ -479,10 +471,9 @@ VirtioNetStop(
     return OS_EOK;
 }
 
-// Close is the final boundary for a session: stop device access, release its
-// mapped pools, and retain enough identity to reject stale requests. The close
-// response itself confirms this boundary, so later completion acknowledgements
-// are not needed.
+// Stop device access and release the session's mapped pools. Save its identity
+// so later requests for this session can be rejected. A successful close response
+// confirms that cleanup is complete, so no completion acknowledgements are needed.
 oserr_t
 VirtioNetClose(
     _InOut_ VirtioNetDevice_t* device)
@@ -496,7 +487,11 @@ VirtioNetClose(
         return status;
     }
     
-    VirtioNetPoolsDetach(device);
+    status = VirtioNetPoolsDetach(device);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
     device->Closed[device->ClosedCount++] =
         (VirtioNetClosedSession_t) {
             session->Identity,

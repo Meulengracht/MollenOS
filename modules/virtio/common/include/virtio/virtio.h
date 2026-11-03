@@ -25,6 +25,7 @@
 #ifndef __VIRTIO_VIRTIO_H__
 #define __VIRTIO_VIRTIO_H__
 
+#include <ddk/dma.h>
 #include <ddk/devices/bus.h>
 #include <os/spinlock.h>
 #include <stdint.h>
@@ -42,7 +43,7 @@
 /**
  * @brief Virtio PCI capability types.
  * 
- * The different types of Virtio PCI capabilities are as follows:
+ * Capability regions:
  *  - Common configuration
  *  - Notifications
  *  - ISR Status
@@ -61,27 +62,19 @@
 
 /**
  * @brief Virtio device status flags.
- * The device status field starts out as 0, and is reinitialized to 0 by 
- * the device during reset.
- * 
- * The driver MUST update device status, setting bits to indicate the 
- * completed steps of the driver initialization sequence specified in 3.1 (Of the spec). 
- * The driver MUST NOT clear a device status bit. If the driver sets the 
- * FAILED bit, the driver MUST later reset the device before attempting to 
- * re-initialize.
-
- * The driver SHOULD NOT rely on completion of operations of a device if 
- * DEVICE_NEEDS_RESET is set. Note: For example, the driver can’t assume 
- * requests in flight will be completed if DEVICE_NEEDS_RESET is set, nor 
- * can it assume that they have not been completed. A good implementation 
- * will try to recover by issuing a reset.
- * 
- * The device MUST NOT consume buffers or send any used buffer notifications 
- * to the driver before DRIVER_OK.
-
- * The device SHOULD set DEVICE_NEEDS_RESET when it enters an error state 
- * that a reset is needed. If DRIVER_OK is set, after it sets DEVICE_NEEDS_RESET, 
- * the device MUST send a device configuration change notification to the driver.
+ *
+ * Status starts at zero and returns to zero after reset. The driver must set
+ * bits as it completes the initialization steps in section 3.1 of the spec.
+ * Status bits must not be cleared individually. If FAILED is set, reset the
+ * device before trying to initialize it again.
+ *
+ * If DEVICE_NEEDS_RESET is set, pending requests may or may not have completed.
+ * The driver should reset the device to recover. Before DRIVER_OK is set, the
+ * device must not consume buffers or send used-buffer notifications.
+ *
+ * The device should set DEVICE_NEEDS_RESET when an error requires a reset.
+ * If DRIVER_OK is already set, it must then send a configuration change
+ * notification to the driver.
  */
 // Indicates that the guest OS has found the device and recognized it as a valid virtio device.
 #define VIRTIO_STATUS_ACKNOWLEDGE        0x01
@@ -98,16 +91,12 @@
 
 /**
  * @brief Virtio feature flags.
- * Each virtio device offers all the features it understands. 
- * During device initialization, the driver reads this and tells the 
- * device the subset that it accepts. The only way to renegotiate is to 
- * reset the device.
+ * During initialization, the driver reads the features offered by the device
+ * and writes back the subset it supports. The device must be reset before
+ * features can be negotiated again.
  *
- * This allows for forwards and backwards compatibility: 
- * if the device is enhanced with a new feature bit, older drivers will 
- * not write that feature bit back to the device. Similarly, if a driver 
- * is enhanced with a feature that the device doesn’t support, it see the 
- * new feature is not offered.
+ * Features are enabled only when both the device and driver support them, so
+ * a new feature can be added without requiring both sides to be updated.
  *
  * Feature bits are allocated as follows:
  *  - 0 to 23, and 50 to 127
@@ -134,15 +123,11 @@
 #define VIRTIO_ISR_CONFIG_INTERRUPT 0x02
 
 /**
- * @brief Represents a Virtio PCI capability structure.
- * Each structure can be mapped by a Base Address register (BAR) 
- * belonging to the function, or accessed via the special 
- * VIRTIO_PCI_CAP_PCI_CFG field in the PCI configuration space.
- * 
- * The location of each structure is specified using a vendor-specific 
- * PCI capability located on the capability list in PCI configuration 
- * space of the device. This virtio structure capability uses little-endian 
- * format; all fields are read-only for the driver unless stated otherwise:
+ * @brief Location and size of a Virtio PCI capability region.
+ *
+ * The device's PCI capability list identifies each region. Access it through
+ * the function's BAR or through VIRTIO_PCI_CAP_PCI_CFG in PCI configuration
+ * space. Fields are little-endian and read-only unless stated otherwise.
  */
 PACKED_TYPESTRUCT(VirtioPciCapability32, {
     uint8_t  Vendor;            /* Generic PCI field: PCI_CAP_ID_VNDR */ 
@@ -163,26 +148,24 @@ PACKED_TYPESTRUCT(VirtioPciCapability64, {
 });
 
 /**
- * @brief Represents the common configuration structure for a Virtio PCI device.
- * The driver MUST NOT write to DeviceFeature, NumQueues, ConfigGeneration, QueueNotifyOff or QueueNotifyData.
- * If VIRTIO_F_RING_PACKED has been negotiated, the driver MUST NOT write the value 0 to queue_size. 
- * If VIRTIO_F_RING_PACKED has not been negotiated, the driver MUST NOT write a value which is not a power of 2 to queue_size.
- * 
- * The driver MUST configure the other virtqueue fields before enabling the virtqueue with queue_enable.
- * After writing 0 to device_status, the driver MUST wait for a read of device_status to return 0 
- * before reinitializing the device.
+ * @brief Device and queue registers in the common PCI configuration region.
  *
- * The driver MUST NOT write a 0 to queue_enable.
+ * DeviceFeature, NumQueues, ConfigGeneration, QueueNotifyOff and QueueNotifyData
+ * are read-only. QueueSize must be nonzero for packed queues and a power of two
+ * for split queues.
  *
- * If VIRTIO_F_RING_RESET has been negotiated, after the driver writes 1 to queue_reset to reset the queue, 
- * the driver MUST NOT consider queue reset to be complete until it reads back 0 in queue_reset. 
- * The driver MAY re-enable the queue by writing 1 to queue_enable after ensuring that other virtqueue fields 
- * have been set up correctly. The driver MAY set driver-writeable queue configuration values to different 
- * values than those that were used before the queue reset. (see 2.6.1).
+ * Configure the queue fields before setting QueueEnable. After writing zero to
+ * DeviceStatus, wait until it reads back as zero before initializing the device.
+ *
+ * The driver must not write zero to QueueEnable.
+ *
+ * If VIRTIO_F_RING_RESET was negotiated, write one to QueueReset and wait until
+ * it reads back as zero. The writable queue fields can then be changed before
+ * enabling the queue again by writing one to QueueEnable (see section 2.6.1).
  */
 PACKED_TYPESTRUCT(VirtioPciCommonConfiguration, {
     /**
-     * About the whole device.
+     * Device registers.
      */
     uint32_t DeviceFeatureSelect;   // RW, The driver uses this to select which feature bits device_feature shows. 
                                     // Value 0x0 selects Feature Bits 0 to 31, 0x1 selects Feature Bits 32 to 63, etc.
@@ -196,7 +179,7 @@ PACKED_TYPESTRUCT(VirtioPciCommonConfiguration, {
     uint8_t  ConfigGeneration;      // RO, The generation number of the device configuration.
 
     /**
-     * About a specific virtqueue.
+     * Selected queue registers.
      */
     uint16_t QueueSelect;           // RW, The index of the currently selected virtqueue.
     uint16_t QueueSize;             // RW, The size of the currently selected virtqueue.
@@ -221,7 +204,7 @@ PACKED_TYPESTRUCT(VirtioPciCommonConfiguration, {
  * @brief Descriptor table entry used by a split virtqueue.
  */
 PACKED_TYPESTRUCT(VirtioSplitDescriptor, {
-    uint64_t Address; // Physical Address of Guest
+    uint64_t Address; // Device address of the buffer.
     uint32_t Length;
     uint16_t Flags;   // Descriptor flags (VIRTIO_SPLIT_DESC_F_*)
     uint16_t Next;    // Next descriptor if Flags & VIRTIO_SPLIT_DESC_F_NEXT
@@ -231,7 +214,7 @@ PACKED_TYPESTRUCT(VirtioSplitDescriptor, {
 #define VIRTIO_SPLIT_AVAIL_F_NO_INTERRUPT 0x0001
 
 /**
- * @brief Header of the driver-owned available ring.
+ * @brief Available-ring header written by the driver.
  *
  * QueueSize descriptor indices follow RingIndex. If VIRTIO_F_RING_EVENT_IDX
  * is negotiated, a uint16_t UsedEvent field follows those indices.
@@ -254,7 +237,7 @@ PACKED_TYPESTRUCT(VirtioSplitUsedElement, {
 #define VIRTIO_SPLIT_USED_F_NO_NOTIFY     0x0001
 
 /**
- * @brief Header of the device-owned used ring.
+ * @brief Used-ring header written by the device.
  *
  * QueueSize VirtioSplitUsedElement_t values follow RingIndex. If
  * VIRTIO_F_RING_EVENT_IDX is negotiated, a uint16_t AvailableEvent field
@@ -267,9 +250,7 @@ PACKED_TYPESTRUCT(VirtioSplitUsedRing, {
 });
 
 /**
- * @brief Represents the notify capability for a Virtio PCI device.
- * The notification location is found using the VIRTIO_PCI_CAP_NOTIFY_CFG capability. 
- * This capability is immediately followed by an additional field, like so:
+ * @brief Multiplier following the VIRTIO_PCI_CAP_NOTIFY_CFG capability.
  */
 PACKED_TYPESTRUCT(VirtioPciNotifyCapability, {
     // notify_off_multiplier is combined with the queue_notify_off to 
@@ -281,26 +262,22 @@ PACKED_TYPESTRUCT(VirtioPciNotifyCapability, {
 /**
  * @brief ISR status capability for a Virtio PCI device.
  *
- * The VIRTIO_PCI_CAP_ISR_CFG capability refers to at least a single byte, 
- * which contains the 8-bit ISR status field to be used for INT#x interrupt handling.
- * 
- * The offset for the ISR status has no alignment requirements.
- *
- * The ISR bits allow the driver to distinguish between device-specific configuration change interrupts and normal virtqueue interrupts:
+ * VIRTIO_PCI_CAP_ISR_CFG contains at least one byte for the INTx interrupt
+ * status. Its offset has no alignment requirement. The status bits distinguish
+ * queue interrupts from device configuration changes:
  *
  * Bits     0               1                               2 to 31
  * Purpose	Queue Interrupt	Device Configuration Interrupt	Reserved
  * 
- * To avoid an extra access, simply reading this register resets it to 0 and causes the device to de-assert the interrupt.
- *
- * In this way, driver read of ISR status causes the device to de-assert an interrupt.
- * If MSI-X capability is enabled, the driver SHOULD NOT access ISR status upon detecting a Queue Interrupt.
+ * Reading the register clears it and de-asserts the interrupt. When MSI-X is
+ * enabled, the driver should not read ISR status to handle a queue interrupt.
  */
 
 /**
- * @brief Represents the vendor-specific capability for a Virtio PCI device.
- * The driver SHOULD NOT use the Vendor data capability except for debugging and reporting purposes.
- * The driver MUST qualify the VendorId before interpreting or writing into the Vendor data capability.
+ * @brief Vendor data for debugging and reporting.
+ *
+ * Check VendorId before interpreting or writing this data. The driver should
+ * use this capability only for debugging and reporting.
  */
 PACKED_TYPESTRUCT(VirtioPciVendorData, { 
     uint8_t  CapabilityVendor;   // Generic PCI field: PCI_CAP_ID_VNDR
@@ -314,33 +291,23 @@ PACKED_TYPESTRUCT(VirtioPciVendorData, {
 });
 
 /**
- * @brief Represents the PCI configuration capability for a Virtio PCI device.
- * The capability is immediately followed by an additional field like so:
- * 
- * The fields cap.Bar, cap.Length, cap.Offset and PciConfiguration are read-write (RW) for the driver.
+ * @brief BAR access through PCI configuration space.
  *
- * To access a device region, the driver writes into the capability structure (ie. within the PCI configuration space) as follows:
- *   The driver sets the BAR to access by writing to cap.Bar.
- *   The driver sets the size of the access by writing 1, 2 or 4 to cap.Length.
- *   The driver sets the offset within the BAR by writing to cap.Offset.
- * 
- * At that point, PciConfiguration will provide a window of size cap.Length 
- * into the given cap.Bar at offset cap.Offset.
- * 
- * The driver MUST NOT write a cap.Offset which is not a multiple of cap.Length (ie. all accesses MUST be aligned).
- * The driver MUST NOT read or write PciConfiguration unless cap.Bar, cap.Length and cap.Offset address 
- * cap.Length bytes within a BAR range specified by some other Virtio Structure PCI Capability 
- * of type other than VIRTIO_PCI_CAP_PCI_CFG.
+ * PciConfiguration follows the capability header. The driver can read and write
+ * cap.Bar, cap.Length, cap.Offset and PciConfiguration. Set cap.Bar to the BAR,
+ * cap.Length to an access size of 1, 2 or 4 bytes, and cap.Offset to the offset
+ * within that BAR. PciConfiguration then accesses those bytes.
+ *
+ * cap.Offset must be a multiple of cap.Length. Before accessing PciConfiguration,
+ * the entire range must fall within a BAR region described by another Virtio
+ * capability whose type is not VIRTIO_PCI_CAP_PCI_CFG.
  */
 PACKED_TYPESTRUCT(VirtioPciConfigurationCapability, {
     uint8_t PciConfiguration[4]; // Data for BAR access
 });
 
 /**
- * @brief Represents a PCI region for a Virtio device.
- *
- * A PCI region corresponds to a Base Address Register (BAR) in the PCI configuration space.
- * It contains the I/O space, offset, and length of the region.
+ * @brief I/O mapping, offset and length of a Virtio region within a PCI BAR.
  */
 typedef struct VirtioPciRegion {
 	DeviceIo_t* IoSpace;
@@ -349,9 +316,13 @@ typedef struct VirtioPciRegion {
 } VirtioPciRegion_t;
 
 /**
- * @brief Represents the PCI transport for a Virtio device.
+ * @brief PCI mappings, DMA context and configuration state for a Virtio device.
  */
 typedef struct VirtioPciTransport {
+    // DMA context shared by queues, metadata and client buffer mappings.
+    struct DMAContext* DmaContext;
+    // Register access is no longer allowed once cleanup starts.
+    bool Closing;
 	BusDevice_t*      Device;
 	VirtioPciRegion_t Regions[VIRTIO_PCI_CAP_COUNT];
 	uint64_t          DeviceFeatures;
@@ -360,8 +331,8 @@ typedef struct VirtioPciTransport {
 	uint32_t          ResetGeneration;
 	uint16_t          ActiveQueues;
 	uint8_t           AcquiredBars;
-	// Selected by the driver before creating queues. Survives a Virtio reset
-	// while the PCI interrupt reservation remains enabled; all routes use entry 0.
+	// Set before creating queues. Remains set across Virtio reset while PCI
+	// interrupts are enabled. All routes use entry 0.
 	int               MsixEnabled;
 	spinlock_t        ConfigurationLock;
 } VirtioPciTransport_t;
@@ -369,7 +340,7 @@ typedef struct VirtioPciTransport {
 typedef struct VirtioSplitQueue VirtioSplitQueue_t;
 
 /**
- * @brief One physically contiguous buffer referenced by a descriptor.
+ * @brief One contiguous device-address range referenced by a descriptor.
  */
 typedef struct VirtioQueueBuffer {
     uint64_t Address;
@@ -387,7 +358,7 @@ typedef struct VirtioQueueCompletion {
 } VirtioQueueCompletion_t;
 
 /**
- * @brief Snapshot of split virtqueue accounting state.
+ * @brief Split queue counters and ring indices.
  */
 typedef struct VirtioQueueStats {
     uint64_t Submitted;
@@ -404,13 +375,14 @@ _CODE_BEGIN
 /**
  * @brief Initializes a modern Virtio PCI transport.
  *
- * Discovers the Virtio vendor capabilities, validates their BAR regions,
- * acquires each referenced BAR, and enables PCI memory access and bus
- * mastering. This function does not reset the device or negotiate features.
+ * Finds the Virtio vendor capabilities and checks their BAR ranges. Maps each
+ * referenced BAR, then enables PCI memory access and bus mastering. Device
+ * reset and feature negotiation must be done separately.
  *
- * The caller retains ownership of @p device and must keep it alive until
- * VirtioPciTransportDestroy() has returned. On failure, any resources acquired
- * by this function are released and @p transport is cleared.
+ * The caller must keep @p device allocated until VirtioPciTransportDestroy()
+ * succeeds. If initialization fails, cleanup is attempted. If cleanup also
+ * fails, @p transport keeps the remaining resources so destroy can be retried.
+ * Once transport cleanup starts, register access is no longer allowed.
  *
  * @param device The PCI bus device to initialize. Its vendor must be
  *               VIRTIO_PCI_VENDOR_ID.
@@ -418,7 +390,7 @@ _CODE_BEGIN
  * @return OS_EOK on success, OS_EINVALPARAMS for invalid arguments or a
  *         non-Virtio vendor, OS_ENOTSUPPORTED if the required modern PCI
  *         capabilities are absent, or another error from PCI configuration,
- *         BAR acquisition, or bus control.
+ *         BAR mapping, or bus control.
  */
 oserr_t
 VirtioPciTransportInitialize(
@@ -428,21 +400,26 @@ VirtioPciTransportInitialize(
 /**
  * @brief Releases resources held by a Virtio PCI transport.
  *
- * Releases every BAR acquired during initialization and clears the transport
- * structure. The referenced BusDevice_t is not freed. It is safe to call this
- * function with NULL or with a cleared transport.
+ * The hardware must be stopped and all queues destroyed first. Closes the DMA
+ * context and releases the mapped BARs, then clears the transport. The caller
+ * must free the referenced BusDevice_t separately. NULL and a cleared transport
+ * are accepted.
+ *
+ * If DMA or BAR cleanup fails, the remaining resources are kept for retry.
  *
  * @param transport The transport to destroy.
+ * @return OS_EOK or the first cleanup error. Active queues return OS_EBUSY.
  */
-void
+oserr_t
 VirtioPciTransportDestroy(
 	_In_ VirtioPciTransport_t* transport);
 
 /**
  * @brief Disables bus mastering, MMIO/IO decoding and interrupts at the PCI level.
  *
- * Last-resort quiesce when VirtioPciReset() fails: it stops device DMA without
- * relying on the Virtio status register. The transport is unusable afterwards.
+ * Use this if VirtioPciReset() fails. It stops DMA through PCI bus control,
+ * without relying on the Virtio status register. The transport cannot be used
+ * afterwards.
  *
  * @param transport The initialized transport controlling the device.
  * @return OS_EOK on success, or the bus control error.
@@ -456,7 +433,7 @@ VirtioPciTransportDisable(
  *
  * @param region The capability region to access.
  * @param offset Byte offset relative to the beginning of the region.
- * @param width Access width in bytes; must be 1, 2, 4, or 8.
+ * @param width Access width in bytes. Must be 1, 2, 4, or 8.
  * @param valueOut Receives the value, zero-extended to 64 bits.
  * @return OS_EOK on success, OS_EINVALPARAMS if an argument, width, or range
  *         is invalid, or an error returned by the device I/O layer.
@@ -476,7 +453,7 @@ VirtioPciRegionRead(
  * @param region The capability region to access.
  * @param offset Byte offset relative to the beginning of the region.
  * @param value The value to write.
- * @param width Access width in bytes; must be 1, 2, 4, or 8.
+ * @param width Access width in bytes. Must be 1, 2, 4, or 8.
  * @return OS_EOK on success, OS_EINVALPARAMS if an argument, width, or range
  *         is invalid, or an error returned by the device I/O layer.
  */
@@ -490,9 +467,9 @@ VirtioPciRegionWrite(
 /**
  * @brief Resets a Virtio device and waits for reset completion.
  *
- * Writes zero to the device status field, then yields while waiting for the
- * device to read back a zero status. The transport must have been initialized.
- * All previously negotiated features and device configuration are invalidated.
+ * The transport must be initialized first. Writes zero to device status, then
+ * yields until status reads back as zero. Features must be negotiated again
+ * and device configuration repeated after reset.
  *
  * @param transport The initialized transport controlling the device.
  * @return OS_EOK when reset completes, OS_EINVALPARAMS if @p transport is
@@ -506,10 +483,10 @@ VirtioPciReset(
 /**
  * @brief Resets the device and negotiates a set of Virtio features.
  *
- * Performs the ACKNOWLEDGE, DRIVER, and FEATURES_OK initialization stages.
- * VIRTIO_F_VERSION_1 is automatically added to both the supported and required
- * sets. The negotiated set is the intersection of device and driver-supported
- * features. Every required feature must be offered by the device.
+ * Sets ACKNOWLEDGE, DRIVER and FEATURES_OK during initialization. Adds
+ * VIRTIO_F_VERSION_1 to both the supported and required features, then accepts
+ * only features supported by both the device and driver. The device must
+ * support every required feature.
  *
  * On negotiation failure after reset, the device is marked FAILED. Queue and
  * device-specific setup must be completed before calling
@@ -535,10 +512,10 @@ VirtioPciNegotiateFeatures(
 /**
  * @brief Completes device initialization after queue and device setup.
  *
- * Sets DRIVER_OK and verifies that the device accepted the state without
- * reporting FAILED or DEVICE_NEEDS_RESET. Call this only after successful
- * feature negotiation and all required queue and device-specific setup. With
- * MsixEnabled, assigns configuration changes to table entry zero first.
+ * Feature negotiation and queue and device setup must be complete first.
+ * Sets DRIVER_OK, then checks that it was accepted and that FAILED and
+ * DEVICE_NEEDS_RESET are clear. If MsixEnabled is set, configuration changes
+ * are assigned to table entry zero before setting DRIVER_OK.
  *
  * @param transport The initialized and configured transport.
  * @return OS_EOK when DRIVER_OK is accepted, OS_EINVALPARAMS if @p transport
@@ -552,9 +529,8 @@ VirtioPciFinishInitialization(
 /**
  * @brief Marks Virtio device initialization or operation as failed.
  *
- * Sets the FAILED status bit on a best-effort basis. Any status read or write
- * error is intentionally ignored. The device must be reset before another
- * initialization attempt.
+ * Tries to set the FAILED status bit and ignores status read or write errors.
+ * Reset the device before trying to initialize it again.
  *
  * @param transport The transport whose device should be marked failed. NULL is
  *                  accepted and has no effect.
@@ -565,6 +541,7 @@ VirtioPciSetFailed(
 
 /**
  * @brief Reads and acknowledges the legacy INTx ISR status.
+ *
  * @param transport The initialized transport.
  * @param statusOut Receives VIRTIO_ISR_* status bits.
  * @return OS_EOK on success or an argument/device I/O error.
@@ -577,17 +554,20 @@ VirtioPciReadIsrStatus(
 /**
  * @brief Allocates, programs, and enables a modern split virtqueue.
  *
- * The requested size is treated as an upper bound. Zero selects the largest
- * supported size that keeps each queue component in one physically contiguous
- * allocation. The resulting size is a power of two.
+ * Feature negotiation must be complete, with VIRTIO_F_RING_PACKED disabled.
+ * The queue can be created before DRIVER_OK is set.
  *
- * Feature negotiation must have completed, and VIRTIO_F_RING_PACKED must not
- * be negotiated. The queue may be created before DRIVER_OK is set.
+ * The queue size is a power of two. A nonzero requestedSize limits the size.
+ * If the requested size is zero, use the largest supported size that keeps
+ * each queue component in one contiguous device allocation.
  *
  * @param transport The initialized transport controlling the device.
  * @param queueIndex The device queue index to configure.
  * @param requestedSize Preferred maximum descriptor count, or zero.
- * @param queueOut Receives the allocated queue.
+ * @param queueOut Must point to a NULL queue pointer. Receives the new queue.
+ *                 If creation and cleanup both fail, receives the queue that
+ *                 still needs cleanup. Destroy any non-NULL result, even when
+ *                 this function returns an error.
  * @return OS_EOK on success or an allocation, configuration, or protocol error.
  */
 oserr_t
@@ -595,10 +575,10 @@ VirtioSplitQueueCreate(
     _In_  VirtioPciTransport_t* transport,
     _In_  uint16_t              queueIndex,
     _In_  uint16_t              requestedSize,
-    _Out_ VirtioSplitQueue_t**  queueOut);
+    _InOut_ VirtioSplitQueue_t** queueOut);
 
 /**
- * @brief Safely releases a split virtqueue.
+ * @brief Stop and release a split virtqueue.
  *
  * If VIRTIO_F_RING_RESET was negotiated, the queue is reset first. Otherwise,
  * an enabled queue can only be destroyed after VirtioPciReset() has completed.
@@ -617,13 +597,13 @@ VirtioSplitQueueDestroy(
 /**
  * @brief Builds and submits one direct descriptor chain.
  *
- * Only VIRTIO_SPLIT_DESC_F_WRITE is accepted in buffer flags; NEXT links are
- * generated internally and indirect descriptors are not supported yet. Once
- * published, the chain remains owned by the queue until completion or reset.
+ * Buffer flags may contain only VIRTIO_SPLIT_DESC_F_WRITE. The function builds
+ * NEXT links, and indirect descriptors are not supported yet. Once submitted,
+ * the chain stays in the queue until completion or reset.
  *
  * @param queue The enabled split queue.
  * @param buffers DMA buffers to place in the descriptor chain.
- * @param bufferCount Number of buffers; must be nonzero.
+ * @param bufferCount Number of buffers. Must be nonzero.
  * @param context Opaque caller context returned with the completion.
  * @param headDescriptorOut Optionally receives the descriptor-chain head.
  * @return OS_EOK when published and notified, OS_EBUSY if descriptors are
@@ -641,8 +621,8 @@ VirtioSplitQueueSubmit(
 /**
  * @brief Consumes one used-ring entry and reclaims its descriptor chain.
  *
- * This operation is nonblocking. The opaque context supplied during submission
- * is returned after the device relinquishes the chain.
+ * Returns without waiting. Once the device has finished with a chain, returns
+ * the context supplied when it was submitted.
  *
  * @param queue The split queue to poll.
  * @param completionOut Receives completion information.
@@ -657,11 +637,11 @@ VirtioSplitQueuePoll(
 /**
  * @brief Reclaims one outstanding chain after the queue has been reset.
  *
- * The queue must first have been reset through VIRTIO_F_RING_RESET or by a
- * completed VirtioPciReset(). VirtioSplitQueueDestroy() initiates the former
- * when available and returns OS_EBUSY while contexts remain. This operation
- * never reports a device result; it only returns the caller context so the
- * owning driver can cancel it.
+ * The queue must be reset first, using VIRTIO_F_RING_RESET or a completed
+ * VirtioPciReset(). If queue reset is supported, VirtioSplitQueueDestroy()
+ * starts it and returns OS_EBUSY while contexts remain. Abort returns the
+ * caller context so the driver can cancel the request. There is no device
+ * result for an aborted chain.
  *
  * @param queue The reset split queue.
  * @param completionOut Receives the cancelled chain context and head. Length
@@ -676,7 +656,11 @@ VirtioSplitQueueAbort(
     _Out_ VirtioQueueCompletion_t* completionOut);
 
 /**
- * @brief Retrieves a consistent snapshot of queue accounting state.
+ * @brief Read queue counters and ring indices under the queue lock.
+ *
+ * @param queue The split queue to inspect.
+ * @param statsOut Receives the counters and ring indices.
+ * @return OS_EOK, or OS_EINVALPARAMS if either argument is NULL.
  */
 oserr_t
 VirtioSplitQueueGetStats(

@@ -23,7 +23,7 @@
  */
 
 #define __TRACE
-#include "virtio-blk.h"
+#include "private.h"
 
 #include <ddk/convert.h>
 #include <ddk/utils.h>
@@ -31,12 +31,18 @@
 #include <ioset.h>
 #include <os/types/device.h>
 #include <stdlib.h>
+#include <os/usched/mutex.h>
+#include <os/usched/job.h>
+#include <time.h>
 #include <ctt_driver_service_server.h>
 #include <ctt_storage_service_server.h>
 
 extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t g_devices = LIST_INIT;
+static list_t g_cleanupDevices = LIST_INIT;
+static struct usched_mtx g_lock;
+static uuid_t g_cleanupJob;
 static uuid_t g_nextDeviceId = 1;
 
 irqstatus_t
@@ -49,9 +55,9 @@ OnFastInterrupt(
     DeviceIo_t* ioSpace = INTERRUPT_IOSPACE(resourceTable, 0);
     uint8_t status;
 
-    // MSI-X does not supply ISR bits. Our single vector covers both causes,
-    // so the module checks configuration and drains its queue on every event.
-    // Reading the ISR byte preserves the existing MSI/INTx acknowledgment.
+    // MSI-X uses one vector for queue and configuration changes, so we must
+    // check both on every event. For MSI/INTx, reading the ISR byte also
+    // acknowledges the interrupt.
     if (resource->MsixEnabled) {
         status = VIRTIO_ISR_QUEUE_INTERRUPT | VIRTIO_ISR_CONFIG_INTERRUPT;
     } else {
@@ -65,9 +71,9 @@ OnFastInterrupt(
     if (status == 0) {
         return IRQSTATUS_NOT_HANDLED;
     }
-    // Only the handler's code pages are remapped into kernel space. String
-    // literals in module rodata are not accessible through that mapping;
-    // log the saved status from OnEvent instead.
+    // Only the handler's code pages are mapped into kernel space. We cannot
+    // access string literals in module rodata here, so log the saved status
+    // from OnEvent.
     atomic_fetch_or(&resource->PendingStatus, status);
     interruptTable->EventSignal(resourceTable->HandleResource);
     return IRQSTATUS_HANDLED;
@@ -77,8 +83,8 @@ static VirtioBlkDevice_t*
 __FindStorageDevice(
     _In_ uuid_t deviceId)
 {
-    // Storage IDs are driver-local logical-device IDs. The list itself is
-    // owned by the module lifecycle and stores devices by their PCI ID.
+    // The module stores devices by PCI ID. Storage requests use the logical
+    // device ID assigned by this driver, so we must check each descriptor.
     foreach (element, &g_devices) {
         VirtioBlkDevice_t* device = element->value;
         if (device->Descriptor.DeviceID == deviceId) {
@@ -88,22 +94,74 @@ __FindStorageDevice(
     return NULL;
 }
 
-static void
-__DestroyDevice(
-    _In_ element_t* element,
-    _In_ void*      context)
+void
+VirtioBlkDeferDestroy(
+    _In_ VirtioBlkDevice_t* device)
 {
-    (void)context;
-    VirtioBlkDeviceDestroy(element->value);
+    // The caller must remove the device from public lookup first. Keep it on
+    // the cleanup list so the monitor or shutdown can retry the release.
+    list_append(&g_cleanupDevices, &device->Header);
+}
+
+static void
+__RetryCleanup(void)
+{
+    size_t             count = g_cleanupDevices.count;
+    VirtioBlkDevice_t* device;
+
+    // Cleanup can yield. Remove each device before trying to destroy it, and
+    // try each device once per pass. The module mutex prevents concurrent
+    // cleanup. List operations release their spinlock before DMA calls can yield.
+    while (count-- != 0 && g_cleanupDevices.head != NULL) {
+        device = g_cleanupDevices.head->value;
+        list_remove(&g_cleanupDevices, &device->Header);
+        if (VirtioBlkDeviceDestroy(device) != OS_EOK) {
+            VirtioBlkDeferDestroy(device);
+        }
+    }
+}
+
+static void
+__CleanupMonitor(
+    _In_ void* argument,
+    _In_ void* cancellationToken)
+{
+    struct timespec    wakeUp;
+    element_t*         element;
+    VirtioBlkDevice_t* device;
+    _CRT_UNUSED(argument);
+
+    // Once the interrupt has been handled, a deferred response may have no
+    // further event to trigger cleanup. Use one service job to retry pending
+    // cleanup, leaving active requests in the queue.
+    while (!usched_is_cancelled(cancellationToken)) {
+        timespec_get(&wakeUp, TIME_UTC);
+        wakeUp.tv_sec++;
+        usched_job_sleep(&wakeUp);
+        usched_mtx_lock(&g_lock);
+        _foreach(element, &g_devices) {
+            device = element->value;
+            if (device->CleanupRequests != NULL) {
+                (void)VirtioBlkRetryRequests(device);
+            }
+        }
+        __RetryCleanup();
+        usched_mtx_unlock(&g_lock);
+    }
 }
 
 oserr_t
 OnLoad(void)
 {
     TRACE("OnLoad()");
+    usched_mtx_init(&g_lock, USCHED_MUTEX_PLAIN);
+    g_cleanupJob = usched_job_queue(__CleanupMonitor, NULL);
+    if (g_cleanupJob == UUID_INVALID) {
+        return OS_EOOM;
+    }
 
-    // The driver protocol is used by deviced for PCI attachment and control;
-    // the storage contract is the data path consumed by filed.
+    // deviced uses the driver protocol to attach and control PCI devices.
+    // filed uses the storage protocol for disk requests.
     gracht_server_register_protocol(
         __crt_get_module_server(),
         &ctt_driver_server_protocol
@@ -118,12 +176,31 @@ OnLoad(void)
 void
 OnUnload(void)
 {
+    VirtioBlkDevice_t* device;
+    int exitCode;
+
     TRACE("OnUnload()");
-    list_clear(&g_devices, __DestroyDevice, NULL);
+    if (g_cleanupJob != UUID_INVALID) {
+        usched_job_cancel(g_cleanupJob);
+        if (usched_job_join(g_cleanupJob, &exitCode) != 0) {
+            ERROR("virtio-blk cleanup worker join failed");
+            return;
+        }
+        g_cleanupJob = UUID_INVALID;
+    }
+
+    usched_mtx_lock(&g_lock);
+    while (g_devices.head != NULL) {
+        device = g_devices.head->value;
+        list_remove(&g_devices, &device->Header);
+        VirtioBlkDeferDestroy(device);
+    }
+    __RetryCleanup();
+    usched_mtx_unlock(&g_lock);
 }
 
-oserr_t
-OnEvent(
+static oserr_t
+__OnEvent(
     _In_ struct ioset_event* event)
 {
     VirtioBlkDevice_t* device;
@@ -135,10 +212,17 @@ OnEvent(
     if (event == NULL || !(event->events & IOSETSYN)) {
         return OS_ENOENT;
     }
-    device = event->data.context;
 
-    // Consume the event counter before taking the accumulated ISR bits. New
-    // interrupts can safely OR additional causes while this event is handled.
+    // The device may be removed while this event waits for the module lock.
+    // Look it up by the increasing storage ID, so queued events do not need
+    // a pointer to the device.
+    device = __FindStorageDevice((uuid_t)(uintptr_t)event->data.context);
+    if (device == NULL) {
+        return OS_ENOENT;
+    }
+
+    // Read the event counter before taking the pending ISR bits. The interrupt
+    // handler can add new bits while we process this event.
     if (read(device->EventDescriptor, &signal, sizeof(signal)) != sizeof(signal)) {
         ERROR("OnEvent failed to consume the Virtio interrupt event");
         return OS_EUNKNOWN;
@@ -150,8 +234,8 @@ OnEvent(
     );
     TRACE("OnEvent interrupt status=0x%x", status);
 
-    // Handle queue completions before a simultaneous configuration change. If
-    // the device requests reset, recovery then cancels only work still pending.
+    // Process completed requests before configuration changes. If the device
+    // needs a reset, we then cancel only the requests that are still pending.
     if (status & VIRTIO_ISR_QUEUE_INTERRUPT) {
         queueStatus = VirtioBlkDeviceHandleInterrupt(device);
     }
@@ -161,8 +245,8 @@ OnEvent(
     return configStatus != OS_EOK ? configStatus : queueStatus;
 }
 
-void
-ctt_driver_register_device_invocation(
+static void
+__ctt_driver_register_device_invocation(
     _In_ struct gracht_message* message,
     _In_ const struct sys_device* device)
 {
@@ -176,30 +260,43 @@ ctt_driver_register_device_invocation(
         return;
     }
 
-    // VirtioBlkDeviceCreate consumes busDevice on both success and failure.
-    // Allocate the storage ID here so filed sees a stable driver-local ID.
+    __RetryCleanup();
+
+    // If cleanup failed, the old transport still has mappings for this PCI
+    // device. We must finish releasing them before initializing it again.
+    if (list_find_value(&g_devices, (void*)(uintptr_t)busDevice->Base.Id) != NULL ||
+        list_find_value(&g_cleanupDevices, (void*)(uintptr_t)busDevice->Base.Id) != NULL) {
+        WARNING("virtio-blk device %u is already registered or awaiting cleanup", busDevice->Base.Id);
+        free(busDevice);
+        return;
+    }
+
+    // After VirtioBlkDeviceCreate, the caller must not free busDevice, even on failure.
+    // Assign the storage ID here so filed can use it throughout the device's life.
     blockDevice = VirtioBlkDeviceCreate(busDevice, g_nextDeviceId++);
     if (blockDevice == NULL) {
         ERROR("failed to initialize virtio block device");
         return;
     }
 
-    // filed can issue ctt_storage_stat immediately after registration. Publish
-    // the fully initialized device locally first so that callback can resolve
-    // the new driver-local storage ID.
+    // filed can call ctt_storage_stat as soon as the device is registered.
+    // Add the initialized device to our list first, so we can find its storage ID.
     list_append(&g_devices, &blockDevice->Header);
     if (VirtioBlkDeviceRegisterStorage(blockDevice) != OS_EOK) {
         list_remove(&g_devices, &blockDevice->Header);
-        VirtioBlkDeviceDestroy(blockDevice);
+        if (VirtioBlkDeviceDestroy(blockDevice) != OS_EOK) {
+            VirtioBlkDeferDestroy(blockDevice);
+        }
         ERROR("failed to register virtio block device with filed");
     }
 }
 
-oserr_t
-OnUnregister(
+static oserr_t
+__OnUnregister(
     _In_ Device_t* device)
 {
     VirtioBlkDevice_t* blockDevice;
+    oserr_t status;
     TRACE("OnUnregister(device=%u)", device->Id);
 
     blockDevice = list_find_value(
@@ -208,23 +305,32 @@ OnUnregister(
     );
 
     if (blockDevice == NULL) {
-        return OS_ENOENT;
+        blockDevice = list_find_value(&g_cleanupDevices, (void*)(uintptr_t)device->Id);
+        if (blockDevice == NULL) {
+            return OS_ENOENT;
+        }
+        list_remove(&g_cleanupDevices, &blockDevice->Header);
+    } else {
+        list_remove(&g_devices, &blockDevice->Header);
     }
-    list_remove(&g_devices, &blockDevice->Header);
-    VirtioBlkDeviceDestroy(blockDevice);
-    return OS_EOK;
+    
+    status = VirtioBlkDeviceDestroy(blockDevice);
+    if (status != OS_EOK) {
+        VirtioBlkDeferDestroy(blockDevice);
+    }
+    return status;
 }
 
-void
-ctt_driver_ioctl_invocation(
+static void
+__ctt_driver_ioctl_invocation(
     _In_ struct gracht_message* message,
     _In_ const uuid_t           deviceId,
     _In_ const unsigned int     request,
     _In_ const uint8_t*         out,
     _In_ const uint32_t         outCount)
 {
-    // Filesystems query I/O requirements using the logical storage ID, just
-    // like transfer and stat requests. The list keys are PCI device IDs.
+    // I/O requirements, transfer and stat requests use the logical storage ID.
+    // The device list is indexed by PCI ID, so use the storage ID lookup.
     VirtioBlkDevice_t* device = __FindStorageDevice(deviceId);
 
     (void)out;
@@ -234,11 +340,11 @@ ctt_driver_ioctl_invocation(
         return;
     }
     if ((enum OSIOCtlRequest)request == OSIOCTLREQUEST_IO_REQUIREMENTS) {
-        // The block data path submits the caller's physical SG entries directly.
-        // Keep buffers below 4 GiB to match the transport's queue DMA policy.
+        // The device DMA domain handles mapping and staging. Filesystems can
+        // supply committed SHM without restricting its physical addresses.
         struct OSIOCtlRequestRequirements requirements = {
             .BufferAlignment = 0,
-            .Conformity = OSMEMORYCONFORMITY_BITS32
+            .Conformity = OSMEMORYCONFORMITY_NONE
         };
         ctt_driver_ioctl_response(
             message,
@@ -251,8 +357,8 @@ ctt_driver_ioctl_invocation(
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
-void
-ctt_storage_transfer_invocation(
+static void
+__ctt_storage_transfer_invocation(
     _In_ struct gracht_message* message,
     _In_ const uuid_t           deviceId,
     _In_ const enum sys_transfer_direction direction,
@@ -278,8 +384,8 @@ ctt_storage_transfer_invocation(
     sector.u.LowPart = sectorLow;
     sector.u.HighPart = sectorHigh;
 
-        // A successful queue operation defers the response. Only synchronous
-        // validation/setup failures are answered from this invocation.
+    // If the request is queued, we send the response after it completes.
+    // Respond here only if validation or setup fails.
     oserr = VirtioBlkDeviceTransfer(
         device,
         message,
@@ -295,8 +401,8 @@ ctt_storage_transfer_invocation(
     }
 }
 
-void
-ctt_storage_stat_invocation(
+static void
+__ctt_storage_stat_invocation(
     _In_ struct gracht_message* message,
     _In_ const uuid_t           deviceId)
 {
@@ -321,3 +427,82 @@ void ctt_driver_get_device_protocols_invocation(
 
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }
+
+oserr_t
+OnEvent(
+    _In_ struct ioset_event* event)
+{
+    oserr_t status;
+
+    // Service calls can yield. Keep the device and DMA state locked until done.
+    usched_mtx_lock(&g_lock);
+    status = __OnEvent(event);
+    usched_mtx_unlock(&g_lock);
+    return status;
+}
+
+oserr_t
+OnUnregister(
+    _In_ Device_t* device)
+{
+    oserr_t status;
+
+    // Service calls can yield. Keep the device and DMA state locked until done.
+    usched_mtx_lock(&g_lock);
+    status = __OnUnregister(device);
+    usched_mtx_unlock(&g_lock);
+    return status;
+}
+
+void
+ctt_driver_register_device_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const struct sys_device* device)
+{
+    // Service calls can yield. Keep the device and DMA state locked until done.
+    usched_mtx_lock(&g_lock);
+    __ctt_driver_register_device_invocation(message, device);
+    usched_mtx_unlock(&g_lock);
+}
+
+void
+ctt_driver_ioctl_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           deviceId,
+    _In_ const unsigned int     request,
+    _In_ const uint8_t*         out,
+    _In_ const uint32_t         outCount)
+{
+    // Service calls can yield. Keep the device and DMA state locked until done.
+    usched_mtx_lock(&g_lock);
+    __ctt_driver_ioctl_invocation(message, deviceId, request, out, outCount);
+    usched_mtx_unlock(&g_lock);
+}
+
+void
+ctt_storage_transfer_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           deviceId,
+    _In_ const enum sys_transfer_direction direction,
+    _In_ const unsigned int     sectorLow,
+    _In_ const unsigned int     sectorHigh,
+    _In_ const uuid_t           bufferId,
+    _In_ const size_t           offset,
+    _In_ const size_t           sectorCount)
+{
+    // Service calls can yield. Keep the device and DMA state locked until done.
+    usched_mtx_lock(&g_lock);
+    __ctt_storage_transfer_invocation(message, deviceId, direction, sectorLow, sectorHigh, bufferId, offset, sectorCount);
+    usched_mtx_unlock(&g_lock);
+}
+
+void
+ctt_storage_stat_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           deviceId)
+{
+    // Service calls can yield. Keep the device and DMA state locked until done.
+    usched_mtx_lock(&g_lock);
+    __ctt_storage_stat_invocation(message, deviceId);
+    usched_mtx_unlock(&g_lock);
+}

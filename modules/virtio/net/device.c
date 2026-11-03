@@ -16,7 +16,7 @@
  *
  * Virtio network device implementation
  * 
- * Handles device initialization, configuration reading, and link status management.
+ * Device setup, configuration reads, and link status updates.
  */
 
 #include <ddk/utils.h>
@@ -30,7 +30,7 @@ static void
 __DescribeDevice(
     _InOut_ VirtioNetDevice_t* device)
 {
-    // initialize the device information structure
+    // Describe the adapter limits reported to clients.
     device->Info = (struct ctt_netadapter_info){
         .port_count = 1,
         .min_version = 2,
@@ -56,18 +56,19 @@ __DescribeDevice(
         .min_rx_slots = 4
     };
 
-    // initialize the link state
+    // Start the link sequence at 1.
     device->Link.sequence = 1;
     device->Link.duplex = CTT_NETADAPTER_DUPLEX_UNKNOWN;
 }
 
 /**
- * @brief reads mac and link status as one coherent snapshot
+ * @brief Read the MAC address and link status from the same device configuration.
  * 
- * @param device the virtio net device
- * @param mac output buffer for the MAC address, must be at least 6 bytes in size
- * @param linkUpOut output flag indicating if the link is up
- * @return OS_EOK on success, error code otherwise
+ * @param device Device whose configuration is being read.
+ * @param mac Output buffer. Must have room for 6 bytes.
+ * @param linkUpOut Receives 1 if the link is up, otherwise 0.
+ * @return OS_EOK on success, OS_EBUSY if the configuration changed during the
+ *         read, otherwise a read or MAC address error.
  */
 static oserr_t
 __ReadMacAndLinkStatus(
@@ -81,7 +82,7 @@ __ReadMacAndLinkStatus(
     int                linkUp;
     oserr_t            status;
 
-    // Read the configuration generation before accessing the MAC and link status.
+    // Save the generation so we can detect configuration changes during the read.
     status = VirtioPciRegionRead(
         common, 
         offsetof(VirtioPciCommonConfiguration_t, ConfigGeneration), 
@@ -139,13 +140,13 @@ VirtioNetReadConfiguration(
         
         status = __ReadMacAndLinkStatus(device, mac, &linkUp);
         if (status == OS_EBUSY) {
-            // Try again, the device state changed
+            // The configuration changed during the read. Try again.
             continue;
         } else if (status != OS_EOK) {
             return status;
         }
 
-        // Update the device's MAC and link status based on the values read
+        // Use the MAC address from the completed configuration read.
         device->Info.permanent_mac = (struct ctt_netadapter_mac){
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
         };
@@ -153,7 +154,7 @@ VirtioNetReadConfiguration(
         
         link = linkUp ? CTT_NETADAPTER_LINK_STATUS_UP : CTT_NETADAPTER_LINK_STATUS_DOWN;
         if (device->Link.status != link) {
-            // Link status has changed, update the sequence and notify if active
+            // Advance the sequence for this change and notify the active session.
             if (device->Link.sequence == UINT64_MAX) {
                 // wtf??
                 return OS_EOVERFLOW;
@@ -179,8 +180,8 @@ void
 VirtioNetBusDeviceDestroy(
         _In_ BusDevice_t* busDevice)
 {
-    // from_sys_device duplicates identification strings independently of the
-    // bus descriptor. Release both levels on every attachment/teardown path.
+    // from_sys_device allocates each identification string separately.
+    // Free the strings before freeing the bus descriptor.
     if (busDevice == NULL) {
         return;
     }
@@ -197,23 +198,22 @@ oserr_t
 VirtioNetMetadataAddress(
     _In_  VirtioNetDevice_t* device,
     _In_  size_t             offset,
-    _Out_ uintptr_t*         addressOut)
+    _Out_ uint64_t*          addressOut)
 {
-    int     index;
-    size_t  segmentOffset;
-    oserr_t status;
+    // Each cell must fit within one DMA segment. The segments are saved during
+    // device creation, so packet submission can use them without mapping again.
+    for (uint32_t index = 0; index < device->MetadataSegmentCount; index++) {
+        if (offset < device->MetadataSegments[index].Length) {
+            if (device->MetadataSegments[index].Length - offset < VIRTIO_NET_METADATA_STRIDE) {
+                return OS_ENOTSUPPORTED;
+            }
 
-    status = SHMSGTableOffset(&device->MetadataSg, offset, &index, &segmentOffset);
-    if (status != OS_EOK) {
-        return status;
+            *addressOut = device->MetadataSegments[index].Address + offset;
+            return OS_EOK;
+        }
+        offset -= device->MetadataSegments[index].Length;
     }
-    
-    if (device->MetadataSg.Entries[index].Length - segmentOffset < VIRTIO_NET_METADATA_STRIDE) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    *addressOut = device->MetadataSg.Entries[index].Address + segmentOffset;
-    return OS_EOK;
+    return OS_EINVALPARAMS;
 }
 
 VirtioNetDevice_t*
@@ -223,7 +223,7 @@ VirtioNetDeviceCreate(
     VirtioNetDevice_t* device = calloc(1, sizeof(*device));
     oserr_t            status;
     size_t             offset;
-    uintptr_t          metadataAddress;
+    uint64_t           metadataAddress;
     
     if (device == NULL) {
         VirtioNetBusDeviceDestroy(busDevice);
@@ -232,7 +232,6 @@ VirtioNetDeviceCreate(
     
     device->BusDevice = busDevice;
     device->EventDescriptor = -1;
-    device->Metadata.ID = UUID_INVALID;
     ELEMENT_INIT(&device->Header, (void*)(uintptr_t)busDevice->Base.Id, device);
     
     __DescribeDevice(device);
@@ -256,36 +255,32 @@ VirtioNetDeviceCreate(
         goto error;
     }
     
-    // One cache-line-sized metadata cell per lifetime pool slot contains the
-    // Virtio header plus zero TX padding. It is never shared with netd.
-    status = SHMCreate(
-        &(SHM_t){
-            .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-            .Conformity = OSMEMORYCONFORMITY_BITS32,
-            .Size = VIRTIO_NET_POOLS * VIRTIO_NET_SLOTS * VIRTIO_NET_METADATA_STRIDE
+    // Reserve one cache-line-sized cell for each pool slot. It holds the Virtio
+    // header and zero-filled TX padding for that slot, and is kept private from netd.
+    status = DMAAllocate(
+        device->Transport.DmaContext,
+        &(struct DMARequirements) {
+            .Length = VIRTIO_NET_POOLS * VIRTIO_NET_SLOTS * VIRTIO_NET_METADATA_STRIDE,
+            .Alignment = VIRTIO_NET_METADATA_STRIDE
         },
         &device->Metadata
     );
     if (status != OS_EOK) {
         goto error;
     }
-    
-    status = SHMGetSGTable(&device->Metadata, &device->MetadataSg, -1);
-    if (status != OS_EOK) {
-        goto error;
-    }
-    
-    // SHM_DEVICE may span nonadjacent physical pages. Only each header/padding
-    // cell must fit in one segment, since it is submitted as a single descriptor.
-    for (offset = 0; offset < SHMBufferLength(&device->Metadata); offset += VIRTIO_NET_METADATA_STRIDE) {
+
+    device->MetadataSegments = DMABufferSegments(device->Metadata, &device->MetadataSegmentCount);
+
+    // The allocation may span several DMA segments. Each cell must fit within
+    // one segment, so check all cells before the device can be used.
+    for (offset = 0; offset < DMABufferSize(device->Metadata); offset += VIRTIO_NET_METADATA_STRIDE) {
         status = VirtioNetMetadataAddress(device, offset, &metadataAddress);
         if (status != OS_EOK) {
             ERROR("virtio-net metadata cell at %zu crosses a DMA segment", offset);
             goto error;
         }
     }
-    
+
     status = VirtioNetRegisterInterrupt(device);
     if (status != OS_EOK) {
         goto error;
@@ -312,7 +307,7 @@ VirtioNetDeviceDestroy(
         return OS_EOK;
     }
     
-    if (device->Transport.Device) {
+    if (device->Transport.Device != NULL && !device->Transport.Closing) {
         status = VirtioNetQueuesReset(device);
         if (status != OS_EOK) {
             ERROR("virtio-net queues reset failed: %u", status);
@@ -325,15 +320,22 @@ VirtioNetDeviceDestroy(
         return status;
     }
 
-    VirtioNetPoolsDetach(device);
-    
-    if (device->Metadata.Payload) {
-        OSHandleDestroy(&device->Metadata);
+    status = VirtioNetPoolsDetach(device);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = DMAFree(&device->Metadata);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = VirtioPciTransportDestroy(&device->Transport);
+    if (status != OS_EOK) {
+        return status;
     }
     
-    free(device->MetadataSg.Entries);
     free(device->Closed);
-    VirtioPciTransportDestroy(&device->Transport);
     VirtioNetBusDeviceDestroy(device->BusDevice);
     free(device);
     return OS_EOK;

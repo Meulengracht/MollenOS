@@ -80,7 +80,7 @@ VirtioPciRegionRead(
         return OS_EINVALPARAMS;
     }
 
-    // Ensure the read is within the bounds of the region
+    // The entire read must fit within the region.
     if (offset > region->Length || width > (region->Length - offset)) {
         return OS_EINVALPARAMS;
     }
@@ -121,7 +121,7 @@ VirtioPciRegionWrite(
         return OS_EINVALPARAMS;
     }
 
-    // Ensure the write is within the bounds of the region
+    // The entire write must fit within the region.
     if (offset > region->Length || width > (region->Length - offset)) {
         return OS_EINVALPARAMS;
     }
@@ -163,7 +163,7 @@ __ReadCapabilityRegion(
     uint8_t     bar;
     oserr_t     oserr;
 
-    // Read the BAR (Base Address Register) associated with this capability
+    // Read the BAR index for this capability.
     oserr = __ReadPciConfig(
         transport,
         capabilityOffset + offsetof(VirtioPciCapability32_t, Bar),
@@ -181,7 +181,7 @@ __ReadCapabilityRegion(
         return OS_EUNKNOWN;
     }
 
-    // Read the offset of the capability region within the BAR
+    // Read the region offset within the BAR.
     oserr = __ReadPciConfig(
         transport,
         capabilityOffset + offsetof(VirtioPciCapability32_t, Offset),
@@ -194,7 +194,7 @@ __ReadCapabilityRegion(
 
     regionOffset = (uint32_t)value;
 
-    // Read the length of the capability region within the BAR
+    // Read the region length.
     oserr = __ReadPciConfig(
         transport,
         capabilityOffset + offsetof(VirtioPciCapability32_t, Length),
@@ -207,7 +207,7 @@ __ReadCapabilityRegion(
 
     regionLength = (uint32_t)value;
 
-    // Validate the capability region within the BAR
+    // The region must fit within an available memory or port BAR.
     ioSpace = &transport->Device->IoSpaces[bar];
     if (ioSpace->Type == DeviceIoMemoryBased) {
         ioLength = ioSpace->Access.Memory.Length;
@@ -243,7 +243,7 @@ __ParseVendorDataCapability(
     uint8_t capabilityType;
     TRACE("__ParseVendorDataCapability(offset=0x%02X)", capabilityOffset);
 
-    // Read the length of the vendor-specific capability
+    // Read the vendor-specific capability length.
     oserr = __ReadPciConfig(
         transport,
         capabilityOffset + offsetof(VirtioPciCapability32_t, CapabilityLength),
@@ -256,7 +256,7 @@ __ParseVendorDataCapability(
     }
     capabilityLength = (uint8_t)value;
 
-    // Read the type of the vendor-specific capability
+    // Read the vendor-specific capability type.
     oserr = __ReadPciConfig(
         transport,
         capabilityOffset + offsetof(VirtioPciCapability32_t, ConfigurationType),
@@ -283,40 +283,40 @@ __ParseVendorDataCapability(
                 ERROR("Invalid capability length for PCI configuration capability at offset 0x%02X", capabilityOffset);
                 return OS_EUNKNOWN;
             }
-            // PCI_CFG is an indirect access window whose BAR, offset, and
-            // length fields are written by the driver before each access. Its
-            // initial zero geometry does not describe a region to map, and the
-            // direct BAR-backed transport does not need this optional window.
+            // PCI_CFG requires the driver to set its BAR, offset and length
+            // before each indirect access. The initial zero values do not
+            // describe a region to map. We access the BARs directly, so we can
+            // skip this optional capability.
             return OS_EOK;
         case VIRTIO_PCI_CAP_COMMON_CFG:
         case VIRTIO_PCI_CAP_ISR_CFG:
         case VIRTIO_PCI_CAP_DEVICE_CFG:
             break;
         default:
-            // Unknown/unsupported capability type, skip it
+            // Skip capability types we do not support.
             TRACE("Unknown/unsupported capability type 0x%02X at offset 0x%02X", capabilityType, capabilityOffset);
             return OS_EOK;
     }
 
-    // Ensure the capability length is valid and the region has not been acquired yet
+    // The capability must contain the full Virtio header.
     if (capabilityLength < sizeof(VirtioPciCapability32_t)) {
         ERROR("Capability length is smaller than the minimum VirtioPciCapability32_t size at offset 0x%02X", capabilityOffset);
         return OS_EUNKNOWN;
     }
 
-    // Ensure the capability fits within the PCI configuration space and has not been acquired yet
+    // The full capability must fit within PCI configuration space.
     if (capabilityOffset > (UINT8_MAX + 1U - capabilityLength)) {
         ERROR("Capability at offset 0x%02X does not fit within the PCI configuration space", capabilityOffset);
         return OS_EUNKNOWN;
     }
 
-    // Acquire the capability region if it has not been acquired yet
+    // Keep the first region found for each capability type.
     if (transport->Regions[capabilityType - 1].IoSpace != NULL) {
         WARNING("Capability at offset 0x%02X has already been acquired", capabilityOffset);
         return OS_EOK;
     }
 
-    // Read the capability region into the transport's corresponding region structure.
+    // Read the BAR, offset and length into the matching transport region.
     oserr = __ReadCapabilityRegion(
         transport,
         capabilityOffset,
@@ -327,7 +327,7 @@ __ParseVendorDataCapability(
         return oserr;
     }
 
-    // Read the notify capability if present
+    // Notification offsets use the multiplier stored after the capability header.
     if (capabilityType == VIRTIO_PCI_CAP_NOTIFY_CFG) {
         oserr = __ReadPciConfig(
             transport,
@@ -356,7 +356,7 @@ __ParseCapabilities(
     oserr_t oserr;
     TRACE("__ParseCapabilities()");
 
-    // Read the PCI status register to check if the capabilities list is available.
+    // PCI status must indicate a capabilities list before we read its pointer.
     oserr = __ReadPciConfig(transport, PCI_STATUS_OFFSET, 2, &value);
     if (oserr != OS_EOK) {
         ERROR("Failed to read PCI status register.");
@@ -368,7 +368,7 @@ __ParseCapabilities(
         return OS_ENOTSUPPORTED;
     }
 
-    // Read the initial capability pointer from the PCI configuration space.
+    // Read the first capability pointer.
     oserr = __ReadPciConfig(transport, PCI_CAPABILITIES_POINTER, 1, &value);
     if (oserr != OS_EOK) {
         ERROR("Failed to read initial PCI capability pointer.");
@@ -380,8 +380,8 @@ __ParseCapabilities(
         uint8_t capabilityId;
         uint8_t nextOffset;
 
-        // The capability offset must be within boundaries of the 
-        // PCI configuration space and not previously visited.
+        // Each offset must be within PCI configuration space. Reject an
+        // offset we have already visited, as that would loop through the list.
         if (capabilityOffset < PCI_CAPABILITY_MIN_OFFSET ||
             capabilityOffset > PCI_CAPABILITY_MAX_OFFSET ||
             visited[capabilityOffset]) {
@@ -389,7 +389,7 @@ __ParseCapabilities(
         }
         visited[capabilityOffset] = 1;
 
-        // Read the vendor-specific capability ID
+        // Read the capability ID.
         oserr = __ReadPciConfig(
             transport,
             capabilityOffset + offsetof(VirtioPciCapability32_t, Vendor),
@@ -401,7 +401,7 @@ __ParseCapabilities(
         }
         capabilityId = (uint8_t)value;
 
-        // Read the next capability offset
+        // Read the next capability offset.
         oserr = __ReadPciConfig(
             transport,
             capabilityOffset + offsetof(VirtioPciCapability32_t, CapabilityNext),
@@ -413,7 +413,7 @@ __ParseCapabilities(
         }
         nextOffset = (uint8_t)(value & ~3U);
 
-        // Parse the vendor-specific capability if present
+        // Parse vendor-specific capabilities for Virtio regions.
         TRACE("Found capability at offset 0x%02X with ID 0x%02X", capabilityOffset, capabilityId);
         if (capabilityId == VIRTIO_PCI_CAP_VENDOR_SPECIFIC) {
             oserr = __ParseVendorDataCapability(transport, capabilityOffset);
@@ -424,11 +424,8 @@ __ParseCapabilities(
         capabilityOffset = nextOffset;
     }
 
-    // Verify that all required capability bars have been acquired and are valid
-    // The required ones are
-    // - Common configuration
-    // - Notification configuration
-    // - ISR configuration
+    // The list must end within the visit limit. Common, notification and ISR
+    // regions are required, and each must be large enough for its registers.
     if (capabilityOffset != 0 ||
         transport->Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1].IoSpace == NULL ||
         transport->Regions[VIRTIO_PCI_CAP_NOTIFY_CFG - 1].IoSpace == NULL ||
@@ -633,6 +630,14 @@ VirtioPciTransportInitialize(
         ERROR("VirtioPciTransportInitialize: Failed to enable device: %d", oserr);
         goto error;
     }
+
+    // Open one DMA context for all queues and requests. This avoids looking up
+    // the device topology for each I/O request.
+    oserr = DMAOpen(device->Base.Id, UINT64_MAX, &transport->DmaContext);
+    if (oserr != OS_EOK) {
+        ERROR("Virtio DMA context creation failed: %u", oserr);
+        goto error;
+    }
     return OS_EOK;
 
 error:
@@ -640,26 +645,42 @@ error:
     return oserr;
 }
 
-void
+oserr_t
 VirtioPciTransportDestroy(
     _In_ VirtioPciTransport_t* transport)
 {
+    oserr_t status;
+
     if (transport == NULL || transport->Device == NULL) {
-        return;
+        return OS_EOK;
     }
-    
     if (transport->ActiveQueues != 0) {
-        WARNING("VirtioPciTransportDestroy called with %u active queues",
-                transport->ActiveQueues);
-        return;
+        return OS_EBUSY;
+    }
+
+    transport->Closing = true;
+
+    // Queues and payload mappings must be released before we close the DMA
+    // context and unmap registers. If closing fails, keep the transport state
+    // so the caller can retry.
+    status = DMAClose(&transport->DmaContext);
+    if (status != OS_EOK) {
+        WARNING("Virtio DMA context cleanup deferred: %u", status);
+        return status;
     }
 
     for (int bar = 0; bar < __DEVICEMANAGER_MAX_IOSPACES; bar++) {
         if (transport->AcquiredBars & (1U << bar)) {
-            ReleaseDeviceIo(&transport->Device->IoSpaces[bar]);
+            status = ReleaseDeviceIo(&transport->Device->IoSpaces[bar]);
+            if (status != OS_EOK) {
+                return status;
+            }
+            transport->AcquiredBars &= ~(1U << bar);
         }
     }
+
     memset(transport, 0, sizeof(VirtioPciTransport_t));
+    return OS_EOK;
 }
 
 oserr_t
@@ -732,9 +753,9 @@ VirtioPciNegotiateFeatures(
         return OS_EINVALPARAMS;
     }
 
-    // Modern PCI transport always requires VERSION_1. Add it before validating
-    // the caller's required subset so callers do not need to repeat this
-    // transport-level requirement in their device-specific supported mask.
+    // Modern Virtio PCI devices require VERSION_1. Add it to both masks before
+    // checking required features, so callers only need to list the features
+    // specific to their device.
     supportedFeatures |= VIRTIO_F_VERSION_1;
     requiredFeatures  |= VIRTIO_F_VERSION_1;
     if ((requiredFeatures & ~supportedFeatures) != 0) {
@@ -809,8 +830,8 @@ VirtioPciFinishInitialization(
         return OS_EINVALPARAMS;
     }
 
-    // A Virtio reset clears the device's routing but leaves PCI MSI-X enabled.
-    // Restore the shared configuration vector before making the device live.
+    // A Virtio reset clears interrupt routing but leaves PCI MSI-X enabled.
+    // We must restore the configuration vector before setting DRIVER_OK.
     if (transport->MsixEnabled) {
         oserr = VirtioPciRegionWrite(
             &transport->Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1],
@@ -861,7 +882,9 @@ void
 VirtioPciSetFailed(
     _In_ VirtioPciTransport_t* transport)
 {
-    if (transport == NULL) {
+    // Initialization cleanup may have unmapped the common registers already.
+    // Once cleanup starts, we must not write the device status.
+    if (transport == NULL || transport->Closing) {
         return;
     }
 
