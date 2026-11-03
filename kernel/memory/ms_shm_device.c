@@ -943,6 +943,18 @@ SHMDeviceMap(
     return __Map(context, shmID, offset, length, direction, true, mappingOut);
 }
 
+oserr_t
+SHMDeviceMapDirect(
+    _In_    struct SHMDeviceContext*  context,
+    _In_    uuid_t                    shmID,
+    _In_    size_t                    offset,
+    _In_    size_t                    length,
+    _In_    enum DMADirection         direction,
+    _InOut_ struct SHMDeviceMapping** mappingOut)
+{
+    return __Map(context, shmID, offset, length, direction, false, mappingOut);
+}
+
 static bool
 __IsPowerOfTwoOrZero(
     _In_ uint64_t value)

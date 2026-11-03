@@ -406,6 +406,10 @@ ScDmaMapShm(
         return status;
     }
 
+    if (parameters.Flags & ~DMA_MAP_REQUIRE_DIRECT) {
+        return OS_EINVALPARAMS;
+    }
+
     status = __Begin(context, 0, &parent);
     if (status != OS_EOK) {
         return status;
@@ -419,14 +423,25 @@ ScDmaMapShm(
     }
 
     record->Parent = parent;
-    status = SHMDeviceMap(
-        parent->Context,
-        shm,
-        parameters.Offset,
-        parameters.Length,
-        parameters.Direction,
-        &record->Mapping
-    );
+    if (parameters.Flags & DMA_MAP_REQUIRE_DIRECT) {
+        status = SHMDeviceMapDirect(
+            parent->Context,
+            shm,
+            parameters.Offset,
+            parameters.Length,
+            parameters.Direction,
+            &record->Mapping
+        );
+    } else {
+        status = SHMDeviceMap(
+            parent->Context,
+            shm,
+            parameters.Offset,
+            parameters.Length,
+            parameters.Direction,
+            &record->Mapping
+        );
+    }
     if (status != OS_EOK) {
         ERROR("ScDmaMapShm: SHMDeviceMap context %u, SHM %u, offset %zu, length %zu, direction %u failed: %u",
               context, shm, parameters.Offset, parameters.Length, parameters.Direction, status);

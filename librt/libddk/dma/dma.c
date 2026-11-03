@@ -252,19 +252,21 @@ DMAFree(
     return status;
 }
 
-oserr_t
-DMAMapSHM(
+static oserr_t
+__DmaMapSHM(
     _In_    struct DMAContext*  context,
     _In_    const OSHandle_t*   buffer,
     _In_    size_t              offset,
     _In_    size_t              length,
     _In_    enum DMADirection   direction,
+    _In_    unsigned int        flags,
     _InOut_ struct DMAMapping** mappingOut)
 {
     struct OSDmaMapParameters parameters = {
         .Offset = offset,
         .Length = length,
-        .Direction = direction
+        .Direction = direction,
+        .Flags = flags
     };
     struct OSDmaMappingResult result = { 0 };
     struct DMAMapping*        mapping;
@@ -310,6 +312,30 @@ DMAMapSHM(
 
     *mappingOut = mapping;
     return OS_EOK;
+}
+
+oserr_t
+DMAMapSHM(
+    _In_    struct DMAContext*  context,
+    _In_    const OSHandle_t*   buffer,
+    _In_    size_t              offset,
+    _In_    size_t              length,
+    _In_    enum DMADirection   direction,
+    _InOut_ struct DMAMapping** mappingOut)
+{
+    return __DmaMapSHM(context, buffer, offset, length, direction, 0, mappingOut);
+}
+
+oserr_t
+DMAMapSHMDirect(
+    _In_    struct DMAContext*  context,
+    _In_    const OSHandle_t*   buffer,
+    _In_    size_t              offset,
+    _In_    size_t              length,
+    _In_    enum DMADirection   direction,
+    _InOut_ struct DMAMapping** mappingOut)
+{
+    return __DmaMapSHM(context, buffer, offset, length, direction, DMA_MAP_REQUIRE_DIRECT, mappingOut);
 }
 
 const struct DMASegment*

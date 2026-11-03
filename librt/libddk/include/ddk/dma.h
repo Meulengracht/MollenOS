@@ -150,6 +150,33 @@ DMAMapSHM(
     _InOut_ struct DMAMapping** mappingOut));
 
 /**
+ * @brief Map committed SHM bytes using only their original pages.
+ *
+ * Uses the same streaming lifecycle as DMAMapSHM, including begin/end calls for
+ * cache synchronization. Device addresses may differ from physical addresses,
+ * and the result may contain multiple segments. Never allocates bounce storage
+ * or copies payload data. Does not require a reserved device pool.
+ *
+ * @param context Open controller context; serialize creation against close.
+ * @param buffer Existing SHM handle; the caller manages its attachment.
+ * @param offset First byte relative to the whole SHM buffer.
+ * @param length Nonzero committed bytes to map.
+ * @param direction Direction of hardware access, fixed for this mapping.
+ * @param mappingOut Empty slot; unchanged on failure.
+ * @return DMAMapSHM errors; OS_ENOENT if the device cannot address the original
+ *         pages; OS_ENOTSUPPORTED if noncoherent device writes would share cache
+ *         lines with bytes outside the mapped range.
+ */
+DDKDECL(oserr_t,
+DMAMapSHMDirect(
+    _In_    struct DMAContext*  context,
+    _In_    const OSHandle_t*   buffer,
+    _In_    size_t              offset,
+    _In_    size_t              length,
+    _In_    enum DMADirection   direction,
+    _InOut_ struct DMAMapping** mappingOut));
+
+/**
  * @brief Borrow the mapping's immutable device-address list without kernel work.
  * @param mapping Live mapping; serialize calls with release on this object.
  * @param countOut Receives the number of entries.

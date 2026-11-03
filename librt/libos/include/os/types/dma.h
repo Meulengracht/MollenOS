@@ -31,6 +31,9 @@ enum DMADirection {
     DMABidirectional
 };
 
+// It must use the original SHM pages directly, without bounce buffers.
+#define DMA_MAP_REQUIRE_DIRECT 0x1U
+
 /**
  * Unlike SHMSG_t, which holds CPU physical addresses in a pointer-sized type,
  * this always uses 64 bits because device addresses can exceed 4 GiB even on

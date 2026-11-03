@@ -63,6 +63,7 @@ struct OSDmaMapParameters {
     size_t            Offset;
     size_t            Length;
     enum DMADirection Direction;
+    unsigned int      Flags;
 };
 
 struct OSDmaMappingResult {

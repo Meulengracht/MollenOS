@@ -201,6 +201,31 @@ SHMDeviceMap(
     _InOut_ struct SHMDeviceMapping** mappingOut);
 
 /**
+ * @brief Map original SHM pages without bounce storage or payload copies.
+ *
+ * Parameters and streaming synchronization follow SHMDeviceMap. The original
+ * pages must be addressable by the device. Noncoherent device writes require
+ * cache-line-aligned range boundaries unless the storage is uncached.
+ *
+ * @param context Context held by the caller throughout this call.
+ * @param shmID Buffer to use.
+ * @param offset First byte relative to the whole buffer.
+ * @param length Nonzero committed bytes to map.
+ * @param direction Which way data will move for this mapping.
+ * @param mappingOut Empty slot; unchanged on failure.
+ * @return SHMDeviceMap errors; OS_ENOENT for unreachable original pages;
+ *         OS_ENOTSUPPORTED for unsafe cache-line sharing.
+ */
+oserr_t
+SHMDeviceMapDirect(
+    _In_    struct SHMDeviceContext*  context,
+    _In_    uuid_t                    shmID,
+    _In_    size_t                    offset,
+    _In_    size_t                    length,
+    _In_    enum DMADirection         direction,
+    _InOut_ struct SHMDeviceMapping** mappingOut);
+
+/**
  * @brief Allocate memory a device keeps using alongside the CPU.
  *
  * Meant for long-lived structures such as rings and contexts, which both sides
