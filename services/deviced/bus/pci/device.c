@@ -23,7 +23,7 @@
 #include <limits.h>
 #include <ddk/types/interrupt.h>
 #include <ddk/interrupts/interrupt.h>
-#include <ddk/interrupts/provider.h>
+#include <ddk/interrupts/bus.h>
 #include <ddk/devices/bus.h>
 #include <ddk/resources.h>
 #include <ddk/utils.h>
@@ -49,7 +49,7 @@ __PciSetBusControl(
         device->Host->Identification.Segment, device->Bus, device->Slot,
         device->Function, request->Flags);
 
-    // Do not change command bits while this handler forbids activation.
+    // The device handler must allow command register changes.
     if (device->Handler != NULL && device->Handler->BlockActivation) {
         WARNING("__PciSetBusControl: activation blocked for %u:%u:%u.%u",
             device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
@@ -63,7 +63,7 @@ __PciSetBusControl(
     settings &= ~(PCI_COMMAND_BUSMASTER | PCI_COMMAND_FASTBTB
                   | PCI_COMMAND_MMIO | PCI_COMMAND_PORTIO | PCI_COMMAND_INTDISABLE);
 
-    // An active MSI reservation owns the interrupt state until it is released.
+    // Keep INTx disabled until the MSI reservation is released.
     if (device->Msi.Active || !(request->Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
         settings |= PCI_COMMAND_INTDISABLE;
     }
@@ -104,8 +104,8 @@ __PciSetBusControl(
         PciMsixUpdateCommand(device->Msix, requested);
     }
 
-    // Remember the requested INTx state because the reservation keeps INTx
-    // disabled in hardware until release restores the command register.
+    // Save the requested INTx state for release to restore. INTx must stay
+    // disabled in hardware while MSI is reserved.
     if (device->Msi.Active) {
         device->Msi.Command &= ~PCI_COMMAND_INTDISABLE;
         if (!(request->Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
@@ -129,8 +129,8 @@ __PciIoctlDevice(
         device->Host->Identification.Segment, device->Bus, device->Slot,
         device->Function, direction, reg, (unsigned)width);
 
-    // Reject unsupported sizes and misaligned or out-of-range accesses before
-    // they reach hardware configuration space.
+    // Configuration accesses must be 1, 2 or 4 bytes, aligned to their width,
+    // and within the host's configuration space.
     if (direction != __DEVICEMANAGER_IOCTL_EXT_READ && direction != __DEVICEMANAGER_IOCTL_EXT_WRITE) {
         WARNING("__PciIoctlDevice invalid direction %i", direction);
         return OS_EINVALPARAMS;
@@ -152,8 +152,8 @@ __PciIoctlDevice(
         return OS_EOK;
     }
 
-    // Reads remain useful during a reservation, but writes could replace the
-    // configuration that the interrupt code must restore later.
+    // Block writes while MSI or MSI-X is reserved. The interrupt code must be
+    // able to restore the saved configuration when the reservation is released.
     if (device->Msi.Active || device->Msix != NULL) {
         WARNING("__PciIoctlDevice write blocked by an active interrupt reservation");
         return OS_EBUSY;
@@ -172,10 +172,10 @@ oserr_t
 PciDeviceAddReference(
     _InOut_ PciDevice_t* device)
 {
-    // Child buses and the PCI registry share this count. Host destruction must
-    // wait for every owner before freeing the device and its attachment.
+    // Child buses and the PCI registry share this count. All references must
+    // be released before the host can free the device and its attachment.
     PciCriticalSectionEnter();
-    // Never wrap the count: a wrapped value could make a live device look unused.
+    // An overflow would make a device still in use appear unused.
     if (device->HostBusReferences == UINT_MAX) {
         PciCriticalSectionLeave();
         ERROR("PciDeviceAddReference: reference count exhausted for %u:%u:%u.%u (%u)",
@@ -193,8 +193,8 @@ void
 PciDeviceRelease(
     _InOut_ PciDevice_t* device)
 {
-    // The caller must hold a reference. Hardware cleanup belongs to the host and
-    // must not run inside a registry callback or while another owner remains.
+    // The caller must hold a reference. The host cleans up hardware after all
+    // references are released, outside registry callbacks.
     PciCriticalSectionEnter();
     device->HostBusReferences--;
     PciCriticalSectionLeave();
@@ -204,7 +204,7 @@ static oserr_t
 __PciBusAddReference(
     _In_ void* context)
 {
-    // Adapt the registry's untyped context to the shared PCI ownership helper.
+    // Registry references use the same count as child bus references.
     return PciDeviceAddReference(context);
 }
 
@@ -212,7 +212,7 @@ static void
 __PciBusRelease(
     _In_ void* context)
 {
-    // Registry and attached-bus owners must balance the same reference count.
+    // Release the reference added for the registry.
     PciDeviceRelease(context);
 }
 
@@ -283,8 +283,8 @@ __PciBusControl(
         return status;
     }
 
-    // Interrupt requests use the same lock as register access so a reservation
-    // cannot race with another operation changing the device configuration.
+    // Hold the register access lock during interrupt setup so another request
+    // cannot change the device configuration at the same time.
     if (request == OSIOCTLREQUEST_PCI_INTERRUPT_QUERY ||
         request == OSIOCTLREQUEST_PCI_INTERRUPT) {
         PciCriticalSectionEnter();
@@ -434,8 +434,8 @@ __PciInterruptControl(
         return OS_EINVALPARAMS;
     }
     
-    // Keep one interrupt mode at a time so each mode can restore its own saved
-    // configuration without overwriting the other's state.
+    // Release the current interrupt mode before using another. MSI and MSI-X
+    // each restore saved configuration that would overwrite the other's state.
     if (interrupt->Strategy == INTERRUPT_STRATEGY_MSIX && device->Msi.Active) {
         WARNING("__PciInterruptControl: MSI-X operation %u conflicts with active MSI on %u:%u:%u.%u",
             interrupt->Operation, device->Host->Identification.Segment,
@@ -493,8 +493,8 @@ __PciBusAccessRegister(
 {
     oserr_t status;
 
-    // Serialize this path with bus control and MSI operations, which also update
-    // PCI configuration registers and saved restoration state.
+    // Bus control and MSI operations also change these registers and the saved
+    // configuration. Use the same lock for all configuration access.
     PciCriticalSectionEnter();
     status = __PciIoctlDevice(context, direction, reg, value, width);
     PciCriticalSectionLeave();
@@ -541,7 +541,7 @@ int
 PciDeviceAllowsDriverBinding(
     _In_ const PciDevice_t* device)
 {
-    // Bridges are managed through their child bus and handled functions already
-    // have an owner, so neither should be offered to a generic driver.
+    // Bridges are managed through their child bus. Functions with a handler
+    // are already managed, so only the remaining devices need a generic driver.
     return !device->IsBridge && device->Handler == NULL;
 }

@@ -37,16 +37,15 @@ __Rp1CompleteInterrupt(
     DeviceIo_t*                        registers = resources->IoResources[0];
     size_t                             offset;
 
-    // The kernel gives this callback mapped resources for interrupt handling.
-    // Use these resources and the supplied functions here, since this runs in
-    // interrupt context.
+    // This callback runs in interrupt context. Use only the resources mapped
+    // by the kernel and the supplied function table.
     source = (const struct Rp1CompletionContext*)resources->MemoryResources[0].Address;
     offset = RP1_COMPLETION_CFG(source->Source);
 
-    // The child clears or masks its device before this callback runs. RP1 keeps
-    // a level-triggered interrupt active until this write acknowledges it.
-    // Read the register back to ensure the write completes before the main
-    // interrupt controller is told that handling has finished.
+    // The child must clear or mask its device before this callback runs.
+    // RP1 keeps a level-triggered interrupt active until we acknowledge it here.
+    // Read back the register so the write completes before the main interrupt
+    // controller is told that handling has finished.
     mb();
     functions->WriteIoSpace(registers, RP1_COMPLETION_SET + offset, RP1_COMPLETION_IACK, 4);
     mb();
@@ -67,9 +66,9 @@ Rp1CompletionStart(
 
     // Store the handle before binding so Rp1CompletionsStop can release it
     // if the resource mapping fails.
-    status = DeviceInterruptCompletionCreate(&completion->Handle);
+    status = DeviceInterruptBusHandlerCreate(&completion->Handle);
     if (status != OS_EOK) {
-        ERROR("Rp1CompletionStart: DeviceInterruptCompletionCreate source %u failed: %u", source, status);
+        ERROR("Rp1CompletionStart: DeviceInterruptBusHandlerCreate source %u failed: %u", source, status);
         return status;
     }
 
@@ -78,11 +77,11 @@ Rp1CompletionStart(
     resources.MemoryResources[0].Address = (uintptr_t)&completion->Context;
     resources.MemoryResources[0].Length = sizeof(completion->Context);
 
-    // Keep the context in place until the completion handle is released.
-    // If release fails, the caller must keep the runtime for a later retry.
-    status = DeviceInterruptCompletionBind(completion->Handle, &resources);
+    // The context must stay valid until DeviceInterruptBusHandlerRelease succeeds.
+    // If release fails, keep the runtime so cleanup can be retried.
+    status = DeviceInterruptBusHandlerBind(completion->Handle, &resources);
     if (status != OS_EOK) {
-        ERROR("Rp1CompletionStart: DeviceInterruptCompletionBind source %u, handle %u failed: %u",
+        ERROR("Rp1CompletionStart: DeviceInterruptBusHandlerBind source %u, handle %u failed: %u",
               source, completion->Handle, status);
         return status;
     }
@@ -104,9 +103,9 @@ Rp1CompletionsStop(
 
         // A child group may still use this callback. Keep its data and register
         // mapping until the callback has been released.
-        status = DeviceInterruptCompletionRelease(runtime->Completions[i].Handle);
+        status = DeviceInterruptBusHandlerRelease(runtime->Completions[i].Handle);
         if (status != OS_EOK) {
-            ERROR("Rp1CompletionsStop: DeviceInterruptCompletionRelease source %u, handle %u failed: %u",
+            ERROR("Rp1CompletionsStop: DeviceInterruptBusHandlerRelease source %u, handle %u failed: %u",
                   i, runtime->Completions[i].Handle, status);
             return status;
         }

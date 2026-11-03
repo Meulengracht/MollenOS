@@ -123,8 +123,8 @@ __Rp1ProgramSource(
         return OS_EBUSY;
     }
 
-    // The caller holds Bus->Lock. Use the kernel attachment's destination and
-    // keep the source masked until all message words have been verified.
+    // The caller must hold Bus->Lock. Keep the source masked while writing and
+    // verifying the message address and data returned by the kernel.
     status = Rp1SourceSetTableMask(runtime, number, 1);
     if (status != OS_EOK) {
         return status;
@@ -209,7 +209,7 @@ __Rp1ReserveSource(
     vector.Completion = child->Bus->Runtime->Completions[
         child->Firmware.Interrupts[request->Index].Number].Handle;
 
-    status = DeviceInterruptProviderAttach(&attachment);
+    status = DeviceInterruptBusAttach(&attachment);
     if (status != OS_EOK) {
         WARNING("__Rp1ReserveSource: device %u source %u allocation %u attach failed: %u",
                 child->DeviceId, request->Index, request->Allocation, status);
@@ -221,10 +221,10 @@ __Rp1ReserveSource(
             return status;
         }
 
-        // Copying the result to userspace can fail after attachment succeeds.
-        // Close that attachment before clearing ownership. If close fails,
-        // leave the source recorded so Release can retry the cleanup.
-        cleanup = DeviceInterruptProviderClose(
+        // Attachment may have succeeded even if copying the result failed.
+        // Close it before clearing the source. If cleanup fails, keep the source
+        // recorded so DeviceInterruptSourceRelease can retry.
+        cleanup = DeviceInterruptBusClose(
             request->Allocation,
             principal,
             child->DeviceId
@@ -242,8 +242,8 @@ __Rp1ReserveSource(
     source->Allocation = request->Allocation;
     source->Principal = principal;
 
-    // EBUSY is reserved for an untouched reservation. After attachment the
-    // client must still perform cleanup, even if programming could not finish.
+    // Return OS_EBUSY only when the reservation is unchanged. Once attached,
+    // the caller must clean up even if programming the source failed.
     if (status != OS_EOK) {
         if (status == OS_EBUSY) {
             return OS_EUNKNOWN;
@@ -310,8 +310,9 @@ Rp1RuntimeControl(
         return __Rp1ReserveSource(child, principal, request);
     }
 
-    // After Reserve, find the source by allocation and verify its owner before
-    // changing interrupt delivery. The request index cannot select a source.
+    // After reservation, use the allocation to find the source and check the
+    // calling process before changing delivery. Only reserve requests select
+    // a source by index.
     for (uint32_t i = 0; i < child->Firmware.InterruptCount; i++) {
         candidate = __Rp1ChildSource(child, i);
         if (candidate->Owner == child && candidate->Allocation == request->Allocation) {
@@ -331,7 +332,7 @@ Rp1RuntimeControl(
             return OS_EOK;
         }
         if (request->Operation == DeviceInterruptSourceRelease) {
-            status = DeviceInterruptProviderClose(
+            status = DeviceInterruptBusClose(
                 request->Allocation,
                 principal,
                 child->DeviceId
@@ -359,7 +360,7 @@ Rp1RuntimeControl(
             return OS_EBUSY;
         }
 
-        status = DeviceInterruptProviderCheckEnabled(
+        status = DeviceInterruptBusStatus(
             request->Allocation,
             principal,
             child->DeviceId
@@ -370,13 +371,14 @@ Rp1RuntimeControl(
             return status;
         }
 
-        // Exact Enable retries must not reconfigure an already active source.
+        // An enable retry must leave an enabled source unchanged.
         if (runtime->Controller.Enabled[number]) {
             return OS_EOK;
         }
 
-        // Kernel handlers and completion resources must be ready before the
-        // first upstream write can arrive. A failed unmask still requires stop.
+        // Kernel handlers and bus callback resources must be ready before
+        // enabling hardware delivery. If enabling fails, disable the source
+        // to stop any interrupts it may already be sending.
         status = Rp1InterruptEnable(&runtime->Controller, number);
         if (status != OS_EOK) {
             cleanup = Rp1InterruptDisable(&runtime->Controller, number);
@@ -397,10 +399,10 @@ Rp1RuntimeControl(
         return OS_EOK;
     }
 
-    // Closing verifies that the child has disabled and unbound its handlers.
-    // Keep ownership of the message and completion until that synchronization
-    // succeeds. Clearing the source earlier could race an in-flight handler.
-    status = DeviceInterruptProviderClose(
+    // The child must disable and unbind its handlers before closing. Keep the
+    // source recorded until close succeeds so another request cannot reuse it
+    // while a handler is still running.
+    status = DeviceInterruptBusClose(
         request->Allocation,
         principal,
         child->DeviceId

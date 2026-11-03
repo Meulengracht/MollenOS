@@ -37,19 +37,19 @@ _Static_assert(MAX_SUPPORTED_INTERRUPTS <= UINT16_MAX,
     "Interrupt table indices must fit in descriptor IDs");
 
 /**
- * One reserved interrupt and the fixed address/data the device writes to signal it.
- * CompletionHandle identifies an attachment when a bus retries a request.
- * Completion holds the group's use of that callback, avoiding a lookup per interrupt.
+ * @brief A reserved interrupt and the address/data the device writes to signal it.
+ * BusHandlerHandle identifies the callback when a bus retries an attachment.
+ * BusHandler holds the group's reference, so dispatch can call it without a lookup.
  */
 struct __InterruptGroupVector {
     uuid_t                      Id;
     InterruptMessage_t          Message;
-    uuid_t                      CompletionHandle;
-    struct InterruptCompletion* Completion;
+    uuid_t                      BusHandlerHandle;
+    struct InterruptBusHandler* BusHandler;
 };
 
 /**
- * Records which bus bus attached this device to the group. Closed prevents
+ * @brief The bus and device attached to this group. Closed prevents
  * a delayed attachment request from reopening a group that is being removed.
  */
 struct __InterruptBusLease {
@@ -59,7 +59,7 @@ struct __InterruptBusLease {
 };
 
 /**
- * Coordinates one process's interrupt reservations and optional bus callbacks.
+ * @brief A process's interrupt reservations and optional bus callbacks.
  * Updating permits only one group operation at a time, even while the lock is
  * released. Unbinding remembers incomplete cleanup. Enabled is shared by all
  * vectors so handlers start only after the entire group is ready. EverEnabled
@@ -122,9 +122,8 @@ __BeginGroup(
         return OS_EBUSY;
     }
     
-    // Mapping and waiting for handlers can take time. Reserve this operation's
-    // exclusive access before unlocking, so other threads cannot alter or free
-    // the group while we work without holding the list lock.
+    // Set Updating before releasing the lock. Other threads must wait until
+    // this operation finishes before they can change or free the group.
     group->Updating = 1;
     SpinlockReleaseIrq(&g_groupLock);
     
@@ -165,8 +164,8 @@ __ValidateGroupRequest(
         return OS_EINVALPARAMS;
     }
     
-    // Count negotiation applies only to message vectors. A fixed hardware
-    // source cannot turn into multiple vectors or fall back to another route.
+    // A hardware line requires exactly one vector. Only message interrupts
+    // can request a range of vector counts.
     if (request->Kind != InterruptSourceMessage &&
         (request->Minimum != 1 || request->Optimal != 1)) {
         return OS_EINVALPARAMS;
@@ -235,8 +234,8 @@ __ReserveGroup(
     unsigned int                   flags = kernelHandlers ? INTERRUPT_KERNEL : 0;
     oserr_t                        status = OS_EBUSY;
     
-    // Policy was selected by the caller. Reserve exactly this resource kind;
-    // an exhausted message controller must not silently become a legacy line.
+    // Use the resource kind selected by the caller. If the message controller
+    // has no vectors left, fail the request instead of allocating a legacy line.
     capacity = request->Optimal;
     if (capacity > INTERRUPT_GROUP_LIMIT) {
         capacity = INTERRUPT_GROUP_LIMIT;
@@ -251,7 +250,7 @@ __ReserveGroup(
             return OS_ENOTSUPPORTED;
         }
 
-        // Use the vectors the backend has, as long as the request's minimum fits.
+        // Limit the count to the available vectors, but require the requested minimum.
         if (capacity > available) {
             capacity = available;
         }
@@ -286,7 +285,7 @@ __ReserveGroup(
     }
     memset(group, 0, sizeof(struct __InterruptGroup) + (capacity * sizeof(struct __InterruptGroupVector)));
     
-    // Keep dispatch closed until the caller binds handlers and enables the group.
+    // Handlers can run after the caller binds them and enables the group.
     atomic_init(&group->Enabled, 0);
     group->Owner = InterruptCurrentOwner();
     group->KernelHandlers = kernelHandlers;
@@ -318,8 +317,8 @@ __ReserveGroup(
             );
         }
 
-        // InterruptReserve claims the vector atomically. Another group may get
-        // there first, so a busy result sends us to the next candidate.
+        // Another group may reserve this vector first. If it is busy, try the
+        // next message vector.
         if (status == OS_EBUSY && request->Kind == InterruptSourceMessage) {
             continue;
         }
@@ -343,7 +342,7 @@ __ReserveGroup(
     return OS_EOK;
 
 fail:
-    // Nothing is bound or enabled yet. Unregister waits for active dispatch
+    // Nothing is bound or enabled yet. InterruptRelease waits for active dispatch
     // readers before the group memory is freed.
     __DiscardReservedGroup(group);
     return status;
@@ -425,11 +424,9 @@ InterruptGroupBind(
         if (status == OS_EOK) {
             entry = InterruptGet(group->Vectors[index].Id);
 
-            // The driver supplies only its own handler. Add the bus's
-            // callback from the group so drivers need no completion API.
-            // The group keeps the callback in use; this entry adds no reference.
-            // Set the pointer while disabled, before any handler can run.
-            entry->Completion = group->Vectors[index].Completion;
+            // Add the bus callback while the driver handler is still disabled.
+            // The group holds the reference, so this entry only needs the pointer.
+            entry->BusHandler = group->Vectors[index].BusHandler;
             InterruptPut(entry);
         }
     }
@@ -497,9 +494,9 @@ __DisableGroup(
     }
 
     if (status != OS_EOK) {
-        // A descriptor may still cache Enabled after its controller stop failed.
-        // Block every group caller, including kernel-only SetEnabled users,
-        // until explicit cleanup reconciles those descriptors and mappings.
+        // If stopping the controller fails, a descriptor may still have Enabled
+        // set. Block binding and enabling until cleanup finishes, including
+        // calls through InterruptGroupSetEnabled.
         group->Unbinding = 1;
     }
 
@@ -557,8 +554,8 @@ __EnableGroup(
         return status;
     }
 
-    // Allow handler calls only after all vectors succeeded. Remember this group
-    // was usable because a device message may arrive even after it is disabled.
+    // All vectors are enabled. Record that device messages may now arrive,
+    // including after the group is disabled.
     group->EverEnabled = 1;
     atomic_store(&group->Enabled, 1);
     return OS_EOK;
@@ -612,8 +609,8 @@ __UnbindGroup(
 
     group->Unbinding = 1;
     
-    // Try every vector even if an earlier one fails. Successful removals reduce
-    // the work left for a retry; Unbinding prevents use of the incomplete group.
+    // Try every vector even if an earlier one fails. Unbinding blocks binding
+    // and enabling until all mappings have been removed.
     for (uint32_t i = 0; i < group->Count; i++) {
         if (group->Vectors[i].Id == UUID_INVALID) {
             continue;
@@ -645,10 +642,9 @@ InterruptGroupDisable(
         return status;
     }
 
-    // Userspace Disable promises quiescence and removal of handler mappings.
-    // Hold the group across both steps so no competing bind or enable can slip
-    // between them. A failed controller stop also blocks reuse: dispatch has
-    // already closed, even if hardware shutdown is only partly complete.
+    // Disable must wait for handlers and remove their mappings. Keep the group
+    // busy across both steps so another thread cannot bind or enable it between
+    // them. If stopping the controller fails, cleanup must finish before reuse.
     group->Unbinding = 1;
 
     status = __DisableGroup(group);
@@ -710,7 +706,7 @@ __ReleaseGroup(
     }
 
     // Reaping also disables and unmaps each vector here. Keep the group and
-    // its completion references if any step fails, so another worker can retry.
+    // its bus handler references if any step fails, so another worker can retry.
     group->Unbinding = 1;
     for (i = 0; i < group->Count; i++) {
         if (group->Vectors[i].Id == UUID_INVALID) {
@@ -732,18 +728,18 @@ __ReleaseGroup(
 
     SpinlockAcquireIrq(&g_groupLock);
     link = &g_groups;
-    // Remove it only after every vector is safe to release or retain.
+    // Every vector has been released or left disabled until reboot.
     while (*link != group) {
         link = &(*link)->Next;
     }
     *link = group->Next;
     SpinlockReleaseIrq(&g_groupLock);
     
-    // Every vector has waited for running handlers to finish, including vectors
-    // removed on an earlier attempt. Only now may we drop the group's uses of
-    // bus callbacks and allow the bus to release their mappings.
+    // All running handlers have finished, including those from an earlier
+    // cleanup attempt. Drop the bus handler references so the bus can release
+    // their mappings.
     for (i = 0; i < group->Count; i++) {
-        InterruptCompletionPut(group->Vectors[i].Completion);
+        InterruptBusHandlerPut(group->Vectors[i].BusHandler);
     }
 
     kfree(group);
@@ -763,8 +759,8 @@ InterruptGroupRelease(
     }
 
     if (group->Bus.BusID != UUID_INVALID && !group->Bus.Closed) {
-        // The bus still owns hardware capable of writing this message.
-        // It must block those writes and close its attachment before group release.
+        // The bus must stop hardware writes and close its attachment before
+        // the driver can release the group.
         __EndGroup(group);
         return OS_EBUSY;
     }
@@ -783,8 +779,8 @@ InterruptGroupReap(
         return status;
     }
 
-    // Process identity is shared by all native threads. A worker exiting must
-    // not look like driver death, and a cleanup job may move between workers.
+    // All native threads share the process identity. The driver process must
+    // have exited before we clean up its group, even if one worker has exited.
     if (group->KernelHandlers || LookupHandleOfType(group->Owner, HandleTypeMSContext) != NULL) {
         __EndGroup(group);
         return OS_EBUSY;
@@ -795,7 +791,7 @@ InterruptGroupReap(
     group->EverEnabled = 1;
     status = __ReleaseGroup(group, 1);
     
-    // ENOENT denotes an absent group only, never unfinished vector cleanup.
+    // Reserve OS_ENOENT for a missing group. Vector cleanup may need a retry.
     return status == OS_ENOENT ? OS_EUNKNOWN : status;
 }
 
@@ -811,9 +807,9 @@ __ProviderGroupIdle(
         return OS_EBUSY;
     }
 
-    // Disabled alone is not enough: a handler entry may still point to the
-    // completion. Unbind waits for running handlers and removes that pointer
-    // before clearing Bound. Failed cleanup leaves Bound set and blocks detach.
+    // Each handler must be unbound before detaching the bus. InterruptUnbind
+    // waits for running handlers and clears the bus callback pointer before
+    // clearing Bound. If cleanup fails, Bound stays set and we return busy.
     for (i = 0; i < group->Count; i++) {
         entry = InterruptGet(group->Vectors[i].Id);
         if (entry == NULL) {
@@ -861,10 +857,10 @@ __BusAttachGroup(
     if (group->Bus.BusID != UUID_INVALID) {
         // Returning messages to the bus may have failed after attachment
         // succeeded. Accept the same request even if the driver has since bound
-        // or enabled its handlers. Compare input handles only; Message is output.
+        // or enabled its handlers. Compare input handles only. Message is output.
         // Do not add references again or change callbacks that could be running.
         for (i = 0; i < group->Count; i++) {
-            if (group->Vectors[i].CompletionHandle != request->Vectors[i].Completion) {
+            if (group->Vectors[i].BusHandlerHandle != request->Vectors[i].Completion) {
                 return OS_EBUSY;
             }
         }
@@ -882,9 +878,9 @@ __BusAttachGroup(
     for (i = 0; i < group->Count; i++) {
         vector = &group->Vectors[i];
         if (request->Vectors[i].Completion != UUID_INVALID) {
-            status = InterruptCompletionAcquire(
+            status = InterruptBusHandlerAcquire(
                 request->Vectors[i].Completion,
-                &vector->Completion
+                &vector->BusHandler
             );
             if (status != OS_EOK) {
                 goto rollback;
@@ -892,11 +888,11 @@ __BusAttachGroup(
         }
     }
 
-    // All callbacks are ready. Record the attachment before returning messages
-    // that the bus will use to program hardware. Later driver binds take
-    // their completion pointers from this group, including after an unbind.
+    // Record the attachment before returning messages for the bus to program.
+    // InterruptGroupBind takes its bus callback from this group each time,
+    // including when the driver binds again after an unbind.
     for (i = 0; i < group->Count; i++) {
-        group->Vectors[i].CompletionHandle = request->Vectors[i].Completion;
+        group->Vectors[i].BusHandlerHandle = request->Vectors[i].Completion;
     }
 
     group->Bus.BusID = InterruptCurrentOwner();
@@ -914,12 +910,12 @@ messages:
     return OS_EOK;
 
 rollback:
-    // The failing element acquired nothing. Undo only earlier successful uses;
-    // no bus identity has been recorded, so a fresh attachment can retry.
+    // The failed call added no reference. Release the references from earlier
+    // vectors. No bus has been recorded yet, so attachment can be retried.
     while (i != 0) {
         i--;
-        InterruptCompletionPut(group->Vectors[i].Completion);
-        group->Vectors[i].Completion = NULL;
+        InterruptBusHandlerPut(group->Vectors[i].BusHandler);
+        group->Vectors[i].BusHandler = NULL;
     }
     return status;
 }
@@ -949,8 +945,8 @@ __BusCloseGroup(
     group->Bus.Closed = 1;
     
     for (i = 0; i < group->Count; i++) {
-        InterruptCompletionPut(group->Vectors[i].Completion);
-        group->Vectors[i].Completion = NULL;
+        InterruptBusHandlerPut(group->Vectors[i].BusHandler);
+        group->Vectors[i].BusHandler = NULL;
     }
     return OS_EOK;
 }
@@ -978,11 +974,10 @@ __BeginBusGroup(
         return status;
     }
     
-    // Principal is the driver's process identity, obtained by the bus from
-    // the message transport's verified sender information. Compare it with the
-    // recorded owner: knowing a group handle alone does not authorize attachment.
-    // Only message or explicitly validated native fixed groups can attach. Once attached,
-    // both the calling bus and its device identity must continue to match.
+    // The bus must get Principal from the message transport's verified sender.
+    // It must match the process that created the group. Attachment supports
+    // message interrupts and validated native fixed lines. After attachment,
+    // the calling bus and device must also match the recorded IDs.
     if (group->KernelHandlers || group->Owner != principal) {
         status = OS_EPERMISSIONS;
     } else if (group->Kind == InterruptSourceLine) {
@@ -1043,8 +1038,8 @@ InterruptGroupBusStatus(
         return status;
     }
 
-    // This is a current-state check, not a reservation of that state. The driver
-    // can disable again after __EndGroup allows other operations to proceed.
+    // This checks the current state. The driver can disable the group again
+    // after __EndGroup allows other operations to proceed.
     status = !group->Bus.Closed && group->Bus.BusID != UUID_INVALID &&
         atomic_load(&group->Enabled) ? OS_EOK : OS_EBUSY;
     __EndGroup(group);

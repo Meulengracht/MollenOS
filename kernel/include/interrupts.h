@@ -26,38 +26,38 @@
 #include <os/context.h>
 
 /**
- * One reserved interrupt and the state used to run or remove its handler.
+ * @brief A reserved interrupt and the state used to run or remove its handler.
  * Several entries can share a hardware line. Group entries also hold the
- * provider callback and point to the group's shared enable flag.
+ * bus callback and point to the group's shared enable flag.
  */
 typedef struct SystemInterrupt {
     uuid_t                   Id;
     uuid_t                   Owner;
     uuid_t                   Thread;
     InterruptResourceTable_t KernelResources;
-    // The group owns the callback reference. This entry borrows the pointer;
-    // unbind clears it after any running callback finishes.
-    struct InterruptCompletion* Completion;
-    InterruptHandler_t       Handler;
-    void*                    Context;
-    unsigned int             Flags;
-    InterruptControllerResource_t Routing;
+    // The group holds the callback reference. Unbind clears this pointer after
+    // any running callback finishes.
+    struct InterruptBusHandler*      BusHandler;
+    InterruptHandler_t               Handler;
+    void*                            Context;
+    unsigned int                     Flags;
+    InterruptControllerResource_t    Routing;
     // A disabled entry can stay reserved to absorb late messages. Remember a
     // successful controller release so a retry does not release it twice.
-    int                      ControllerReleased;
+    int                              ControllerReleased;
     // Disabled entries stay in the table. Dispatch checks Enabled before reading
     // the handler, which lets other entries on a shared line keep running.
-    _Atomic(int)             Enabled;
+    _Atomic(int)                     Enabled;
     // Shared group enable flag, or NULL for a standalone kernel interrupt.
-    _Atomic(int)*            GroupEnabled;
-    int                      Bound;
-    // Cleanup may leave some mappings behind. Never enable this handler then.
-    int                      Unbinding;
+    _Atomic(int)*                    GroupEnabled;
+    int                              Bound;
+    // If cleanup leaves mappings behind, it must finish before enabling the handler.
+    int                              Unbinding;
     // Allows one update while the table lock is released to map resources or
     // wait for handlers. References keeps the entry alive during that time.
-    int                      Updating;
+    int                              Updating;
     // InterruptGet() references keep a removed entry alive until callers release it.
-    _Atomic(unsigned int)    References;
+    _Atomic(unsigned int)            References;
     // The interrupt path reads Link without the table lock. Keep it valid until
     // every table walk that could have seen it has finished.
     _Atomic(struct SystemInterrupt*) Link;
@@ -71,7 +71,8 @@ KERNELAPI void KERNELABI InitializeInterruptTable(void);
 KERNELAPI void KERNELABI InitializeInterruptHandlers(void);
 
 /**
- * Retrieves the system fast interrupt resource table to pass to process interrupt handlers.
+ * @brief Get the system function table passed to process interrupt handlers.
+ *
  * @return A pointer to the system interrupt function table.
  */
 KERNELAPI InterruptFunctionTable_t* KERNELABI
@@ -79,7 +80,6 @@ GetFastInterruptTable(void);
 
 /**
  * @brief Reserve an interrupt without enabling it.
- * This claims the requested interrupt for a handler.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptReserve(
@@ -122,11 +122,13 @@ InterruptReserveMessage(
     _Out_ InterruptMessage_t* messageOut);
 
 /**
- * @brief Release a reservation or keep its message slot reserved after removing the handler.
+ * @brief Remove the handler and release or retire its reservation.
+ * Stop the device from sending messages before calling this function.
+ *
  * @param id Reservation ID.
  * @param retire Nonzero keeps the disabled message slot reserved until reboot.
- * @return OS_EOK or an error. On failure, ownership stays in place for retry.
- * Stop the device from sending messages before calling this function.
+ * @return OS_EOK or an error. On failure, the reservation stays with the caller
+ *         so cleanup can be retried.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptRelease(
@@ -165,9 +167,9 @@ InterruptBind(
 
 /**
  * @brief Enable or disable a reserved interrupt.
+ * Must be called outside an interrupt handler.
  * Disabling waits for any running handlers to finish. A shared interrupt stays
- * enabled while at least one handler still needs it. Do not call from an
- * interrupt handler.
+ * enabled while at least one handler still needs it.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptSetEnabled(
@@ -177,83 +179,91 @@ InterruptSetEnabled(
 /**
  * @brief Remove a handler's resource mappings but keep its interrupt reserved.
  * A driver can then change its setup without giving up the interrupt. If
- * cleanup fails, retry Unbind before enabling the interrupt or binding another handler.
+ * cleanup fails, retry InterruptUnbind before enabling the interrupt or binding
+ * another handler.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptUnbind(
     _In_ uuid_t id);
 
-/* InterruptRegister
- * Tries to allocate the given interrupt source by the given descriptor and flags. On success
- * it returns the id of the irq, and on failure it returns UUID_INVALID */
+/**
+ * @brief Register an interrupt using the given descriptor and flags.
+ *
+ * @return Interrupt ID on success, or UUID_INVALID on failure.
+ */
 KERNELAPI uuid_t KERNELABI
 InterruptRegister(
     _In_ InterruptDescriptor_t* deviceInterrupt,
     _In_ unsigned int           flags);
 
-/* InterruptUnregister 
- * Unregisters the interrupt from the system and removes any resources that was associated 
- * with that interrupt also masks the interrupt if it was the only user */
+/**
+ * @brief Remove an interrupt and its resources.
+ * Masks the interrupt if no other handlers use it.
+ */
 KERNELAPI oserr_t KERNELABI
 InterruptUnregister(
         _In_ uuid_t Source);
 
 /**
- * @brief Acquires a reference to the system interrupt described
- * by its id. Use Put to release the reference.
+ * @brief Get a reference to an interrupt by ID.
+ * Call InterruptPut to release the reference.
  */
 KERNELAPI SystemInterrupt_t* KERNELABI
 InterruptGet(
     _In_ uuid_t Source);
 
-/* InterruptPut
- * Releases a reference acquired by InterruptGet(). */
+/**
+ * @brief Release a reference returned by InterruptGet.
+ */
 KERNELAPI void KERNELABI
 InterruptPut(
     _In_ SystemInterrupt_t* Interrupt);
 
-/* InterruptSetActiveStatus
- * Set's the current status for the calling cpu to interrupt-active state */
+/**
+ * @brief Set the interrupt-active state for the calling CPU.
+ */
 KERNELAPI void KERNELABI
 InterruptSetActiveStatus(
     _In_ int Active);
 
-/* InterruptGetActiveStatus
- * Get's the current status for the calling cpu to interrupt-active state */
+/**
+ * @brief Get the interrupt-active state for the calling CPU.
+ */
 KERNELAPI int KERNELABI
 InterruptGetActiveStatus(void);
 
-/* InterruptHandle
- * Handles an interrupt by invoking the registered handlers on the given table-index. */
+/**
+ * @brief Run the interrupt handlers registered at the given table index.
+ */
 KERNELAPI Context_t* KERNELABI
 InterruptHandle(
     _In_  Context_t* context,
     _In_  int        tableIndex);
 
 /**
- * @brief Handles a interrupt directly without entering CPU interrupt context. Useful
- * for some specific interrupt controllers.
+ * @brief Run interrupt handlers directly without entering CPU interrupt context.
  */
 KERNELAPI void KERNELABI
 InterruptHandleDirect(
     _In_ uint32_t tableIndex);
 
-/* InterruptIncreasePenalty 
- * Increases the penalty for an interrupt source. This affects how the system allocates
- * interrupts when load balancing */
+/**
+ * @brief Increase the source penalty used when balancing interrupt allocations.
+ */
 KERNELAPI oserr_t KERNELABI
 InterruptIncreasePenalty(
     _In_ int Source);
 
-/* InterruptDecreasePenalty 
- * Decreases the penalty for an interrupt source. This affects how the system allocates
- * interrupts when load balancing */
+/**
+ * @brief Decrease the source penalty used when balancing interrupt allocations.
+ */
 KERNELAPI oserr_t KERNELABI
 InterruptDecreasePenalty(
     _In_ int Source);
 
 /**
- * Retrieves the penalty for an interrupt source.
+ * @brief Get the penalty for an interrupt source.
+ *
  * @param Source
  * @return If INTERRUPT_NONE is returned the source is unavailable.
  */
@@ -262,7 +272,8 @@ InterruptGetPenalty(
     _In_ int Source);
 
 /**
- * Out of the requested interrupt vectors, the least loaded interrupt vector is returned.
+ * @brief Select the least loaded vector from the given interrupt vectors.
+ *
  * @param interruptVectors Available interrupt vectors to select.
  * @param count            Number of interrupt vectors.
  * @return                 The least loaded interrupt vector.
@@ -273,10 +284,11 @@ InterruptGetLeastLoaded(
     _In_ int count);
 
 /**
- * Returns whether or not the polarity is Active Low or Active High.
+ * @brief Get the interrupt polarity from the ACPI flags.
+ *
  * @param intiFlags
  * @param source
- * @return  For Active Low = 1, Active High = 0
+ * @return 1 for active low, or 0 for active high.
  */
 KERNELAPI int KERNELABI
 AcpiGetPolarityMode(
@@ -284,10 +296,11 @@ AcpiGetPolarityMode(
     _In_ int      source);
 
 /**
- * Returns whether or not the trigger mode of the interrup is level or edge.
+ * @brief Get the interrupt trigger mode from the ACPI flags.
+ *
  * @param intiFlags
  * @param source
- * @return For Level = 1, Edge = 0
+ * @return 1 for level-triggered, or 0 for edge-triggered.
  */
 KERNELAPI int KERNELABI
 AcpiGetTriggerMode(
@@ -295,7 +308,8 @@ AcpiGetTriggerMode(
     _In_ int      source);
 
 /**
- * Converts acpi interrupt flags to the system interrupt conform flags.
+ * @brief Convert ACPI interrupt flags to system interrupt conform flags.
+ *
  * @param intiFlags
  * @param source
  * @return
@@ -306,7 +320,8 @@ ConvertAcpiFlagsToConformFlags(
     _In_ int      source);
 
 /**
- * Derives an interrupt by extracting routings from the bus of the device
+ * @brief Get the device interrupt from its bus routing.
+ *
  * @param bus
  * @param device
  * @param pciPin

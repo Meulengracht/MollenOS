@@ -15,66 +15,65 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ddk/interrupts/provider.h>
+#include <ddk/interrupts/bus.h>
 #include <internal/_syscalls.h>
 
 oserr_t
-DeviceInterruptCompletionCreate(
+DeviceInterruptBusHandlerCreate(
     _Out_ uuid_t* handleOut)
 {
-    // Keep creation separate from binding so a mapping failure still leaves the
-    // provider with a handle it can release. The kernel writes the result directly.
-    return Syscall_InterruptCompletionCreate(handleOut);
+    // Create the handle before binding so the bus can retry cleanup if mapping
+    // fails. The kernel writes the handle directly to the caller's buffer.
+    return Syscall_InterruptBusHandlerCreate(handleOut);
 }
 
 oserr_t
-DeviceInterruptCompletionBind(
+DeviceInterruptBusHandlerBind(
     _In_ uuid_t                          handle,
     _In_ const InterruptResourceTable_t* resources)
 {
     // The kernel copies and validates this description before mapping resources.
-    // Return its error unchanged so the provider knows whether cleanup is needed.
-    return Syscall_InterruptCompletionBind(handle, resources);
+    // Return its error unchanged so the bus can handle any required cleanup.
+    return Syscall_InterruptBusHandlerBind(handle, resources);
 }
 
 oserr_t
-DeviceInterruptCompletionRelease(
+DeviceInterruptBusHandlerRelease(
     _In_ uuid_t handle)
 {
-    // Only the kernel knows whether any group still uses this callback. Do not
-    // hide a busy result or a cleanup failure: the provider must retain the handle.
-    return Syscall_InterruptCompletionRelease(handle);
+    // The kernel checks whether any group still uses this callback. If release
+    // fails, the bus must keep the handle and retry.
+    return Syscall_InterruptBusHandlerRelease(handle);
 }
 
 oserr_t
-DeviceInterruptProviderAttach(
+DeviceInterruptBusAttach(
     _In_ const InterruptBusAttachRequest_t* request)
 {
-    // Forward the whole group in one call so attachment cannot stop halfway
-    // through the vector list. A failed result copy may still leave it attached;
-    // the API lets the provider retry the same request to retrieve its messages.
+    // Attach all vectors in one call. If copying the result fails after
+    // attachment, the bus can retry the same request to get the messages.
     return Syscall_InterruptBusAttach(request);
 }
 
 oserr_t
-DeviceInterruptProviderCheckEnabled(
+DeviceInterruptBusStatus(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device)
 {
-    // Ask the kernel instead of caching the state here: the device driver can
-    // enable or disable its group independently of the provider.
+    // Read the state from the kernel each time. The driver can enable or disable
+    // its group without going through the bus.
     return Syscall_InterruptBusStatus(handle, principal, device);
 }
 
 oserr_t
-DeviceInterruptProviderClose(
+DeviceInterruptBusClose(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device)
 {
-    // Closing drops this group's uses of the callbacks. Their handles remain
-    // owned by the provider, which may have attached them to other groups too.
+    // Closing drops this group's callback references. The bus keeps the handles,
+    // as other groups may still use the callbacks.
     return Syscall_InterruptBusClose(handle, principal, device);
 }
 
@@ -82,8 +81,8 @@ oserr_t
 DeviceInterruptReap(
     _In_ uuid_t handle)
 {
-    // The kernel checks that the owning process has died before removing its
-    // allocation. A missing reply from the driver alone is not enough evidence.
+    // The driver process must have exited before the kernel removes its
+    // allocation. A missing reply alone does not allow cleanup.
     return Syscall_InterruptReap(handle);
 }
 
@@ -92,7 +91,7 @@ DeviceInterruptMessageControllerResolve(
     _In_  const InterruptMessageControllerIdentity_t* query,
     _Out_ uuid_t*                                     idOut)
 {
-    // The kernel owns discovery and lifetime; resolving never creates a domain.
+    // Look up a controller discovered by the kernel. This creates no domain.
     return Syscall_InterruptMessageControllerResolve(query, idOut);
 }
 

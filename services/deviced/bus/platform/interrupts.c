@@ -18,7 +18,7 @@
 
 #include <ddk/types/interrupt-controller.h>
 #include <ddk/types/interrupt-source.h>
-#include <ddk/interrupts/provider.h>
+#include <ddk/interrupts/bus.h>
 #include <ddk/utils.h>
 #include <string.h>
 
@@ -82,8 +82,9 @@ PlatformInterruptQuery(
         return OS_ENOTSUPPORTED;
     }
 
-    // Return one selected source. Querying must not activate or reserve it,
-    // and failure leaves the caller's request untouched.
+    // Query the selected source without enabling or reserving it. Write the
+    // result only after all checks succeed, so a failed query leaves the
+    // request intact.
     result.Index = query->Index;
     result.Kind = InterruptSourceFixedLine;
 
@@ -186,7 +187,7 @@ __PlatformInterruptReserve(
         attach.LineFlags |= INTERRUPT_ACPICONFORM_TRIGGERMODE;
     }
 
-    status = DeviceInterruptProviderAttach(&attach);
+    status = DeviceInterruptBusAttach(&attach);
     if (status != OS_EOK) {
         ERROR("__PlatformInterruptReserve: device %u source %u allocation %u controller %u line %u attachment failed (%u)",
               entry->DeviceId, request->Index, request->Allocation,
@@ -198,11 +199,10 @@ __PlatformInterruptReserve(
             return status;
         }
 
-        // If copying the reply fails, the kernel may already have attached the
-        // line. Close the allocation before leaving its lease empty. If cleanup
-        // cannot confirm the line is detached, keep the allocation ID so device
-        // stop and removal remain blocked.
-        cleanup = DeviceInterruptProviderClose(request->Allocation, principal, entry->DeviceId);
+        // The line may already be attached if copying the reply failed. Close
+        // the allocation before leaving the lease empty. If cleanup is still
+        // needed, keep the allocation ID to block device stop and removal.
+        cleanup = DeviceInterruptBusClose(request->Allocation, principal, entry->DeviceId);
         if (cleanup != OS_EOK && cleanup != OS_ENOENT && cleanup != OS_EPERMISSIONS &&
             cleanup != OS_ENOTSUPPORTED) {
             ERROR("__PlatformInterruptReserve: device %u source %u allocation %u close failed; lease kept (%u)",
@@ -284,9 +284,8 @@ PlatformInterruptControl(
     }
 
     if (request->Operation == DeviceInterruptSourceDisable) {
-        // The DDK disables and unbinds the kernel line synchronously after
-        // this call. Direct GIC shared interrupts need no further controller
-        // masking in deviced.
+        // After this call, the DDK disables the line and waits for unbinding
+        // to finish. Direct GIC shared interrupts need no extra masking here.
         return OS_EOK;
     }
 
@@ -297,7 +296,7 @@ PlatformInterruptControl(
             return OS_ENOENT;
         }
 
-        status = DeviceInterruptProviderCheckEnabled(
+        status = DeviceInterruptBusStatus(
             request->Allocation,
             principal,
             entry->DeviceId
@@ -310,7 +309,7 @@ PlatformInterruptControl(
         return OS_EOK;
     }
 
-    status = DeviceInterruptProviderClose(request->Allocation, principal, entry->DeviceId);
+    status = DeviceInterruptBusClose(request->Allocation, principal, entry->DeviceId);
     if (status == OS_ENOENT) {
         TRACE("PlatformInterruptControl: device %u allocation %u is already closed",
               entry->DeviceId, request->Allocation);
@@ -329,9 +328,10 @@ PlatformInterruptControl(
                   entry->DeviceId, i, request->Allocation, status);
             return status;
         }
-        // OS_EBUSY can occur before owner and allocation-kind checks during
-        // attachment and cleanup. These later errors confirm that the pending
-        // lease never attached. An attached lease requires a successful close.
+        // Attachment and cleanup may return OS_EBUSY before checking the process
+        // and allocation kind. OS_EPERMISSIONS and OS_ENOTSUPPORTED confirm that
+        // the pending lease never attached. An attached lease must be closed
+        // successfully before clearing it.
         TRACE("PlatformInterruptControl: allocation %u pending attachment rejected: %u; lease released",
               request->Allocation, status);
         status = OS_EOK;

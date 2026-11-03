@@ -23,7 +23,7 @@
 #define __MODULE "SCIF"
 //#define __TRACE
 
-// this header must appear before the DDK's standalone ACPI subset to 
+// This header must appear before the DDK's standalone ACPI subset to
 // avoid conflicting platform macros.
 #include <acpiinterface.h>
 
@@ -103,8 +103,8 @@ ScInterruptLineSourceResolve(
         return status;
     }
 
-    // Resolve a stable copy: userspace cannot change the firmware controller
-    // or line halfway through validation. No source is reserved by this call.
+    // Copy the query before validation so userspace cannot change the firmware
+    // controller or line while we check it. This call reserves no source.
     status = MemorySpaceCopyUser((void*)userQuery, &query, sizeof(query), false);
     if (status != OS_EOK) {
         return status;
@@ -115,8 +115,8 @@ ScInterruptLineSourceResolve(
         return status;
     }
 
-    // Copyout failure has no ownership to roll back, so the bus can retry
-    // the identical query without creating a second controller or lease.
+    // This query allocates no resources. If copying the result fails, the bus
+    // can retry the same query without cleanup.
     return MemorySpaceCopyUser(userController, &controller, sizeof(controller), true);
 }
 
@@ -248,8 +248,8 @@ ScFirmwareTableMap(
         return oserr;
     }
 
-    // Firmware data shares pages with unrelated kernel or firmware memory, so the
-    // caller receives private zeroed pages holding a copy rather than an alias.
+    // Firmware pages can contain unrelated kernel or firmware data. Copy the
+    // table into zeroed pages so the caller can only read the requested data.
     pages = kmalloc(sizeof(paddr_t) * DIVUP(table.Length, GetMemorySpacePageSize()));
     if (pages == NULL) {
         return OS_EOOM;
@@ -457,8 +457,8 @@ __CopyAndVerifyGroupRequest(
         return OS_EINVALPARAMS;
     }
 
-    // Policy has already selected a resource kind. The kernel still validates
-    // the source and ownership; selecting a controller grants no device access.
+    // The caller has already selected the resource kind. The kernel must still
+    // check the source and device access before allocating interrupts.
     if (kernelRequest->Kind != InterruptSourceMessage && kernelRequest->Line.Line < 0) {
         return OS_ENOENT;
     }
@@ -500,8 +500,7 @@ ScInterruptAllocate(
         true
     );
     if (oserr != OS_EOK) {
-        // Just unregister if it fails, no resources has been bound to
-        // the irq yet
+        // No resources have been bound yet, so we can release the group here.
         InterruptGroupRelease(result.Handle);
     }
     return oserr;
@@ -561,8 +560,7 @@ ScInterruptBind(
         return oserr;
     }
 
-    // Before binding resources to an interrupt handle
-    // ensure we can do this
+    // The interrupt group must belong to the caller before we bind resources.
     oserr = __CheckInterruptOwner(handle);
     if (oserr != OS_EOK) {
         return oserr;
@@ -571,7 +569,6 @@ ScInterruptBind(
         return OS_EINVALPARAMS;
     }
 
-    // get the request data
     oserr = MemorySpaceCopyUser(
         userRequest,
         &request,
@@ -581,7 +578,6 @@ ScInterruptBind(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    // execute the request
     return InterruptGroupBind(handle, request.Index, &request.Resources);
 }
 
@@ -596,7 +592,7 @@ ScInterruptEnable(
         return oserr;
     }
 
-    // Ownership check before enabling an interrupt
+    // The interrupt group must belong to the caller.
     oserr = __CheckInterruptOwner(handle);
     if (oserr != OS_EOK) {
         return oserr;
@@ -615,13 +611,13 @@ ScInterruptDisable(
         return oserr;
     }
 
-    // Ownership check before disabling an interrupt
+    // The interrupt group must belong to the caller.
     oserr = __CheckInterruptOwner(handle);
     if (oserr != OS_EOK) {
         return oserr;
     }
-    // The driver lifecycle always unmaps after stopping dispatch. Keep these
-    // steps under one group update so failures retain one retry obligation.
+    // Stop dispatch before unmapping resources. Keep both steps in one group
+    // update so the caller can retry the disable call if cleanup fails.
     return InterruptGroupDisable(handle);
 }
 
@@ -636,7 +632,7 @@ ScInterruptRelease(
         return oserr;
     }
 
-    // Ownership check before we release the irq reservation
+    // The interrupt group must belong to the caller before we release it.
     oserr = __CheckInterruptOwner(handle);
     if (oserr != OS_EOK) {
         return oserr;
@@ -661,8 +657,8 @@ ScInterruptReap(
 {
     oserr_t status;
 
-    // This operation cleans up another process's group. Require bus-management
-    // permission as well as interrupt access; the core also checks owner death.
+    // Cleaning up another process's group requires bus-management and interrupt
+    // permissions. The core also checks that the process has exited.
     status = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
     if (status != OS_EOK) {
         return status;
@@ -709,10 +705,9 @@ __VerifyInterruptPrivileges(void)
 {
     oserr_t status;
 
-    // A completion runs inside the kernel, just like a device's fast handler.
-    // A bus also acts on behalf of another process, so interrupt permission
-    // alone is insufficient: it must be trusted to manage devices and identify
-    // the driver that sent it an attachment request.
+    // Bus handlers run in the kernel, just like device fast handlers. The bus
+    // also attaches groups for other processes, so it needs device-management
+    // permission and must identify the driver that requested the attachment.
     status = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
     if (status != OS_EOK) {
         return status;
@@ -721,7 +716,7 @@ __VerifyInterruptPrivileges(void)
 }
 
 oserr_t
-ScInterruptCompletionCreate(
+ScInterruptBusHandlerCreate(
     _Out_ uuid_t* userHandle)
 {
     uuid_t  handle;
@@ -736,23 +731,22 @@ ScInterruptCompletionCreate(
         return status;
     }
 
-    status = InterruptCompletionCreate(&handle);
+    status = InterruptBusHandlerCreate(&handle);
     if (status != OS_EOK) {
         return status;
     }
 
     status = MemorySpaceCopyUser(userHandle, &handle, sizeof(uuid_t), true);
     if (status != OS_EOK) {
-        // The caller did not receive its handle, so it cannot request cleanup.
-        // Creation maps no resources; we can remove this empty object without
-        // needing to unmap anything that could fail and require a later retry.
-        InterruptCompletionRelease(handle);
+        // The caller did not receive the handle, so we must release it here.
+        // No resources have been mapped yet. Cleanup cannot fail on an unmap.
+        InterruptBusHandlerRelease(handle);
     }
     return status;
 }
 
 oserr_t
-ScInterruptCompletionBind(
+ScInterruptBusHandlerBind(
     _In_ uuid_t                          handle,
     _In_ const InterruptResourceTable_t* userResources)
 {
@@ -774,10 +768,9 @@ ScInterruptCompletionBind(
         return status;
     }
 
-    // Copying the outer table copies pointers, not the I/O descriptions they
-    // point to. Copy those descriptions too and replace their pointers with our
-    // local copies. Mapping can wait while another bus thread changes its
-    // memory; validation and mapping must use the same values throughout.
+    // The table contains pointers to userspace I/O descriptions. Copy each
+    // description before validation and mapping, as mapping may wait while
+    // another bus thread changes the original data.
     for (unsigned int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (resources.IoResources[i] != NULL) {
             status = MemorySpaceCopyUser(resources.IoResources[i], &io[i], sizeof(io[i]), false);
@@ -788,11 +781,11 @@ ScInterruptCompletionBind(
         }
     }
 
-    return InterruptCompletionBind(handle, &resources);
+    return InterruptBusHandlerBind(handle, &resources);
 }
 
 oserr_t
-ScInterruptCompletionRelease(
+ScInterruptBusHandlerRelease(
     _In_ uuid_t handle)
 {
     oserr_t status;
@@ -802,9 +795,9 @@ ScInterruptCompletionRelease(
         return status;
     }
 
-    // The core checks ownership and attached groups before touching mappings.
-    // Keep its failure visible so the bus knows to keep/retry the handle.
-    return InterruptCompletionRelease(handle);
+    // The core checks that this handle belongs to the caller and has no attached
+    // groups before unmapping resources. Return errors so the bus can retry.
+    return InterruptBusHandlerRelease(handle);
 }
 
 oserr_t
@@ -838,9 +831,8 @@ ScInterruptBusAttach(
         return OS_EINVALPARAMS;
     }
 
-    // The count limit above keeps this multiplication and allocation bounded.
-    // Copy the whole array before attaching anything, so an unreadable later
-    // element cannot leave only the earlier vectors attached.
+    // Count has been checked above. Copy the entire array before attaching
+    // vectors so a failed copy cannot leave the group partly attached.
     length = request.Count * sizeof(InterruptBusVector_t);
     userVectors = request.Vectors;
     vectors = kmalloc(length);
@@ -857,14 +849,13 @@ ScInterruptBusAttach(
     request.Vectors = vectors;
     status = InterruptGroupBusAttach(&request);
     if (status == OS_EOK) {
-        // Attachment has already succeeded. Writing the returned messages into
-        // user memory can still fail, so the caller may not know the outcome.
-        // Keep the attachment: an identical retry returns the same messages
-        // without adding another use of each completion.
+        // The vectors are attached even if copying the messages back fails.
+        // The caller can retry the same request to get the messages without
+        // adding another reference to each bus handler.
         status = MemorySpaceCopyUser(userVectors, vectors, length, true);
     }
-    // The group keeps completion references and message values, never this
-    // temporary array. Free it on both success and failure.
+    // The group stores its own handler references and messages. We can free
+    // this temporary array on both success and failure.
     kfree(vectors);
     return status;
 }
@@ -882,8 +873,8 @@ ScInterruptBusStatus(
         return status;
     }
 
-    // The supplied driver identity must match the group's recorded owner. The
-    // bus is a different process, so checking only the caller would be wrong.
+    // The supplied driver identity must match the process that created the
+    // group. The bus calls on that process's behalf.
     return InterruptGroupBusStatus(handle, principal, device);
 }
 
@@ -900,7 +891,7 @@ ScInterruptBusClose(
         return status;
     }
 
-    // This records closure in the kernel. Stopping the actual device's interrupt
-    // writes is the bus's responsibility and must happen before this call.
+    // The bus must stop the device's interrupt writes before this call.
+    // This only records in the kernel that the bus has closed the group.
     return InterruptGroupBusClose(handle, principal, device);
 }

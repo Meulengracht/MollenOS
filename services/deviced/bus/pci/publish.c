@@ -30,7 +30,7 @@
 #include <device-bus.h>
 #include <firmware/pci.h>
 #include <ddk/devices/bus.h>
-#include <ddk/interrupts/provider.h>
+#include <ddk/interrupts/bus.h>
 #include <ddk/types/interrupt-controller.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -76,7 +76,7 @@ __PciAddLegacyIdePorts(
     _In_    const PciDevice_t* pciDevice,
     _InOut_ BusDevice_t*       device)
 {
-    // Fixed ports are only meaningful on hosts that expose port I/O directly.
+    // The host must expose port I/O directly to use fixed addresses.
     if (pciDevice->Host->IoResourcePolicy != PciIoResourcePorts) {
         return;
     }
@@ -163,8 +163,8 @@ __PublishPciDevice(
     }
 
     if (PciDeviceAllowsDriverBinding(pciDevice)) {
-        // Only devices eligible for generic drivers expose BAR mappings; bridge
-        // and handler-owned resources are managed through their own paths.
+        // Expose BAR mappings for devices that can bind generic drivers.
+        // Bridges and devices with bus handlers manage their resources separately.
         PciRegisterBars(pciDevice->Host, device, pciDevice->Resources.Bars);
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
@@ -172,8 +172,8 @@ __PublishPciDevice(
 #endif
     }
 
-    // The PCI inventory owns I/O handles even if registry insertion fails.
-    // Host rollback can then retry destruction before freeing their storage.
+    // Keep the I/O handles in the PCI inventory if registration fails, so host
+    // cleanup can retry releasing them before freeing the PCI inventory entry.
     memcpy(pciDevice->PublishedIo, device->IoSpaces, sizeof(pciDevice->PublishedIo));
     registration.Description = &device->Base;
     status = DmPublicationAdd(
@@ -183,8 +183,8 @@ __PublishPciDevice(
         &pciDevice->DeviceId
     );
 
-    // Only the description transfers to the registry. I/O cleanup belongs to
-    // host rollback for both registered and unregistered descriptions.
+    // The registry frees registered descriptions. Host cleanup releases I/O
+    // handles even when registration fails.
     if (status != OS_EOK) {
         ERROR("__PublishPciDevice: DmPublicationAdd failed for %u:%u:%u.%u (%u)",
             pciDevice->Host->Identification.Segment,
@@ -231,7 +231,7 @@ __PublishPciRoot(
         &root->DeviceId
     );
 
-    // The registry takes ownership only after the group accepts this entry.
+    // If the group rejects this entry, we must free its description here.
     if (status != OS_EOK) {
         ERROR("__PublishPciRoot: DmPublicationAdd failed for host %u segment %u (%u)",
             root->Host->Identification.HostId, root->Host->Identification.Segment, status);
@@ -469,7 +469,7 @@ PciUnpublishDevice(
         return status;
     }
 
-    // Registry removal alone does not complete PCI publication cleanup.
+    // Both the registry entries and I/O handles have been removed.
     publication->CleanupPending = 0;
     device->Host->StartupFailure = OS_EOK;
     return OS_EOK;
@@ -528,7 +528,7 @@ PciPublishDevice(
     // description fails, remove the partial group. Hardware preparation failures
     // leave the descriptions registered so a retry can use the same IDs.
     if (group->State == DmPublicationCollecting) {
-        // Complete child inventories before fixing the publication group's membership.
+        // Finish attaching children before adding their descriptions to the group.
         status = __PciRetryAttachments(device);
         if (status != OS_EOK) {
             __DmStartupFromStatus(status, result);
@@ -537,7 +537,7 @@ PciPublishDevice(
         status = __PciStagePublication(device);
         if (status != OS_EOK) {
             // Removal preparation may fail before DmPublicationRemove runs.
-            // Remember rollback so a retry cannot append to the partial tree.
+            // Mark cleanup pending so a retry removes the partial tree first.
             publication->CleanupPending = 1;
             cleanup = PciUnpublishDevice(device);
             if (cleanup != OS_EOK) {

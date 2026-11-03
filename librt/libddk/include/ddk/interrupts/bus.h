@@ -15,35 +15,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DDK_INTERRUPT_PROVIDER_INTERFACE_H__
-#define __DDK_INTERRUPT_PROVIDER_INTERFACE_H__
+#ifndef __DDK_INTERRUPT_BUS_H__
+#define __DDK_INTERRUPT_BUS_H__
 
 #include <ddk/types/interrupt-bus.h>
 
-// Attachment, completion and reap operations require INTERRUPT_CONTROL and
-// DEVICEIO_MANAGEMENT. Read-only controller/source resolution requires only
-// INTERRUPT_CONTROL. These operations run outside interrupt context and are for
-// bus providers, not ordinary device
-// drivers. The provider configures interrupt delivery and can supply a callback
-// to acknowledge upstream hardware after the device handler runs. The kernel
-// links that callback when the driver binds its handler and invokes it after
-// the device handler runs, so the driver API stays the same.
+// Bus operations must run outside interrupt context. Attaching groups, managing
+// bus handlers and reaping groups require INTERRUPT_CONTROL and
+// DEVICEIO_MANAGEMENT. Resolving controllers and sources requires only
+// INTERRUPT_CONTROL.
+//
+// The bus configures interrupt delivery and can supply a callback to acknowledge
+// upstream hardware. The kernel links it when the driver binds its handler and
+// calls it after the device handler returns. Device drivers use the same API
+// whether or not the bus needs a callback.
 //
 // Before enabling hardware delivery, create and bind the callbacks, attach them
 // to the driver's group, then wait for the driver to bind and enable its handlers.
 // During shutdown, block hardware delivery first. Then disable and unbind the
-// handlers and close the attachment. The driver can release its group after
-// that. Release each callback when no group uses it.
+// handlers and close the attachment before the driver releases its group.
+// Release each callback when no group uses it.
 
 _CODE_BEGIN
 
 /**
- * @brief Resolve a boot-lifetime message allocator without reserving vectors.
- * The ID is a routing selector, not authorization to access a device. No
- * completion, hardware programming or allocation ownership is created.
+ * @brief Find the message controller for a firmware identity.
+ * The controller ID stays valid until reboot and selects the interrupt route.
+ * Device access is checked separately. This call reserves no vectors, creates
+ * no bus handler and leaves the hardware unchanged.
  *
  * @param query Platform or PCI host firmware identity.
- * @param idOut Controller ID, unchanged on failure; no close operation needed.
+ * @param idOut Controller ID, unchanged on failure. No close operation is needed.
  * @return OS_EOK, OS_ENOTSUPPORTED or a permission/validation error.
  */
 DDKDECL(oserr_t,
@@ -53,10 +55,11 @@ DeviceInterruptMessageControllerResolve(
 
 /**
  * @brief Verify a firmware line source against the active kernel controller.
- * Resolution is read-only and requires INTERRUPT_CONTROL. The returned ID is
- * a controller selector, not device authorization or an activation lease.
- * Current native fixed sources are ARM GIC SPIs; unsupported architectures or
- * mismatched controller/line identities are rejected without a fallback route.
+ * Requires INTERRUPT_CONTROL. The returned ID selects the controller. Device
+ * access is checked separately, and this call leaves the source unchanged.
+ * Only ARM GIC SPIs are currently supported. If the architecture is unsupported
+ * or the controller and line do not match, the call fails without choosing
+ * another route.
  *
  * @param query DT controller phandle and fixed interrupt number.
  * @param idOut Kernel controller ID, unchanged on failure.
@@ -69,86 +72,87 @@ DeviceInterruptLineSourceResolve(
 
 
 /**
- * @brief Create an empty completion for the calling provider process.
+ * @brief Create an empty bus handler for the calling process.
  *
- * Create the handle before binding. If mapping fails, the provider can still
- * retry cleanup through that handle. This does not reserve an interrupt.
- * The handle belongs to the provider process, not a worker thread; subsequent
- * operations may run on another thread in the same process. Keep the handle
- * until CompletionRelease succeeds. CompletionCreate itself installs no mapping.
+ * Create the handle before binding so the bus can retry cleanup if mapping
+ * fails. Creation reserves no interrupt and maps no resources. Any thread in
+ * the bus process can use the handle. Keep it until
+ * DeviceInterruptBusHandlerRelease succeeds.
  *
- * @param handleOut Receives the completion handle on success.
+ * @param handleOut Receives the bus handler handle on success.
  * @return OS_EOK on success, or a permission, allocation or copy error.
  */
 DDKDECL(oserr_t,
-DeviceInterruptCompletionCreate(
+DeviceInterruptBusHandlerCreate(
     _Out_ uuid_t* handleOut));
 
 /**
- * @brief Bind a fast callback and its resources to an empty completion.
+ * @brief Bind a fast callback and its resources to an empty bus handler.
  *
- * Binding does not attach any group or enable delivery. The provider retains
- * its backing code, resources and handle through all group attachments and
- * until CompletionRelease succeeds. The callback runs after the device handler
- * even when that handler reports no work; its return value is ignored.
+ * Keep the callback code, resources and handle valid until
+ * DeviceInterruptBusHandlerRelease succeeds. Binding does not attach a group
+ * or enable interrupt delivery. Once attached, the callback runs
+ * after the device handler, even when that handler reports no work. Its return
+ * value is ignored.
  *
- * @param handle Completion handle owned by the caller.
- * @param resources Callback and resources in the provider's address space. The
+ * @param handle Bus handler handle created by the calling process.
+ * @param resources Callback and resources in the bus process's address space. The
  *        callback runs in the kernel, so it can use only these mapped resources
  *        and the supplied function table. It may run on several CPUs at once.
  *        Protect shared data without waiting for a normal thread to run.
- * @return OS_EOK on success, or a validation, ownership or mapping error.
- *         If binding fails, keep the handle and call Release until cleanup
- *         succeeds. Binding alone does not attach the callback to a vector.
+ * @return OS_EOK on success, or a validation, permission or mapping error.
+ *         If binding fails, keep the handle and call
+ *         DeviceInterruptBusHandlerRelease until cleanup succeeds.
  */
 DDKDECL(oserr_t,
-DeviceInterruptCompletionBind(
+DeviceInterruptBusHandlerBind(
     _In_ uuid_t                          handle,
     _In_ const InterruptResourceTable_t* resources));
 
 /**
- * @brief Release a completion that is not attached to a group.
- * Any attached group reference prevents release, including while that group
- * is disabled. Close or reap the groups first; releasing a completion does not
- * close groups or stop device hardware on the provider's behalf.
+ * @brief Release a bus handler that is not attached to a group.
+ * Close or reap all attached groups first, including disabled groups.
+ * Releasing the callback does not close groups or stop the device hardware.
  *
- * @param handle Completion handle owned by the caller.
+ * @param handle Bus handler handle created by the calling process.
  * @return OS_EOK on release, OS_EBUSY while attached or updating, OS_ENOENT if
  *         absent, or a permission or cleanup error. Keep the handle and retry
  *         if cleanup fails.
  */
 DDKDECL(oserr_t,
-DeviceInterruptCompletionRelease(
+DeviceInterruptBusHandlerRelease(
     _In_ uuid_t handle));
 
 /**
- * @brief Attach provider callbacks to a disabled, unbound device interrupt group.
+ * @brief Attach bus callbacks to a disabled, unbound device interrupt group.
  *
- * Each vector can have one completion, and several vectors can share one.
- * Message groups may carry callbacks. Explicitly validated native fixed-line
- * groups have one source, no callback and no message; Line/LineFlags and the
- * controller must match the allocation exactly. Legacy/manual lines are not attachable.
- * Keep the first attachment disabled and unbound. An exact retry may return its
- * existing messages after binding/enabling; it cannot replace running callbacks.
- * The kernel records this provider process and device until terminal closure.
+ * Before the first attachment, the group must be disabled and unbound. Each
+ * message vector can have one callback, and several vectors can share it.
+ * Validated native fixed-line groups have one source, no callback and no
+ * message. Line, LineFlags and the controller must match the allocation exactly.
+ * Legacy and manually configured line groups cannot be attached.
+ *
+ * An identical retry returns the existing messages even after handlers have
+ * been bound or enabled. It cannot replace their callbacks. The kernel records
+ * this bus process and device until the group is closed.
  *
  * @param request Allocation, verified driver identity, device identity,
  *        controller, and vector array. The kernel writes each chosen message
  *        address and data to the vector's Message field.
- * @return OS_EOK on attachment or an exact retry, or a validation, ownership,
+ * @return OS_EOK on attachment or an identical retry, or a validation, permission,
  *         allocation, or copy error. A copy back to user memory can fail after
  *         attachment succeeds. Retry the same request to retrieve the messages,
  *         or close the attachment before discarding it. Keep hardware delivery
  *         blocked until the driver has bound and enabled every handler.
  */
 DDKDECL(oserr_t,
-DeviceInterruptProviderAttach(
+DeviceInterruptBusAttach(
     _In_ const InterruptBusAttachRequest_t* request));
 
 /**
  * @brief Check whether an attached child group is enabled.
- * A successful result is a current-state check only. The provider must retain
- * its own serialization and device lifecycle ordering before enabling hardware.
+ * The result describes the group's state at the time of the check. The bus
+ * must still synchronize device setup and shutdown before enabling hardware.
  *
  * @param handle Allocation handle supplied by the child.
  * @param principal Driver identity verified by the message transport.
@@ -157,7 +161,7 @@ DeviceInterruptProviderAttach(
  *         This check does not prevent the child from disabling the group later.
  */
 DDKDECL(oserr_t,
-DeviceInterruptProviderCheckEnabled(
+DeviceInterruptBusStatus(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device));
@@ -166,8 +170,8 @@ DeviceInterruptProviderCheckEnabled(
  * @brief Close an attachment after blocking device interrupts and unbinding handlers.
  * Drops this group's callback references and permanently prevents new binds
  * and attachments. It does not release the group's vector reservation or the
- * provider's completion handles. Successful driver Disable includes unbinding.
- * Keep the attachment/cleanup record if closure fails and retry after cleanup.
+ * bus handler handles. A successful driver disable call also unbinds handlers.
+ * If closing fails, keep the attachment details and retry after cleanup.
  *
  * @param handle Allocation handle supplied by the child.
  * @param principal Driver identity verified by the message transport.
@@ -178,23 +182,23 @@ DeviceInterruptProviderCheckEnabled(
  *         its allocation separately.
  */
 DDKDECL(oserr_t,
-DeviceInterruptProviderClose(
+DeviceInterruptBusClose(
     _In_ uuid_t handle,
     _In_ uuid_t principal,
     _In_ uuid_t device));
 
 /**
  * @brief Clean up an interrupt allocation after its driver process dies.
- * Stop provider delivery before reaping. A cleanup error can leave a partially
- * removed group; preserve the allocation token and retry from any provider
- * worker. The kernel verifies that the owning process is no longer alive.
+ * Stop bus delivery before reaping. If cleanup leaves part of the group behind,
+ * keep the allocation handle and retry from any bus thread. The kernel checks
+ * that the process that created the group has exited.
  *
  * @param handle Allocation handle to clean up.
  * @return OS_EOK after cleanup, OS_EBUSY for a live owner or concurrent
  *         update, OS_ENOENT if absent, or a permission/retryable cleanup error.
  *         Message slots stay reserved until reboot. This keeps delayed device
  *         writes from reaching another device's handler. Reaping does not stop
- *         the device or release the provider's completions.
+ *         the device or release the bus handler handles.
  */
 DDKDECL(oserr_t,
 DeviceInterruptReap(
@@ -202,4 +206,4 @@ DeviceInterruptReap(
 
 _CODE_END
 
-#endif
+#endif //!__DDK_INTERRUPT_BUS_H__

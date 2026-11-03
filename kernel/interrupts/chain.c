@@ -14,9 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * A completion is a provider callback run after a device's interrupt handler.
- * It lets a bus provider acknowledge its own hardware without requiring the
- * device driver to know how that hardware works.
+ * Bus callbacks run after the device's interrupt handler to acknowledge the
+ * bus hardware. The device driver only needs to handle its own interrupt.
  */
 
 #include <interrupts.h>
@@ -28,14 +27,14 @@
 #include <limits.h>
 
 /**
- * Tracks one callback and the kernel mappings used to execute it. It does not
- * reserve an interrupt vector. Each attached group vector adds one to References,
- * preventing explicit release until that vector has stopped using the callback.
+ * @brief A bus callback and the kernel mappings needed to run it.
+ * Each attached group vector adds one to References. All vectors must stop
+ * using the callback before it can be released. No interrupt vector is reserved.
  * Updating blocks attachment and other changes while mapping or cleanup runs.
  * Ready becomes true only after every required mapping has succeeded.
  */
-struct InterruptCompletion {
-    struct InterruptCompletion* Next;
+struct InterruptBusHandler {
+    struct InterruptBusHandler* Next;
     uuid_t                      Handle;
     uuid_t                      Owner;
     unsigned int                References;
@@ -44,21 +43,21 @@ struct InterruptCompletion {
     InterruptResourceTable_t    Resources;
 };
 
-static Spinlock_t                  g_completionLock = OS_SPINLOCK_INIT;
-static struct InterruptCompletion* g_completions;
-static uuid_t                      g_completionGeneration;
+static Spinlock_t                  g_busHandlersLock = OS_SPINLOCK_INIT;
+static struct InterruptBusHandler* g_busHandlers;
+static uuid_t                      g_busHandlerIdGen;
 
-static struct InterruptCompletion*
+static struct InterruptBusHandler*
 __FindCompletion(
     _In_ uuid_t handle)
 {
-    struct InterruptCompletion* completion;
+    struct InterruptBusHandler* handler;
 
-    // The caller holds g_completionLock, so another thread cannot remove an
-    // object while we walk the list. Returning a pointer alone does not retain it.
-    for (completion = g_completions; completion != NULL; completion = completion->Next) {
-        if (completion->Handle == handle) {
-            return completion;
+    // The caller must hold g_busHandlersLock while walking the list.
+    // This lookup does not add a reference to the callback.
+    for (handler = g_busHandlers; handler != NULL; handler = handler->Next) {
+        if (handler->Handle == handle) {
+            return handler;
         }
     }
     return NULL;
@@ -67,70 +66,70 @@ __FindCompletion(
 static oserr_t
 __BeginCompletionUpdate(
     _In_  uuid_t                       handle,
-    _Out_ struct InterruptCompletion** completionOut)
+    _Out_ struct InterruptBusHandler** handlerOut)
 {
-    struct InterruptCompletion* completion;
+    struct InterruptBusHandler* handler;
     oserr_t                     status = OS_EOK;
 
-    // Check ownership and use together under the lock. Otherwise a group could
-    // attach between our check and the start of a destructive mapping change.
-    SpinlockAcquireIrq(&g_completionLock);
-    completion = __FindCompletion(handle);
-    if (completion == NULL) {
+    // Check the calling process and group references under the same lock.
+    // A group must not attach between this check and the mapping changes.
+    SpinlockAcquireIrq(&g_busHandlersLock);
+    handler = __FindCompletion(handle);
+    if (handler == NULL) {
         status = OS_ENOENT;
-    } else if (completion->Owner != InterruptCurrentOwner()) {
+    } else if (handler->Owner != InterruptCurrentOwner()) {
         status = OS_EPERMISSIONS;
-    } else if (completion->Updating || completion->References != 0) {
+    } else if (handler->Updating || handler->References != 0) {
         status = OS_EBUSY;
     } else {
-        // Mapping may wait for memory and let another thread run. Mark the object
-        // busy before unlocking; a spinlock must not stay held across such waits.
-        completion->Updating = 1;
-        *completionOut = completion;
+        // Mapping may wait for memory. Mark the callback busy before releasing
+        // the lock, as we cannot hold a spinlock while waiting.
+        handler->Updating = 1;
+        *handlerOut = handler;
     }
-    SpinlockReleaseIrq(&g_completionLock);
+    SpinlockReleaseIrq(&g_busHandlersLock);
     return status;
 }
 
 oserr_t
-InterruptCompletionCreate(
+InterruptBusHandlerCreate(
     _Out_ uuid_t* handleOut)
 {
-    struct InterruptCompletion* completion;
+    struct InterruptBusHandler* handler;
 
-    // Create the handle before binding any resources. If binding later fails,
-    // the provider still has a handle with which to retry cleanup.
-    completion = kmalloc(sizeof(*completion));
-    if (completion == NULL) {
+    // Create the handle before binding resources so the bus can retry cleanup
+    // if binding fails.
+    handler = kmalloc(sizeof(struct InterruptBusHandler));
+    if (handler == NULL) {
         return OS_EOOM;
     }
 
-    memset(completion, 0, sizeof(*completion));
-    completion->Owner = InterruptCurrentOwner();
+    memset(handler, 0, sizeof(struct InterruptBusHandler));
+    handler->Owner = InterruptCurrentOwner();
 
-    SpinlockAcquireIrq(&g_completionLock);
-    if (g_completionGeneration == UINT32_MAX) {
-        SpinlockReleaseIrq(&g_completionLock);
-        kfree(completion);
+    SpinlockAcquireIrq(&g_busHandlersLock);
+    if (g_busHandlerIdGen == UINT32_MAX) {
+        SpinlockReleaseIrq(&g_busHandlersLock);
+        kfree(handler);
         return OS_EOVERFLOW;
     }
 
-    // Never reuse identities: a delayed request must not refer to a new
-    // callback after its original provider has released the completion.
-    completion->Handle = ++g_completionGeneration;
-    completion->Next = g_completions;
-    g_completions = completion;
-    *handleOut = completion->Handle;
-    SpinlockReleaseIrq(&g_completionLock);
+    // Never reuse handles. A delayed request must not find a new callback
+    // after the original callback has been released.
+    handler->Handle = ++g_busHandlerIdGen;
+    handler->Next = g_busHandlers;
+    g_busHandlers = handler;
+    *handleOut = handler->Handle;
+    SpinlockReleaseIrq(&g_busHandlersLock);
     return OS_EOK;
 }
 
 oserr_t
-InterruptCompletionBind(
+InterruptBusHandlerBind(
     _In_ uuid_t                    handle,
     _In_ InterruptResourceTable_t* resources)
 {
-    struct InterruptCompletion* completion;
+    struct InterruptBusHandler* handler;
     oserr_t                     status;
 
     status = InterruptValidateResources(resources);
@@ -138,120 +137,119 @@ InterruptCompletionBind(
         return status;
     }
     
-    status = __BeginCompletionUpdate(handle, &completion);
+    status = __BeginCompletionUpdate(handle, &handler);
     if (status != OS_EOK) {
         return status;
     }
 
-    // A failed bind can leave mappings that still need cleanup. Do not overwrite
-    // that record with a new callback, even though the old one is not Ready.
-    if (completion->Ready || completion->Resources.Handler != NULL) {
+    // A failed bind may leave mappings behind. Cleanup must finish before
+    // binding another callback, even when Ready is clear.
+    if (handler->Ready || handler->Resources.Handler != NULL) {
         status = OS_EBUSY;
     } else {
-        // Providers use the same mapping rules as device handlers. Keep any
-        // unfinished cleanup in Resources, but allow attachment only on success.
-        completion->Resources.HandleResource = resources->HandleResource;
-        status = InterruptResolveResources(handle, resources, &completion->Resources);
-        completion->Ready = status == OS_EOK;
+        // Bus callbacks use the same mapping rules as device handlers.
+        // Keep any remaining mappings in Resources so cleanup can be retried.
+        // Allow attachment only after all mappings succeed.
+        handler->Resources.HandleResource = resources->HandleResource;
+        status = InterruptResolveResources(handle, resources, &handler->Resources);
+        handler->Ready = status == OS_EOK;
     }
-    SpinlockAcquireIrq(&g_completionLock);
-    completion->Updating = 0;
-    SpinlockReleaseIrq(&g_completionLock);
+    SpinlockAcquireIrq(&g_busHandlersLock);
+    handler->Updating = 0;
+    SpinlockReleaseIrq(&g_busHandlersLock);
     return status;
 }
 
 oserr_t
-InterruptCompletionRelease(
+InterruptBusHandlerRelease(
     _In_ uuid_t handle)
 {
-    struct InterruptCompletion*  completion;
-    struct InterruptCompletion** link;
+    struct InterruptBusHandler*  handler;
+    struct InterruptBusHandler** link;
     oserr_t                      status;
 
-    status = __BeginCompletionUpdate(handle, &completion);
+    status = __BeginCompletionUpdate(handle, &handler);
     if (status != OS_EOK) {
         return status;
     }
 
-    // The update check accepted only an object with no group references. Groups
-    // drop those references after their handlers have stopped using the callback.
+    // No groups reference the callback now. Each group drops its reference
+    // after its handlers have stopped using the callback.
     // Clear Ready before cleanup so an unmap failure cannot allow attachment.
-    completion->Ready = 0;
-    status = InterruptReleaseResources(handle, &completion->Resources);
-    SpinlockAcquireIrq(&g_completionLock);
+    handler->Ready = 0;
+    status = InterruptReleaseResources(handle, &handler->Resources);
+    SpinlockAcquireIrq(&g_busHandlersLock);
     if (status != OS_EOK) {
-        // Leave the handle and remaining mappings in the list. The provider can
-        // retry Release, and no resource becomes unreachable after this failure.
-        completion->Updating = 0;
-        SpinlockReleaseIrq(&g_completionLock);
+        // Keep the handle and remaining mappings so the bus can retry release.
+        handler->Updating = 0;
+        SpinlockReleaseIrq(&g_busHandlersLock);
         return status;
     }
 
-    link = &g_completions;
-    while (*link != completion) {
+    link = &g_busHandlers;
+    while (*link != handler) {
         link = &(*link)->Next;
     }
-    *link = completion->Next;
+    *link = handler->Next;
     
-    SpinlockReleaseIrq(&g_completionLock);
-    kfree(completion);
+    SpinlockReleaseIrq(&g_busHandlersLock);
+    kfree(handler);
     return OS_EOK;
 }
 
 oserr_t
-InterruptCompletionAcquire(
+InterruptBusHandlerAcquire(
     _In_  uuid_t                       handle,
-    _Out_ struct InterruptCompletion** completionOut)
+    _Out_ struct InterruptBusHandler** handlerOut)
 {
-    struct InterruptCompletion* completion;
+    struct InterruptBusHandler* handler;
     oserr_t                     status = OS_EOK;
 
-    // Mapping updates happen outside this lock with Updating set. Test that
-    // flag before reading Ready, which the mapper may still be changing.
-    // Reject a full reference count too: wrapping to zero would incorrectly
-    // allow Release to remove a callback that groups are still using.
-    SpinlockAcquireIrq(&g_completionLock);
-    completion = __FindCompletion(handle);
-    if (completion == NULL) {
+    // Mapping runs outside this lock with Updating set. Check Updating before
+    // reading Ready, as the mapping code may still be changing it.
+    // The reference count must not wrap to zero, which would allow release
+    // while groups are still using the callback.
+    SpinlockAcquireIrq(&g_busHandlersLock);
+    handler = __FindCompletion(handle);
+    if (handler == NULL) {
         status = OS_ENOENT;
-    } else if (completion->Owner != InterruptCurrentOwner()) {
+    } else if (handler->Owner != InterruptCurrentOwner()) {
         status = OS_EPERMISSIONS;
-    } else if (completion->Updating || !completion->Ready || completion->References == UINT_MAX) {
+    } else if (handler->Updating || !handler->Ready || handler->References == UINT_MAX) {
         status = OS_EBUSY;
     } else {
-        // Count one use per group vector, including when several vectors share
-        // this callback. Release must wait until every such use has ended.
-        completion->References++;
-        *completionOut = completion;
+        // Each group vector needs a reference, even if several share this
+        // callback. All references must be dropped before release.
+        handler->References++;
+        *handlerOut = handler;
     }
-    SpinlockReleaseIrq(&g_completionLock);
+    SpinlockReleaseIrq(&g_busHandlersLock);
     return status;
 }
 
 void
-InterruptCompletionPut(
-    _In_ struct InterruptCompletion* completion)
+InterruptBusHandlerPut(
+    _In_ struct InterruptBusHandler* handler)
 {
-    if (completion == NULL) {
+    if (handler == NULL) {
         return;
     }
-    // Dropping the last group reference does not destroy the object. The provider
-    // keeps its handle and explicitly releases it when no longer needed.
-    SpinlockAcquireIrq(&g_completionLock);
-    completion->References--;
-    SpinlockReleaseIrq(&g_completionLock);
+    // The bus must release the handle after the last group stops using it.
+    SpinlockAcquireIrq(&g_busHandlersLock);
+    handler->References--;
+    SpinlockReleaseIrq(&g_busHandlersLock);
 }
 
 void
-InterruptCompletionInvoke(
-    _In_ struct InterruptCompletion* completion)
+InterruptBusHandlerInvoke(
+    _In_ struct InterruptBusHandler* handler)
 {
-    if (completion != NULL) {
-        // The caller has already run the device handler and is still counted as
-        // an active interrupt reader, so normal unbinding waits for this call too.
-        // The group retains this pointer: no handle lookup or lock is needed here.
-        // Run even if the device found no work; upstream hardware may still need
-        // acknowledgement. Its result does not change the device handler's result.
-        completion->Resources.Handler(GetFastInterruptTable(), &completion->Resources);
+    if (handler != NULL) {
+        // The device handler has finished, but the caller is still an active
+        // interrupt reader. Unbinding therefore waits for this callback too.
+        // The group's reference keeps this pointer valid without a lookup or lock.
+        // Run even if the device found no work, as the bus hardware may still
+        // need acknowledgement. Ignore the result to preserve the device's result.
+        handler->Resources.Handler(GetFastInterruptTable(), &handler->Resources);
     }
 }

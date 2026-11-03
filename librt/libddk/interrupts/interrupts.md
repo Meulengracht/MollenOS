@@ -92,7 +92,7 @@ requests remain unsupported because its resolver applies ACPI overrides.
 
 ## Provider API and wire contracts
 
-`ddk/interrupts/provider.h` exposes privileged resolution, attachment and completion
+`ddk/interrupts/bus.h` exposes privileged resolution, attachment and completion
 operations. Message-controller resolution accepts only a platform message fabric
 or a PCI host identity. Line-source resolution has a separate versioned identity
 with explicit firmware-controller and line fields. Neither operation allocates
