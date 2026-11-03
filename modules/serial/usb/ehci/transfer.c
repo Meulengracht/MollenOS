@@ -250,12 +250,13 @@ __CalculateTransferElementMetrics(
     uintptr_t address;
     uint32_t  length = 0;
     int       index;
+    int       i;
 
     memset(element, 0, sizeof(struct TransferElement));
     
     // Periodic requests use a page-aligned staging packet. Async qTDs have
     // five page pointers, so split contiguous DMA segments at page boundaries.
-    for (int i = 0; i < __XACTION_COUNT(transfer) && bytesLeft != 0; i++) {
+    for (i = 0; i < __XACTION_COUNT(transfer) && bytesLeft != 0; i++) {
         USBTransferDmaOffset(dmaTransfer, position, &index, &offset);
         address = __GetAddress(dmaTransfer, index, offset);
         
