@@ -25,6 +25,7 @@
 
 #include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
+#include <ddk/barrier.h>
 #include <os/device.h>
 #include "../common/hci.h"
 #include "ehci.h"
@@ -56,8 +57,7 @@ HCIControllerCreate(
         return NULL;
     }
 
-    // Get I/O Base, and for EHCI it'll be the first address we encounter
-    // of type MMIO
+    // EHCI registers use the first MMIO region.
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
         if (((BusDevice_t*)controller->Base.Device)->IoSpaces[i].Type == DeviceIoMemoryBased) {
             ioBase = &((BusDevice_t*)controller->Base.Device)->IoSpaces[i];
@@ -65,10 +65,10 @@ HCIControllerCreate(
         }
     }
 
-    // Sanitize that we found the io-space
+    // A register mapping is required before setting up the controller.
     if (!ioBase) {
         ERROR("No memory space found for ehci-controller");
-        free(controller);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -78,7 +78,7 @@ HCIControllerCreate(
     // Acquire the io-space
     if (AcquireDeviceIo(ioBase) != OS_EOK) {
         ERROR("Failed to create and acquire the io-space for ehci-controller");
-        free(controller);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -87,15 +87,15 @@ HCIControllerCreate(
     // Trace
     TRACE("Io-Space was assigned virtual address 0x%x", ioBase->Access.Memory.VirtualBase);
 
-    // Instantiate the register-access
+    // Operational registers follow the capability registers.
     controller->CapRegisters = (EchiCapabilityRegisters_t*)ioBase->Access.Memory.VirtualBase;
     controller->OpRegisters  = (EchiOperationalRegisters_t*)
         (ioBase->Access.Memory.VirtualBase + controller->CapRegisters->Length);
 
-    // Keep the device quiet while the handler's resource table is prepared.
+    // Disable interrupts before preparing the handler's resource table.
     WRITE_VOLATILE(controller->OpRegisters->UsbIntr, 0);
-    // Keep the allocation with the controller so disable and destruction can
-    // release every handler mapping before the controller memory is freed.
+    // Store the interrupt resources with the controller so cleanup can remove
+    // the handler mappings before freeing controller memory.
     oserr = UsbManagerConfigureInterrupt(
         &controller->Base,
         (InterruptHandler_t)OnFastInterrupt,
@@ -124,9 +124,9 @@ HCIControllerCreate(
         return NULL;
     }
 
-    // Now that all formalities has been taken care
-    // off we can actually setup controller
-    if (EhciSetup(controller) == OS_EOK) {
+    // Complete initialization only after controller setup succeeds.
+    if (EhciSetup(controller) == OS_EOK &&
+        UsbManagerCompleteControllerInitialization(&controller->Base)) {
         return &controller->Base;
     } else {
         HCIControllerDestroy(&controller->Base);
@@ -136,38 +136,65 @@ HCIControllerCreate(
 
 oserr_t
 HCIControllerDestroy(
-    _In_ UsbManagerController_t* controller)
+    _In_ UsbManagerController_t* base)
 {
-    oserr_t status;
+    EhciController_t* controller = (EhciController_t*)base;
+    oserr_t           status;
 
-    WRITE_VOLATILE(((EhciController_t*)controller)->OpRegisters->UsbIntr, 0);
+    if (!UsbManagerBeginControllerDestroy(base)) {
+        return OS_EBUSY;
+    }
+    if (controller->OpRegisters != NULL) {
+        WRITE_VOLATILE(controller->OpRegisters->UsbIntr, 0);
+        status = EhciHalt(controller);
+        if (status != OS_EOK) {
+            goto retry;
+        }
+        base->State.DmaStopped = true;
+    }
     
-    // Synchronize delivery before freeing queues, events or mapped handler state.
-    status = DeviceInterruptDestroy(&controller->Interrupt);
+    // The controller must be halted and the handler disconnected before freeing
+    // memory they can access. On failure, keep the controller in the index for
+    // another cleanup attempt. Cleared resource fields record completed steps.
+    status = DeviceInterruptDestroy(&base->Interrupt);
     if (status != OS_EOK) {
-        ERROR("Failed to release controller interrupt; keeping its resources alive");
-        return status;
+        goto retry;
     }
-
-    // Unregister, then destroy
-    UsbManagerDestroyController(controller);
-
-    // Cleanup scheduler
-    if (controller->Scheduler != NULL) {
-        EhciQueueDestroy((EhciController_t*)controller);
+    
+    status = EhciQueueDestroy(controller);
+    if (status != OS_EOK) {
+        goto retry;
     }
-
-    // Release the io-space
-    ReleaseDeviceIo(controller->IoBase);
-    free(controller);
+    
+    status = DMAClose(&base->DmaContext);
+    if (status != OS_EOK) {
+        goto retry;
+    }
+    
+    if (base->IoBase != NULL) {
+        status = ReleaseDeviceIo(base->IoBase);
+        if (status != OS_EOK) {
+            goto retry;
+        }
+        base->IoBase = NULL;
+    }
+    
+    UsbManagerDestroyController(base);
+    free(base->Device);
+    free(base);
     return OS_EOK;
+
+retry:
+    WARNING("EHCI: controller cleanup failed (%u), will retry", status);
+    UsbManagerRetryControllerDestroy(base);
+    return status;
 }
 
 void
 HciTimerCallback(
     _In_ UsbManagerController_t* baseController)
 {
-    // do nothing
+    UsbManagerProcessTransfers(baseController);
 }
 
 void
@@ -191,15 +218,13 @@ EhciDisableLegacySupport(
     // we can find the above registers
     eecp = EHCI_CPARAM_EECP(cparams);
 
-    // If the eecp is valid ( >= 0x40), then there are a few
-    // cases we can handle, but if its not valid, there is no legacy
+    // Extended capabilities require a PCI configuration offset of at least 0x40.
     if (eecp >= 0x40) {
         size_t semaphore = 0;
         size_t capId    = 0;
         size_t nextEecp = 0;
 
-        // Get the extended capability register
-        // We read the second byte, because it contains the BIOS Semaphore
+        // Follow the extended capability list to find USB legacy support.
         while (1) {
             // Retrieve capability id
             if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp, &capId, 1) != OS_EOK) {
@@ -211,12 +236,12 @@ EhciDisableLegacySupport(
                 break;
             }
 
-            // Nope, follow eecp link
+            // Read the next capability offset.
             if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp + 0x1, &nextEecp, 1) != OS_EOK) {
                 return;
             }
 
-            // Sanitize end of link
+            // A zero offset marks the end of the list.
             if (nextEecp == 0x00) {
                 break;
             }
@@ -232,16 +257,15 @@ EhciDisableLegacySupport(
                 return;
             }
 
-            // Is it BIOS owned? First bit in second byte
+            // Bit 0 at EECP+2 is the BIOS semaphore.
             if (semaphore & 0x1) {
-                // Request for my hat back :/
-                // Third byte contains the OS Semaphore 
+                // Set the OS semaphore at EECP+3 to request control from BIOS.
                 size_t One = 0x1;
                 if (IoctlDeviceEx(Controller->Base.Device->Id, 1, eecp + 0x3, &One, 1) != OS_EOK) {
                     return;
                 }
 
-                // Now wait for bios to release the semaphore
+                // Wait for BIOS to clear its semaphore.
                 while (One++) {
                     if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp + 0x2, &semaphore, 1) != OS_EOK) {
                         return;
@@ -305,12 +329,12 @@ EhciHalt(
     WRITE_VOLATILE(Controller->OpRegisters->UsbIntr, 0);
     WRITE_VOLATILE(Controller->OpRegisters->UsbStatus, 0x3F);
 
-    // Now stop the controller, this should succeed
+    // Clear the run bit to stop the controller.
     TemporaryValue = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
     TemporaryValue &= ~(EHCI_COMMAND_RUN);
     WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, TemporaryValue);
 
-    // Wait for the active-bit to clear
+    // Wait for the halted bit before reporting that DMA has stopped.
     Fault = 0;
     WaitForConditionWithFault(Fault, (READ_VOLATILE(Controller->OpRegisters->UsbStatus) & EHCI_STATUS_HALTED) != 0, 250, 10);
     if (Fault) {
@@ -319,6 +343,7 @@ EhciHalt(
             return OS_EUNKNOWN;
     }
     else {
+        Controller->Base.State.DmaStopped = true;
         return OS_EOK;
     }
 }
@@ -374,8 +399,7 @@ EhciRestart(
     // Debug
     TRACE("EhciRestart()");
 
-    // Stop controller, unschedule everything
-    // and then reset it.
+    // Halt the controller before resetting it.
     if (EhciHalt(Controller) != OS_EOK ||
         EhciReset(Controller) != OS_EOK) {
         ERROR("Failed to halt or reset controller");
@@ -401,8 +425,7 @@ EhciRestart(
     WRITE_VOLATILE(Controller->OpRegisters->AsyncListAddress, 
         LODWORD(AsyncListHead) | EHCI_LINK_QH);
 
-    // Next step is to build the command configuring the controller
-    // Set irq latency to 0, enable per-port changes, async park.
+    // Set the interrupt threshold and enable supported scheduling features.
     TemporaryValue = EHCI_COMMAND_INTR_THRESHOLD(8);
     if (Controller->CParameters & (EHCI_CPARAM_VARIABLEFRAMELIST | EHCI_CPARAM_32FRAME_SUPPORT)) {
         if (Controller->CParameters & EHCI_CPARAM_32FRAME_SUPPORT) {
@@ -428,7 +451,9 @@ EhciRestart(
         TemporaryValue |= EHCI_COMMAND_FULL_PREFETCH;
     }
 
-    // Start the controller by enabling it
+    // Make schedule writes visible to the controller before starting DMA.
+    Controller->Base.State.DmaStopped = false;
+    dma_wmb();
     TemporaryValue |= EHCI_COMMAND_RUN;
     WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, TemporaryValue);
 
@@ -477,7 +502,7 @@ EhciWaitForCompanionControllers(
                     break;
                 }
 
-                // Does controller belong to our bus?
+                // Count companion controllers on the same PCI bus and slot.
                 if (hcController->Device.Bus == ((BusDevice_t*)controller->Base.Device)->Bus
                     && hcController->Device.Slot == ((BusDevice_t*)controller->Base.Device)->Slot
                     && (hcController->Kind == USBCONTROLLER_KIND_OHCI || hcController->Kind == USBCONTROLLER_KIND_UHCI)) {
@@ -515,17 +540,17 @@ EhciSetup(
 
     // Setup the i/o requirements
     Controller->Base.IORequirements.BufferAlignment = 0;
-    if (Controller->CParameters & EHCI_CPARAM_64BIT) {
-        Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_BITS64;
-    } else {
-        Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_BITS32;
+    Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_NONE;
+
+    // Schedule links share CTRLDSSEGMENT. Keep descriptors and payloads within
+    // the existing INT32_MAX address limit, including on 32-bit hosts.
+    if (DMAOpen(Controller->Base.Device->Id, INT32_MAX, &Controller->Base.DmaContext) != OS_EOK) {
+        return OS_EUNKNOWN;
     }
 
-    // We then stop the controller, reset it and 
-    // initialize data-structures
-    // Do not register or power ports until the scheduler and controller are
-    // both ready. Continuing after either failure would expose invalid DMA
-    // addresses to the controller and make teardown unsafe.
+    // Scheduler setup and controller restart must succeed before registration
+    // or port power. Otherwise the controller could use invalid DMA addresses
+    // and cleanup could free memory still in use.
     if (EhciQueueInitialize(Controller) != OS_EOK) {
         ERROR("Failed to initialize EHCI scheduler");
         return OS_EUNKNOWN;
@@ -536,13 +561,12 @@ EhciSetup(
     }
     EhciWaitForCompanionControllers(Controller);    
     
-    // Register the controller before starting
+    // Register the controller before powering its ports.
     if (UsbManagerRegisterController(&Controller->Base) != OS_EOK) {
         ERROR(" > failed to register ehci controller with the system.");
     }
 
-    // Now, controller is up and running
-    // and we should start doing port setups by first powering on
+    // Power the ports before checking for connected devices.
     TRACE(" > Powering up ports");
     for (i = 0; i < Controller->Base.PortCount; i++) {
         EhciPortSetBits(Controller, i, EHCI_PORT_POWER);

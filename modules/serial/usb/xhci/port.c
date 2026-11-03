@@ -48,8 +48,8 @@ XhciPortClearChanges(
 {
     reg32_t status = READ_VOLATILE(controller->Ports[index].StatusControl);
 
-    // PORTSC mixes read/write state bits with write-1-to-clear change bits. Keep
-    // the writable state bits stable and only echo the change bits we observed.
+    // PORTSC has read/write state bits and write-one-to-clear change bits.
+    // Preserve the state bits and clear only the changes passed by the caller.
     WRITE_VOLATILE(controller->Ports[index].StatusControl,
             (status & XHCI_PORT_STATUS_RW_MASK) | (changes & XHCI_PORT_STATUS_CHANGE_BITS));
 }
@@ -129,12 +129,31 @@ XhciPortScan(
         }
 
         XhciPortClearChanges(controller, i, changes);
-        // Startup may have cleared connect-change while powering the port.
-        // Subsequent scans must only report changes, including disconnects.
+        // On the initial scan, report connected ports even if powering the port
+        // cleared connect-change. Later scans report only connection changes,
+        // including disconnects.
         if ((changes & XHCI_PORT_STATUS_CONNECT_CHANGE) ||
             (initial && (status & XHCI_PORT_STATUS_CONNECTED))) {
             TRACE("XhciPortScan(port=%u, status=0x%x)", (unsigned int)i, status);
             (void)UsbEventPort(controller->Base.Device->Id, (uint8_t)(i & 0xFF));
         }
     }
+}
+
+oserr_t
+HCIPortDisable(
+    _In_ UsbManagerController_t* controller,
+    _In_ int                     index)
+{
+    XhciController_t* xhci = (XhciController_t*)controller;
+    reg32_t           status = READ_VOLATILE(xhci->Ports[index].StatusControl);
+    int               fault;
+
+    // Writing one to PORTSC.PED disables the port. Leave change-status bits
+    // clear in this write so pending changes remain set.
+    WRITE_VOLATILE(xhci->Ports[index].StatusControl,
+        (status & XHCI_PORT_STATUS_RW_MASK) | XHCI_PORT_STATUS_ENABLED);
+    WaitForConditionWithFault(fault,
+        !(READ_VOLATILE(xhci->Ports[index].StatusControl) & XHCI_PORT_STATUS_ENABLED), 10, 1);
+    return fault ? OS_ETIMEOUT : OS_EOK;
 }

@@ -64,7 +64,13 @@ oserr_t OnEvent(struct ioset_event* event)
             return OS_EUNKNOWN;
         }
 
+        if (controller->State.Phase >= USB_CONTROLLER_DESTROY_PENDING) {
+            return OS_EOK;
+        }
+
+        controller->State.OperationsInFlight++;
         HciInterruptCallback(controller);
+        controller->State.OperationsInFlight--;
         return OS_EOK;
     }
 
@@ -173,4 +179,27 @@ void sys_device_event_protocol_device_invocation(void) {
 }
 void sys_device_event_device_update_invocation(void) {
 
+}
+
+void
+ctt_usbhub_disable_port_invocation(
+    struct gracht_message* message,
+    const uuid_t           deviceId,
+    const uint8_t          portId)
+{
+    UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    oserr_t                 status = OS_ENOENT;
+
+    if (controller != NULL && controller->State.Phase < USB_CONTROLLER_DESTROY_PENDING) {
+        if ((size_t)portId >= controller->PortCount) {
+            status = OS_EINVALPARAMS;
+        } else {
+            // Keep the registers mapped if the controller is stopped or removed
+            // while HCIPortDisable waits.
+            controller->State.OperationsInFlight++;
+            status = HCIPortDisable(controller, portId);
+            controller->State.OperationsInFlight--;
+        }
+    }
+    ctt_usbhub_disable_port_response(message, status);
 }

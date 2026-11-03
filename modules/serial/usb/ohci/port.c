@@ -63,19 +63,19 @@ HCIPortReset(
     OhciController_t* OhciCtrl = (OhciController_t*)Controller;
     TRACE("HCIPortReset()");
     
-    // Let power stabilize
+    // Wait for power to stabilize before resetting the port.
     thrd_sleep(&(struct timespec) { .tv_nsec = OhciCtrl->PowerOnDelayMs * NSEC_PER_MSEC }, NULL);
 
-    // Set reset bit to initialize reset-procedure
+    // Start the port reset.
     WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET);
 
-    // Wait for it to clear, with timeout
+    // Wait for the controller to clear the reset bit, with a timeout.
     WaitForCondition(
         (READ_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index]) & OHCI_PORT_RESET) == 0,
         200, 10, "Failed to reset device on port %i\n", Index);
 
-    // Don't matter if timeout, try to enable it
-    // If power-mode is port-power, also power it
+    // Try to enable the port even if the reset timed out.
+    // If power is controlled per port, set the power bit as well.
     if (OhciCtrl->PowerMode == OHCIPOWERMODE_PORTCONTROL) {
         WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED | OHCI_PORT_POWER);
     } else {
@@ -93,10 +93,10 @@ HCIPortStatus(
     OhciController_t* OhciCtrl  = (OhciController_t*)Controller;
     reg32_t           Status;
 
-    // Now we can get current port status
+    // Read the current port status.
     Status = READ_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index]);
 
-    // Update metrics
+    // Copy connection state and speed to the port descriptor.
     Port->Connected = (Status & OHCI_PORT_CONNECTED) == 0 ? 0 : 1;
     Port->Enabled   = (Status & OHCI_PORT_ENABLED) == 0 ? 0 : 1;
     Port->Speed     = (Status & OHCI_PORT_LOW_SPEED) == 0 ? USBSPEED_FULL : USBSPEED_LOW;
@@ -112,10 +112,10 @@ __CheckPortStatus(
     reg32_t portStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
     TRACE("__CheckPortStatus(%i): 0x%x", Index, portStatus);
 
-    // Clear bits now we have a copy
+    // Clear the event bits after saving the port status.
     ClearPortEventBits(Controller, Index);
     
-    // We only care about connection events currently
+    // Only connection events are reported to the USB manager.
     if (portStatus & OHCI_PORT_CONNECT_EVENT) {
         oserr = UsbEventPort(Controller->Base.Device->Id, (uint8_t)(Index & 0xFF));
     }
@@ -138,3 +138,19 @@ OHCICheckPorts(
     spinlock_release(&controller->Base.Lock);
     return OS_EOK;
 }
+
+oserr_t
+HCIPortDisable(
+    _In_ UsbManagerController_t* controller,
+    _In_ int                     index)
+{
+    OhciController_t* legacy = (OhciController_t*)controller;
+    int               fault;
+
+    // Writing a one to bit 0 of the port register clears PortEnableStatus.
+    WRITE_VOLATILE(legacy->Registers->HcRhPortStatus[index], OHCI_PORT_CONNECTED);
+    WaitForConditionWithFault(fault,
+        !(READ_VOLATILE(legacy->Registers->HcRhPortStatus[index]) & OHCI_PORT_ENABLED), 10, 1);
+    return fault ? OS_ETIMEOUT : OS_EOK;
+}
+

@@ -26,6 +26,7 @@
 
 #include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
+#include <ddk/barrier.h>
 #include <os/device.h>
 #include "uhci.h"
 #include <threads.h>
@@ -54,9 +55,9 @@ __AcquireIOSpace(
         _In_ UhciController_t* controller)
 {
     DeviceIo_t* ioBase = NULL;
+    oserr_t     status;
 
-    // Get I/O Base, and for UHCI it'll be the first address we encounter
-    // of type IO
+    // UHCI registers use the first port-based I/O space.
     for (int i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
         if (((BusDevice_t*)controller->Base.Device)->IoSpaces[i].Type == DeviceIoPortBased) {
             ioBase = &((BusDevice_t*)controller->Base.Device)->IoSpaces[i];
@@ -68,8 +69,11 @@ __AcquireIOSpace(
         return OS_ENOENT;
     }
 
-    controller->Base.IoBase = ioBase;
-    return AcquireDeviceIo(ioBase);
+    status = AcquireDeviceIo(ioBase);
+    if (status == OS_EOK) {
+        controller->Base.IoBase = ioBase;
+    }
+    return status;
 }
 
 static oserr_t
@@ -78,10 +82,10 @@ __InitializeInterrupt(
 {
     oserr_t status;
 
-    // Keep the device quiet until setup later enables its interrupt sources.
+    // Disable interrupt sources until setup enables them.
     UhciWrite16(controller, UHCI_REGISTER_INTR, 0);
     
-    // The shared helper preserves the resource positions expected by the ISR.
+    // The ISR requires the resource order set by UsbManagerConfigureInterrupt.
     status = UsbManagerConfigureInterrupt(
         &controller->Base,
         (InterruptHandler_t)OnFastInterrupt,
@@ -154,7 +158,7 @@ HCIControllerCreate(
         return NULL;
     }
 
-    // Take ownership from the BIOS and enable PCI interrupts.
+    // Switch from BIOS control to the driver and enable PCI interrupts.
     ioctlValue = 0x2000;
     oserr = IoctlDeviceEx(
         controller->Base.Device->Id,
@@ -167,7 +171,7 @@ HCIControllerCreate(
         return NULL;
     }
 
-    // If vendor is Intel we null out the intel register
+    // Clear the Intel-specific register on Intel controllers.
     if (controller->Base.Device->VendorId == 0x8086) {
         ioctlValue = 0x00;
         oserr = IoctlDeviceEx(
@@ -182,10 +186,14 @@ HCIControllerCreate(
         }
     }
 
-    // Now that all formalities has been taken care
-    // off we can actually setup controller
+    // The bus device and interrupt handler must be ready before controller setup.
     oserr = UhciSetup(controller);
     if (oserr != OS_EOK) {
+        HCIControllerDestroy(&controller->Base);
+        return NULL;
+    }
+
+    if (!UsbManagerCompleteControllerInitialization(&controller->Base)) {
         HCIControllerDestroy(&controller->Base);
         return NULL;
     }
@@ -194,30 +202,58 @@ HCIControllerCreate(
 
 oserr_t
 HCIControllerDestroy(
-    _In_ UsbManagerController_t* Controller)
+    _In_ UsbManagerController_t* base)
 {
+    UhciController_t* controller = (UhciController_t*)base;
     oserr_t status;
 
-    // Stop this device before leaving a line which may still serve other devices.
-    UhciWrite16((UhciController_t*)Controller, UHCI_REGISTER_INTR, 0);
-    status = DeviceInterruptDestroy(&Controller->Interrupt);
+    if (!UsbManagerBeginControllerDestroy(base)) {
+        return OS_EBUSY;
+    }
+    if (base->IoBase != NULL) {
+        UhciWrite16(controller, UHCI_REGISTER_INTR, 0);
+        status = UhciStop(controller);
+        if (status != OS_EOK) {
+            goto retry;
+        }
+        base->State.DmaStopped = true;
+    }
+
+    // The controller must be stopped and the handler disconnected before freeing
+    // memory they can access. If cleanup fails, keep the controller in the
+    // manager's list so the next attempt can release the remaining resources.
+    status = DeviceInterruptDestroy(&base->Interrupt);
     if (status != OS_EOK) {
-        ERROR("Failed to release controller interrupt; keeping its resources alive");
-        return status;
+        goto retry;
     }
 
-    // Unregister, then destroy
-    UsbManagerDestroyController(Controller);
-    
-    // Cleanup scheduler
-    if (Controller->Scheduler != NULL) {
-        UHCIQueueDestroy((UhciController_t*)Controller);
+    status = UHCIQueueDestroy(controller);
+    if (status != OS_EOK) {
+        goto retry;
     }
 
-    // Release the io-space
-    ReleaseDeviceIo(Controller->IoBase);
-    free(Controller);
+    status = DMAClose(&base->DmaContext);
+    if (status != OS_EOK) {
+        goto retry;
+    }
+
+    if (base->IoBase != NULL) {
+        status = ReleaseDeviceIo(base->IoBase);
+        if (status != OS_EOK) {
+            goto retry;
+        }
+        base->IoBase = NULL;
+    }
+
+    UsbManagerDestroyController(base);
+    free(base->Device);
+    free(base);
     return OS_EOK;
+
+retry:
+    WARNING("UHCI: controller cleanup failed (%u), will retry", status);
+    UsbManagerRetryControllerDestroy(base);
+    return status;
 }
 
 void
@@ -238,10 +274,11 @@ UhciStart(
     uint16_t cmd;
     TRACE("UhciStart()");
 
-    // Read current command register
-    // to preserve information, then assert some flags
+    // Preserve the current command bits when setting the start flags.
     cmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
     cmd |= (UHCI_COMMAND_CONFIGFLAG | UHCI_COMMAND_RUN | UHCI_COMMAND_MAXPACKET64);
+    dma_wmb();
+    Controller->Base.State.DmaStopped = false;
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND, cmd);
     if (Wait == 0) {
         return OS_EOK;
@@ -257,15 +294,24 @@ UhciStart(
 
 oserr_t
 UhciStop(
-    _In_ UhciController_t* Controller)
+    _In_ UhciController_t* controller)
 {
-    uint16_t cmd;
-    
-    // Read current command register
-    // to preserve information, then deassert run flag
-    cmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-    cmd &= ~(UHCI_COMMAND_RUN);
-    UhciWrite16(Controller, UHCI_REGISTER_COMMAND, cmd);
+    uint16_t command;
+    int      hung;
+
+    command = UhciRead16(controller, UHCI_REGISTER_COMMAND);
+    UhciWrite16(controller, UHCI_REGISTER_COMMAND, command & ~UHCI_COMMAND_RUN);
+
+    // Clearing RUN requests a stop. Wait for HALTED before freeing DMA memory,
+    // since the last bus transaction must finish first.
+    WaitForConditionWithFault(hung,
+        (UhciRead16(controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) != 0, 100, 1);
+    if (hung) {
+        WARNING("UHCI: controller did not halt; keeping DMA resources");
+        return OS_ETIMEOUT;
+    }
+
+    controller->Base.State.DmaStopped = true;
     return OS_EOK;
 }
 
@@ -278,7 +324,7 @@ UhciReset(
     // Assert the host-controller reset bit
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_COMMAND_HCRESET);
 
-    // Wait for it to stop being asserted
+    // Wait for the controller to clear HCRESET.
     WaitForConditionWithFault(tmp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) == 0, 100, 25);
     if (tmp == 1) {
         WARNING("UHCI: Reset signal is still active..");
@@ -293,7 +339,7 @@ UhciReset(
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND,  0x0000);
     UhciWrite16(Controller, UHCI_REGISTER_INTR,     0x0000);
 
-    // Now reconfigure the controller
+    // Restore the frame timing and schedule after reset.
     UhciWrite8(Controller, UHCI_REGISTER_SOFMOD,      64); // Frame length 1 ms
     UhciWrite32(Controller, UHCI_REGISTER_FRBASEADDR, Controller->Base.Scheduler->Settings.FrameListPhysical);
     UhciWrite16(Controller, UHCI_REGISTER_FRNUM,     (Controller->Frame & UHCI_FRAME_MASK));
@@ -318,10 +364,16 @@ UhciSetup(
     UhciWrite16(controller, UHCI_REGISTER_COMMAND, 0x0000);
     UhciWrite16(controller, UHCI_REGISTER_INTR, 0x0000);
 
-    // Perform a global reset, we must wait 100 ms for this complete
+    // Hold the global reset for 100 ms before configuring the controller.
     UhciWrite16(controller, UHCI_REGISTER_COMMAND, UHCI_COMMAND_GRESET);
     thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
     UhciWrite16(controller, UHCI_REGISTER_COMMAND, 0x0000);
+
+    // Use the same DMA address limit for queue pools and client requests.
+    oserr = DMAOpen(controller->Base.Device->Id, INT32_MAX, &controller->Base.DmaContext);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Initialize queues and controller
     oserr = UhciQueueInitialize(controller);
@@ -336,7 +388,7 @@ UhciSetup(
     // for the highest possible packet-size supported by USB 1.1.
     // Maximum data payload size for full-speed devices is 64 bytes.
     controller->Base.IORequirements.BufferAlignment = 64;
-    controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_LOW;
+    controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_NONE;
 
     oserr = UhciReset(controller);
     if (oserr != OS_EOK) {
@@ -348,8 +400,8 @@ UhciSetup(
     for (i = 0; i <= UHCI_MAX_PORTS; i++) {
         uint16_t base = UhciRead16(controller, (UHCI_REGISTER_PORT_BASE + (i * 2)));
         if (!(base & UHCI_PORT_RESERVED) || base == 0xFFFF) {
-            // This reserved bit must be 1
-            // And we must have 2 ports atleast
+            // Valid port registers must have the reserved bit set.
+            // UHCI requires at least two ports.
             break;
         }
     }
@@ -365,6 +417,17 @@ UhciSetup(
         return oserr;
     }
 
-    // Start the controller and return result from that
-    return UhciStart(controller, 1);
+    oserr = UhciStart(controller, 1);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Firmware may have cleared the connection-change bit while enumerating
+    // the keyboard. Report connected ports once after the new schedule starts.
+    for (i = 0; i < controller->Base.PortCount; i++) {
+        if (UhciRead16(controller, UHCI_REGISTER_PORT_BASE + i * 2) & UHCI_PORT_CONNECT_STATUS) {
+            UsbEventPort(controller->Base.Device->Id, (uint8_t)i);
+        }
+    }
+    return OS_EOK;
 }

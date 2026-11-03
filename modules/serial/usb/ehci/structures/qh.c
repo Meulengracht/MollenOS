@@ -47,7 +47,7 @@ EHCIQHInitialize(
     qh->Flags |= EHCI_QH_MAXLENGTH(transfer->MaxPacketSize); // MIN(TransferLength, MPS)?
     qh->Flags |= EHCI_QH_DTC;
     if (__Transfer_IsPeriodic(transfer)) {
-        uint32_t bandwidth = MAX(3, transfer->TData.Periodic.Bandwith);
+        uint32_t bandwidth = MIN(3, transfer->TData.Periodic.Bandwith + 1);
         qh->State = EHCI_QH_MULTIPLIER(bandwidth);
     } else {
         qh->State = EHCI_QH_MULTIPLIER(1);
@@ -101,16 +101,20 @@ EHCIQHInitialize(
         );
 
         if (oserr == OS_EOK) {
-            // Calculate both the frame start and completion mask
-            // If the transfer was to spand over a boundary, starting with subframes in
-            // one frame, ending with subframes in next frame, we would have to use
-            // FSTN links for low/full speed interrupt transfers. But as the allocator
-            // works this never happens as it only allocates in same frame. If this
-            // changes we need to update this @todo
-            qh->FrameStartMask = (uint8_t)FirstSetBit(qh->Object.FrameMask);
+            // The allocator must keep all microframes within the same frame.
+            // TODO: Add FSTN links if low/full-speed interrupt transfers can
+            // cross a frame boundary.
+            // EHCI requires a bit mask. For a single-packet reservation,
+            // FrameMask is zero, so select the first microframe explicitly.
+            if (qh->Object.FrameMask == 0) {
+                qh->FrameStartMask = 1;
+            } else {
+                qh->FrameStartMask = (uint8_t)(qh->Object.FrameMask & -qh->Object.FrameMask);
+            }
+            
             if (transfer->Speed != USBSPEED_HIGH) {
                 qh->FrameCompletionMask = (uint8_t)(qh->Object.FrameMask & 0xFF);
-                qh->FrameCompletionMask &= ~(1 << qh->FrameStartMask);
+                qh->FrameCompletionMask &= ~qh->FrameStartMask;
             } else {
                 qh->FrameCompletionMask = 0;
             }
@@ -148,7 +152,11 @@ EHCIQHRestart(
     EhciQueueHead_t* qh = (EhciQueueHead_t*)transfer->RootElement;
     uintptr_t        linkPhysical = 0;
 
-    memset(&qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
+    // The new descriptors must be visible before setting the overlay's NextTD.
+    // Keep both links terminated while clearing the rest of the overlay.
+    qh->Overlay.NextTD = EHCI_LINK_END;
+    qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
+    memset((uint8_t*)&qh->Overlay + 8, 0, sizeof(qh->Overlay) - 8);
 
     UsbSchedulerGetPoolElement(
             controller->Base.Scheduler,
@@ -157,6 +165,8 @@ EHCIQHRestart(
             NULL,
             &linkPhysical
     );
+    dma_wmb();
+    
     qh->Overlay.NextTD            = linkPhysical;
     qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
     dma_mb();

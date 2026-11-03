@@ -44,8 +44,8 @@ __SelectStaging(
     oserr_t      status;
 
     if (staging->Buffer.ID == UUID_INVALID) {
-        // Map the client ring once from its origin. The attachment keeps this
-        // view; packet copies use explicit byte offsets and never remap it.
+        // Map the client ring from its start once. Packet copies use byte
+        // offsets into this mapping, so moving to another slot needs no remap.
         status = SHMMap(
             &transfer->SHMHandle,
             0,
@@ -63,9 +63,9 @@ __SelectStaging(
     }
 
     if (transfer->Dma.Mapping == NULL) {
-        // The whole private page belongs to this mapping, including the last
-        // cache line of a short packet. An unreachable page may still bounce,
-        // but at most one bounce allocation is kept for this transfer.
+        // Map the whole private page to include the last cache line of a short
+        // packet. If the device cannot reach the page, reuse one bounce buffer
+        // for this transfer.
         status = DMAMapSHM(
             transfer->Dma.Context,
             &staging->Buffer,
@@ -87,7 +87,7 @@ __SelectStaging(
             transfer->Dma.Length
         );
     }
-    // Creation already saved the immutable list; rearm performs no query.
+    // Use the fixed segment list saved when the mapping was created.
     transfer->Dma.Segments = DMAMappingSegments(
         transfer->Dma.Mapping,
         &transfer->Dma.SegmentCount
@@ -144,8 +144,8 @@ __SelectMapping(
             return __SelectStaging(transfer, offset, pageSize, direction);
         }
 
-        // One entry per packet slot bounds the cache by the submitted buffer.
-        // Only visited slots acquire mappings and possible bounce storage.
+        // Reserve one entry per packet slot in the submitted buffer. Create
+        // mappings and any bounce buffers as each slot is used.
         if (transfer->Dma.Mappings == NULL) {
             count = 1 + (transfer->Dma.BufferLength - 1) / packet;
             bytes = (size_t)count * sizeof(*transfer->Dma.Mappings);
@@ -162,13 +162,13 @@ __SelectMapping(
     }
 
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
-        // Setup is inline in the TRB. Capture it before handing the mapping to
-        // the device, including when the payload uses bounce storage.
+        // The TRB contains the setup packet. Copy it before the device can
+        // access the mapping, including when the payload uses a bounce buffer.
         if (transfer->Dma.Length < sizeof(usb_packet_t)) {
             return OS_EINVALPARAMS;
         }
-        // SHM mappings are page based. Map from the buffer origin so the byte
-        // offset is explicit, including for setup packets inside a shared pool.
+        // SHM mappings start on page boundaries. Map from the buffer start and
+        // add the byte offset when copying a setup packet from a shared pool.
         status = SHMMap(&transfer->SHMHandle, 0, offset + sizeof(usb_packet_t), SHM_ACCESS_READ);
         if (status != OS_EOK) {
             return status;
@@ -191,7 +191,7 @@ __SelectMapping(
         }
     }
     transfer->Dma.Mapping = *mapping;
-    // Creation already saved the immutable list; rearm performs no query.
+    // Use the fixed segment list saved when the mapping was created.
     transfer->Dma.Segments = DMAMappingSegments(
         transfer->Dma.Mapping,
         &transfer->Dma.SegmentCount
@@ -213,8 +213,8 @@ USBTransferDmaPrepare(
         return status;
     }
 
-    // Selection still refreshes OUT staging bytes and the client's slot offset.
-    // Only the immutable device layout is reused, never the ownership handoff.
+    // Select the mapping first to copy OUT data into staging and update the
+    // client's slot offset. Reusing the layout still requires a DMA begin call.
     if (__Transfer_IsPeriodic(transfer) && layout->Mapping == transfer->Dma.Mapping &&
         layout->Length == transfer->Dma.Length) {
         if (layout->MaxPacketSize == transfer->MaxPacketSize &&
@@ -223,13 +223,11 @@ USBTransferDmaPrepare(
         }
     }
 
-    // DMA controllers consume the immutable device segments directly.
+    // DMA controllers use the mapping's device segments directly.
     status = HCITransferElementsNeeded(
         transfer,
         transfer->Dma.Length,
         transfer->Direction,
-        NULL,
-        0,
         &count
     );
     if (status != OS_EOK) {
@@ -252,9 +250,7 @@ USBTransferDmaPrepare(
     HCITransferElementFill(
         transfer,
         transfer->Dma.Length,
-        transfer->Direction,
-        NULL,
-        0
+        transfer->Direction
     );
     layout->Mapping = transfer->Dma.Mapping;
     layout->Length = transfer->Dma.Length;
@@ -262,6 +258,27 @@ USBTransferDmaPrepare(
     layout->Type = transfer->Type;
     layout->Direction = transfer->Direction;
     return OS_EOK;
+}
+
+oserr_t
+USBTransferDmaBegin(
+    _InOut_ UsbManagerTransfer_t* transfer)
+{
+    oserr_t status;
+
+    // If a request needs several descriptor-pool passes, begin DMA once for
+    // the shared mapping. The CPU can access the full completed prefix after the
+    // final pass completes.
+    if (transfer->Dma.DeviceOwned) {
+        return OS_EOK;
+    }
+
+    status = DMABeginTransfer(transfer->Dma.Mapping, 0, transfer->Dma.Length);
+    if (status == OS_EOK) {
+        transfer->Dma.DeviceOwned = true;
+        transfer->Dma.Completed = 0;
+    }
+    return status;
 }
 
 oserr_t
@@ -275,7 +292,8 @@ USBTransferDmaDestroy(
     if (transfer->Dma.DeviceOwned || transfer->Dma.HardwareActive) {
         return OS_EBUSY;
     }
-    // A released mapping's address can be reused by a subsequent allocation.
+    // Clear the layout before freeing mappings, as a new mapping may get the
+    // same address.
     memset(&transfer->Dma.Layout, 0, sizeof(transfer->Dma.Layout));
     if (transfer->Dma.Mappings == NULL) {
         status = DMAUnmap(&transfer->Dma.Mapping);
@@ -299,8 +317,8 @@ USBTransferDmaDestroy(
         transfer->Dma.Mappings = NULL;
         transfer->Dma.MappingCount = 0;
     }
-    // The streaming mapping must be gone before releasing its backing SHM.
-    // Keep both owners intact when unmap fails so destruction can be retried.
+    // Unmap DMA before releasing the SHM buffer. If unmapping fails, leave
+    // the mapping and buffer in place so destruction can be retried.
     if (transfer->Dma.Staging.Buffer.ID != UUID_INVALID) {
         status = SHMRelease(&transfer->Dma.Staging.Buffer);
         if (status != OS_EOK) {
@@ -334,7 +352,7 @@ USBTransferDmaComplete(
         transfer->Dma.HardwareActive = false;
         if (transfer->Dma.Staging.Buffer.ID != UUID_INVALID &&
             transfer->Direction == USBTRANSFER_DIRECTION_IN && bytes != 0) {
-            // Publish only completed bytes. Cancellation (zero bytes) and a
+            // Copy only completed bytes. Cancellation (zero bytes) and a
             // short receive must leave the rest of the client's slot intact.
             memcpy(
                 (uint8_t*)SHMBuffer(&transfer->SHMHandle) + transfer->Dma.Staging.ClientOffset,

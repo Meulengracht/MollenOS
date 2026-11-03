@@ -24,55 +24,42 @@
 
 static void
 __FillTD(
-    _In_ EhciController_t*         controller,
-    _In_ EhciTransferDescriptor_t* td,
-    _In_ uintptr_t                 dataAddress,
-    _In_ size_t                    length)
+    _In_ EhciController_t*             controller,
+    _In_ EhciTransferDescriptor_t*     td,
+    _In_ const struct TransferElement* element)
 {
-    size_t bytesLeft = length;
-    int    i;
-
-    // Sanitize parameters
-    if (length == 0 || dataAddress == 0) {
-        return;
-    }
-
-    // Iterate buffers
-    for (i = 0; bytesLeft > 0 && i < 5; i++) {
-        uintptr_t address = dataAddress + (i * 0x1000);
+    // Use the mapped address for each page, since device segments may not be
+    // contiguous. A SETUP packet that crosses a page boundary needs both pages.
+    for (int i = 0; i < 5; i++) {
+        uintptr_t address = element->Data.EHCI.Lengths[i] != 0 ? element->Data.EHCI.Addresses[i] : 0;
         
-        // Update buffer
-        td->Buffers[i]    = (i == 0) ? address : EHCI_TD_BUFFER(address);
+        td->Buffers[i] = address;
         td->ExtBuffers[i] = 0;
 #if __BITS == 64
         if (controller->CParameters & EHCI_CPARAM_64BIT) {
             td->ExtBuffers[i] = EHCI_TD_EXTBUFFER(address);
         }
 #endif
-        bytesLeft -= MIN(0x1000, bytesLeft);
     }
 }
 
 void
 EHCITDSetup(
-    _In_ EhciController_t*         controller,
-    _In_ EhciTransferDescriptor_t* td,
-    _In_ uintptr_t                 dataAddress)
+    _In_ EhciController_t*             controller,
+    _In_ EhciTransferDescriptor_t*     td,
+    _In_ const struct TransferElement* element)
 {
-    /**
-     * When calling these initializers for TDs, the TDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    // The TD must already be linked. Keep the next link and terminate the
+    // alternative link for SETUP.
     td->AlternativeLink = EHCI_LINK_END;
 
     td->Token  = EHCI_TD_SETUP | EHCI_TD_ERRCOUNT;
 
-    // Calculate the length of the setup transfer
-    __FillTD(controller, td, dataAddress, sizeof(usb_packet_t));
+    // Set the buffer addresses and SETUP packet length.
+    __FillTD(controller, td, element);
     td->Length = (uint16_t)(EHCI_TD_LENGTH(sizeof(usb_packet_t)));
 
-    // Store copies
+    // Save the length and token for restart.
     td->OriginalLength = td->Length;
     td->OriginalToken  = td->Token;
     dma_mb();
@@ -81,23 +68,19 @@ EHCITDSetup(
 
 void
 EHCITDData(
-    _In_ EhciController_t*         controller,
-    _In_ EhciTransferDescriptor_t* td,
-    _In_ uint8_t                   pid,
-    _In_ uintptr_t                 dataAddress,
-    _In_ size_t                    length,
-    _In_ int                       toggle)
+    _In_ EhciController_t*             controller,
+    _In_ EhciTransferDescriptor_t*     td,
+    _In_ uint8_t                       pid,
+    _In_ const struct TransferElement* element,
+    _In_ int                           toggle)
 {
-    /**
-     * When calling these initializers for TDs, the TDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    // The TD must already be linked. Only the alternative link for IN
+    // transfers is changed here to stop on a short read.
 
-    // Initialize the new Td
+    // Initialize the token.
     td->Token  = pid | EHCI_TD_ERRCOUNT;
 
-    // Always stop transaction on short-reads
+    // Stop the transaction on a short read.
     if (pid == EHCI_TD_IN) {
         uintptr_t NullTdPhysical = 0;
         UsbSchedulerGetPoolElement(
@@ -110,9 +93,9 @@ EHCITDData(
         td->AlternativeLink = LODWORD(NullTdPhysical);
     }
 
-    // Calculate the length of the transfer
-    __FillTD(controller, td, dataAddress, length);
-    td->Length = (uint16_t)(EHCI_TD_LENGTH(length));
+    // Set the buffer addresses and transfer length.
+    __FillTD(controller, td, element);
+    td->Length = (uint16_t)(EHCI_TD_LENGTH(element->Length));
     if (toggle) {
         td->Length |= EHCI_TD_TOGGLE;
     }
@@ -153,25 +136,24 @@ EHCITDVerify(
     enum USBSpeed speed = scanContext->Transfer->Speed;
     int           cc;
 
-    // Have we already processed this one? In that case we ignore
-    // it completely.
+    // Count previously processed TDs without processing their results again.
     if (td->Object.Flags & USB_ELEMENT_PROCESSED) {
         scanContext->ElementsExecuted++;
         return;
     }
 
-    // If the TD is still active do nothing.
+    // If the TD is still active, leave its result for a later scan.
     if (td->Status & EHCI_TD_ACTIVE) {
         return;
     }
 
-    // Get error code based on type of transfer
+    // Decode the status according to the device speed.
     cc = EHCIConditionCodeToIndex(speed == USBSPEED_HIGH ? (td->Status & 0xFC) : td->Status);
     if (cc != 0) {
         scanContext->Result = EHCIErrorCodeToTransferStatus(cc);
     }
 
-    if (__Transfer_IsAsync(scanContext->Transfer) && (td->OriginalLength & EHCI_TD_LENGTHMASK) != 0) {
+    if ((td->OriginalLength & EHCI_TD_LENGTHMASK) != 0) {
         int bytesTransferred = (td->OriginalLength - td->Length) & EHCI_TD_LENGTHMASK;
         int bytesRequested   = td->OriginalLength & EHCI_TD_LENGTHMASK;
         if (bytesTransferred < bytesRequested) {
@@ -180,7 +162,7 @@ EHCITDVerify(
         scanContext->BytesTransferred += bytesTransferred;
     }
 
-    // mark TD as processed, and retrieve the data-toggle
+    // Mark the TD as processed and record its data toggle.
     td->Object.Flags |= USB_ELEMENT_PROCESSED;
     scanContext->LastToggle = (td->OriginalLength & EHCI_TD_TOGGLE) ? 1 : 0;
     scanContext->ElementsProcessed++;
@@ -195,30 +177,13 @@ EHCITDRestart(
 {
     int toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address);
 
-    // Make sure we clear the PROCESSED status on the TD, otherwise it
-    // won't be processed again
-    td->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
-
-    td->OriginalLength &= ~(EHCI_TD_TOGGLE);
+    td->Object.Flags &= ~USB_ELEMENT_PROCESSED;
+    td->Length = td->OriginalLength & ~EHCI_TD_TOGGLE;
     if (toggle) {
-        td->OriginalLength |= EHCI_TD_TOGGLE;
+        td->Length |= EHCI_TD_TOGGLE;
     }
+    td->Token = td->OriginalToken;
     UsbManagerSetToggle(&controller->Base, &transfer->Address, toggle ^ 1);
-
+    dma_wmb();
     td->Status = EHCI_TD_ACTIVE;
-    td->Length = td->OriginalLength;
-    td->Token  = td->OriginalToken;
-
-    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT &&
-        transfer->ElementCount > 0 &&
-        transfer->ResultCode != USBTRANSFERCODE_NAK) {
-        uintptr_t bufferStep = transfer->MaxPacketSize;
-        uintptr_t bufferBaseUpdated = ADDLIMIT(
-                                              transfer->Elements[0].Data.Address,
-                                              td->Buffers[0],
-                                              bufferStep,
-                                              (transfer->Elements[0].Data.Address + transfer->Elements[0].Length)
-        );
-        __FillTD(controller, td, bufferBaseUpdated, bufferStep);
-    }
 }

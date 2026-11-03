@@ -35,15 +35,15 @@ OHCITDIsochronous(
     TRACE("OHCITDIsochronous(Id %u, Address 0x%x, Length 0x%x",
         PId, Address, Length);
 
-    // Max packet size is 1023 for isoc
-    // If direction is out and mod 1023 is 0
-    // add a zero-length frame
-    // If framecount is > 8, nono
+    // Maximum isochronous packet size: 1023 bytes.
+    // For OUT transfers, add a zero-length frame when the length is a multiple of 1023.
+    // Limit each ITD to eight frames.
     if (frameCount > 8) {
         frameCount = 8;
     }
 
-    iTd->Flags |= pid;
+    _CRT_UNUSED(pid);
+    iTd->Flags &= 0xFFFF;
     iTd->Flags |= OHCI_iTD_FRAMECOUNT((frameCount - 1));
     iTd->Flags |= OHCI_TD_IOC_NONE;
     iTd->Flags |= OHCI_TD_ACTIVE;
@@ -51,17 +51,13 @@ OHCITDIsochronous(
     iTd->Cbp       = element->Data.OHCI.Page0;
     iTd->BufferEnd = element->Data.OHCI.Page1;
     for (int i = 0; i < frameCount; i++) {
-        iTd->Offsets[i] = element->Data.OHCI.Offsets[i];
-        iTd->OriginalOffsets[i] = element->Data.OHCI.Offsets[i];
+        iTd->Offsets[i] = element->Data.OHCI.Offsets[i] | 0xE000;
+        iTd->OriginalOffsets[i] = iTd->Offsets[i];
     }
 
-    /**
-     * When calling these initializers for ITDs, the ITDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    // The ITD must already be linked before initialization. Leave its links unchanged.
 
-    // Store copy of original content
+    // Save the initial fields for OHCIITDRestart.
     iTd->OriginalFlags     = iTd->Flags;
     iTd->OriginalCbp       = iTd->Cbp;
     iTd->OriginalBufferEnd = iTd->BufferEnd;
@@ -85,27 +81,35 @@ OHCIITDVerify(
         _In_ struct HCIProcessReasonScanContext* scanContext,
         _In_ OhciIsocTransferDescriptor_t*       iTD)
 {
-    // Have we already processed this one? In that case we ignore
-    // it completely.
+    int count = ((iTD->OriginalFlags >> 24) & 7) + 1;
+    int cc;
+
     if (iTD->Object.Flags & USB_ELEMENT_PROCESSED) {
         scanContext->ElementsExecuted++;
         return;
     }
+    
+    if (OHCI_TD_ERRORCODE(iTD->Flags) >= OHCI_CC_INIT0) {
+        return;
+    }
 
-    // For isochronous transfers we don't really care that much about how much
-    // data was transferred, or whether toggles need to be resynced. Instead, we
-    // just need to know whether the transfer completed correctly.
-    for (int i = 0; i < 8; i++) {
-        int cc = OHCI_iTD_OFFSETCODE(iTD->Offsets[i]);
-        if (iTD->Offsets[i] == 0) {
-            break;
-        }
-        if (cc != 0 && cc != OHCI_CC_INIT) {
-            scanContext->Result = OHCIErrorCodeToTransferStatus(cc);
+    // All packets must be processed before the ITD can be marked complete.
+    for (int i = 0; i < count; i++) {
+        if (OHCI_iTD_OFFSETCODE(iTD->Offsets[i]) >= OHCI_CC_INIT0) {
+            return;
         }
     }
 
-    // mark TD as processed
+    for (int i = 0; i < count; i++) {
+        cc = OHCI_iTD_OFFSETCODE(iTD->Offsets[i]);
+        if (cc != 0) {
+            scanContext->Result = OHCIErrorCodeToTransferStatus(cc);
+            break;
+        }
+        scanContext->BytesTransferred += OHCI_iTD_OFFSETLENGTH(iTD->Offsets[i]);
+    }
+
+    // Mark the TD as processed.
     iTD->Object.Flags |= USB_ELEMENT_PROCESSED;
     scanContext->ElementsProcessed++;
     scanContext->ElementsExecuted++;
@@ -119,8 +123,7 @@ OHCIITDRestart(
 {
     uintptr_t linkAddress = 0;
 
-    // Make sure we clear the PROCESSED status on the TD, otherwise it
-    // won't be processed again
+    // Clear PROCESSED so OHCIITDVerify checks the TD on the next transfer.
     iTD->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
 
     for (int i = 0; i < 8; i++) {

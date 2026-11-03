@@ -1,7 +1,7 @@
 /**
- * UsbHub Contract
- * Provides usb hub related functionality to the drivers that implement this. The contracts
- * supported by each driver can be queried through the driver contract.
+ * USB Hub Contract
+ * USB hub operations implemented by drivers. Query the driver contract to find
+ * the contracts supported by a driver.
  */
  
 import "../types"
@@ -11,6 +11,7 @@ namespace ctt
 service usbhub : message {
     func query_port(uuid_t deviceId, uint8 portId) : (oserr_t status, uint8[] descriptor) = 1;
     func reset_port(uuid_t deviceId, uint8 portId) : (oserr_t status, uint8[] descriptor) = 2;
-    
-    event port_status : (uuid_t id, oserr_t result, ulong bytesTransferred) = 3;
+    func disable_port(uuid_t deviceId, uint8 portId) : (oserr_t status) = 3;
+
+    event port_status : (uuid_t id, oserr_t result, ulong bytesTransferred) = 4;
 }

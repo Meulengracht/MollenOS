@@ -60,8 +60,8 @@ static const struct {
     { 0xFF, "Vendor Specific (Usb)" }
 };
 
-static list_t      g_devices      = LIST_INIT;
 static const char* g_vendorString = "Vendor-specific device (Usb)";
+static bool        g_coreInitialized;
 
 static uint16_t
 GetMaxPacketSizeControl(
@@ -79,8 +79,10 @@ GetMaxPacketSizeControl(
     }
 }
 
-/* UsbGetIdentificationString
- * Retrieves the identification string for the usb class. */
+/**
+ * @brief Get the description for a USB class, or the vendor-specific description
+ * if the class is unknown.
+ */
 const char*
 UsbGetIdentificationString(
     _In_ uint8_t ClassCode)
@@ -96,24 +98,50 @@ UsbGetIdentificationString(
 oserr_t
 UsbCoreInitialize(void)
 {
+    oserr_t status;
+
+    if (g_coreInitialized) {
+        return OS_EBUSY;
+    }
+
     UsbCoreHubsInitialize();
-    return UsbInitialize();
+    
+    status = UsbInitialize();
+    if (status != OS_EOK) {
+        UsbCoreHubsCleanup();
+        return status;
+    }
+    
+    status = UsbTopologyStart();
+    if (status != OS_EOK) {
+        UsbCoreHubsCleanup();
+        UsbCleanup();
+    } else {
+        g_coreInitialized = true;
+    }
+    return status;
 }
 
-static void __CleanupDeviceEntry(
-        _In_ element_t* element,
-        _In_ void*      context)
-{
-    // not really used
-}
-
-void
+oserr_t
 UsbCoreDestroy(void)
 {
-    UsbCoreHubsCleanup();
+    oserr_t status;
+
+    if (!g_coreInitialized) {
+        return OS_EOK;
+    }
+
+    status = UsbTopologyStop();
+    if (status != OS_EOK) {
+        return status;
+    }
+    
     UsbCoreControllersCleanup();
-    list_clear(&g_devices, __CleanupDeviceEntry, NULL);
+    UsbCoreHubsCleanup();
     UsbCleanup();
+
+    g_coreInitialized = false;
+    return OS_EOK;
 }
 
 oserr_t
@@ -144,7 +172,7 @@ __LoadDeviceDriver(
 
     device->DeviceId = RegisterDevice(&coreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
 
-    // cleanup the converted mstrings
+    // Free the UTF-8 strings created for device registration.
     free(coreDevice.Base.Identification.Manufacturer);
     free(coreDevice.Base.Identification.Product);
     free(coreDevice.Base.Identification.Serial);
@@ -183,7 +211,7 @@ static enum USBTransferCode __GetDeviceDescriptor(
     return transferStatus;
 }
 
-// TODO get language list first
+// TODO: Read the supported language list before requesting strings.
 static enum USBTransferCode __GetDeviceString(
         _In_  UsbPortDevice_t* device,
         _In_  uint8_t          stringIndex,
@@ -226,7 +254,7 @@ static enum USBTransferCode __GetConfiguration(
         TRACE("__GetConfiguration current configuration=%u", configuration.base.ConfigurationValue);
         device->DefaultConfiguration = configuration.base.ConfigurationValue;
 
-        // If the Class is 0, then we retrieve the class/subclass from the first interface
+        // If the device class is 0, use the class and subclass of the first interface.
         if (device->Class == USB_CLASS_INTERFACE) {
             device->Class    = configuration.interfaces[0].settings[0].base.Class;
             device->Subclass = configuration.interfaces[0].settings[0].base.Subclass;
@@ -256,9 +284,8 @@ __QueryInitialDeviceDescriptor(
     usb_device_descriptor_t deviceDescriptor;
     enum USBTransferCode    status;
 
-    // Query the initial 8 bytes of the configuration descriptor, to get the correct
-    // control size. There is no reason to query the full descriptor, and this way
-    // we dont need a variable buffer size.
+    // Read the first 8 bytes of the device descriptor to get the control endpoint's
+    // maximum packet size. This keeps the initial request within one packet.
     status = UsbExecutePacket(
             &device->Base,
             USBPACKET_DIRECTION_IN,
@@ -270,6 +297,41 @@ __QueryInitialDeviceDescriptor(
     );
     if (status == USBTRANSFERCODE_SUCCESS) {
         device->Base.device_mps = deviceDescriptor.MaxPacketSize;
+    }
+    return status;
+}
+
+static oserr_t
+__ClearEnumerationRecovery(
+    _In_ UsbController_t* controller)
+{
+    struct UsbEnumerationRecovery* pending = &controller->EnumerationRecovery;
+    USBPortDescriptor_t            descriptor;
+    oserr_t                        status;
+
+    if (!pending->Pending) {
+        return OS_EOK;
+    }
+
+    // If disabling the port failed, check its status before trying again.
+    // A disconnected or disabled port allows address zero to be used again.
+    status = UsbHubQueryPort(
+        pending->HubDriverId,
+        pending->HubDeviceId,
+        pending->PortAddress,
+        &descriptor
+    );
+    if (status == OS_EOK && (!descriptor.Connected || !descriptor.Enabled)) {
+        pending->Pending = false;
+        return OS_EOK;
+    }
+    
+    status = UsbHubDisablePort(pending->HubDriverId, pending->HubDeviceId, pending->PortAddress);
+    if (status == OS_EOK) {
+        pending->Pending = false;
+    } else {
+        WARNING("USB: cannot disable hub %u port %u (%u); address-zero enumeration blocked",
+            pending->HubDeviceId, pending->PortAddress, status);
     }
     return status;
 }
@@ -288,13 +350,19 @@ UsbCoreDevicesCreate(
 
     TRACE("[usb] [%u:%u] setting up", usbHub->PortAddress, usbPort->Address);
 
-    // Make sure that there isn't already one device
-    // setup on the port
+    // The port must not already have a connected device.
     if (usbPort->Connected && usbPort->Device != NULL) {
         return OS_EUNKNOWN;
     }
 
-    // Allocate a new instance of the usb device and reset it
+    // Only the topology worker enumerates ports. If an earlier reset failed,
+    // disable that port before another device can use address zero.
+    oserr = __ClearEnumerationRecovery(usbController);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Allocate and clear the device state.
     device = (UsbPortDevice_t*)malloc(sizeof(UsbPortDevice_t));
     if (!device) {
         return OS_EOOM;
@@ -303,24 +371,7 @@ UsbCoreDevicesCreate(
 
     usbPort->Device = device;
 
-    // Initialize the port by resetting it
-    if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OS_EOK) {
-        ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [1st-reset]",
-              usbHub->PortAddress, usbPort->Address);
-        goto device_error;
-    }
-
-    // Sanitize device is still present after reset
-    if (portDescriptor.Connected != 1 && portDescriptor.Enabled != 1) {
-        goto device_error;
-    }
-
-    // Update port
-    usbPort->Connected = 1;
-    usbPort->Enabled   = 1;
-    usbPort->Speed     = portDescriptor.Speed;
-    
-    // Initialize the members we have, leave device address to 0
+    // Use address zero until SET_ADDRESS succeeds.
     device->Base.controller_device_id = usbController->Device->Id;
     device->Base.controller_driver_id = usbController->DriverId;
     device->Base.hub_device_id        = usbHub->DeviceId;
@@ -331,10 +382,38 @@ UsbCoreDevicesCreate(
     device->Base.speed                = usbPort->Speed;
     device->Base.device_mps           = GetMaxPacketSizeControl(usbPort->Speed);
     device->Base.configuration_length = 0;
+
+    // Record the port before reset can yield or fail. Clear Pending after the
+    // SET_ADDRESS recovery delay. On failure, disable the port before the next
+    // device is enumerated.
+    usbController->EnumerationRecovery = (struct UsbEnumerationRecovery) {
+        .HubDriverId = usbHub->DriverId,
+        .HubDeviceId = usbHub->DeviceId,
+        .PortAddress = usbPort->Address,
+        .Pending = true
+    };
+
+    // Initialize the port by resetting it
+    if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OS_EOK) {
+        ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [1st-reset]",
+              usbHub->PortAddress, usbPort->Address);
+        goto device_error;
+    }
+
+    // The device must still be connected and enabled after reset.
+    if (portDescriptor.Connected != 1 || portDescriptor.Enabled != 1) {
+        goto device_error;
+    }
+
+    // Update port
+    usbPort->Connected = 1;
+    usbPort->Enabled   = 1;
+    usbPort->Speed     = portDescriptor.Speed;
     
-	// Wait 100 for device to stabilize after port-reset 
-	// I found this wait to be EXTREMELY crucical, otherwise devices would stall. 
-	// because I accessed them to quickly after the reset
+    device->Base.speed = usbPort->Speed;
+    device->Base.device_mps = GetMaxPacketSizeControl(usbPort->Speed);
+
+    // Wait 100 ms after reset. Devices have stalled when accessed sooner.
     thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
 
     // The first request after an initial reset must be the Device Descriptor
@@ -346,8 +425,8 @@ UsbCoreDevicesCreate(
         goto device_error;
     }
 
-    // The device expects a reset, MPS-bytes of the descriptor, another reset,
-    // set address request, and then the full 18 byte descriptor.
+    // Reset again after reading the initial descriptor bytes, then set the
+    // address before requesting the full 18-byte descriptor.
     oserr = UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor);
     if (oserr != OS_EOK) {
         ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [2nd-reset]",
@@ -375,9 +454,10 @@ UsbCoreDevicesCreate(
         }
     }
     
-    // After SetAddress device is allowed at-least 10 ms recovery
+    // Allow 10 ms for the device to recover after SET_ADDRESS.
     device->Base.device_address = reservedAddress;
     thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
+    usbController->EnumerationRecovery.Pending = false;
 
     usbStatus = __GetDeviceDescriptor(device);
     if (usbStatus != USBTRANSFERCODE_SUCCESS) {
@@ -404,12 +484,29 @@ UsbCoreDevicesCreate(
     }
     
     TRACE("[usb] [%u:%u] setup success", usbHub->PortAddress, usbPort->Address);
-    return __LoadDeviceDriver(usbController, device);
+    oserr = __LoadDeviceDriver(usbController, device);
+    if (oserr == OS_EOK) {
+        return OS_EOK;
+    }
 
     // All errors are handled here
 device_error:
     TRACE("[usb] [%u:%u] setup failed", usbHub->PortAddress, usbPort->Address);
+    
+    // SET_ADDRESS may have reached the device even if the response failed.
+    // Disable the port before its address is reused or another port is reset.
+    // This is also required if descriptor reads, configuration, or driver
+    // registration fail after the address was assigned.
+    usbController->EnumerationRecovery.Pending = true;
+    
+    (void)__ClearEnumerationRecovery(usbController);
+    if (reservedAddress != 0 && device->Base.device_address == 0) {
+        UsbCoreControllerReleaseAddress(usbController, reservedAddress);
+    }
+
     UsbCoreDevicesDestroy(usbController, usbPort);
+    usbPort->Connected = 0;
+    usbPort->Enabled = 0;
     return OS_EUNKNOWN;
 }
 
@@ -426,7 +523,7 @@ UsbCoreDevicesDestroy(
         return OS_EINVALPARAMS;
     }
 
-    // Instantiate the device pointer
+    // Get the device attached to this port.
     device = port->Device;
 
     // Unload the class driver while its USB context is still valid.
@@ -434,8 +531,8 @@ UsbCoreDevicesDestroy(
         (void)UnregisterDevice(device->DeviceId);
     }
 
-    // Tear down controller-side state before releasing the USB address or
-    // destroying the service-side device object.
+    // Remove the device state from the controller before releasing its USB
+    // address or freeing the device structure.
     UsbDetachDevice(controller->Device->Id, &device->Base);
 
     // Release allocated address

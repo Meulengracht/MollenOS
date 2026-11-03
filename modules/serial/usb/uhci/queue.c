@@ -181,6 +181,7 @@ UhciQueueInitialize(
     _In_ UhciController_t* Controller)
 {
     UsbSchedulerSettings_t Settings;
+    oserr_t                status;
 
     // Debug
     TRACE("UhciQueueInitialize()");
@@ -198,7 +199,11 @@ UhciQueueInitialize(
         offsetof(UhciTransferDescriptor_t, Link), offsetof(UhciTransferDescriptor_t, Object));
     
     TRACE(" > Initializing scheduler");
-    UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    Settings.DmaContext = Controller->Base.DmaContext;
+    status = UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    if (status != OS_EOK) {
+        return status;
+    }
     return UhciQueueResetInternalData(Controller);
 }
 
@@ -208,24 +213,29 @@ UhciQueueReset(
 {
     TRACE("UhciQueueReset()");
 
-    // Stop Controller
     if (UhciStop(Controller) != OS_EOK) {
         ERROR("Failed to stop the controller");
         return OS_EUNKNOWN;
     }
+    
     UsbManagerClearTransfers(&Controller->Base);
+    if (Controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
     return UhciQueueResetInternalData(Controller);
 }
 
-void
+oserr_t
 UHCIQueueDestroy(
     _In_ UhciController_t* controller)
 {
-    TRACE("UHCIQueueDestroy()");
-
-    // Make sure everything is unscheduled, reset and clean
-    UhciQueueReset(controller);
-    UsbSchedulerDestroy(controller->Base.Scheduler);
+    // The controller must be stopped before cleanup. If any transfer remains,
+    // keep the descriptor pool and DMA context until cleanup can be retried.
+    UsbManagerClearTransfers(&controller->Base);
+    if (controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
+    return UsbSchedulerDestroy(&controller->Base.Scheduler);
 }
 
 // This should be called regularly to keep the stored frame relevant
@@ -299,6 +309,12 @@ HCIProcessElement(
 
             // Perform validation and handle short transfers
             UHCITDVerify(scanContext, Td);
+            
+            // Count completed bytes from the start of the mapping. Stop at the
+            // first active, short or failed packet, even if the controller has
+            // processed later packets.
+            return (Td->Object.Flags & USB_ELEMENT_PROCESSED) != 0 &&
+                !scanContext->Short && scanContext->Result == USBTRANSFERCODE_SUCCESS;
         } break;
         
         case HCIPROCESS_REASON_RESET: {

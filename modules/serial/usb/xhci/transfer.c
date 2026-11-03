@@ -41,8 +41,8 @@ __BuildDescriptor(
     _In_ XhciEndpoint_t*           endpoint,
     _In_ uint16_t                  trbIndex)
 {
-    // Preserve the scheduler allocation identity, but discard all submission
-    // state before reusing an element for another packet slot.
+    // Before reusing a descriptor, clear its submission state. Keep the
+    // scheduler fields that identify its allocation.
     descriptor->Object.DepthIndex = USB_ELEMENT_NO_INDEX;
     descriptor->Object.BreathIndex = USB_ELEMENT_NO_INDEX;
     descriptor->Object.Flags &= ~USB_ELEMENT_PROCESSED;
@@ -186,7 +186,8 @@ __BuildTransferElements(
         offset += chunk;
         remaining -= chunk;
 
-        // Preserve the existing terminal zero-length element policy.
+        // Add a final zero-length element for isochronous transfers and for
+        // OUT transfers whose last chunk matches the maximum packet size.
         if (remaining == 0 && (transfer->Type == USBTRANSFER_TYPE_ISOC ||
             (transfer->Direction == USBTRANSFER_DIRECTION_OUT && chunk == transfer->MaxPacketSize))) {
             if (count == INT_MAX) {
@@ -216,15 +217,10 @@ HCITransferElementsNeeded(
     _In_  UsbManagerTransfer_t*     transfer,
     _In_  uint32_t                  transferLength,
     _In_  enum USBTransferDirection direction,
-    _In_  SHMSGTable_t*             sgTable,
-    _In_  uint32_t                  sgTableOffset,
-    _Out_ int*                     elementCountOut)
+        _Out_ int*                     elementCountOut)
 {
-    // The common HCI interface also serves physical-SG controllers. xHCI
-    // always uses the current DMA mapping's immutable device segments.
+    // Build elements from the device segments in the current DMA mapping.
     _CRT_UNUSED(direction);
-    _CRT_UNUSED(sgTable);
-    _CRT_UNUSED(sgTableOffset);
     return __BuildTransferElements(transfer, transferLength, NULL, elementCountOut);
 }
 
@@ -232,16 +228,13 @@ void
 HCITransferElementFill(
     _In_ UsbManagerTransfer_t*     transfer,
     _In_ uint32_t                  transferLength,
-    _In_ enum USBTransferDirection direction,
-    _In_ SHMSGTable_t*             sgTable,
-    _In_ uint32_t                  sgTableOffset)
+    _In_ enum USBTransferDirection direction)
 {
     int count;
 
     _CRT_UNUSED(direction);
-    _CRT_UNUSED(sgTable);
-    _CRT_UNUSED(sgTableOffset);
-    // Counting validated the same immutable segments before storage was grown.
+    // The count pass must validate these segments before allocating element
+    // storage. The segments remain unchanged when filling that storage.
     (void)__BuildTransferElements(transfer, transferLength, transfer->Elements, &count);
 }
 
@@ -286,8 +279,8 @@ XhciTransferPrepare(
             continue;
         }
 
-        // Append through the known tail so fragmented transfers are built in
-        // linear time instead of walking the growing chain for each element.
+        // Append at the tail to avoid walking the chain for each element.
+        // This keeps fragmented transfer construction linear in element count.
         oserr = UsbSchedulerChainElement(
                 controller->Base.Scheduler,
                 XHCI_TD_POOL,
@@ -364,7 +357,8 @@ XhciTransferSubmit(
         return OS_EBUSY;
     }
 
-    // Publish payload before any TRB cycle bit can make it visible to hardware.
+    // The payload must be ready for DMA before a TRB cycle bit allows the
+    // controller to access it.
     if (!transfer->Dma.DeviceOwned) {
         status = DMABeginTransfer(transfer->Dma.Mapping, 0, transfer->Dma.Length);
         if (status != OS_EOK) {
@@ -435,8 +429,8 @@ XhciTransferHandleEvent(
         return false;
     }
 
-    // Event identity selects the ring; the pointer must still name an aligned,
-    // currently owned TRB in that ring before any transfer state is changed.
+    // The slot and endpoint select the ring. Before changing transfer state,
+    // require an aligned TRB address in that ring with a transfer descriptor.
     offset = address - endpoint->TransferRing.DeviceBase;
     if (offset >= endpoint->TransferRing.TrbCount * sizeof(XhciTrb_t) || offset % sizeof(XhciTrb_t)) {
         return false;
@@ -468,8 +462,9 @@ XhciTransferHandleEvent(
         endpoint->State = XHCI_ENDPOINT_HALTED;
     }
     if (code == XHCI_TRB_COMPLETION_SHORT_PACKET) {
-        // Hardware skips the rest of the data TD. Control transfers still
-        // owe a status stage; skipped data must never count as received.
+        // Hardware skips the remaining data TRBs after a short packet.
+        // Exclude skipped data from the byte count. Control transfers must
+        // still complete the status stage.
         descriptor = next;
         while (descriptor != NULL) {
             if (transfer->Type == USBTRANSFER_TYPE_CONTROL && __DescriptorNext(controller, descriptor) == NULL) {
@@ -487,8 +482,8 @@ XhciTransferHandleEvent(
         return false;
     }
 
-    // Retire every TRB in the completed TD, including skipped tail entries,
-    // before the common manager can free its descriptor chain and mapping.
+    // Clear descriptor references for every TRB, including skipped entries,
+    // before the transfer manager can free the descriptor chain and mapping.
     released = 0;
     descriptor = transfer->RootElement;
     while (descriptor != NULL) {
@@ -565,7 +560,8 @@ __RecycleDescriptors(
     }
     while (descriptor != NULL) {
         next = __DescriptorNext(controller, descriptor);
-        // Cached descriptors must not keep endpoints that detach may free.
+        // Clear the endpoint pointer before caching the descriptor, since
+        // detach may free the endpoint.
         descriptor->Endpoint = NULL;
         descriptor->CacheNext = transfer->ReusableElements;
         transfer->ReusableElements = descriptor;
@@ -594,12 +590,12 @@ HCITransferFinalize(
     }
     if (keepDescriptors) {
         if (transfer->ResultCode == USBTRANSFERCODE_STALL) {
-            // Keep the completed chain in the endpoint's pending list. Reset
-            // recovery owns rearming it; cancellation and detach retire it.
+            // Keep the completed chain in the endpoint's pending list until
+            // reset recovery resubmits it, or cancellation or detach removes it.
             return OS_EOK;
         }
-        // Completion retires this submission, while cancellation and controller
-        // teardown release both active descriptors and spare capacity.
+        // Cache completed descriptors for the next periodic transfer.
+        // Cancellation and controller teardown free active and cached descriptors.
         __RecycleDescriptors(controller, transfer);
     } else {
         XhciTransferCleanup(controller, transfer);
@@ -642,8 +638,8 @@ HCITransferQueue(
             return oserr;
         }
 
-        // A stopped endpoint must return every old mapping to CPU ownership
-        // before new work can publish TRBs. Recovery completion wakes these waiters.
+        // Before submitting new TRBs, recovery must finish DMA on every old
+        // mapping so the CPU can access it. Recovery completion wakes waiters.
         switch (endpoint->State) {
             case XHCI_ENDPOINT_RESET_PENDING:
             case XHCI_ENDPOINT_STOP_PENDING:
@@ -658,10 +654,9 @@ HCITransferQueue(
                 break;
         }
 
-        /* Non-control endpoints are configured lazily: the first transfer for
-         * a DCI (or one whose metadata no longer matches what's configured)
-         * issues a Configure Endpoint command and waits for it to complete
-         * before its TRBs are ever built/submitted. */
+        // For a non-control endpoint, the first transfer or changed metadata
+        // requires Configure Endpoint. Wait for the command to complete before
+        // building and submitting the transfer's TRBs.
         if (endpoint->DeviceContextIndex != 1) {
             if (device->State != XHCI_DEVICE_ADDRESSED) {
                 UsbManagerWaitTransfer(&controller->Base, transfer);
@@ -751,8 +746,8 @@ HCITransferDequeue(
         return OS_ENOENT;
     }
 
-    /* Submitted rings require Stop Endpoint + Set TR Dequeue Pointer before
-     * the cancelled TD's storage can be released safely; every other transfer
-     * on the endpoint is rebuilt/requeued once that completes. */
+    // Stop Endpoint and Set TR Dequeue Pointer must complete before freeing
+    // the cancelled TD's storage. Then rebuild and requeue the other transfers
+    // on the endpoint.
     return XhciEndpointCancelTransfer(controller, endpoint, transfer);
 }

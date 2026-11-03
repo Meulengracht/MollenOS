@@ -62,7 +62,7 @@ OHCIQHInitialize(
 
     qh->Flags = OHCI_QH_ADDRESS(transfer->Address.DeviceAddress);
     qh->Flags |= OHCI_QH_ENDPOINT(transfer->Address.EndpointAddress);
-    qh->Flags |= OHCI_QH_DIRECTIONTD; // Retrieve from TD
+    qh->Flags |= OHCI_QH_DIRECTIONTD; // Use the TD direction.
     qh->Flags |= OHCI_QH_LENGTH(transfer->MaxPacketSize);
     qh->Flags |= OHCI_QH_TYPE(transfer->Type);
 
@@ -70,10 +70,12 @@ OHCIQHInitialize(
         qh->Flags |= OHCI_QH_LOWSPEED;
     }
     if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
+        // Isochronous TDs have no direction field, so set it in the endpoint.
         qh->Flags |= OHCI_QH_ISOCHRONOUS;
+        qh->Flags |= transfer->Direction == USBTRANSFER_DIRECTION_IN ? OHCI_QH_IN : OHCI_QH_OUT;
     }
 
-    // Allocate bandwidth if int/isoc
+    // Interrupt and isochronous transfers need scheduled bandwidth.
     if (__Transfer_IsPeriodic(transfer)) {
         oserr = UsbSchedulerAllocateBandwidth(
                 controller->Base.Scheduler,
@@ -113,6 +115,8 @@ OHCIQHRestart(
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
         (Qh->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
         Qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
+
+    dma_wmb();
     Qh->Current = LinkAddress;
     assert(Qh->Current != 0);
 }
@@ -126,40 +130,40 @@ OHCIQHLink(
     OhciQueueHead_t* rootQH = NULL;
     reg32_t          commandStatus = READ_VOLATILE(controller->Registers->HcCommandStatus);
 
-    // Switch based on type of transfer
+    // Add the queue head to the control or bulk list.
     if (type == USBTRANSFER_TYPE_CONTROL) {
-        // Is there anyone waiting?
+        // If control transfers are waiting, append to their list.
         if (controller->TransactionsWaitingControl > 0) {
             UsbSchedulerGetPoolElement(controller->Base.Scheduler, OHCI_QH_POOL,
                                        controller->TransactionQueueControlIndex & USB_ELEMENT_INDEX_MASK,
                                        (uint8_t**)&rootQH, NULL);
             UsbSchedulerChainElement(controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)rootQH,
-                                     OHCI_QH_POOL, (uint8_t*)qh, 0, USB_CHAIN_BREATH);
+                                     OHCI_QH_POOL, (uint8_t*)qh, USB_ELEMENT_NO_INDEX, USB_CHAIN_BREATH);
         }
         else {
             controller->TransactionQueueControlIndex = qh->Object.Index;
         }
         controller->TransactionsWaitingControl++;
 
-        // Enable?
+        // Reload the control list if its filled flag is clear.
         if (!(commandStatus & OHCI_COMMAND_CONTROL_FILLED)) {
             OHCIReloadAsynchronous(controller, USBTRANSFER_TYPE_CONTROL);
             controller->QueuesActive |= OHCI_CONTROL_CONTROL_ACTIVE;
         }
     } else if (type == USBTRANSFER_TYPE_BULK) {
-        // Is there anyone waiting?
+        // If bulk transfers are waiting, append to their list.
         if (controller->TransactionsWaitingBulk > 0) {
             UsbSchedulerGetPoolElement(controller->Base.Scheduler, OHCI_QH_POOL,
                                        controller->TransactionQueueBulkIndex & USB_ELEMENT_INDEX_MASK,
                                        (uint8_t**)&rootQH, NULL);
             UsbSchedulerChainElement(controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)rootQH,
-                                     OHCI_QH_POOL, (uint8_t*)qh, 0, USB_CHAIN_BREATH);
+                                     OHCI_QH_POOL, (uint8_t*)qh, USB_ELEMENT_NO_INDEX, USB_CHAIN_BREATH);
         } else {
             controller->TransactionQueueBulkIndex = qh->Object.Index;
         }
         controller->TransactionsWaitingBulk++;
 
-        // Enable?
+        // Reload the bulk list if its filled flag is clear.
         if (!(commandStatus & OHCI_COMMAND_BULK_FILLED)) {
             OHCIReloadAsynchronous(controller, USBTRANSFER_TYPE_BULK);
             controller->QueuesActive |= OHCI_CONTROL_BULK_ACTIVE;

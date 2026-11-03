@@ -20,9 +20,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include <os/handle.h>
 #include <os/mollenos.h>
-#include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
 #include "scheduler.h"
@@ -31,40 +29,43 @@ COMPILE_TIME_ASSERT(sizeof(UsbSchedulerObject_t) == 18);
 
 static oserr_t
 __AllocatePoolMemory(
-    _In_ UsbSchedulerPool_t* schedulerPool,
-    _In_ bool                softwareElements)
+    _In_ struct DMAContext*   context,
+    _In_ UsbSchedulerPool_t*  pool,
+    _In_ bool                 softwareElements)
 {
-    size_t  elementBytes = schedulerPool->ElementCount * schedulerPool->ElementAlignedSize;
-    SHM_t   options = {
-        .Flags = SHM_DEVICE | SHM_PRIVATE,
-        .Conformity = OSMEMORYCONFORMITY_LOW,
-        .Size = elementBytes,
-        .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-    };
-    oserr_t oserr;
+    struct DMARequirements   requirements = { 0 };
+    const struct DMASegment* segments;
+    uint32_t                 count;
+    oserr_t                  status;
+    size_t                   bytes;
 
-    // CPU-only descriptors need cached memory, but use the same page-aligned
-    // SHM storage and cleanup as hardware pools. They have no device addresses.
+    // get number of bytes required for the pool
+    bytes = pool->ElementCount * pool->ElementAlignedSize;
+
     if (softwareElements) {
-        options.Flags = SHM_COMMIT | SHM_PRIVATE;
-        options.Conformity = OSMEMORYCONFORMITY_NONE;
-    }
-    
-    oserr = SHMCreate(&options, &schedulerPool->ElementPoolDMA);
-    if (oserr != OS_EOK) {
-        ERROR("__AllocatePoolMemory: cannot allocate memory region for pool: %u", oserr);
-        return oserr;
+        // These descriptors are never read by hardware. Keep metadata cached
+        // and page aligned without creating a SHM object or a DMA mapping.
+        // TODO: read the actual page size from the system instead of hardcoding 4096
+        pool->ElementPool = aligned_alloc(4096, (bytes + 4095) & ~(size_t)4095);
+        return pool->ElementPool != NULL ? OS_EOK : OS_EOOM;
     }
 
-    if (!softwareElements) {
-        oserr = SHMGetSGTable(&schedulerPool->ElementPoolDMA, &schedulerPool->ElementPoolDMATable, -1);
-        if (oserr != OS_EOK) {
-            ERROR("__AllocatePoolMemory: cannot retrieve SG table for memory region: %u", oserr);
-            return oserr;
-        }
+    // Keep the pool in one DMA segment so each descriptor address can be
+    // calculated from the pool base and its offset.
+    requirements.Length = bytes;
+    // TODO: read the actual page size from the system instead of hardcoding 4096
+    requirements.Alignment = 4096;
+    requirements.Contiguous = true;
+
+    status = DMAAllocate(context, &requirements, &pool->ElementPoolDMA);
+    if (status != OS_EOK) {
+        ERROR("USB scheduler: descriptor allocation failed (%u)", status);
+        return status;
     }
 
-    schedulerPool->ElementPool = SHMBuffer(&schedulerPool->ElementPoolDMA);
+    segments = DMABufferSegments(pool->ElementPoolDMA, &count);
+    pool->ElementPool = DMABufferData(pool->ElementPoolDMA);
+    pool->ElementPoolDeviceAddress = (uintptr_t)segments[0].Address;
     return OS_EOK;
 }
 
@@ -72,31 +73,25 @@ static oserr_t
 __AllocateFrameMemory(
     _In_ UsbScheduler_t* scheduler)
 {
-    size_t  frameSize = scheduler->Settings.FrameCount * sizeof(reg32_t);
-    oserr_t oserr;
+    struct DMARequirements requirements = {
+        .Length = scheduler->Settings.FrameCount * sizeof(reg32_t),
+        // TODO: read the actual page size from the system instead of hardcoding 4096
+        .Alignment = 4096,
+        .Contiguous = true
+    };
+    const struct DMASegment* segments;
+    uint32_t                 count;
+    oserr_t                  status;
 
-    oserr = SHMCreate(
-            &(SHM_t) {
-                .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                .Conformity = OSMEMORYCONFORMITY_LOW,
-                .Size = frameSize,
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            &scheduler->Settings.FrameListDMA
-    );
-    if (oserr != OS_EOK) {
-        ERROR("__AllocateFrameMemory: cannot allocate memory region: %u", oserr);
-        return oserr;
+    status = DMAAllocate(scheduler->Settings.DmaContext, &requirements, &scheduler->Settings.FrameListDMA);
+    if (status != OS_EOK) {
+        ERROR("USB scheduler: frame-list allocation failed (%u)", status);
+        return status;
     }
 
-    oserr = SHMGetSGTable(&scheduler->Settings.FrameListDMA, &scheduler->Settings.FrameListDMATable, -1);
-    if (oserr != OS_EOK) {
-        ERROR("__AllocateFrameMemory: cannot retrieve SG table for memory region: %u", oserr);
-        return oserr;
-    }
-
-    scheduler->Settings.FrameList         = (reg32_t*)SHMBuffer(&scheduler->Settings.FrameListDMA);
-    scheduler->Settings.FrameListPhysical = scheduler->Settings.FrameListDMATable.Entries[0].Address;
+    segments = DMABufferSegments(scheduler->Settings.FrameListDMA, &count);
+    scheduler->Settings.FrameList = DMABufferData(scheduler->Settings.FrameListDMA);
+    scheduler->Settings.FrameListPhysical = (uintptr_t)segments[0].Address;
     return OS_EOK;
 }
 
@@ -108,11 +103,17 @@ UsbSchedulerResetInternalData(
 {
     oserr_t oserr;
 
-    oserr = UsbTransferArenaResetInternalData(UsbSchedulerGetTransferArena(Scheduler), ResetElements);
+    oserr = UsbTransferArenaResetInternalData(
+        UsbSchedulerGetTransferArena(Scheduler),
+        ResetElements
+    );
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return UsbPeriodicSchedulerResetInternalData(UsbSchedulerGetPeriodicScheduler(Scheduler), ResetFramelist);
+    return UsbPeriodicSchedulerResetInternalData(
+        UsbSchedulerGetPeriodicScheduler(Scheduler),
+        ResetFramelist
+    );
 }
 
 oserr_t
@@ -138,6 +139,10 @@ UsbSchedulerInitialize(
     spinlock_init(&scheduler->Lock);
     memcpy(&scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
 
+    // Set the output before allocating DMA buffers so the controller can clean
+    // up after a setup failure and retry cleanup if DMAFree fails.
+    *SchedulerOut = scheduler;
+
     scheduler->TransferArena.Settings = &scheduler->Settings;
     scheduler->TransferArena.Lock     = &scheduler->Lock;
     scheduler->Periodic.Settings      = &scheduler->Settings;
@@ -145,7 +150,6 @@ UsbSchedulerInitialize(
     if (scheduler->Settings.Flags & USB_SCHEDULER_FRAMELIST) {
         status = __AllocateFrameMemory(scheduler);
         if (status != OS_EOK) {
-            UsbSchedulerDestroy(scheduler);
             return status;
         }
     }
@@ -153,18 +157,17 @@ UsbSchedulerInitialize(
     if ((scheduler->Settings.Flags & (USB_SCHEDULER_PERIODIC | USB_SCHEDULER_FL64)) == USB_SCHEDULER_PERIODIC) {
         if ((scheduler->Settings.FrameListPhysical + (scheduler->Settings.FrameCount * sizeof(reg32_t))) > 0xFFFFFFFF) {
             ERROR("Failed to allocate memory below 4gb memory for usb resources");
-            UsbSchedulerDestroy(scheduler);
             return OS_EUNKNOWN;
         }
     }
 
     for (int i = 0; i < scheduler->Settings.PoolCount; i++) {
         status = __AllocatePoolMemory(
+            scheduler->Settings.DmaContext,
             &scheduler->Settings.Pools[i],
             (scheduler->Settings.Flags & USB_SCHEDULER_SOFTWARE_ELEMENTS) != 0
         );
         if (status != OS_EOK) {
-            UsbSchedulerDestroy(scheduler);
             return status;
         }
     }
@@ -173,48 +176,50 @@ UsbSchedulerInitialize(
         scheduler->Periodic.VirtualFrameList = malloc(Settings->FrameCount * sizeof(uintptr_t));
         scheduler->Periodic.Bandwidth        = malloc(Settings->FrameCount * Settings->SubframeCount * sizeof(size_t));
         if (!scheduler->Periodic.VirtualFrameList || !scheduler->Periodic.Bandwidth) {
-            UsbSchedulerDestroy(scheduler);
             return OS_EOOM;
         }
     }
 
-    *SchedulerOut = scheduler;
     return UsbSchedulerResetInternalData(scheduler, 1, 1);
 }
 
-static void
-__FreePoolMemory(
-    _In_ UsbSchedulerPool_t* Pool)
-{
-    OSHandleDestroy(&Pool->ElementPoolDMA);
-    free(Pool->ElementPoolDMATable.Entries);
-}
-
-static void
-__FreeFrameListMemory(
-    _In_ UsbScheduler_t* Scheduler)
-{
-    OSHandleDestroy(&Scheduler->Settings.FrameListDMA);
-    free(Scheduler->Settings.FrameListDMATable.Entries);
-}
-
-void
+oserr_t
 UsbSchedulerDestroy(
-    _In_ UsbScheduler_t* Scheduler)
+    _InOut_ UsbScheduler_t** schedulerSlot)
 {
-    if (Scheduler == NULL) {
-        return;
+    UsbScheduler_t*     scheduler = *schedulerSlot;
+    UsbSchedulerPool_t* pool;
+    oserr_t             status;
+
+    if (scheduler == NULL) {
+        return OS_EOK;
     }
 
-    if (Scheduler->Settings.Flags & USB_SCHEDULER_FRAMELIST) {
-        __FreeFrameListMemory(Scheduler);
+    // Hardware must already be stopped. DMAFree clears each buffer pointer on
+    // success, so cleanup can be retried. Free the scheduler after all buffers.
+    status = DMAFree(&scheduler->Settings.FrameListDMA);
+    if (status != OS_EOK) {
+        return status;
     }
-
-    for (int i = 0; i < Scheduler->Settings.PoolCount; i++) {
-        __FreePoolMemory(&Scheduler->Settings.Pools[i]);
+    
+    for (int i = 0; i < scheduler->Settings.PoolCount; i++) {
+        pool = &scheduler->Settings.Pools[i];
+        if (scheduler->Settings.Flags & USB_SCHEDULER_SOFTWARE_ELEMENTS) {
+            free(pool->ElementPool);
+        } else {
+            status = DMAFree(&pool->ElementPoolDMA);
+            if (status != OS_EOK) {
+                return status;
+            }
+        }
+        pool->ElementPool = NULL;
+        pool->ElementPoolDeviceAddress = 0;
     }
-
-    free(Scheduler->Periodic.VirtualFrameList);
-    free(Scheduler->Periodic.Bandwidth);
-    free(Scheduler);
+    
+    free(scheduler->Periodic.VirtualFrameList);
+    free(scheduler->Periodic.Bandwidth);
+    free(scheduler);
+    
+    *schedulerSlot = NULL;
+    return OS_EOK;
 }

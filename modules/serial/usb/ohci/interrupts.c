@@ -40,8 +40,8 @@ OnFastInterrupt(
     OhciHCCA_t*       Hcca       = (OhciHCCA_t*)INTERRUPT_RESOURCE(ResourceTable, 1);
     reg32_t           InterruptStatus;
 
-    // There are two cases where it might be, just to be sure
-    // we don't miss an interrupt, if the HeadDone is set or the intr is set
+    // Check both HeadDone and the interrupt status register so completed
+    // transfers are processed even when only HeadDone is set.
     if (Hcca->HeadDone != 0) {
         InterruptStatus = OHCI_PROCESS_EVENT;
         // If halted bit is set, get rest of interrupt
@@ -50,31 +50,28 @@ OnFastInterrupt(
         }
     }
     else {
-        // Was it this Controller that made the interrupt?
-        // We only want the interrupts we have set as enabled
+        // Only process enabled interrupts from this controller.
         InterruptStatus = (Registers->HcInterruptStatus & Registers->HcInterruptEnable);
     }
 
-    // Was the interrupt even from this controller?
+    // No pending interrupt from this controller.
     if (!InterruptStatus) {
         return IRQSTATUS_NOT_HANDLED;
     }
     
-    // Process Checks first
-    // This happens if a transaction has completed
+    // Clear HeadDone when a transaction has completed.
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
         //reg32_t TdAddress = (Hcca->HeadDone & ~(0x00000001));
         Hcca->HeadDone = 0;
     }
 
-    // Stage 1 of the linking/unlinking event, disable queues untill
-    // after the actual unlink/link event
+    // Stage 1: Disable queues until the link/unlink changes are complete.
     if (InterruptStatus & OHCI_SOF_EVENT) {
         Registers->HcControl          &= ~(OHCI_CONTROL_ALL_ACTIVE);
         Registers->HcInterruptDisable  = OHCI_SOF_EVENT;
     }
 
-    // Store interrupts, acknowledge and return
+    // Acknowledge interrupts and save them for the callback.
     Registers->HcInterruptStatus = InterruptStatus;
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
     
@@ -92,45 +89,50 @@ HciInterruptCallback(
     TRACE("HciInterruptCallback(baseController=0x%" PRIxIN ")", baseController);
     InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
 ProcessInterrupt:
-    // Process Checks
+    // Process completed transfers.
     if (InterruptStatus & OHCI_PROCESS_EVENT) {
         UsbManagerProcessTransfers(&Controller->Base);
     }
 
-    // Root Hub Status Change
-    // This occurs on disconnect/connect events
+    // Check root hub ports after a connect or disconnect event.
     if (InterruptStatus & OHCI_ROOTHUB_EVENT) {
         OHCICheckPorts(Controller, 0);
     }
 
-    // Fatal errors, reset everything
+    // Reset the queues and controller after a fatal error or overrun.
     if (InterruptStatus & (OHCI_FATAL_EVENT | OHCI_OVERRUN_EVENT)) {
-        OHCIQueueReset(Controller);
-        OHCIReset(Controller);
+        ERROR("OHCI: controller recovery event 0x%x, stopping queued transfers", InterruptStatus);
+        if (OHCIQueueReset(Controller) != OS_EOK || OHCIReset(Controller) != OS_EOK) {
+            // If stop or cleanup fails, keep the DMA resources allocated.
+            // The teardown worker must retry before pools can be freed or reused.
+            UsbManagerDeferControllerDestroy(baseController);
+            return;
+        }
         OHCISetMode(Controller, OHCI_CONTROL_ACTIVE);
     }
-
-    // Resume Detection? 
-    // We must wait 20 ms before putting Controller to Operational
+    // On resume, wait 20 ms before returning the controller to Operational.
     if (InterruptStatus & OHCI_RESUMEDETECT_EVENT) {
         thrd_sleep(&(struct timespec) { .tv_nsec = 20 * NSEC_PER_MSEC }, NULL);
         OHCISetMode(Controller, OHCI_CONTROL_ACTIVE);
     }
 
-    // Stage 2 of an linking/unlinking event
+    // Stage 2: Apply link/unlink changes before enabling queues.
     if (InterruptStatus & OHCI_SOF_EVENT) {
         reg32_t HcControl = READ_VOLATILE(Controller->Registers->HcControl);
+        
+        // Retry retired batches at the frame boundary even if no TD completed.
+        // This must finish before linking the next pending batch.
+        UsbManagerProcessTransfers(&Controller->Base);
         UsbManagerScheduleTransfers(&Controller->Base);
         WRITE_VOLATILE(Controller->Registers->HcControl, HcControl | Controller->QueuesActive);
     }
 
-    // Frame Overflow
-    // Happens when it rolls over from 0xFFFF to 0
+    // The frame counter wraps from 0xFFFF to 0.
     if (InterruptStatus & OHCI_OVERFLOW_EVENT) {
-        // Wut do?
+        // TODO: Handle frame counter overflow.
     }
 
-    // Did another one fire?
+    // Check for interrupts received while processing this batch.
     InterruptStatus = atomic_exchange(&Controller->Base.InterruptStatus, 0);
     if (InterruptStatus != 0) {
         goto ProcessInterrupt;

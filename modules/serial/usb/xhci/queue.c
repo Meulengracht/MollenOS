@@ -65,7 +65,8 @@ XhciQueueInitialize(
     UsbSchedulerSettings_t settings;
     oserr_t                oserr;
 
-    // Hardware reads the separate TRB rings, never these software descriptors.
+    // These descriptors are only used by software. The controller reads
+    // the separate TRB rings.
     UsbSchedulerSettingsCreate(&settings, 1, 1, 0, USB_SCHEDULER_SOFTWARE_ELEMENTS);
     UsbSchedulerSettingsAddPool(
             &settings,
@@ -78,6 +79,7 @@ XhciQueueInitialize(
             offsetof(XhciTransferDescriptor_t, Object)
     );
 
+    settings.DmaContext = controller->Base.DmaContext;
     oserr = UsbSchedulerInitialize(&settings, &controller->Base.Scheduler);
     if (oserr != OS_EOK) {
         return oserr;
@@ -188,23 +190,23 @@ XhciQueueDestroy(
     if (controller->Base.TransactionList.head != NULL) {
         return OS_EBUSY;
     }
+    
     status = XhciEndpointDestroyAll(controller);
     if (status != OS_EOK) {
         return status;
     }
+    
     status = XhciDeviceDestroyAll(controller);
     if (status != OS_EOK) {
         return status;
     }
+    
     status = __XhciFreeControllerResources(controller);
     if (status != OS_EOK) {
         return status;
     }
-    if (controller->Base.Scheduler != NULL) {
-        UsbSchedulerDestroy(controller->Base.Scheduler);
-        controller->Base.Scheduler = NULL;
-    }
-    return OS_EOK;
+
+    return UsbSchedulerDestroy(&controller->Base.Scheduler);
 }
 
 static bool

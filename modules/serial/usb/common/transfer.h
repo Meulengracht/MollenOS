@@ -45,6 +45,8 @@ enum USBManagerTransferState {
     USBTRANSFER_STATE_CLEANUP,
     USBTRANSFER_STATE_COMPLETED,
     USBTRANSFER_STATE_STALLED,
+    USBTRANSFER_STATE_FINISHING,
+    USBTRANSFER_STATE_RESTART,
 };
 
 enum TransferElementType {
@@ -53,13 +55,14 @@ enum TransferElementType {
     TRANSFERELEMENT_TYPE_OUT
 };
 
+/**
+ * @brief Transfer length, direction and buffer addresses used to build HCI descriptors.
+ */
 struct TransferElement {
     enum TransferElementType Type;
     uint32_t                 Length;
     union {
-        // DataAddress holds the physical start address of the
-        // transfer element buffer. This is only used for UHCI
-        // and OHCI descritpors that do not support SG.
+        // Physical buffer address for UHCI and OHCI descriptors without SG support.
         uintptr_t Address;
         struct {
             uintptr_t Page0;
@@ -67,8 +70,8 @@ struct TransferElement {
             uint32_t  Offsets[8];
         } OHCI;
         struct {
-            // Isoc TDs hold up to 8 transactions
-            // Normal TDs hold up to 5 transactions
+            // Isoc TDs hold up to 8 transactions.
+            // Normal TDs hold up to 5 transactions.
             uintptr_t Addresses[8];
             uint32_t  Lengths[8];
         } EHCI;
@@ -84,11 +87,17 @@ static inline enum TransferElementType __TransferElement_DirectionToType(enum US
     }
 }
 
+/**
+ * @brief Private packet buffer and its offset in the client buffer.
+ */
 typedef struct UsbTransferDmaStaging {
     OSHandle_t Buffer;
     size_t     ClientOffset;
 } UsbTransferDmaStaging_t;
 
+/**
+ * @brief Mapping and packet settings used to build the current transfer elements.
+ */
 typedef struct UsbTransferDmaLayout {
     enum USBTransferType      Type;
     enum USBTransferDirection Direction;
@@ -102,10 +111,13 @@ typedef struct UsbTransferWork {
     list_t*   Queue;
 } UsbTransferWork_t;
 
+/**
+ * @brief Transfer state, HCI descriptors, DMA mappings and client completion data.
+ */
 typedef struct UsbManagerTransfer {
     element_t ListHeader;
 
-    // Transfer Metadata
+    // Transfer metadata.
     uuid_t                       ID;
     uuid_t                       DeviceID;
     enum USBTransferType         Type;
@@ -117,8 +129,9 @@ typedef struct UsbManagerTransfer {
     unsigned int                 Flags;
     void*                        RootElement;
     int                          ChainLength;
+    bool                         Submitting; // An RPC is using this transfer across a yielding call.
 
-    // Controller-owned descriptors kept between periodic submissions.
+    // HCI descriptors kept between periodic submissions.
     // HCITransferFinalize releases them when the transfer is cancelled.
     struct UsbTransferWork  Work;
     void*                   ReusableElements;
@@ -127,36 +140,33 @@ typedef struct UsbManagerTransfer {
     int                     ElementCount;
     int                     ElementCapacity;
 
-    // ResultCode was the result of the transfer. It must
-    // be updated once the transfer has been determined to
-    // be either in error state or completed.
+    // Update ResultCode when the transfer completes or fails.
     enum USBTransferCode ResultCode;
     union {
         struct {
             uint32_t BytesTransferred;
-            // ElementsCompleted tracks the number of elements that has
-            // been completed to support partial transfers. This is only
-            // valid for asynchronous transfers, and should *not* be used for
-            // periodic transfers.
+            // Completed element count for partial asynchronous transfers.
+            // Only valid for control and bulk transfers.
             int ElementsCompleted;
         } Async;
         struct {
             uint32_t CurrentDataIndex;
             uint32_t BufferSize;
-            uint8_t  Bandwith;
+            uint8_t  Bandwith; // Additional transactions per service interval.
             uint8_t  Interval;
         } Periodic;
     } TData;
 
-    // The client attachment supplies CPU access for setup and packet staging.
-    // A DMA mapping independently keeps storage alive until the mapping is released.
+    // The client attachment allows CPU access for setup and packet staging.
+    // The DMA mapping keeps the storage allocated until the mapping is released.
     OSHandle_t SHMHandle;
 
-    // Device addresses and ownership for controllers using the DMA interface.
+    // Device addresses and DMA transfer state.
     // Small periodic packets reuse one private staging page. Larger periodic
-    // mappings are created lazily for each client slot. Mapping points to the
-    // current slot owned by Mappings when present; otherwise it owns the mapping.
-    // Completed client slots remain CPU-owned while the next packet is in flight.
+    // packets get a mapping for each client slot when that slot is first used.
+    // If Mappings is present, Mapping points to the current slot in that array.
+    // Otherwise, Mapping is released separately. The CPU can access completed
+    // client slots while the next packet is in flight.
     struct {
         struct DMAContext*           Context;
         struct DMAMapping*           Mapping;
@@ -167,6 +177,10 @@ typedef struct UsbManagerTransfer {
         size_t                       BufferOffset;
         uint32_t                     BufferLength;
         uint32_t                     Length;
+        size_t                       Completed;
+        uint32_t                     ReleaseEpoch;
+        bool                         Unlinked;
+        bool                         Linked; // Hardware schedule contains this descriptor chain.
         bool                         DeviceOwned;
         bool                         HardwareActive;
         usb_packet_t                 Setup;
@@ -174,14 +188,53 @@ typedef struct UsbManagerTransfer {
         struct UsbTransferDmaLayout  Layout;
     } Dma;
 
-    // Deferred message for async responding
+    // Saved message for the asynchronous response.
     struct gracht_message DeferredMessage[];
 } UsbManagerTransfer_t;
 
 /**
- * @brief Intended for use when resetting periodic transfers. Resets
- * state and status to vales expected when newly queued. Removes any state
- * flags.
+ * @brief Prepare the mapping for device access before publishing descriptors.
+ * Partial asynchronous submissions continue using the current DMA transfer.
+ *
+ * @param transfer Transfer with a prepared mapping and descriptors.
+ * @return OS_EOK on success, otherwise the DMA start error.
+ */
+extern oserr_t
+USBTransferDmaBegin(
+    _InOut_ UsbManagerTransfer_t* transfer);
+
+/**
+ * @brief Locate a byte offset within the selected mapping's device segments.
+ *
+ * @param transfer Transfer with a prepared DMA layout.
+ * @param offset Byte offset relative to the start of that mapping.
+ * @param indexOut Segment containing the byte.
+ * @param offsetOut Byte offset within the segment.
+ * @return OS_EOK on success, OS_EINVALPARAMS when the byte is outside the mapping.
+ */
+static inline oserr_t
+USBTransferDmaOffset(
+    _In_ const UsbManagerTransfer_t* transfer,
+    _In_ size_t                      offset,
+    _Out_ int*                       indexOut,
+    _Out_ size_t*                    offsetOut)
+{
+    for (uint32_t i = 0; i < transfer->Dma.SegmentCount; i++) {
+        if (offset < transfer->Dma.Segments[i].Length) {
+            *indexOut = (int)i;
+            *offsetOut = offset;
+            return OS_EOK;
+        }
+        offset -= transfer->Dma.Segments[i].Length;
+    }
+    return OS_EINVALPARAMS;
+}
+
+/**
+ * @brief Reset a periodic transfer to the queued state. Clears the result,
+ * notification flag and short-transfer flag.
+ *
+ * @param transfer Periodic transfer to reset.
  */
 static inline void __Transfer_Reset(UsbManagerTransfer_t* transfer) {
     transfer->ResultCode = USBTRANSFERCODE_INVALID;
@@ -190,7 +243,7 @@ static inline void __Transfer_Reset(UsbManagerTransfer_t* transfer) {
 }
 
 /**
- * @brief Returns true if the transfer is either control or bulk
+ * @brief Returns true for control and bulk transfers.
  */
 static inline bool __Transfer_IsAsync(UsbManagerTransfer_t* transfer) {
     return transfer->Type == USBTRANSFER_TYPE_CONTROL ||
@@ -198,7 +251,7 @@ static inline bool __Transfer_IsAsync(UsbManagerTransfer_t* transfer) {
 }
 
 /**
- * @brief Returns true if the transfer is either interrupt or isoc
+ * @brief Returns true for interrupt and isochronous transfers.
  */
 static inline bool __Transfer_IsPeriodic(UsbManagerTransfer_t* transfer) {
     return transfer->Type == USBTRANSFER_TYPE_INTERRUPT ||
@@ -206,13 +259,13 @@ static inline bool __Transfer_IsPeriodic(UsbManagerTransfer_t* transfer) {
 }
 
 /**
- * @brief Returns whether the transfer has completed its transfer elements, or
- * experienced an error.
- * This is only valid when the transfer is async.
+ * @brief Check whether an asynchronous transfer has elements left to complete.
+ * A short transfer has no more data and returns false.
+ *
+ * @param transfer Control or bulk transfer to check.
  */
 static inline bool __Transfer_IsPartial(UsbManagerTransfer_t* transfer) {
-    // If the transfer was short, then it cannot be partially done as short
-    // indicates no more data available.
+    // A short transfer indicates that no more data is available.
     if (transfer->Flags & __USBTRANSFER_FLAG_SHORT) {
         return false;
     }
@@ -220,9 +273,9 @@ static inline bool __Transfer_IsPartial(UsbManagerTransfer_t* transfer) {
 }
 
 /**
- * @brief Calculates the total length of the transfer based on the transfer
- * elements initialized.
- * @param transfer The transfer to calculate length for.
+ * @brief Calculate the total length of the initialized transfer elements.
+ *
+ * @param transfer Transfer with initialized elements.
  * @return The total transfer length.
  */
 static inline uint32_t __Transfer_Length(UsbManagerTransfer_t* transfer) {
@@ -234,27 +287,29 @@ static inline uint32_t __Transfer_Length(UsbManagerTransfer_t* transfer) {
 }
 
 /**
- * @brief Returns the transaction type of the transfer. This only checks the first
- * transaction type, and can only be used for non-control transfers.
- * @param transfer The transfer to retrieve the transaction type for.
- * @return The transaction type of the transfer.
+ * @brief Return the data direction of a non-control transfer.
+ *
+ * @param transfer Non-control transfer to check.
+ * @return The transfer direction.
  */
 static inline enum USBTransferDirection __Transfer_Direction(UsbManagerTransfer_t* transfer) {
     return transfer->Direction;
 }
 
 /**
- * @brief Cleans up a usb transfer and frees resources.
- * @param transfer 
+ * @brief Release a USB transfer and its resources after removing its descriptors.
+ *
+ * @param transfer Transfer to destroy.
  */
 extern oserr_t
 USBTransferDestroy(
     _In_ UsbManagerTransfer_t* transfer);
 
 /**
- * @brief Notifies the waiting/subscribing process of transfer completion.
- * The transfer may have completed in error state or succesfully.
- * @param transfer 
+ * @brief Notify the waiting or subscribing process that the transfer completed.
+ * Reports both successful transfers and errors.
+ *
+ * @param transfer Completed transfer to report.
  */
 extern void
 USBTransferNotify(
@@ -263,7 +318,7 @@ USBTransferNotify(
 /**
  * @brief Select or create the current packet's mapping and reuse element storage.
  *
- * @param transfer CPU-owned transfer whose buffer geometry remains fixed.
+ * @param transfer Transfer available for CPU access, with unchanged buffer bounds.
  * @return OS_EOK, or a mapping/allocation error with resources kept for cleanup.
  */
 extern oserr_t
@@ -271,16 +326,24 @@ USBTransferDmaPrepare(
     _InOut_ UsbManagerTransfer_t* transfer);
 
 /**
- * @brief Release all packet mappings after completion or confirmed hardware stop.
+ * @brief Release all packet mappings after completion or a confirmed hardware stop.
+ * Failed releases leave the remaining resources in place so cleanup can be retried.
  *
- * @param transfer Transfer owning the mappings. Failed releases remain retryable.
- * @return OS_EOK when all mappings are released, otherwise the unmap error.
+ * @param transfer Transfer whose DMA access has ended.
+ * @return OS_EOK on success, OS_EBUSY while DMA is active, or a release error.
  */
 extern oserr_t
 USBTransferDmaDestroy(
     _InOut_ UsbManagerTransfer_t* transfer);
 
-/** @brief Return completed bytes to the CPU after completion or confirmed stop. */
+/**
+ * @brief Make completed bytes available to the CPU.
+ * The transfer must have completed or the hardware must have stopped.
+ *
+ * @param transfer Transfer whose device access has finished.
+ * @param bytes Number of completed bytes, at most the mapped transfer length.
+ * @return OS_EOK on success, otherwise a length or DMA completion error.
+ */
 extern oserr_t
 USBTransferDmaComplete(
     _InOut_ UsbManagerTransfer_t* transfer,

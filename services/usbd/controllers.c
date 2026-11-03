@@ -25,13 +25,24 @@
 #define __TRACE
 
 #include <usb/usb.h>
-#include <ddk/convert.h>
 #include <ddk/utils.h>
+#include <stdlib.h>
 #include "manager.h"
 
-#include "sys_usb_service_server.h"
 
 static list_t g_controllers = LIST_INIT;
+
+static void
+__FreeControllerDevice(
+    _In_ Device_t* device)
+{
+    free(device->Identification.Description);
+    free(device->Identification.Manufacturer);
+    free(device->Identification.Product);
+    free(device->Identification.Revision);
+    free(device->Identification.Serial);
+    free(device);
+}
 
 oserr_t
 UsbCoreControllerRegister(
@@ -48,6 +59,7 @@ UsbCoreControllerRegister(
     // Allocate a new instance and reset all members
     controller = (UsbController_t*)malloc(sizeof(UsbController_t));
     if (!controller) {
+        __FreeControllerDevice(device);
         return OS_EOOM;
     }
     memset(controller, 0, sizeof(UsbController_t));
@@ -64,6 +76,7 @@ UsbCoreControllerRegister(
     osStatus = UsbCoreHubsRegister(device->Id, device->Id, driverId, rootPorts, 0);
     if (osStatus != OS_EOK) {
         free(controller);
+        __FreeControllerDevice(device);
         return osStatus;
     }
 
@@ -82,11 +95,12 @@ UsbCoreControllerUnregister(
     if (controller == NULL) {
         return OS_EINVALPARAMS;
     }
-    list_remove(&g_controllers, &controller->Header);
-    free(controller->Device);
-    free(controller);
-
+    // The controller must stay in the list while hub cleanup detaches devices
+    // and releases their addresses, so cleanup can look it up.
     UsbCoreHubsUnregister(deviceId);
+    list_remove(&g_controllers, &controller->Header);
+    __FreeControllerDevice(controller->Device);
+    free(controller);
     return OS_EOK;
 }
 
@@ -112,9 +126,9 @@ UsbCoreControllerReserveAddress(
 
     for (; i < 4; i++) {
         for (j = 0; j < 32; j++) {
-            if (!(controller->AddressMap[i] & (1 << j))) {
-                controller->AddressMap[i] |= (1 << j);
-                *address = (i * 4) + j;
+            if (!(controller->AddressMap[i] & (1U << j))) {
+                controller->AddressMap[i] |= (1U << j);
+                *address = (i * 32) + j;
                 return OS_EOK;
             }
         }
@@ -135,23 +149,25 @@ UsbCoreControllerReleaseAddress(
         return;
     }
 
-    controller->AddressMap[segment] &= ~(1 << offset);
+    controller->AddressMap[segment] &= ~(1U << offset);
 }
 
-static void __CleanupControllerEntry(
-        _In_ element_t* element,
-        _In_ void*      context)
+void
+UsbCoreControllersCleanup(void)
 {
-    UsbController_t* controller = (UsbController_t*)element->value;
-    UsbCoreControllerUnregister(controller->Device->Id);
+    UsbController_t* controller;
+
+    // The list lock must be released before unregistering a controller. Detach
+    // RPCs can yield, and unregister removes the entry from this list.
+    // list_clear holds the lock while calling its cleanup callback.
+    while (g_controllers.head != NULL) {
+        controller = g_controllers.head->value;
+        UsbCoreControllerUnregister(controller->Device->Id);
+    }
 }
 
-void UsbCoreControllersCleanup(void)
-{
-    list_clear(&g_controllers, __CleanupControllerEntry, NULL);
-}
-
-static int __GetControllerCount(void)
+int
+UsbCoreControllerCount(void)
 {
     return list_count(&g_controllers);
 }
@@ -170,34 +186,18 @@ static UsbController_t* __GetControllerIndex(
     return NULL;
 }
 
-void sys_usb_register_controller_invocation(struct gracht_message* message, const uuid_t driverId,
-        const struct sys_device* device, const int type, const int portCount)
+void
+UsbCoreControllerSnapshot(
+    _In_  int                    index,
+    _Out_ USBControllerDevice_t* snapshot)
 {
-    UsbCoreControllerRegister(
-            driverId, from_sys_device(device),
-            (enum USBControllerKind)type, portCount
-    );
-}
+    UsbController_t* controller;
 
-void sys_usb_unregister_controller_invocation(struct gracht_message* message, const uuid_t deviceId)
-{
-    UsbCoreControllerUnregister(deviceId);
-}
-
-void sys_usb_get_controller_count_invocation(struct gracht_message* message)
-{
-    sys_usb_get_controller_count_response(message, __GetControllerCount());
-}
-
-void sys_usb_get_controller_invocation(struct gracht_message* message, const int index)
-{
-    USBControllerDevice_t hcController = {{{0 } }, 0 };
-    UsbController_t*  controller;
-
+    // Run in the worker so the controller cannot be removed while we copy it.
+    memset(snapshot, 0, sizeof(*snapshot));
     controller = __GetControllerIndex(index);
     if (controller != NULL) {
-        memcpy(&hcController.Device, &controller->Device, sizeof(Device_t));
-        hcController.Kind = controller->Type;
+        memcpy(&snapshot->Device, controller->Device, sizeof(Device_t));
+        snapshot->Kind = controller->Type;
     }
-    sys_usb_get_controller_response(message, (uint8_t*)&hcController, sizeof(USBControllerDevice_t));
 }

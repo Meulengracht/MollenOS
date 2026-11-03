@@ -14,6 +14,7 @@ set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 add_service_target(usbd ""
         ${ADDITONAL_SOURCES}
 
+        topology.c
         port_event.c
         controllers.c
         hubs.c

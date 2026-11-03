@@ -17,9 +17,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Usb Manager
- * - Contains the implementation of the usb-manager which keeps track
- *   of all usb-controllers and their devices
+ * USB Manager
+ * - Tracks USB controllers and their devices.
  */
 
 #include <ddk/utils.h>
@@ -33,18 +32,17 @@
 void ServiceInitialize(
         _In_ struct ServiceStartupOptions* startupOptions)
 {
-    // Register supported interfaces
-    gracht_server_register_protocol(startupOptions->Server, &sys_usb_server_protocol);
-
-    // Initialize all subsystems
+    // Initialize the USB core.
     if (UsbCoreInitialize() != OS_EOK) {
         exit(-1);
     }
+
+    // The USB core must be ready before the server handles requests.
+    gracht_server_register_protocol(startupOptions->Server, &sys_usb_server_protocol);
 }
 
 
-// for some reason these are pulled in by libddk and don't really care to fix it,
-// because it happens due to my lazyness in libddk
+// libddk references these callbacks, but the USB manager does not use them.
 void ctt_usbhub_event_port_status_invocation(gracht_client_t* client, const uuid_t id, const oserr_t result, const size_t bytesTransferred) {
 
 }

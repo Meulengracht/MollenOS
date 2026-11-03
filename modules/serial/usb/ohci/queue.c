@@ -95,6 +95,7 @@ OHCIQueueInitialize(
     _In_ OhciController_t* Controller)
 {
     UsbSchedulerSettings_t Settings;
+    oserr_t                status;
 
     TRACE("OHCIQueueInitialize()");
 
@@ -102,7 +103,7 @@ OHCIQueueInitialize(
     UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_PERIODIC | USB_SCHEDULER_NULL_ELEMENT);
 
     UsbSchedulerSettingsConfigureFrameList(&Settings, (reg32_t*)&Controller->Hcca->InterruptTable[0],
-        Controller->HccaDMATable.Entries[0].Address + offsetof(OhciHCCA_t, InterruptTable));
+        Controller->HccaDeviceAddress + offsetof(OhciHCCA_t, InterruptTable));
 
     UsbSchedulerSettingsAddPool(&Settings, sizeof(OhciQueueHead_t), OHCI_QH_ALIGNMENT, OHCI_QH_COUNT, 
         OHCI_QH_START, offsetof(OhciQueueHead_t, LinkPointer), 
@@ -118,7 +119,11 @@ OHCIQueueInitialize(
     
     // Create the scheduler
     TRACE("OHCIQueueInitialize: initializing scheduler");
-    UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    Settings.DmaContext = Controller->Base.DmaContext;
+    status = UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    if (status != OS_EOK) {
+        return status;
+    }
 
     // Initialize internal data structures
     return __ResetInternalData(Controller);
@@ -130,19 +135,28 @@ OHCIQueueReset(
 {
     TRACE("OHCIQueueReset()");
 
-    OHCISetMode(controller, OHCI_CONTROL_SUSPEND);
+    if (OHCIStop(controller) != OS_EOK) {
+        return OS_EBUSY;
+    }
+    
     UsbManagerClearTransfers(&controller->Base);
+    if (controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
     return __ResetInternalData(controller);
 }
 
-void
+oserr_t
 OHCIQueueDestroy(
-    _In_ OhciController_t* Controller)
+    _In_ OhciController_t* controller)
 {
-    TRACE("OHCIQueueDestroy()");
-
-    OHCIQueueReset(Controller);
-    UsbSchedulerDestroy(Controller->Base.Scheduler);
+    // The controller must be stopped before clearing transfers. If cleanup
+    // fails, keep the descriptor pool and DMA context so cleanup can be retried.
+    UsbManagerClearTransfers(&controller->Base);
+    if (controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
+    return UsbSchedulerDestroy(&controller->Base.Scheduler);
 }
 
 enum USBTransferCode
@@ -203,6 +217,12 @@ HCIProcessElement(
             } else {
                 OHCIITDVerify(scanContext, (OhciIsocTransferDescriptor_t*)element);
             }
+            
+            // Mapping completion requires a byte count with no gaps from the
+            // start of the transfer. Stop at the first active, short or failed
+            // packet, even if hardware has already processed later packets.
+            return ((scanContext->Transfer->Type == USBTRANSFER_TYPE_ISOC ? ((OhciIsocTransferDescriptor_t*)element)->Object : ((OhciTransferDescriptor_t*)element)->Object).Flags & USB_ELEMENT_PROCESSED) != 0 &&
+                !scanContext->Short && scanContext->Result == USBTRANSFERCODE_SUCCESS;
         } break;
         
         case HCIPROCESS_REASON_RESET: {

@@ -33,7 +33,7 @@ __CalculateFrameQueue(
 {
     int exponent, queue;
 
-    // Calculate the correct index
+    // Select the largest power-of-two interval that fits FrameInterval.
     for (exponent = 7; exponent >= 0; --exponent) {
         if ((1 << exponent) <= (int)queueHead->Object.FrameInterval) {
             break;
@@ -55,7 +55,7 @@ UHCIQHInitialize(
     queueHead->Child = UHCI_LINK_END;
     queueHead->Object.Flags |= UHCI_LINK_QH;
 
-    // Allocate bandwidth if int/isoc
+    // Periodic transfers need bandwidth allocated before selecting a frame queue.
     if (__Transfer_IsPeriodic(transfer)) {
         oserr_t oserr = UsbSchedulerAllocateBandwidth(
                 controller->Base.Scheduler,
@@ -99,10 +99,12 @@ UHCIQHRestart(
     UhciQueueHead_t* queueHead    = (UhciQueueHead_t*)transfer->RootElement;
     uintptr_t        linkPhysical = 0;
 
-    // Reinitialize the queue-head
+    // Restart at the first transfer descriptor.
     UsbSchedulerGetPoolElement(controller->Base.Scheduler, UHCI_TD_POOL,
                                queueHead->Object.DepthIndex & USB_ELEMENT_INDEX_MASK,
                                NULL, &linkPhysical);
+    // Descriptor writes must be visible before the controller follows Child.
+    dma_wmb();
     queueHead->Child = linkPhysical | UHCI_LINK_DEPTH;
 }
 
@@ -114,11 +116,11 @@ UHCIQHLink(
     UhciQueueHead_t* listQh = NULL;
     uint16_t         marker;
 
-    // Get the queue for this queue-head
+    // Find the list head for the selected queue.
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL,
                                queueHead->Queue, (uint8_t**)&listQh, NULL);
 
-    // Handle async and interrupt a little differently
+    // Interrupt queue insertion stops at the async queue marker.
     if (queueHead->Queue >= UHCI_POOL_QH_ASYNC) {
         marker = USB_ELEMENT_NO_INDEX;
     }
@@ -126,7 +128,7 @@ UHCIQHLink(
         marker = USB_ELEMENT_CREATE_INDEX(UHCI_QH_POOL, UHCI_POOL_QH_ASYNC);
     }
     
-    // Link it
+    // Insert the queue head into the horizontal chain.
     UsbSchedulerChainElement(Controller->Base.Scheduler, UHCI_QH_POOL,
                              (uint8_t*)listQh, UHCI_QH_POOL, (uint8_t*)queueHead, marker, USB_CHAIN_BREATH);
 }
@@ -138,11 +140,11 @@ UHCIQHUnlink(
 {
     UhciQueueHead_t* listQh = NULL;
 
-    // Get the queue for this queue-head
+    // Find the list head for the selected queue.
     UsbSchedulerGetPoolElement(controller->Base.Scheduler, UHCI_QH_POOL,
                                queueHead->Queue, (uint8_t**)&listQh, NULL);
 
-    // Unlink it
+    // Remove the queue head from the horizontal chain.
     UsbSchedulerUnchainElement(controller->Base.Scheduler,
                                UHCI_QH_POOL, (uint8_t*)listQh, UHCI_QH_POOL,
                                (uint8_t*)queueHead, USB_CHAIN_BREATH);

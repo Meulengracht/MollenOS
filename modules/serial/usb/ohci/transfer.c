@@ -17,11 +17,14 @@
 
 //#define __TRACE
 //#define __DIAGNOSE
+
 #define __need_minmax
 #include <assert.h>
-#include "ohci.h"
+#include <ddk/barrier.h>
 #include <os/mollenos.h>
 #include <ddk/utils.h>
+
+#include "ohci.h"
 
 static void
 __DispatchTransfer(
@@ -39,8 +42,7 @@ __DispatchTransfer(
     for(;;);
 #endif
 
-    // Set the schedule state on ED and
-    // enable SOF, ED is not scheduled before this interrupt
+    // Schedule the ED on the next SOF interrupt.
     transfer->State = USBTRANSFER_STATE_SCHEDULE;
     WRITE_VOLATILE(controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
     WRITE_VOLATILE(controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
@@ -48,8 +50,8 @@ __DispatchTransfer(
 
 void
 OHCIReloadAsynchronous(
-        _In_ OhciController_t*    controller,
-        _In_ enum USBTransferType transferType)
+    _In_ OhciController_t*    controller,
+    _In_ enum USBTransferType transferType)
 {
     OhciQueueHead_t* qh;
     uintptr_t        qhAddress;
@@ -70,7 +72,10 @@ OHCIReloadAsynchronous(
             (uint8_t**)&qh,
             &qhAddress
     );
-    assert(oserr == OS_EOK);
+    if (oserr != OS_EOK) {
+        ERROR("OHCI: invalid asynchronous queue index %u", index);
+        return;
+    }
 
     // Handle the different queues
     if (transferType == USBTRANSFER_TYPE_CONTROL) {
@@ -92,71 +97,173 @@ OHCIReloadAsynchronous(
     }
 }
 
+static void
+__UnlinkAsync(
+    _In_ OhciController_t* controller,
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    UsbSchedulerPool_t* pool = &controller->Base.Scheduler->Settings.Pools[OHCI_QH_POOL];
+    OhciQueueHead_t*    target = (OhciQueueHead_t*)transfer->RootElement;
+    OhciQueueHead_t*    current;
+    OhciQueueHead_t*    previous = NULL;
+    volatile reg32_t*   head;
+    uint16_t*           waiting;
+    int*                count;
+    uintptr_t           address;
+    uintptr_t           targetAddress = UsbSchedulerGetDma(pool, (uint8_t*)target);
+    uint16_t            index;
+
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        head = &controller->Registers->HcControlHeadED;
+        waiting = &controller->TransactionQueueControlIndex;
+        count = &controller->TransactionsWaitingControl;
+    } else {
+        head = &controller->Registers->HcBulkHeadED;
+        waiting = &controller->TransactionQueueBulkIndex;
+        count = &controller->TransactionsWaitingBulk;
+    }
+
+    // The pool mapping must be contiguous. Convert device links using its
+    // cached base addresses to avoid SHM lookups or kernel translation here.
+    address = READ_VOLATILE(*head);
+    while (address != 0) {
+        current = (OhciQueueHead_t*)(pool->ElementPool + address - pool->ElementPoolDeviceAddress);
+        if (current == target) {
+            if (previous == NULL) {
+                WRITE_VOLATILE(*head, target->LinkPointer);
+            } else {
+                previous->LinkPointer = target->LinkPointer;
+                previous->Object.BreathIndex = target->Object.BreathIndex;
+            }
+            break;
+        }
+        previous = current;
+        address = current->LinkPointer;
+    }
+    
+    previous = NULL;
+    index = *waiting;
+    
+    while (index != USB_ELEMENT_NO_INDEX) {
+        current = (OhciQueueHead_t*)USB_ELEMENT_INDEX(pool, index);
+        if (current == target) {
+            if (previous == NULL) {
+                *waiting = target->Object.BreathIndex;
+            } else {
+                previous->LinkPointer = target->LinkPointer;
+                previous->Object.BreathIndex = target->Object.BreathIndex;
+            }
+            (*count)--;
+            break;
+        }
+        previous = current;
+        index = current->Object.BreathIndex;
+    }
+    
+    if (controller->Base.State.DmaStopped) {
+        // DMA must be stopped before clearing the current ED. If it still
+        // points to the cancelled ED, restart from the updated head register.
+        if (transfer->Type == USBTRANSFER_TYPE_CONTROL &&
+            READ_VOLATILE(controller->Registers->HcControlCurrentED) == targetAddress) {
+            WRITE_VOLATILE(controller->Registers->HcControlCurrentED, 0);
+        }
+        
+        if (transfer->Type == USBTRANSFER_TYPE_BULK &&
+            READ_VOLATILE(controller->Registers->HcBulkCurrentED) == targetAddress) {
+            WRITE_VOLATILE(controller->Registers->HcBulkCurrentED, 0);
+        }
+    }
+}
+
 oserr_t
 HCITransferFinalize(
-        _In_ UsbManagerController_t* controller,
-        _In_ UsbManagerTransfer_t*   transfer,
-        _In_ bool                    deferredClean)
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer,
+    _In_ bool                    deferredClean)
 {
-    OhciController_t* ohciController = (OhciController_t*)controller;
-    TRACE("OHCITransferFinalize(transfer=%u, deferredClean=%u)", transfer->ID, deferredClean);
+    OhciController_t* legacy = (OhciController_t*)controller;
+    bool              resume = false;
+    uint16_t          frame;
+    oserr_t           status;
+    _CRT_UNUSED(deferredClean);
 
-    // If it's an asynchronous transfer check for end of link, then we should
-    // reload the asynchronous queue
-    if (__Transfer_IsAsync(transfer)) {
-        // Check if the link of the QH is eol
-        reg32_t status  = READ_VOLATILE(ohciController->Registers->HcCommandStatus);
-        reg32_t control = ohciController->QueuesActive;
-        if ((status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
-            if (ohciController->TransactionsWaitingControl != 0) {
-                // Conditions for control fulfilled
-                OHCIReloadAsynchronous(ohciController, USBTRANSFER_TYPE_CONTROL);
-                status  |= OHCI_COMMAND_CONTROL_FILLED;
-                control |= OHCI_CONTROL_CONTROL_ACTIVE;
-            }
-            else {
-                if (READ_VOLATILE(ohciController->Registers->HcControlHeadED) == 0) {
-                    control &= ~(OHCI_CONTROL_CONTROL_ACTIVE);
-                }
-            }
-        }
-        if ((status & OHCI_COMMAND_BULK_FILLED) == 0) {
-            if (ohciController->TransactionsWaitingBulk != 0) {
-                // Conditions for bulk fulfilled
-                OHCIReloadAsynchronous(ohciController, USBTRANSFER_TYPE_BULK);
-                status  |= OHCI_COMMAND_BULK_FILLED;
-                control |= OHCI_CONTROL_BULK_ACTIVE;
-            }
-            else {
-                if (READ_VOLATILE(ohciController->Registers->HcBulkHeadED) == 0) {
-                    control &= ~(OHCI_CONTROL_BULK_ACTIVE);
-                }
-            }
-        }
-
-        // Update
-        WRITE_VOLATILE(ohciController->Registers->HcCommandStatus, status);
-        ohciController->QueuesActive = control;
+    if (transfer->RootElement == NULL) {
+        return OS_EOK;
     }
 
-    // Don't unlink asynchronous transfers
-    if (__Transfer_IsPeriodic(transfer)) {
-        UsbManagerChainEnumerate(controller, transfer->RootElement,
-                                 USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, transfer);
+    if (transfer->Dma.Linked && !controller->State.DmaStopped &&
+        (transfer->ResultCode != USBTRANSFERCODE_SUCCESS ||
+         (transfer->Flags & __USBTRANSFER_FLAG_SHORT))) {
+        // An error, cancellation or short packet may leave later packets active.
+        // Stop DMA before returning the buffer to the CPU or reusing descriptors.
+        status = OHCIStop(legacy);
+        if (status != OS_EOK) {
+            return status;
+        }
+        resume = controller->State.Phase < USB_CONTROLLER_DESTROY_PENDING;
+    }
+    
+    if (transfer->Dma.Linked && !transfer->Dma.Unlinked) {
+        
+        if (__Transfer_IsAsync(transfer)) {
+            __UnlinkAsync(legacy, transfer);
+        } else {
+            UsbManagerChainEnumerate(controller, transfer->RootElement, USB_CHAIN_DEPTH,
+                HCIPROCESS_REASON_UNLINK, HCIProcessElement, transfer);
+        }
+        
+        dma_wmb();
+        transfer->Dma.Unlinked = true;
+        transfer->Dma.ReleaseEpoch = (uint16_t)(READ_VOLATILE(legacy->Registers->HcFmNumber) + 2);
+        
+        // If the controller has finished the list, start any waiting batch
+        // while the removed ED waits for its descriptors to be safe to reuse.
+        if (legacy->TransactionsWaitingControl != 0 &&
+            !(READ_VOLATILE(legacy->Registers->HcCommandStatus) & OHCI_COMMAND_CONTROL_FILLED)) {
+            OHCIReloadAsynchronous(legacy, USBTRANSFER_TYPE_CONTROL);
+        }
+        
+        if (legacy->TransactionsWaitingBulk != 0 &&
+            !(READ_VOLATILE(legacy->Registers->HcCommandStatus) & OHCI_COMMAND_BULK_FILLED)) {
+            OHCIReloadAsynchronous(legacy, USBTRANSFER_TYPE_BULK);
+        }
     }
 
-    if (!deferredClean) {
-        // Always cleanup asynchronous transfers
-        UsbManagerChainEnumerate(controller, transfer->RootElement,
-                                 USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, transfer);
+    if (transfer->Dma.Linked && !controller->State.DmaStopped) {
+        // The controller may still have the removed link cached even though
+        // the TDs are inactive. Wait two frames before reusing the descriptors.
+        frame = READ_VOLATILE(legacy->Registers->HcFmNumber);
+        if ((int16_t)(frame - (uint16_t)transfer->Dma.ReleaseEpoch) < 0) {
+            // Retry at the next SOF so pending requests can use the freed
+            // descriptors without waiting for the one-second recovery timer.
+            WRITE_VOLATILE(legacy->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
+            WRITE_VOLATILE(legacy->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
+            return OS_EBUSY;
+        }
+    }
+
+    UsbManagerChainEnumerate(
+        controller,
+        transfer->RootElement,
+        USB_CHAIN_DEPTH,
+        HCIPROCESS_REASON_CLEANUP,
+        HCIProcessElement,
+        transfer
+    );
+    transfer->RootElement = NULL;
+    transfer->ChainLength = 0;
+    transfer->Dma.Linked = false;
+    
+    if (resume) {
+        OHCISetMode(legacy, OHCI_CONTROL_ACTIVE);
     }
     return OS_EOK;
 }
 
 oserr_t
 HCIEndpointReset(
-        _In_ UsbManagerController_t* controller,
-        _In_ USBAddress_t*           address)
+    _In_ UsbManagerController_t* controller,
+    _In_ USBAddress_t*           address)
 {
     UsbManagerSetToggle(controller, address, 0);
     return OS_EOK;
@@ -164,8 +271,8 @@ HCIEndpointReset(
 
 oserr_t
 HCIDeviceDetach(
-        _In_ UsbManagerController_t* controller,
-        _In_ USBAddress_t*           address)
+    _In_ UsbManagerController_t* controller,
+    _In_ USBAddress_t*           address)
 {
     _CRT_UNUSED(controller);
     _CRT_UNUSED(address);
@@ -174,173 +281,100 @@ HCIDeviceDetach(
 
 oserr_t
 HCITransferDequeue(
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
-    OhciController_t* controller;
-    TRACE("OHCITransferDequeue(transfer=%u)", transfer->ID);
-
-    controller = (OhciController_t*)UsbManagerGetController(transfer->DeviceID);
-    if (!controller) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Mark for unscheduling and
-    // enable SOF, ED is not scheduled before
-    transfer->State = USBTRANSFER_STATE_UNSCHEDULE;
-    WRITE_VOLATILE(controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
-    WRITE_VOLATILE(controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
+    transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+    transfer->State = USBTRANSFER_STATE_CLEANUP;
     return OS_EOK;
 }
 
 static inline uintptr_t
 __GetAddress(
-        _In_ SHMSGTable_t* sgTable,
-        _In_ int           index,
-        _In_ size_t        offset)
+    _In_ UsbManagerTransfer_t* dmaTransfer,
+    _In_ int           index,
+    _In_ size_t        offset)
 {
-    return sgTable->Entries[index].Address + offset;
+    return dmaTransfer->Dma.Segments[index].Address + offset;
 }
 
 static inline size_t
 __GetBytesLeft(
-        _In_ SHMSGTable_t* sgTable,
-        _In_ int           index,
-        _In_ size_t        offset)
+    _In_ UsbManagerTransfer_t* dmaTransfer,
+    _In_ int           index,
+    _In_ size_t        offset)
 {
-    return sgTable->Entries[index].Length - offset;
+    return dmaTransfer->Dma.Segments[index].Length - offset;
 }
 
 static inline oserr_t
 __CalculateTransferElementMetrics(
-        _In_ enum USBTransferType    transferType,
-        _In_ size_t                  maxPacketSize,
-        _In_ SHMSGTable_t*           sgTable,
-        _In_ uint32_t                sgTableOffset,
-        _In_ uint32_t                transferLength,
-        _In_ size_t                  bytesLeft,
-        _In_ struct TransferElement* element)
+    _In_ enum USBTransferType    transferType,
+    _In_ size_t                  maxPacketSize,
+    _In_ UsbManagerTransfer_t* dmaTransfer,
+    _In_ uint32_t                sgTableOffset,
+    _In_ uint32_t                transferLength,
+    _In_ size_t                  bytesLeft,
+    _In_ struct TransferElement* element)
 {
-    uintptr_t address = 0;
-    size_t    leftInSG = 0;
-    uint32_t  calculatedLength = 0;
-    int       transactions = transferType == USBTRANSFER_TYPE_ISOC ? 8 : 1;
-    TRACE("__CalculateTransferElementMetrics(offset=%u, mps=%u, len=%u)",
-          sgTableOffset, (uint32_t)maxPacketSize, bytesLeft);
+    size_t    position = sgTableOffset + transferLength - bytesLeft;
+    size_t    offset;
+    uint32_t  length = MIN(maxPacketSize, bytesLeft);
+    uintptr_t address;
+    int       index;
+    oserr_t   status;
+    _CRT_UNUSED(transferType);
 
-    for (int i = 0; i < transactions; i++) {
-        uint32_t transactionSize;
-
-        // update address and leftInSG if no more bytes are left
-        if (!leftInSG) {
-            int     index;
-            size_t  offset;
-            oserr_t oserr = SHMSGTableOffset(
-                    sgTable,
-                    sgTableOffset + (transferLength - (bytesLeft - calculatedLength)),
-                    &index,
-                    &offset
-            );
-            if (oserr != OS_EOK) {
-                // Invalid offset provided. This is weird. We cannot transfer more bytes
-                ERROR("__CalculateTransferElementMetrics: SG does not contain enough entries for data [0,%u,%u,%u]",
-                      (uint32_t)transferLength, (uint32_t)bytesLeft, (uint32_t)calculatedLength);
-                return oserr;
-            }
-            TRACE("__CalculateTransferElementMetrics: index %i, offset: %u", index, (uint32_t)offset);
-            address = __GetAddress(sgTable, index, offset);
-            leftInSG = __GetBytesLeft(sgTable, index, offset);
-            if (!element->Data.OHCI.Page0) {
-                // Set the first page of the transfer-element
-                element->Data.OHCI.Page0 = address & ~((uintptr_t)(0xFFF));
-                TRACE("__CalculateTransferElementMetrics: page0: 0x%x", (uint32_t)element->Data.OHCI.Page0);
-            }
-        }
-
-        // set the transaction offset, which is just the initial address
-        element->Data.OHCI.Offsets[i] = address & 0xFFF;
-
-        // Increase the address to get the next offset
-        transactionSize = MIN(maxPacketSize, MIN(bytesLeft, leftInSG));
-        calculatedLength += transactionSize;
-        address += transactionSize;
-        leftInSG -= transactionSize;
-        TRACE("__CalculateTransferElementMetrics: xaction[%i] addr=0x%" PRIxIN ", len=0x%x",
-              i, address, transactionSize);
-
-        // If there were no more bytes left in SG page, and we need to cross to the
-        // next page, it depends on whether there are more bytes left (bytesLeft > transactionSize)
-        // and that there is space in the packet (maxPacketSize > transactionSize)
-        if (!leftInSG && (bytesLeft > transactionSize) && (maxPacketSize > transactionSize)) {
-            int      index;
-            size_t   offset;
-            uint32_t bytesAlreadyTransacted = transactionSize;
-            oserr_t  oserr = SHMSGTableOffset(
-                    sgTable,
-                    sgTableOffset + (transferLength - (bytesLeft - calculatedLength)),
-                    &index,
-                    &offset
-            );
-            if (oserr != OS_EOK) {
-                ERROR("__CalculateTransferElementMetrics: SG does not contain enough entries for data [1,%u,%u,%u,%u]",
-                      (uint32_t)transferLength, (uint32_t)bytesLeft, (uint32_t)calculatedLength, transactionSize);
-                return oserr;
-            }
-            address = __GetAddress(sgTable, index, offset);
-            leftInSG = __GetBytesLeft(sgTable, index, offset);
-            transactionSize = MIN((maxPacketSize - bytesAlreadyTransacted), MIN((bytesLeft - bytesAlreadyTransacted), leftInSG));
-
-            calculatedLength += transactionSize;
-            address += transactionSize;
-            leftInSG -= transactionSize;
-        }
+    // Each descriptor describes one packet, which also fits the periodic
+    // staging mapping. An OHCI TD can cross one device-page boundary.
+    memset(element, 0, sizeof(*element));
+    
+    status = USBTransferDmaOffset(dmaTransfer, position, &index, &offset);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // set the total length including the last buffer page accesses
-    element->Length = calculatedLength;
-    element->Data.OHCI.Page1 = (address - 1); // must point to the last byte
-    TRACE("__CalculateTransferElementMetrics: page1: 0x%x", (uint32_t)element->Data.OHCI.Page1);
-    TRACE("__CalculateTransferElementMetrics: total-len: 0x%x", calculatedLength);
+    address = __GetAddress(dmaTransfer, index, offset);
+    element->Data.OHCI.Page0 = address & ~(uintptr_t)0xFFF;
+    element->Data.OHCI.Offsets[0] = address & 0xFFF;
+    
+    status = USBTransferDmaOffset(dmaTransfer, position + length - 1, &index, &offset);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    element->Data.OHCI.Page1 = __GetAddress(dmaTransfer, index, offset);
+    element->Length = length;
     return OS_EOK;
 }
 
 oserr_t
 HCITransferElementsNeeded(
-        _In_  UsbManagerTransfer_t*     transfer,
-        _In_  uint32_t                  transferLength,
-        _In_  enum USBTransferDirection direction,
-        _In_  SHMSGTable_t*             sgTable,
-        _In_  uint32_t                  sgTableOffset,
+    _In_  UsbManagerTransfer_t*     transfer,
+    _In_  uint32_t                  transferLength,
+    _In_  enum USBTransferDirection direction,
         _Out_ int*                      elementCountOut)
 {
     uint32_t  bytesLeft = transferLength;
     int       tdsNeeded = 0;
     TRACE("OHCITransferElementsNeeded(transfer=%u, length=%u)", transfer->ID, transferLength);
 
-    // In regard to isochronous transfers, we must allocate an
-    // additional transfer descriptor, which acts as the 'zero-td'.
-    // All isochronous transfers should end with a zero td.
-    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-        tdsNeeded++;
-    }
-    // Handle control transfers a bit different due to control transfers needing
-    // some additional packets.
-    else if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+    // Control transfers need separate SETUP and ACK descriptors.
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         bytesLeft -= sizeof(usb_packet_t);
-
-        // add two additional packets, one for SETUP, and one for ACK
+        // Count SETUP and ACK separately from the data packets.
         tdsNeeded += 2;
     }
 
     while (bytesLeft) {
         struct TransferElement element;
         oserr_t oserr = __CalculateTransferElementMetrics(
-                transfer->Type,
-                transfer->MaxPacketSize,
-                sgTable,
-                sgTableOffset,
-                transferLength,
-                bytesLeft,
-                &element
+            transfer->Type,
+            transfer->MaxPacketSize,
+            transfer,
+            0,
+            transferLength,
+            bytesLeft,
+            &element
         );
         if (oserr != OS_EOK) {
             return oserr;
@@ -349,9 +383,8 @@ HCITransferElementsNeeded(
         bytesLeft -= element.Length;
         tdsNeeded++;
 
-        // If this was the last packet, and the packet was filled, and
-        // the transaction is an 'OUT', then we must add a ZLP.
-        if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
+        // A bulk OUT transfer ending with a full packet needs a ZLP.
+        if (transfer->Type == USBTRANSFER_TYPE_BULK &&
             bytesLeft == 0 && element.Length == transfer->MaxPacketSize) {
             if (direction == USBTRANSFER_DIRECTION_OUT) {
                 tdsNeeded++;
@@ -365,40 +398,36 @@ HCITransferElementsNeeded(
 
 void
 HCITransferElementFill(
-        _In_ UsbManagerTransfer_t*     transfer,
-        _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction,
-        _In_ SHMSGTable_t*             sgTable,
-        _In_ uint32_t                  sgTableOffset)
+    _In_ UsbManagerTransfer_t*     transfer,
+    _In_ uint32_t                  transferLength,
+    _In_ enum USBTransferDirection direction)
 {
     enum TransferElementType ackType   = TRANSFERELEMENT_TYPE_IN;
     uint32_t                 bytesLeft = transferLength;
     int                      ei = 0;
     TRACE("OHCITransferElementFill(transfer=%u, length=%u)", transfer->ID, transferLength);
 
-    // Handle control transfers a bit different due to control transfers needing
-    // some additional packets.
+    // Prepare the SETUP packet before the control transfer's data stage.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         oserr_t oserr = __CalculateTransferElementMetrics(
-                transfer->Type,
-                transfer->MaxPacketSize,
-                sgTable,
-                sgTableOffset,
-                sizeof(usb_packet_t),
-                sizeof(usb_packet_t),
-                &transfer->Elements[ei]
+            transfer->Type,
+            sizeof(usb_packet_t),
+            transfer,
+            0,
+            sizeof(usb_packet_t),
+            sizeof(usb_packet_t),
+            &transfer->Elements[ei]
         );
         if (oserr != OS_EOK) {
             return;
         }
 
-        // Override the typ, as those are fixed for the setup packet
+        // The first control packet always uses SETUP.
         transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
         ei++;
         bytesLeft -= sizeof(usb_packet_t);
 
-        // determine ACK direction, if we have an in data stage, then the
-        // ACK stage must be out
+        // An IN data stage requires an OUT ACK.
         if (bytesLeft && direction == USBTRANSFER_DIRECTION_IN) {
             ackType = TRANSFERELEMENT_TYPE_OUT;
         }
@@ -406,13 +435,13 @@ HCITransferElementFill(
 
     while (bytesLeft) {
         oserr_t oserr = __CalculateTransferElementMetrics(
-                transfer->Type,
-                transfer->MaxPacketSize,
-                sgTable,
-                sgTableOffset,
-                transferLength,
-                bytesLeft,
-                &transfer->Elements[ei]
+            transfer->Type,
+            transfer->MaxPacketSize,
+            transfer,
+            0,
+            transferLength,
+            bytesLeft,
+            &transfer->Elements[ei]
         );
         if (oserr != OS_EOK) {
             return;
@@ -421,20 +450,14 @@ HCITransferElementFill(
         bytesLeft -= transfer->Elements[ei].Length;
         ei++;
 
-        // Cases left to handle:
-        // Generic: adding ZLP on MPS boundary OUTs
-        // Isoc:    adding ZLP
-        if (bytesLeft == 0) {
-            if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                transfer->Elements[ei++].Type = __TransferElement_DirectionToType(direction);
-            } else if (direction == USBTRANSFER_DIRECTION_OUT &&
-                       transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
-                transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
-            }
+        if (bytesLeft == 0 && transfer->Type == USBTRANSFER_TYPE_BULK &&
+            direction == USBTRANSFER_DIRECTION_OUT &&
+            transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
+            transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
         }
     }
 
-    // Finally, handle the ACK stage of control transfers
+    // Append the ACK stage for control transfers.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         transfer->Elements[ei].Type = ackType;
     }
@@ -442,8 +465,8 @@ HCITransferElementFill(
 
 static oserr_t
 __EnsureQueueHead(
-        _In_ OhciController_t*     controller,
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ OhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer)
 {
     uint8_t* qh;
     oserr_t  oserr;
@@ -454,9 +477,9 @@ __EnsureQueueHead(
     }
 
     oserr = UsbSchedulerAllocateElement(
-            controller->Base.Scheduler,
-            OHCI_QH_POOL,
-            &qh
+        controller->Base.Scheduler,
+        OHCI_QH_POOL,
+        &qh
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -468,7 +491,7 @@ __EnsureQueueHead(
             (OhciQueueHead_t*)qh
     );
     if (oserr != OS_EOK) {
-        // No bandwidth, serious.
+        // Release the allocated queue head if initialization fails.
         UsbSchedulerFreeElement(controller->Base.Scheduler, qh);
         return oserr;
     }
@@ -478,8 +501,8 @@ __EnsureQueueHead(
 
 static void
 __DestroyDescriptors(
-        _In_ OhciController_t*     controller,
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ OhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer)
 {
     TRACE("__DestroyDescriptors(transfer=%u)", transfer->ID);
     if (transfer->RootElement == NULL) {
@@ -487,18 +510,20 @@ __DestroyDescriptors(
     }
 
     UsbManagerChainEnumerate(
-            &controller->Base,
-            transfer->RootElement,
-            USB_CHAIN_DEPTH,
-            HCIPROCESS_REASON_CLEANUP,
-            HCIProcessElement,
-            transfer
+        &controller->Base,
+        transfer->RootElement,
+        USB_CHAIN_DEPTH,
+        HCIPROCESS_REASON_CLEANUP,
+        HCIProcessElement,
+        transfer
     );
+    transfer->RootElement = NULL;
+    transfer->ChainLength = 0;
 }
 
 static int
 __RemainingDescriptorCount(
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
     if (__Transfer_IsAsync(transfer)) {
         return transfer->ElementCount - transfer->TData.Async.ElementsCompleted;
@@ -508,20 +533,28 @@ __RemainingDescriptorCount(
 
 static int
 __AllocateDescriptors(
-        _In_ OhciController_t*     controller,
-        _In_ UsbManagerTransfer_t* transfer,
-        _In_ int                   descriptorPool)
+    _In_ OhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer,
+    _In_ int                   descriptorPool)
 {
     OhciQueueHead_t* qh           = transfer->RootElement;
     int              tdsRemaining = __RemainingDescriptorCount(transfer);
     int              tdsAllocated = 0;
+    int              i;
+    uint8_t*         element;
+    oserr_t          oserr;
     TRACE("__AllocateDescriptors(transfer=%u, count=%i)", transfer->ID, tdsRemaining);
 
-    for (int i = 0; i < tdsRemaining; i++) {
-        uint8_t* element;
-        oserr_t oserr = UsbSchedulerAllocateElement(
+    // Only asynchronous requests can be split into batches. The manager keeps
+    // their DMA mapping available to the device and queues the next batch
+    // after this one completes.
+    if (__Transfer_IsAsync(transfer) && tdsRemaining > OHCI_TD_BATCH) {
+        tdsRemaining = OHCI_TD_BATCH;
+    }
+    for (i = 0; i < tdsRemaining; i++) {
+        oserr = UsbSchedulerAllocateElement(
                 controller->Base.Scheduler,
-                OHCI_TD_POOL,
+                descriptorPool,
                 &element
         );
         if (oserr != OS_EOK) {
@@ -544,8 +577,7 @@ __AllocateDescriptors(
         tdsAllocated++;
     }
 
-    // For periodic transfers, we must be able to allocate all
-    // requested transfer descriptors.
+    // Periodic transfers require all descriptors before they can be queued.
     if (__Transfer_IsPeriodic(transfer) && tdsAllocated != tdsRemaining) {
         __DestroyDescriptors(controller, transfer);
         return 0;
@@ -553,6 +585,9 @@ __AllocateDescriptors(
     return tdsAllocated;
 }
 
+/**
+ * @brief Transfer, data toggle and descriptor positions used while preparing a batch.
+ */
 struct __PrepareContext {
     UsbManagerTransfer_t* Transfer;
     int                   Toggle;
@@ -562,24 +597,25 @@ struct __PrepareContext {
 
 static bool
 __PrepareDescriptor(
-        _In_ UsbManagerController_t* controllerBase,
-        _In_ uint8_t*                element,
-        _In_ enum HCIProcessReason   reason,
-        _In_ void*                   userContext)
+    _In_ UsbManagerController_t* controllerBase,
+    _In_ uint8_t*                element,
+    _In_ enum HCIProcessReason   reason,
+    _In_ void*                   userContext)
 {
     struct __PrepareContext*  context = userContext;
     OhciTransferDescriptor_t* td      = (OhciTransferDescriptor_t*)element;
-    _CRT_UNUSED(controllerBase);
+    uintptr_t                 linkAddress;
     _CRT_UNUSED(reason);
     TRACE("__PrepareDescriptor(transfer=%u, i=%i)", context->Transfer->ID, context->TDIndex);
 
-    // Do not prepare the queue-head
+    // The queue head is initialized separately.
     if (element == context->Transfer->RootElement) {
         TRACE("__PrepareDescriptor: skipping queue-head");
         return true;
     }
 
-    // Handle special stuff for Control transfers. They have special needs.
+    // Control transfers start SETUP with DATA0 and the data and status stages
+    // with DATA1.
     if (context->Transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         if (context->TDIndex == 0) {
             // SETUP(0)
@@ -593,29 +629,42 @@ __PrepareDescriptor(
         }
     }
 
+    // Before updating the ED head, restore NextTD from the scheduler links.
+    // OHCI overwrites NextTD when it adds a descriptor to the done list.
+    UsbSchedulerGetPoolElement(
+        controllerBase->Scheduler,
+        (td->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK,
+        td->Object.DepthIndex & USB_ELEMENT_INDEX_MASK,
+        NULL,
+        &linkAddress
+    );
+    
+        td->Link = linkAddress;
+    td->Object.Flags &= ~USB_ELEMENT_PROCESSED;
+
     switch (context->Transfer->Elements[context->TDIndex].Type) {
         case TRANSFERELEMENT_TYPE_SETUP: {
             OHCITDSetup(
-                    td,
-                    &context->Transfer->Elements[context->TDIndex]
+                td,
+                &context->Transfer->Elements[context->TDIndex]
             );
         } break;
         case TRANSFERELEMENT_TYPE_IN: {
             OHCITDData(
-                    td,
-                    context->Transfer->Type,
-                    OHCI_TD_IN,
-                    &context->Transfer->Elements[context->TDIndex],
-                    context->Toggle
+                td,
+                context->Transfer->Type,
+                OHCI_TD_IN,
+                &context->Transfer->Elements[context->TDIndex],
+                context->Toggle
             );
         } break;
         case TRANSFERELEMENT_TYPE_OUT: {
             OHCITDData(
-                    td,
-                    context->Transfer->Type,
-                    OHCI_TD_OUT,
-                    &context->Transfer->Elements[context->TDIndex],
-                    context->Toggle
+                td,
+                context->Transfer->Type,
+                OHCI_TD_OUT,
+                &context->Transfer->Elements[context->TDIndex],
+                context->Toggle
             );
         } break;
     }
@@ -631,32 +680,50 @@ __PrepareDescriptor(
 
 static bool
 __PrepareIsochronousDescriptor(
-        _In_ UsbManagerController_t* controllerBase,
-        _In_ uint8_t*                element,
-        _In_ enum HCIProcessReason   reason,
-        _In_ void*                   userContext)
+    _In_ UsbManagerController_t* controllerBase,
+    _In_ uint8_t*                element,
+    _In_ enum HCIProcessReason   reason,
+    _In_ void*                   userContext)
 {
     struct __PrepareContext*      context = userContext;
     OhciIsocTransferDescriptor_t* iTD     = (OhciIsocTransferDescriptor_t*)element;
-    _CRT_UNUSED(controllerBase);
+    uintptr_t linkAddress;
     _CRT_UNUSED(reason);
     TRACE("__PrepareIsochronousDescriptor(transfer=%u)", context->Transfer->ID);
+
+    if (element == context->Transfer->RootElement) {
+        return true;
+    }
+
+    // Before updating the ED head, restore NextTD from the scheduler links.
+    // OHCI overwrites NextTD when it adds a descriptor to the done list.
+    UsbSchedulerGetPoolElement(
+        controllerBase->Scheduler,
+        (iTD->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK,
+        iTD->Object.DepthIndex & USB_ELEMENT_INDEX_MASK,
+        NULL,
+        &linkAddress
+    );
+    
+    iTD->Link = linkAddress;
+    iTD->Flags = (READ_VOLATILE(((OhciController_t*)controllerBase)->Registers->HcFmNumber) + 2) & 0xFFFF;
+    iTD->Object.Flags &= ~USB_ELEMENT_PROCESSED;
 
     switch (context->Transfer->Elements[context->TDIndex].Type) {
         case TRANSFERELEMENT_TYPE_IN: {
             OHCITDIsochronous(
-                    iTD,
-                    context->Transfer->Type,
-                    OHCI_TD_IN,
-                    &context->Transfer->Elements[context->TDIndex]
+                iTD,
+                context->Transfer->MaxPacketSize,
+                OHCI_TD_IN,
+                &context->Transfer->Elements[context->TDIndex]
             );
         } break;
         case TRANSFERELEMENT_TYPE_OUT: {
             OHCITDIsochronous(
-                    iTD,
-                    context->Transfer->Type,
-                    OHCI_TD_OUT,
-                    &context->Transfer->Elements[context->TDIndex]
+                iTD,
+                context->Transfer->MaxPacketSize,
+                OHCI_TD_OUT,
+                &context->Transfer->Elements[context->TDIndex]
             );
         } break;
         default:
@@ -673,7 +740,7 @@ __PrepareIsochronousDescriptor(
 
 static int
 __ElementsCompleted(
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
     if (__Transfer_IsAsync(transfer)) {
         return transfer->TData.Async.ElementsCompleted;
@@ -683,33 +750,33 @@ __ElementsCompleted(
 
 static void
 __PrepareTransferDescriptors(
-        _In_ OhciController_t*     controller,
-        _In_ UsbManagerTransfer_t* transfer,
-        _In_ int                   count)
+    _In_ OhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer,
+    _In_ int                   count)
 {
     struct __PrepareContext context = {
-            .Transfer = transfer,
-            .Toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address),
-            .TDIndex = __ElementsCompleted(transfer),
-            .LastTDIndex = (__ElementsCompleted(transfer) + count - 1)
+        .Transfer = transfer,
+        .Toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address),
+        .TDIndex = __ElementsCompleted(transfer),
+        .LastTDIndex = (__ElementsCompleted(transfer) + count - 1)
     };
     if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
         UsbManagerChainEnumerate(
-                &controller->Base,
-                transfer->RootElement,
-                USB_CHAIN_DEPTH,
-                HCIPROCESS_REASON_NONE,
-                __PrepareIsochronousDescriptor,
-                &context
+            &controller->Base,
+            transfer->RootElement,
+            USB_CHAIN_DEPTH,
+            HCIPROCESS_REASON_NONE,
+            __PrepareIsochronousDescriptor,
+            &context
         );
     } else {
         UsbManagerChainEnumerate(
-                &controller->Base,
-                transfer->RootElement,
-                USB_CHAIN_DEPTH,
-                HCIPROCESS_REASON_NONE,
-                __PrepareDescriptor,
-                &context
+            &controller->Base,
+            transfer->RootElement,
+            USB_CHAIN_DEPTH,
+            HCIPROCESS_REASON_NONE,
+            __PrepareDescriptor,
+            &context
         );
         UsbManagerSetToggle(&controller->Base, &transfer->Address, context.Toggle);
     }
@@ -717,7 +784,7 @@ __PrepareTransferDescriptors(
 
 oserr_t
 HCITransferQueue(
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
     OhciController_t* controller;
     oserr_t           oserr;
@@ -726,6 +793,30 @@ HCITransferQueue(
     controller = (OhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (controller == NULL) {
         return OS_ENOENT;
+    }
+
+    // If a periodic transfer already has a descriptor chain, reuse it with
+    // the existing DMA mapping and staging page. Prepare the buffer and
+    // descriptor fields for the next transfer.
+    if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
+        transfer->ChainLength != 0) {
+        
+            oserr = USBTransferDmaBegin(transfer);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        
+        if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+            transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+            transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+            transfer->State = USBTRANSFER_STATE_CLEANUP;
+            return OS_EBUSY;
+        }
+        
+        __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+        HCIProcessEvent(&controller->Base, HCIPROCESS_EVENT_RESET_DONE, transfer);
+        __Transfer_Reset(transfer);
+        return OS_EOK;
     }
 
     oserr = __EnsureQueueHead(controller, transfer);
@@ -739,14 +830,32 @@ HCITransferQueue(
         return OS_EOK;
     }
 
+    oserr = USBTransferDmaBegin(transfer);
+    if (oserr != OS_EOK) {
+        __DestroyDescriptors(controller, transfer);
+        transfer->RootElement = NULL;
+        transfer->ChainLength = 0;
+        return oserr;
+    }
+
+    if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+        transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+        transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+        return OS_EBUSY;
+    }
+
     __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+    transfer->Dma.Unlinked = false;
+    transfer->Dma.ReleaseEpoch = 0;
+    dma_wmb();
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }
 
 oserr_t
 HCITransferQueueIsochronous(
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
     OhciController_t* controller;
     oserr_t           oserr;
@@ -755,6 +864,30 @@ HCITransferQueueIsochronous(
     controller = (OhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (controller == NULL) {
         return OS_ENOENT;
+    }
+
+    // If a periodic transfer already has a descriptor chain, reuse it with
+    // the existing DMA mapping and staging page. Prepare the buffer and
+    // descriptor fields for the next transfer.
+    if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
+        transfer->ChainLength != 0) {
+        
+        oserr = USBTransferDmaBegin(transfer);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        
+        if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+            transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+            transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+            transfer->State = USBTRANSFER_STATE_CLEANUP;
+            return OS_EBUSY;
+        }
+
+        __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+        HCIProcessEvent(&controller->Base, HCIPROCESS_EVENT_RESET_DONE, transfer);
+        __Transfer_Reset(transfer);
+        return OS_EOK;
     }
 
     oserr = __EnsureQueueHead(controller, transfer);
@@ -768,7 +901,25 @@ HCITransferQueueIsochronous(
         return OS_EOK;
     }
 
+    oserr = USBTransferDmaBegin(transfer);
+    if (oserr != OS_EOK) {
+        __DestroyDescriptors(controller, transfer);
+        transfer->RootElement = NULL;
+        transfer->ChainLength = 0;
+        return oserr;
+    }
+
+    if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+        transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+        transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+        return OS_EBUSY;
+    }
+    
     __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+    transfer->Dma.Unlinked = false;
+    transfer->Dma.ReleaseEpoch = 0;
+    dma_wmb();
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }

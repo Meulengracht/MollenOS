@@ -16,16 +16,14 @@
  *
  *
  * USB Controller Scheduler
- * - Contains the implementation of a shared controller scheduker
- *   for all the usb drivers
+ * - Shared controller scheduler for the USB drivers.
  */
 
 #ifndef __USB_SCHEDULER__
 #define __USB_SCHEDULER__
 
 #include <ddk/ddkdefs.h>
-#include <os/types/handle.h>
-#include <os/types/shm.h>
+#include <ddk/dma.h>
 #include <os/spinlock.h>
 
 #define FRAME_TIME_USECS                1000L
@@ -54,9 +52,8 @@
 #define HS_USECS_ISO(bytes)     NS_TO_US(HS_NSECS_ISO(bytes))
 
 /**
- * @brief Represents shared metadata about a transfer object.
- * A transfer object represents every possible type of object that
- * can be scheduled for the underlying USB controller.
+ * @brief Common metadata for objects scheduled by a USB controller.
+ * Stores chain links, allocation flags and periodic bandwidth information.
  */
 PACKED_TYPESTRUCT(UsbSchedulerObject, {
     uint32_t Flags;
@@ -96,6 +93,9 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
 #define USB_CHAIN_DEPTH                 1
 #define USB_POOL_MAXCOUNT               8
 
+/**
+ * @brief Element layout, link offsets and storage for one scheduler pool.
+ */
 typedef struct UsbSchedulerPool {
     size_t    ElementBaseSize;            // Size of an element
     size_t    ElementAlignedSize;         // Size of an element
@@ -106,20 +106,24 @@ typedef struct UsbSchedulerPool {
     size_t ElementLinkDepthOffset;     // Offset to the physical depth link member
     size_t ElementObjectOffset;        // Offset to the UsbSchedulerObject
     
-    OSHandle_t   ElementPoolDMA;         // Frame element pool DMA attachment
-    SHMSGTable_t ElementPoolDMATable;
-    uint8_t*     ElementPool;
+    // Hardware pools use one contiguous DMA buffer. Software pools use aligned heap memory.
+    struct DMABuffer* ElementPoolDMA;
+    uintptr_t         ElementPoolDeviceAddress;
+    uint8_t*          ElementPool;
 } UsbSchedulerPool_t;
 
+/**
+ * @brief Controller frame limits, DMA context and element pool configuration.
+ */
 typedef struct UsbSchedulerSettings {
-    unsigned int Flags;                          // Flags
-    size_t       FrameCount;                     // Number of frames
-    size_t       SubframeCount;                  // Number of sub-frames
-    size_t       MaxBandwidthPerFrame;           // Max bandwidth per frame
-    OSHandle_t   FrameListDMA;         // Frame list DMA attachment
-    SHMSGTable_t FrameListDMATable;
-    reg32_t*     FrameList;            // Physical frame list
-    uintptr_t    FrameListPhysical;
+    unsigned int       Flags;                // Flags
+    size_t             FrameCount;           // Number of frames
+    size_t             SubframeCount;        // Number of sub-frames
+    size_t             MaxBandwidthPerFrame; // Max bandwidth per frame
+    struct DMAContext* DmaContext;           // Not managed by the scheduler
+    struct DMABuffer*  FrameListDMA;
+    reg32_t*           FrameList;            // Physical frame list
+    uintptr_t          FrameListPhysical;
 
     int                PoolCount;               // Number of pools in use
     UsbSchedulerPool_t Pools[USB_POOL_MAXCOUNT];// Pools
@@ -131,7 +135,7 @@ typedef struct UsbSchedulerSettings {
 #define USB_SCHEDULER_DEFERRED_CLEAN    (1 << 3) // If set, cleanup must occur later than unlink
 #define USB_SCHEDULER_LINK_BIT_EOL      (1 << 4) // Specify that empty links must be marked with EOL
 #define USB_SCHEDULER_PERIODIC          (1 << 5) // If set, enable periodic/bandwidth bookkeeping
-// Element pools contain CPU-only metadata; no physical address table is created.
+// Element pools contain CPU-only metadata and have no physical address table.
 // Hardware rings and frame lists must use their own DMA allocations.
 #define USB_SCHEDULER_SOFTWARE_ELEMENTS (1 << 6)
 
@@ -140,6 +144,9 @@ typedef struct UsbTransferArena {
     spinlock_t*             Lock;
 } UsbTransferArena_t;
 
+/**
+ * @brief Virtual frame links and bandwidth allocated to the periodic schedule.
+ */
 typedef struct UsbPeriodicScheduler {
     UsbSchedulerSettings_t* Settings;
     uintptr_t* VirtualFrameList;       // Virtual frame list
@@ -147,6 +154,9 @@ typedef struct UsbPeriodicScheduler {
     size_t     TotalBandwidth;         // Total bandwidth
 } UsbPeriodicScheduler_t;
 
+/**
+ * @brief Shared settings and lock for element pools and periodic scheduling.
+ */
 typedef struct UsbScheduler {
     UsbSchedulerSettings_t Settings;
     spinlock_t             Lock;
@@ -160,17 +170,16 @@ typedef struct UsbScheduler {
 #define USB_ELEMENT_GET_POOL(_sched, _index) (&(_sched)->Settings.Pools[((_index) >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK])
 
 /**
- * @brief Retrieves the 32-bit physical address of the next link. USB elements
- * either have a DEPTH link, and/or a BREATH link.
- * _dir can be either USB_CHAIN_BREATH or USB_CHAIN_DEPTH
+ * @brief Access the next link's 32-bit physical address.
+ * USB elements can have a DEPTH link, a BREATH link, or both.
+ * _dir must be USB_CHAIN_BREATH or USB_CHAIN_DEPTH.
  */
 #define __LINK_OFFSET(_pool, _dir) (((_dir) == USB_CHAIN_BREATH) ? (_pool)->ElementLinkBreathOffset : (_pool)->ElementLinkDepthOffset)
 #define USB_ELEMENT_LINK(_pool, _elem, _dir) (*(reg32_t*)((uint8_t*)(_elem) + __LINK_OFFSET(_pool, _dir)))
 
 /**
- * @brief Cast the element pointer to the UsbSchedulerObject_t at the end of
- * the hardware data. A UsbSchedulerObject_t is appended to each transfer descriptor
- * which contains metadata for the common USB Scheduler code.
+ * @brief Get the UsbSchedulerObject_t following the element's hardware data.
+ * Each transfer descriptor has this metadata for the common USB scheduler.
  */
 #define USB_ELEMENT_OBJECT(_pool, _elem) ((UsbSchedulerObject_t*)((uint8_t*)(_elem) + (_pool)->ElementObjectOffset))
 
@@ -195,9 +204,9 @@ UsbSchedulerHasPeriodicSchedule(
     return (Scheduler->Settings.Flags & USB_SCHEDULER_PERIODIC) != 0;
 }
 
-/* UsbSchedulerSettingsCreate
- * Initializes a new instance of the settings to customize the
- * scheduler. */
+/**
+ * @brief Initialize scheduler settings.
+ */
 extern void
 UsbSchedulerSettingsCreate(
     _In_ UsbSchedulerSettings_t* Settings,
@@ -206,18 +215,19 @@ UsbSchedulerSettingsCreate(
     _In_ size_t                  MaxBandwidthPerFrame,
     _In_ unsigned int                 Flags);
 
-/* UsbSchedulerSettingsConfigureFrameList
- * Configure the framelist settings for the scheduler. This is always
- * neccessary to call if the controller is supplying its own framelist. */
+/**
+ * @brief Configure the frame list supplied by the controller.
+ * Call this before initialization if the controller supplies its own frame list.
+ */
 extern void
 UsbSchedulerSettingsConfigureFrameList(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ reg32_t*                   FrameList,
     _In_ uintptr_t                  FrameListPhysical);
 
-/* UsbSchedulerSettingsAddPool
- * Adds a new pool to the scheduler configuration that will get created
- * with the scheduler. */
+/**
+ * @brief Add a pool to be created during scheduler initialization.
+ */
 extern void
 UsbSchedulerSettingsAddPool(
     _In_ UsbSchedulerSettings_t*    Settings,
@@ -229,26 +239,36 @@ UsbSchedulerSettingsAddPool(
     _In_ size_t                     LinkDepthMemberOffset,
     _In_ size_t                     ObjectMemberOffset);
 
-/* UsbSchedulerInitialize 
- * Initializes a new instance of a scheduler that can be used to
- * keep track of controller bandwidth and which frames are active.
- * MaxBandwidth is usually either 800 or 900. */
+/**
+ * @brief Allocate descriptor pools and optional frame-list storage.
+ *
+ * @param Settings Pool sizes and layout, and the controller DMA context.
+ * Software-only pools do not need a DMA context.
+ * @param SchedulerOut Receives the scheduler before its resources are allocated.
+ * If initialization fails with a non-NULL result, pass it to UsbSchedulerDestroy
+ * and retry destruction until cleanup succeeds.
+ * @return OS_EOK on success, otherwise an allocation or initialization error.
+ */
 extern oserr_t
 UsbSchedulerInitialize(
-	_In_  UsbSchedulerSettings_t*   Settings,
-    _Out_ UsbScheduler_t**          SchedulerOut);
+    _In_  UsbSchedulerSettings_t* Settings,
+    _Out_ UsbScheduler_t**        SchedulerOut);
 
-/* UsbSchedulerDestroy 
- * Cleans up any resources allocated by the scheduler. Any transactions already
- * scheduled by this scheduler will be unreachable and invalid after this call. */
-extern void
+/**
+ * @brief Release scheduler resources. Hardware must have stopped using the descriptors.
+ *
+ * @param scheduler Pointer to the scheduler, set to NULL on success. If cleanup
+ * fails, the scheduler still tracks the remaining resources so the call can be retried.
+ * @return OS_EOK on success, otherwise the DMA cleanup error.
+ */
+extern oserr_t
 UsbSchedulerDestroy(
-	_In_ UsbScheduler_t*            Scheduler);
+    _InOut_ UsbScheduler_t** scheduler);
 
-/* UsbSchedulerResetInternalData
- * Reinitializes all data structures in the scheduler to initial state. 
- * This should never be called unless the associating controller is in a
- * stopped state as the framelist is affected. */
+/**
+ * @brief Reset the scheduler's internal data.
+ * The controller must be stopped before this call because it changes the frame list.
+ */
 extern oserr_t
 UsbSchedulerResetInternalData(
     _In_ UsbScheduler_t*            Scheduler,
@@ -345,8 +365,9 @@ UsbSchedulerGetDma(
     _In_ UsbSchedulerPool_t* schedulerPool,
     _In_ const uint8_t*      elementPointer);
 
-/* UsbSchedulerGetPoolElement
- * Retrieves the element at the given pool and index. */
+/**
+ * @brief Get the element at the given pool and index.
+ */
 extern oserr_t
 UsbSchedulerGetPoolElement(
     _In_  UsbScheduler_t*           Scheduler,
@@ -355,36 +376,38 @@ UsbSchedulerGetPoolElement(
     _Out_ uint8_t**                 ElementOut,
     _Out_ uintptr_t*                ElementPhysicalOut);
 
-/* UsbSchedulerGetPoolFromElement
- * Retrieves which pool an element belongs to by only knowing the address. */
+/**
+ * @brief Find the pool containing the element address.
+ */
 extern oserr_t
 UsbSchedulerGetPoolFromElement(
         _In_  UsbScheduler_t*      scheduler,
         _In_  const uint8_t*       element,
         _Out_ UsbSchedulerPool_t** poolOut);
 
-/* UsbSchedulerAllocateElement
- * Allocates a new element for usage with the scheduler. If this returns
- * OS_EUNKNOWN we are out of elements and we should wait till next transfer. ElementOut
- * will in this case be set to USB_OUT_OF_RESOURCES. */
+/**
+ * @brief Allocate an element from the scheduler pool.
+ * If the pool is exhausted, returns OS_EUNKNOWN and sets ElementOut to
+ * USB_OUT_OF_RESOURCES. Wait until the next transfer before retrying.
+ */
 extern oserr_t
 UsbSchedulerAllocateElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  int                       Pool,
     _Out_ uint8_t**                 ElementOut);
 
-/* UsbSchedulerFreeElement
- * Releases the previously allocated element by resetting it. This call automatically
- * frees any bandwidth associated with the element. */
+/**
+ * @brief Reset an allocated element and free its associated bandwidth.
+ */
 extern void
 UsbSchedulerFreeElement(
     _In_ UsbScheduler_t* usbScheduler,
     _In_ uint8_t*        element);
 
-/* UsbSchedulerAllocateBandwidth
- * Allocates bandwidth for a scheduler element. The bandwidth will automatically
- * be fitted into where is best place on schedule. If there is no more room it will
- * return OS_EUNKNOWN. */
+/**
+ * @brief Allocate bandwidth for an element and select its place in the schedule.
+ * Returns OS_EUNKNOWN if the schedule has no room for the requested bandwidth.
+ */
 extern oserr_t
 UsbSchedulerAllocateBandwidth(
     _In_ UsbScheduler_t* scheduler,
@@ -396,15 +419,17 @@ UsbSchedulerAllocateBandwidth(
     _In_ uint8_t         speed,
     _In_ uint8_t*        element);
 
-/* UsbSchedulerCalculateBandwidth
- * Calculates the controller-independent periodic bandwidth estimate for a
+/**
+ * @brief Calculate the controller-independent periodic bandwidth estimate for a
  * transfer. Split transactions use the estimate for both their start and
  * complete phases, which may be placed in different microframes by EHCI.
+ *
  * @param speed The USB bus speed of the endpoint.
  * @param direction The transfer direction used by the USB timing model.
  * @param transferType The USB transfer type used by the timing model.
  * @param bytesToTransfer The number of payload bytes represented by the slot.
- * @return The estimated periodic bandwidth cost in microseconds. */
+ * @return The estimated periodic bandwidth cost in microseconds.
+ */
 extern size_t
 UsbSchedulerCalculateBandwidth(
     _In_ uint8_t speed,
@@ -412,14 +437,15 @@ UsbSchedulerCalculateBandwidth(
     _In_ uint8_t transferType,
     _In_ size_t  bytesToTransfer);
 
-/* UsbSchedulerAllocateSplitBandwidth
- * Atomically reserves start-split and complete-split microframes for a
- * full/low-speed periodic transfer. Existing controllers keep using the
- * original allocator; this additive API is intended for EHCI split schedules.
- * OUT splits carry data across one or more consecutive start-split
- * microframes and never use a complete-split; IN splits use a single
- * start-split followed by a complete-split window.
- * @param scheduler The periodic scheduler that owns the bandwidth table.
+/**
+ * @brief Reserve start-split and complete-split microframes atomically for a
+ * full/low-speed periodic transfer in an EHCI split schedule. Other controllers
+ * use the original bandwidth allocator.
+ * OUT splits carry data in one or more consecutive start-split microframes
+ * without a complete-split. IN splits use one start-split followed by a
+ * complete-split window.
+ *
+ * @param scheduler The periodic scheduler containing the bandwidth table.
  * @param interval The requested periodic interval.
  * @param startBandwidth The bandwidth cost of each start-split slot.
  * @param completeBandwidth The bandwidth cost of each complete-split slot.
@@ -432,7 +458,8 @@ UsbSchedulerCalculateBandwidth(
  * @param startMaskOut Receives the selected start-split microframe mask.
  * @param completeMaskOut Receives the selected complete-split microframe mask.
  * @param completionFrameOffsetOut Receives the frame offset for completion.
- * @return OS_EOK when both phases were reserved atomically. */
+ * @return OS_EOK when both phases were reserved atomically.
+ */
 extern oserr_t
 UsbSchedulerAllocateSplitBandwidth(
     _In_  UsbScheduler_t* scheduler,
@@ -446,17 +473,19 @@ UsbSchedulerAllocateSplitBandwidth(
     _Out_ uint8_t*        completeMaskOut,
     _Out_ uint8_t*        completionFrameOffsetOut);
 
-/* UsbSchedulerFreeSplitBandwidth
- * Releases the two-phase reservation previously returned by
+/**
+ * @brief Release the two-phase reservation returned by
  * UsbSchedulerAllocateSplitBandwidth. The masks and costs must match the
  * values used for the allocation.
- * @param scheduler The periodic scheduler that owns the bandwidth table.
+ *
+ * @param scheduler The periodic scheduler containing the bandwidth table.
  * @param element The scheduler element whose reservation is being released.
  * @param startMask The previously selected start-split mask.
  * @param completeMask The previously selected complete-split mask.
  * @param completionFrameOffset The previously selected frame offset.
  * @param startBandwidth The reserved start-split cost.
- * @param completeBandwidth The reserved complete-split cost. */
+ * @param completeBandwidth The reserved complete-split cost.
+ */
 extern void
 UsbSchedulerFreeSplitBandwidth(
     _In_ UsbScheduler_t* scheduler,
@@ -467,10 +496,10 @@ UsbSchedulerFreeSplitBandwidth(
     _In_ size_t          startBandwidth,
     _In_ size_t          completeBandwidth);
 
-/* UsbSchedulerChainElement
- * Chains up a new element to the given element chain. The root element
- * must be specified and the element to append to the chain. Also the
- * chain direction must be specified. */
+/**
+ * @brief Add an element to a chain.
+ * Specify the root element, the element to add and the chain direction.
+ */
 extern oserr_t
 UsbSchedulerChainElement(
     _In_ UsbScheduler_t*        Scheduler,
@@ -481,10 +510,10 @@ UsbSchedulerChainElement(
     _In_ uint16_t               Marker,
     _In_ int                    Direction);
 
-/* UsbSchedulerUnchainElement
- * Removes an existing element from the given element chain. The root element
- * must be specified and the element to remove from the chain. Also the
- * chain direction must be specified. */
+/**
+ * @brief Remove an element from a chain.
+ * Specify the root element, the element to remove and the chain direction.
+ */
 extern oserr_t
 UsbSchedulerUnchainElement(
     _In_ UsbScheduler_t*        Scheduler,
@@ -494,18 +523,19 @@ UsbSchedulerUnchainElement(
     _In_ uint8_t*               Element,
     _In_ int                    Direction);
 
-/* UsbSchedulerLinkPeriodicElement
- * Queue's up a periodic/isochronous transfer. If it was not possible
- * to schedule the transfer with the requested bandwidth, it returns OS_EUNKNOWN */
+/**
+ * @brief Queue a periodic/isochronous transfer.
+ * Returns OS_EUNKNOWN if the requested bandwidth cannot be scheduled.
+ */
 extern oserr_t
 UsbSchedulerLinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementPool,
     _In_ uint8_t*               Element);
 
-/* UsbSchedulerUnlinkPeriodicElement
- * Removes an already queued up periodic transfer (interrupt/isoc) from the
- * controllers scheduler. */
+/**
+ * @brief Remove a queued periodic transfer (interrupt/isoc) from the controller schedule.
+ */
 extern void
 UsbSchedulerUnlinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,

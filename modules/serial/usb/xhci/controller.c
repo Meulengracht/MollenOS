@@ -92,7 +92,8 @@ __XhciDisableLegacySupport(
     int               fault;
 
     while (offset != 0) {
-        // Integration registers outside the xHCI window are not capabilities.
+        // Capability offsets must stay within the xHCI register range. Registers
+        // used to integrate the controller with the platform may follow it.
         if ((uint64_t)offset * 4 + sizeof(reg32_t) > controller->RegisterLength) {
             return OS_ENOTSUPPORTED;
         }
@@ -106,9 +107,8 @@ __XhciDisableLegacySupport(
                 return OS_ENOTSUPPORTED;
             }
 
-            // Request ownership from firmware. BIOS Owned should clear once OS
-            // Owned is set; clearing the following control/status register then
-            // suppresses legacy SMIs for the controller.
+            // Set OS Owned and wait for firmware to clear BIOS Owned. Clear the
+            // following control/status register to disable legacy SMIs.
             WRITE_VOLATILE(*capability, value | XHCI_LEGSUP_OS_OWNED);
             WaitForConditionWithFault(fault,
                     (READ_VOLATILE(*capability) & XHCI_LEGSUP_BIOS_OWNED) == 0,
@@ -197,8 +197,8 @@ __SetupController(
         return oserr;
     }
 
-    // Address width belongs to the controller, even when the driver itself
-    // uses 32-bit pointers. The context applies this limit to device addresses.
+    // Device addresses must fit the controller's address width, even when the
+    // driver uses 32-bit pointers. The DMA context enforces this limit.
     oserr = DMAOpen(controller->Base.Device->Id,
         (controller->HccParams1 & XHCI_HCCPARAMS1_AC64) ? UINT64_MAX : UINT32_MAX,
         &controller->Base.DmaContext);
@@ -225,9 +225,9 @@ __SetupController(
         return oserr;
     }
 
-    // xHCI root ports are self-describing. Power any port that supports software
-    // port power control, then report already-connected ports to usbd so the hub
-    // logic can query and reset them through the common HCI callbacks.
+    // xHCI root port registers describe each port. Power ports that support
+    // software power control, then report connected ports to usbd. The hub code
+    // can query and reset them through the common HCI callbacks.
     for (size_t i = 0; i < controller->Base.PortCount; i++) {
         reg32_t status = READ_VOLATILE(controller->Ports[i].StatusControl);
         WRITE_VOLATILE(controller->Ports[i].StatusControl,
@@ -332,7 +332,7 @@ HCIControllerCreate(
     controller->Doorbells = (volatile reg32_t*)(base + doorbells);
     controller->Ports = (XhciPortRegisters_t*)(base + operational + 0x400);
 
-    // Keep the peripheral quiet while the kernel binds the common fast handler.
+    // Disable controller interrupts before the kernel installs the common fast handler.
     WRITE_VOLATILE(controller->OpRegisters->UsbCommand,
         READ_VOLATILE(controller->OpRegisters->UsbCommand) & ~XHCI_OP_USBCMD_INTERRUPTER);
     
@@ -352,6 +352,10 @@ HCIControllerCreate(
     if (status != OS_EOK) {
         goto error;
     }
+    
+    if (!UsbManagerCompleteControllerInitialization(&controller->Base)) {
+        goto error;
+    }
     return &controller->Base;
 
 error:
@@ -366,19 +370,18 @@ HCIControllerDestroy(
     XhciController_t* controller = (XhciController_t*)baseController;
     oserr_t           status;
 
-    // Register the retry owner before the first fallible step, including failed
-    // initialization. The manager removes it only after all releases succeed.
-    // Provider IPC can yield to another unregister request or monitor tick.
-    if (controller->Destroying) {
+    // Register teardown for retries before any step can fail, including cleanup
+    // after failed initialization. The manager removes the controller only after
+    // all resources are released. Device IPC may yield while another unregister
+    // request or monitor tick tries to destroy the same controller.
+    if (!UsbManagerBeginControllerDestroy(baseController)) {
         return OS_EBUSY;
     }
 
-    controller->Destroying = true;
     if (controller->State == XHCI_CONTROLLER_RUNNING) {
         controller->State = XHCI_CONTROLLER_STOPPING;
     }
     
-    UsbManagerDeferControllerDestroy(baseController);
     if (controller->State != XHCI_CONTROLLER_HALTED) {
         if (controller->OpRegisters != NULL) {
             status = XhciHalt(controller);
@@ -390,10 +393,10 @@ HCIControllerDestroy(
         controller->State = XHCI_CONTROLLER_HALTED;
     }
 
-    // Halting the engine ends DMA. Keep provider activation alive while removing
-    // interrupts and DMA mappings: native platforms cannot release their power
-    // and translation resources while these leases exist. No later retry may
-    // touch MMIO after activation has been released.
+    // The controller must be halted before removing interrupts and DMA mappings.
+    // Keep the device prepared until both are removed, since native platforms
+    // still need their power and address translation resources. After DeviceStop
+    // succeeds, retries must not access MMIO.
     status = DeviceInterruptDestroy(&baseController->Interrupt);
     if (status != OS_EOK) {
         WARNING("XHCI teardown: interrupt release failed (%u); retry pending", status);
@@ -411,8 +414,8 @@ HCIControllerDestroy(
         goto retry;
     }
     
-    // Wrapper restoration also needs live MMIO. A partial preparation or failed
-    // restoration keeps its state until this succeeds, before provider stop.
+    // Restore the wrapper before stopping the device, while MMIO is accessible.
+    // Keep state from partial preparation or failed restoration until this succeeds.
     status = Dwc3Release(&controller->Dwc3);
     if (status != OS_EOK) {
         WARNING("XHCI teardown: DWC3 release failed (%u); retry pending", status);
@@ -443,6 +446,6 @@ HCIControllerDestroy(
     return OS_EOK;
 
 retry:
-    controller->Destroying = false;
+    UsbManagerRetryControllerDestroy(baseController);
     return status;
 }

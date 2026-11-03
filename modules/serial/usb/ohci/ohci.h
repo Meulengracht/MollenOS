@@ -29,42 +29,38 @@
 #include "../common/scheduler.h"
 #include "../common/hci.h"
 
-/* OHCI Controller Definitions 
- * Contains generic magic constants and definitions */
+// Controller limits.
 #define OHCI_MAXPORTS                   15
 #define OHCI_FRAMELIST_SIZE             32
 
 #define OHCI_LINK_HALTED                0x1
 
-/* OhciQueueHead
- * Endpoint descriptor, which acts as a queue-head in an
- * ohci-context. It contains both horizontal links and vertical
- * links. It will always process vertical links first. When a 
- * vertical link has processed, the current is updated. 
- * It will stop processing when Current == Tail.
- * Structure must always be 16 byte aligned */
+/**
+ * @brief Endpoint descriptor with links to the next endpoint and its TD queue.
+ * Must be aligned to 16 bytes. The controller processes TDs before moving to
+ * the next endpoint, advancing Current until it reaches EndPointer.
+ */
 PACKED_TYPESTRUCT(OhciQueueHead, {
-    // Hardware Metadata (16 bytes)
+    // Hardware fields (16 bytes).
     reg32_t                 Flags;
     reg32_t                 EndPointer;  // Lower 4 bits not used
     reg32_t                 Current;     // (Physical) Bit 0 - Halted, Bit 1 - Carry
     reg32_t                 LinkPointer; // Next EP (Physical)
     
-    // Software meta-data
+    // Scheduler data.
     UsbSchedulerObject_t    Object;
 });
 
 /**
  * OhciQueueHead::Flags
- * Contains definitions and bitfield definitions for OhciQueueHead::Flags
- * Bits 0 - 6: Usb Address of Function
- * Bits 7 - 10: (Endpoint Nr) Usb Address of this endpoint
- * Bits 11 - 12: (Direction) Indicates Dataflow, either IN or OUT. (01 -> OUT, 10 -> IN). Otherwise we leave it to the TD descriptor
- * Bits 13: Speed. 0 indicates full speed, 1 indicates low-speed.
- * Bits 14: If set, it skips the TD queues and moves on to next EP descriptor
- * Bits 15: (Format). 0 = Bulk/Control/Interrupt Endpoint. 1 = Isochronous TD format.
- * Bits 16-26: Maximum Packet Size per data packet.
- * Bits 27-31: Type -> 0000 (Control), 0001 (Bulk), 0010 (Interrupt) 0011 (Isoc).
+ * Bits 0-6: USB device address.
+ * Bits 7-10: Endpoint number.
+ * Bits 11-12: Direction. 01 = OUT, 10 = IN. Other values use the TD direction.
+ * Bit 13: Speed. 0 = full speed, 1 = low speed.
+ * Bit 14: Skip this TD queue and move to the next endpoint.
+ * Bit 15: Format. 0 = bulk/control/interrupt, 1 = isochronous.
+ * Bits 16-26: Maximum packet size.
+ * Bits 27-31: Type. 0000 = control, 0001 = bulk, 0010 = interrupt, 0011 = isoc.
  */
 #define OHCI_QH_ADDRESSMASK             0x7F
 #define OHCI_QH_ENDPOINTMASK            0x0F
@@ -81,14 +77,17 @@ PACKED_TYPESTRUCT(OhciQueueHead, {
 #define OHCI_QH_LENGTH(Length)          ((Length & OHCI_QH_LENGTHMASK) << 16)
 #define OHCI_QH_TYPE(Type)              (((int)Type & 0xF) << 27)
 
-// 16 byte alignment
+/**
+ * @brief Transfer descriptor with buffer addresses and saved transfer state.
+ * Must be aligned to 16 bytes.
+ */
 PACKED_TYPESTRUCT(OhciTransferDescriptor, {
     reg32_t Flags;
     reg32_t Cbp;
     reg32_t Link;
     reg32_t BufferEnd;
 
-    // Software Metadata
+    // Scheduler data and saved fields.
     UsbSchedulerObject_t Object;
     reg32_t              OriginalFlags;      // Copy of flags
     reg32_t              OriginalCbp;        // Copy of buffer
@@ -96,14 +95,13 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
 
 /**
  * OhciTransferDescriptor::Flags & OhciIsocTransferDescriptor::Flags
- * Contains definitions and bitfield definitions for OhciTransferDescriptor::Flags
- * Bits 0-17:  Available
- * Bits 18:    If 0, Requires the data to be recieved from an endpoint to exactly fill buffer
- * Bits 19-20: Direction, 00 = Setup (to ep), 01 = OUT (to ep), 10 = IN (from ep)
- * Bits 21-23: Interrupt delay count for this TD. This means the HC can delay interrupt a specific amount of frames after TD completion.
- * Bits 24-25: Data Toggle. It is updated after each successful transmission.
- * Bits 26-27: Error Count. Updated each transmission that fails. It is 0 on success.
- * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code.
+ * Bits 0-17: Available.
+ * Bit 18: If clear, received data must exactly fill the buffer.
+ * Bits 19-20: Direction. 00 = SETUP, 01 = OUT, 10 = IN.
+ * Bits 21-23: Number of frames to delay the interrupt after TD completion.
+ * Bits 24-25: Data toggle. Updated after each successful transmission.
+ * Bits 26-27: Error count. Updated on failure, cleared on success.
+ * Bits 28-31: Condition code. Records the error after a third failed attempt.
  */
 #define OHCI_TD_SHORTPACKET_OK          (1 << 18)
 #define OHCI_TD_SETUP                   0
@@ -118,7 +116,10 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
 #define OHCI_TD_ERRORCODE(Flags)        ((Flags >> 28) & 0xF)
 #define OHCI_TD_ACTIVE                  ((1 << 28) | (1 << 29) | (1 << 30) | (1 << 31))
 
-// 32 byte alignment
+/**
+ * @brief Isochronous descriptor with packet offsets and saved transfer state.
+ * Must be aligned to 32 bytes.
+ */
 PACKED_TYPESTRUCT(OhciIsocTransferDescriptor, {
     reg32_t  Flags;
     reg32_t  Cbp;
@@ -126,7 +127,7 @@ PACKED_TYPESTRUCT(OhciIsocTransferDescriptor, {
     reg32_t  BufferEnd;
     uint16_t Offsets[8];
 
-    // Software Metadata
+    // Scheduler data and saved fields.
     UsbSchedulerObject_t Object;
     reg32_t              OriginalFlags;      // Copy of flags
     reg32_t              OriginalCbp;        // Copy of buffer
@@ -137,11 +138,10 @@ PACKED_TYPESTRUCT(OhciIsocTransferDescriptor, {
 #define OHCI_iTD_FRAMECOUNT(n)           ((n & 0x7) << 24)
 
 /**
- * OhciTransferDescriptor::Offsets
- * Contains definitions and bitfield definitions for OhciTransferDescriptor::Offsets
- * Bits 0-11:    Packet Size on IN-transmissions
- * Bits 12:      CrossPage Field
- * Bits 12-15:   Condition Code (Error Code) 
+ * OhciIsocTransferDescriptor::Offsets
+ * Bits 0-11: Packet size for IN transfers.
+ * Bit 12: Cross-page field.
+ * Bits 12-15: Condition code (error code).
  */
 #define OHCI_iTD_OFFSETLENGTH(Length) (Length & 0xFFF)
 #define OHCI_iTD_CROSSPAGE            (1 << 12)
@@ -159,6 +159,9 @@ PACKED_TYPESTRUCT(OhciIsocTransferDescriptor, {
 #define OHCI_CC_INIT0      0xE // Not Accessed
 #define OHCI_CC_INIT       0xF // Not Accessed
 
+/**
+ * @brief Controller communication area with interrupt roots and frame status.
+ */
 PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
     reg32_t  InterruptTable[OHCI_FRAMELIST_SIZE]; // Points to the 32 root nodes
     uint16_t CurrentFrame;       // Current Frame Number
@@ -167,6 +170,9 @@ PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
     uint8_t  Reserved[116];      // Work area of OHCI
 });
 
+/**
+ * @brief Controller registers for scheduling, interrupts, and root hub ports.
+ */
 PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
     reg32_t HcRevision;
     reg32_t HcControl;
@@ -195,20 +201,17 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
     reg32_t HcRhPortStatus[OHCI_MAXPORTS];
 });
 
-/* OhciRegisters::HcRevision
- * Contains definitions and bitfield definitions for OhciRegisters::HcRevision */
+// OhciRegisters::HcRevision values.
 #define OHCI_REVISION1                  0x10
 #define OHCI_REVISION11                 0x11
 
-/* OhciRegisters::HcCommandStatus
- * Contains definitions and bitfield definitions for OhciRegisters::HcCommandStatus */
+// OhciRegisters::HcCommandStatus bits.
 #define OHCI_COMMAND_RESET              (1 << 0)
 #define OHCI_COMMAND_CONTROL_FILLED     (1 << 1)
 #define OHCI_COMMAND_BULK_FILLED        (1 << 2)
 #define OHCI_COMMAND_OWNERSHIP          (1 << 3)
 
-/* OhciRegisters::HcControl
- * Contains definitions and bitfield definitions for OhciRegisters::HcControl */
+// OhciRegisters::HcControl fields.
 #define OHCI_CONTROL_RESET              0
 #define OHCI_CONTROL_RATIO_MASK         (1 << 0) | (1 << 1)
 #define OHCI_CONTROL_PERIODIC_ACTIVE    (1 << 2)
@@ -223,8 +226,7 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 #define OHCI_CONTROL_IR                 (1 << 8)
 #define OHCI_CONTROL_REMOTEWAKE         (1 << 10)
 
-/* OhciRegisters::HcFmInterval
- * Contains definitions and bitfield definitions for OhciRegisters::HcFmInterval */
+// OhciRegisters::HcFmInterval fields.
 #define OHCI_FMINTERVAL_FI              0x2EDF
 #define OHCI_FMINTERVAL_FIMASK          0x3FFF
 #define OHCI_FMINTERVAL_GETFSMP(fi)     ((fi >> 16) & 0x7FFF)
@@ -257,15 +259,18 @@ PACKED_ATYPESTRUCT(volatile, OhciRegisters, {
 #define OHCI_PORT_OVERCURRENT_EVENT     (1 << 19)
 #define OHCI_PORT_RESET_EVENT           (1 << 20)
 
-/* Ohci Definitions
- * Pool sizes and helper functions. */
+// Descriptor pool sizes, alignment, and reserved indices.
 #define OHCI_QH_ALIGNMENT                   16
 #define OHCI_QH_POOL                        0
 #define OHCI_QH_COUNT                       50
 
 #define OHCI_TD_ALIGNMENT                   16
 #define OHCI_TD_POOL                        1
-#define OHCI_TD_COUNT                       400
+// The active TD budget excludes the reserved null TD.
+#define OHCI_TD_BUDGET                      256
+#define OHCI_TD_COUNT                       (OHCI_TD_BUDGET + 1)
+// Limit each endpoint batch to QEMU's traversal limit of 32 TDs.
+#define OHCI_TD_BATCH                       32
 
 #define OHCI_iTD_ALIGNMENT                  32
 #define OHCI_iTD_POOL                       2
@@ -286,6 +291,9 @@ enum OHCIPowerMode {
     OHCIPOWERMODE_GLOBALCONTROL
 };
 
+/**
+ * @brief Controller state, pending queues, register mapping, and HCCA memory.
+ */
 typedef struct OHCIController {
     UsbManagerController_t Base;
 
@@ -298,8 +306,8 @@ typedef struct OHCIController {
 
     // Registers and resources
     OhciRegisters_t* Registers;
-    OSHandle_t       HccaDMA;
-    SHMSGTable_t     HccaDMATable;
+    struct DMABuffer* HccaDMA;
+    uintptr_t HccaDeviceAddress;
     OhciHCCA_t*      Hcca;
 
     // State information
@@ -312,7 +320,7 @@ typedef struct OHCIController {
  *******************************************************************************/
 
 /**
- * @brief Resets the controller state back to a known, initialized state.
+ * @brief Resets and initializes the controller.
  * @param controller
  * @return
  */
@@ -330,8 +338,7 @@ OHCIQueueInitialize(
         _In_ OhciController_t* controller);
 
 /**
- * @brief Resets any transfers already in queue, and resets queue memory
- * back to an initialized state.
+ * @brief Resets queued transfers and reinitializes queue memory.
  * @param controller
  * @return
  */
@@ -343,12 +350,12 @@ OHCIQueueReset(
  * @brief Cleans up any queued transfers and frees resources used by the queue.
  * @param Controller
  */
-extern void
+extern oserr_t
 OHCIQueueDestroy(
     _In_ OhciController_t* Controller);
 
 /**
- * @brief Checks the current status of all ports and raises any neccessary events.
+ * @brief Checks port status and reports port changes.
  * @param controller
  * @param ignorePowerOn
  * @return
@@ -359,7 +366,7 @@ OHCICheckPorts(
     _In_ int               ignorePowerOn);
 
 /**
- * @brief Change current controller state.
+ * @brief Changes the controller state.
  * @param controller
  * @param mode
  */
@@ -372,32 +379,34 @@ OHCISetMode(
  * Queue Head Methods
  *******************************************************************************/
 
-/* OHCIQHInitialize
- * Initializes the queue head data-structure and the associated
- * hcd flags. Afterwards the queue head is ready for use. */
+/**
+ * @brief Initializes the queue head and controller flags for the transfer.
+ */
 extern oserr_t
 OHCIQHInitialize(
         _In_ OhciController_t*     controller,
         _In_ UsbManagerTransfer_t* transfer,
         _In_ OhciQueueHead_t*      qh);
 
-/* OHCIQHDump
- * Dumps the information contained in the queue-head by writing it to stdout */
+/**
+ * @brief Writes queue head fields to the debug log.
+ */
 extern void
 OHCIQHDump(
     _In_ OhciController_t*          Controller,
     _In_ OhciQueueHead_t*           Qh);
 
-/* OHCIQHRestart
- * Restarts an interrupt QH by resetting it to it's start state */
+/**
+ * @brief Restores an interrupt queue head to its starting state.
+ */
 extern void
 OHCIQHRestart(
     _In_ OhciController_t*          Controller,
     _In_ UsbManagerTransfer_t*      Transfer);
 
-/* OHCIQHLink
- * Link a given queue head into the correct queue determined by Qh->Queue.
- * This can handle linkage of async and interrupt transfers. */
+/**
+ * @brief Links the queue head into the control or bulk queue selected by type.
+ */
 extern void
 OHCIQHLink(
     _In_ OhciController_t*          controller,
@@ -409,17 +418,18 @@ OHCIQHLink(
  *******************************************************************************/
 
 /**
- * @brief Constructs a new SETUP token TD. The TD assumes a length
- * of sizeof(usbpacket_t).
+ * @brief Initializes a SETUP TD from the transfer element.
+ * The TD must already be linked, with a buffer containing the setup packet.
  */
 extern void
 OHCITDSetup(
     _In_ OhciTransferDescriptor_t* td,
     _In_ struct TransferElement*   element);
 
-/* OHCITDData
- * Creates a new io token td and initializes all the members.
- * The Td is immediately ready for execution. */
+/**
+ * @brief Initializes a data TD for execution.
+ * The TD must already be linked.
+ */
 extern void
 OHCITDData(
     _In_ OhciTransferDescriptor_t*  td,
@@ -428,24 +438,25 @@ OHCITDData(
     _In_ struct TransferElement*    element,
     _In_ int                        toggle);
 
-/* OHCITDDump
- * Dumps the information contained in the descriptor by writing it. */
+/**
+ * @brief Writes transfer descriptor fields to the debug log.
+ */
 extern void
 OHCITDDump(
     _In_ OhciController_t*          controller,
     _In_ OhciTransferDescriptor_t*  td);
 
-/* OHCITDVerify
- * Checks the transfer descriptors for errors and updates the transfer that is attached
- * with the bytes transferred and error status. */
+/**
+ * @brief Checks the TD and records transferred bytes and errors in the scan context.
+ */
 extern void
 OHCITDVerify(
     _In_ struct HCIProcessReasonScanContext* scanContext,
     _In_ OhciTransferDescriptor_t*           td);
 
-/* OHCITDRestart
- * Restarts a transfer descriptor by resettings it's status and updating buffers if the
- * trasnfer type is an interrupt-transfer that uses circularbuffers. */
+/**
+ * @brief Resets the TD status and updates circular buffers for interrupt transfers.
+ */
 extern void
 OHCITDRestart(
     _In_ OhciController_t*          controller,
@@ -456,9 +467,9 @@ OHCITDRestart(
  * Isochronous Transfer Descriptor Methods
  *******************************************************************************/
 
-/* OHCITDIsochronous
- * Creates a new isoc token td and initializes all the members.
- * The Td is immediately ready for execution. */
+/**
+ * @brief Initializes an isochronous TD for execution.
+ */
 extern void
 OHCITDIsochronous(
     _In_ OhciIsocTransferDescriptor_t* td,
@@ -466,24 +477,25 @@ OHCITDIsochronous(
     _In_ uint32_t                      pid,
     _In_ struct TransferElement*       element);
 
-/* OHCIITDDump
- * Dumps the information contained in the descriptor by writing it. */
+/**
+ * @brief Writes isochronous descriptor fields to the debug log.
+ */
 extern void
 OHCIITDDump(
     _In_ OhciController_t*              Controller,
     _In_ OhciIsocTransferDescriptor_t*  Td);
 
-/* OHCIITDVerify
- * Checks the transfer descriptors for errors and updates the transfer that is attached
- * with the bytes transferred and error status. */
+/**
+ * @brief Checks the isochronous TD and records transferred bytes and errors.
+ */
 extern void
 OHCIITDVerify(
         _In_ struct HCIProcessReasonScanContext* scanContext,
         _In_ OhciIsocTransferDescriptor_t*       iTD);
 
-/* OHCIITDRestart
- * Restarts a transfer descriptor by resettings it's status and updating buffers if the
- * trasnfer type is an interrupt-transfer that uses circularbuffers. */
+/**
+ * @brief Restores the isochronous TD's saved fields and next descriptor link.
+ */
 extern void
 OHCIITDRestart(
     _In_ OhciController_t*              controller,
@@ -494,18 +506,29 @@ OHCIITDRestart(
  * Queue Methods
  *******************************************************************************/
 
-/* OHCIReloadAsynchronous
- * Reloads the control and bulk lists with new transactions that
- * are waiting in queue for execution. */
+/**
+ * @brief Loads waiting transactions into the selected control or bulk list.
+ */
 extern void
 OHCIReloadAsynchronous(
         _In_ OhciController_t*    controller,
         _In_ enum USBTransferType transferType);
 
-/* OHCIErrorCodeToTransferStatus
- * Retrieves a status-code from a given condition code */
+/**
+ * @brief Converts an OHCI condition code to a USB transfer status.
+ */
 extern enum USBTransferCode
 OHCIErrorCodeToTransferStatus(
     _In_ int conditionCode);
+
+/**
+ * @brief Suspends the controller and waits for the last frame's DMA to finish.
+ *
+ * @param controller Controller with mapped registers.
+ * @return OS_EOK once hardware no longer accesses descriptor or payload memory.
+ */
+extern oserr_t
+OHCIStop(
+    _In_ OhciController_t* controller);
 
 #endif // !__USB_OHCI__

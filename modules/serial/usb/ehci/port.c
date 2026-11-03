@@ -191,3 +191,18 @@ EhciPortScan(
         }
     }
 }
+
+oserr_t
+HCIPortDisable(
+    _In_ UsbManagerController_t* controller,
+    _In_ int                     index)
+{
+    EhciController_t* legacy = (EhciController_t*)controller;
+    int               fault;
+
+    // Clear the enable bit without acknowledging pending port changes.
+    EhciPortClearBits(legacy, index, EHCI_PORT_ENABLED);
+    WaitForConditionWithFault(fault,
+        !(READ_VOLATILE(legacy->OpRegisters->Ports[index]) & EHCI_PORT_ENABLED), 10, 1);
+    return fault ? OS_ETIMEOUT : OS_EOK;
+}

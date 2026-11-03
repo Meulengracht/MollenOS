@@ -19,7 +19,7 @@
 //#define __DIAGNOSE
 #define __need_minmax
 #include <ddk/utils.h>
-#include <os/shm.h>
+#include <ddk/barrier.h>
 #include "uhci.h"
 
 static void
@@ -34,6 +34,7 @@ __DispatchTransfer(
 #endif
 #endif
 
+    transfer->Dma.Linked = true;
     transfer->State = USBTRANSFER_STATE_QUEUED;
     UhciUpdateCurrentFrame(controller);
 
@@ -53,25 +54,58 @@ HCITransferFinalize(
         _In_ UsbManagerTransfer_t*   transfer,
         _In_ bool                    deferredClean)
 {
-    TRACE("UHCITransferFinalize(Id %u)", Transfer->ID);
+    UhciController_t* legacy = (UhciController_t*)controller;
+    bool              resume = false;
+    uint32_t          frame;
+    oserr_t           status;
+    _CRT_UNUSED(deferredClean);
+
+    if (transfer->RootElement == NULL) {
+        return OS_EOK;
+    }
+
+    if (transfer->Dma.Linked && !controller->State.DmaStopped &&
+        (transfer->ResultCode != USBTRANSFERCODE_SUCCESS ||
+         (transfer->Flags & __USBTRANSFER_FLAG_SHORT))) {
+        // Errors, cancellation and short packets may leave later TDs active.
+        // Stop the controller before returning the payload to the CPU or reusing TDs.
+        status = UhciStop(legacy);
+        if (status != OS_EOK) {
+            return status;
+        }
+        resume = controller->State.Phase < USB_CONTROLLER_DESTROY_PENDING;
+    }
+
+    if (transfer->Dma.Linked && !transfer->Dma.Unlinked) {
+        UsbManagerChainEnumerate(controller, transfer->RootElement, USB_CHAIN_DEPTH,
+            HCIPROCESS_REASON_UNLINK, HCIProcessElement, transfer);
+        dma_wmb();
+        transfer->Dma.Unlinked = true;
+        transfer->Dma.ReleaseEpoch = legacy->Frame + 2;
+    }
+
+    if (transfer->Dma.Linked && !controller->State.DmaStopped) {
+        // Inactive TDs no longer access the payload. Wait two frames before
+        // reusing descriptors because the controller may have cached the removed link.
+        frame = legacy->Frame;
+        if ((int32_t)(frame - transfer->Dma.ReleaseEpoch) < 0) {
+            return OS_EBUSY;
+        }
+    }
 
     UsbManagerChainEnumerate(
-            controller,
-            transfer->RootElement,
-            USB_CHAIN_DEPTH,
-            HCIPROCESS_REASON_UNLINK,
-            HCIProcessElement,
-            transfer
+        controller,
+        transfer->RootElement,
+        USB_CHAIN_DEPTH,
+        HCIPROCESS_REASON_CLEANUP,
+        HCIProcessElement,
+        transfer
     );
-    if (!deferredClean) {
-        UsbManagerChainEnumerate(
-                controller,
-                transfer->RootElement,
-                USB_CHAIN_DEPTH,
-                HCIPROCESS_REASON_CLEANUP,
-                HCIProcessElement,
-                transfer
-        );
+    transfer->RootElement = NULL;
+    transfer->ChainLength = 0;
+    transfer->Dma.Linked = false;
+    if (resume) {
+        UhciStart(legacy, 0);
     }
     return OS_EOK;
 }
@@ -99,34 +133,33 @@ oserr_t
 HCITransferDequeue(
         _In_ UsbManagerTransfer_t* transfer)
 {
-    TRACE("UHCITransferDequeue(transfer=%u)", transfer->ID);
-    // Mark for unscheduling on next interrupt/check
-    transfer->State = USBTRANSFER_STATE_UNSCHEDULE;
+    transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+    transfer->State = USBTRANSFER_STATE_CLEANUP;
     return OS_EOK;
 }
 
 static inline uintptr_t
 __GetAddress(
-        _In_ SHMSGTable_t* sgTable,
+        _In_ UsbManagerTransfer_t* dmaTransfer,
         _In_ int           index,
         _In_ size_t        offset)
 {
-    return sgTable->Entries[index].Address + offset;
+    return dmaTransfer->Dma.Segments[index].Address + offset;
 }
 
 static inline size_t
 __GetBytesLeft(
-        _In_ SHMSGTable_t* sgTable,
+        _In_ UsbManagerTransfer_t* dmaTransfer,
         _In_ int           index,
         _In_ size_t        offset)
 {
-    return sgTable->Entries[index].Length - offset;
+    return dmaTransfer->Dma.Segments[index].Length - offset;
 }
 
 static inline void
 __CalculateTransferElementMetrics(
         _In_  size_t        maxPacketSize,
-        _In_  SHMSGTable_t* sgTable,
+        _In_  UsbManagerTransfer_t* dmaTransfer,
         _In_  uint32_t      sgTableOffset,
         _In_  uint32_t      transferLength,
         _In_  size_t        bytesLeft,
@@ -135,22 +168,20 @@ __CalculateTransferElementMetrics(
 {
     int       index;
     size_t    offset;
-    SHMSGTableOffset(
-            sgTable,
+
+    USBTransferDmaOffset(
+            dmaTransfer,
             sgTableOffset + (transferLength - bytesLeft),
             &index,
             &offset
     );
-    uintptr_t address = __GetAddress(sgTable, index, offset);
-    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(sgTable, index, offset));
+    uintptr_t address = __GetAddress(dmaTransfer, index, offset);
+    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(dmaTransfer, index, offset));
     size_t    leftInTD = MIN(UHCI_TD_MAXLENGTH, 0x1000 - (address % 0x1000));
     size_t    maxAllowed = MIN(leftInTD, leftInSG);
 
-    // Number of bytes to transfer are limited by the following factors:
-    // Number of bytes left in the current SG page
-    // Number of bytes left on the actual page (can't cross boundaries)
-    // Number of bytes specified by MPS, and lastly,
-    // Number of bytes allowed by the UHCI TD.
+    // A TD must fit within the current DMA segment and physical page.
+    // The packet size and UHCI TD length limit also restrict the byte count.
 
     *dataAddressOut = address;
     *lengthOut = MIN(maxPacketSize, maxAllowed);
@@ -161,8 +192,6 @@ HCITransferElementsNeeded(
         _In_  UsbManagerTransfer_t*     transfer,
         _In_  uint32_t                  transferLength,
         _In_  enum USBTransferDirection direction,
-        _In_  SHMSGTable_t*             sgTable,
-        _In_  uint32_t                  sgTableOffset,
         _Out_ int*                      elementCountOut)
 {
     uintptr_t waste;
@@ -171,26 +200,28 @@ HCITransferElementsNeeded(
     int       tdsNeeded = 0;
     TRACE("UHCITransferElementsNeeded(transfer=%u, length=%u)", transfer->ID, transferLength);
 
-    // In regard to isochronous transfers, we must allocate an
-    // additional transfer descriptor, which acts as the 'zero-td'.
-    // All isochronous transfers should end with a zero td.
-    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-        tdsNeeded++;
-    }
-    // Handle control transfers a bit different due to control transfers needing
-    // some additional packets.
-    else if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+    // A control transfer must start with a complete SETUP packet in one TD.
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        if (transferLength < sizeof(usb_packet_t)) {
+            return OS_EINVALPARAMS;
+        }
+
+        __CalculateTransferElementMetrics(sizeof(usb_packet_t), transfer, 0,
+            sizeof(usb_packet_t), sizeof(usb_packet_t), &waste, &count);
+        if (count != sizeof(usb_packet_t)) {
+            return OS_EBUFFER;
+        }
         bytesLeft -= sizeof(usb_packet_t);
 
-        // add two additional packets, one for SETUP, and one for ACK
+        // Add one TD for SETUP and one for ACK.
         tdsNeeded += 2;
     }
 
     while (bytesLeft) {
         __CalculateTransferElementMetrics(
                 transfer->MaxPacketSize,
-                sgTable,
-                sgTableOffset,
+                transfer,
+                0,
                 transferLength,
                 bytesLeft,
                 &waste,
@@ -199,20 +230,12 @@ HCITransferElementsNeeded(
         bytesLeft -= count;
         tdsNeeded++;
 
-        // It may happen at this point we encounter a transfer that crosses a page-boundary, we are
-        // unfortunately not built for this in UHCI, and thus we make the transfer short, and ask
-        // the callers to do more transfers with a new buffer.
         if (count < transfer->MaxPacketSize && bytesLeft > 0) {
-            // Transfer was less than MPS, but there will still be more bytes left after
-            if (!tdsNeeded) {
-                return OS_EBUFFER;
-            }
-            break;
+            return OS_EBUFFER;
         }
 
-        // If this was the last packet, and the packet was filled, and
-        // the transaction is an 'OUT', then we must add a ZLP.
-        if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
+        // Bulk OUT transfers need a ZLP when the last packet fills MaxPacketSize.
+        if (transfer->Type == USBTRANSFER_TYPE_BULK &&
             bytesLeft == 0 && count == transfer->MaxPacketSize) {
             if (direction == USBTRANSFER_DIRECTION_OUT) {
                 tdsNeeded++;
@@ -228,36 +251,32 @@ void
 HCITransferElementFill(
         _In_ UsbManagerTransfer_t*     transfer,
         _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction,
-        _In_ SHMSGTable_t*             sgTable,
-        _In_ uint32_t                  sgTableOffset)
+        _In_ enum USBTransferDirection direction)
 {
     enum TransferElementType ackType   = TRANSFERELEMENT_TYPE_IN;
     uint32_t                 bytesLeft = transferLength;
     int                      ei = 0;
     TRACE("UHCITransferElementFill(transfer=%u, length=%u)", transfer->ID, transferLength);
 
-    // Handle control transfers a bit different due to control transfers needing
-    // some additional packets.
+    // Control transfers start with SETUP and end with ACK.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         __CalculateTransferElementMetrics(
                 transfer->MaxPacketSize,
-                sgTable,
-                sgTableOffset,
+                transfer,
+                0,
                 transferLength,
                 bytesLeft,
                 &transfer->Elements[ei].Data.Address,
                 &transfer->Elements[ei].Length
         );
 
-        // Override the type and length, as those are fixed for the setup packaet
+        // SETUP has a fixed type and packet length.
         transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
         transfer->Elements[ei].Length = sizeof(usb_packet_t);
         ei++;
         bytesLeft -= sizeof(usb_packet_t);
 
-        // determine ACK direction, if we have an in data stage, then the
-        // ACK stage must be out
+        // An IN data stage requires an OUT ACK.
         if (bytesLeft && direction == USBTRANSFER_DIRECTION_IN) {
             ackType = TRANSFERELEMENT_TYPE_OUT;
         }
@@ -266,8 +285,8 @@ HCITransferElementFill(
     while (bytesLeft) {
         __CalculateTransferElementMetrics(
                 transfer->MaxPacketSize,
-                sgTable,
-                sgTableOffset,
+                transfer,
+                0,
                 transferLength,
                 bytesLeft,
                 &transfer->Elements[ei].Data.Address,
@@ -277,20 +296,14 @@ HCITransferElementFill(
         bytesLeft -= transfer->Elements[ei].Length;
         ei++;
 
-        // Cases left to handle:
-        // Generic: adding ZLP on MPS boundary OUTs
-        // Isoc:    adding ZLP
-        if (bytesLeft == 0) {
-            if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                transfer->Elements[ei++].Type = __TransferElement_DirectionToType(direction);
-            } else if (direction == USBTRANSFER_DIRECTION_OUT &&
-                       transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
-                transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
-            }
+        if (bytesLeft == 0 && transfer->Type == USBTRANSFER_TYPE_BULK &&
+            direction == USBTRANSFER_DIRECTION_OUT &&
+            transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
+            transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
         }
     }
 
-    // Finally, handle the ACK stage of control transfers
+    // Add the ACK stage for control transfers.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         transfer->Elements[ei].Type = ackType;
     }
@@ -323,7 +336,7 @@ __EnsureQueueHead(
             (UhciQueueHead_t*)qh
     );
     if (oserr != OS_EOK) {
-        // No bandwidth, serious.
+        // Release the queue head if initialization fails.
         UsbSchedulerFreeElement(controller->Base.Scheduler, qh);
         return oserr;
     }
@@ -349,6 +362,8 @@ __DestroyDescriptors(
             HCIProcessElement,
             transfer
     );
+    transfer->RootElement = NULL;
+    transfer->ChainLength = 0;
 }
 
 static int
@@ -408,7 +423,7 @@ __AllocateDescriptors(
             break;
         }
 
-        // Support headless transfers by setting that to a queue head
+        // Without a queue head, the first TD becomes the root of the chain.
         if (transfer->RootElement == NULL) {
             if (!__AllocateBandwidth(controller, transfer, element)) {
                 UsbSchedulerFreeElement(controller->Base.Scheduler, element);
@@ -418,6 +433,7 @@ __AllocateDescriptors(
             transfer->RootElement = element;
             rootPool = UHCI_TD_POOL;
             markerPtr = &((UhciTransferDescriptor_t*)element)->Object.DepthIndex;
+            tdsAllocated++;
             continue;
         }
 
@@ -437,8 +453,7 @@ __AllocateDescriptors(
         tdsAllocated++;
     }
 
-    // For periodic transfers, we must be able to allocate all
-    // requested transfer descriptors.
+    // Periodic transfers require the full descriptor chain before scheduling.
     if (__Transfer_IsPeriodic(transfer) && tdsAllocated != tdsRemaining) {
         __DestroyDescriptors(controller, transfer);
         return 0;
@@ -446,6 +461,9 @@ __AllocateDescriptors(
     return tdsAllocated;
 }
 
+/**
+ * @brief Transfer, data toggle and TD indices used while preparing the chain.
+ */
 struct __PrepareContext {
     UsbManagerTransfer_t* Transfer;
     int                   Toggle;
@@ -465,19 +483,26 @@ __PrepareDescriptor(
     _CRT_UNUSED(controllerBase);
     _CRT_UNUSED(reason);
 
-    // Handle special stuff for Control transfers. They have special needs.
+    if (element == context->Transfer->RootElement &&
+        context->Transfer->Type != USBTRANSFER_TYPE_ISOC) {
+        return true;
+    }
+
+    // Control transfers require fixed toggles for SETUP, first DATA and STATUS.
     if (context->Transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         if (context->TDIndex == 0) {
             // SETUP(0)
             context->Toggle = 0;
         } else if (context->TDIndex == 1) {
-            // DATA(1) for the first stage
+            // First DATA(1)
             context->Toggle = 1;
         } else if (context->TDIndex == (context->Transfer->ElementCount - 1)) {
             // STATUS(1)
             context->Toggle = 1;
         }
     }
+
+    td->Object.Flags &= ~USB_ELEMENT_PROCESSED;
 
     switch (context->Transfer->Elements[context->TDIndex].Type) {
         case TRANSFERELEMENT_TYPE_SETUP: {
@@ -573,6 +598,29 @@ HCITransferQueue(
         return OS_ENOENT;
     }
 
+    // If periodic descriptors are still linked, reuse their mapping and staging
+    // page. Prepare the payload for DMA and update the descriptors for the next transfer.
+    if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
+        transfer->ChainLength != 0) {
+
+            oserr = USBTransferDmaBegin(transfer);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+
+        if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+            transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+            transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+            transfer->State = USBTRANSFER_STATE_CLEANUP;
+            return OS_EBUSY;
+        }
+
+        __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+        HCIProcessEvent(&controller->Base, HCIPROCESS_EVENT_RESET_DONE, transfer);
+        __Transfer_Reset(transfer);
+        return OS_EOK;
+    }
+
     oserr = __EnsureQueueHead(controller, transfer);
     if (oserr != OS_EOK) {
         return oserr;
@@ -584,7 +632,25 @@ HCITransferQueue(
         return OS_EOK;
     }
 
+    oserr = USBTransferDmaBegin(transfer);
+    if (oserr != OS_EOK) {
+        __DestroyDescriptors(controller, transfer);
+        transfer->RootElement = NULL;
+        transfer->ChainLength = 0;
+        return oserr;
+    }
+
+    if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+        transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+        transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+        return OS_EBUSY;
+    }
+
     __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+    transfer->Dma.Unlinked = false;
+    transfer->Dma.ReleaseEpoch = 0;
+    dma_wmb();
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }
@@ -594,10 +660,34 @@ HCITransferQueueIsochronous(
         _In_ UsbManagerTransfer_t* transfer)
 {
     UhciController_t* controller;
+    oserr_t           oserr;
 
     controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (controller == NULL) {
         return OS_ENOENT;
+    }
+
+    // If periodic descriptors are still linked, reuse their mapping and staging
+    // page. Prepare the payload for DMA and update the descriptors for the next transfer.
+    if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
+        transfer->ChainLength != 0) {
+
+            oserr = USBTransferDmaBegin(transfer);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+
+        if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+            transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+            transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+            transfer->State = USBTRANSFER_STATE_CLEANUP;
+            return OS_EBUSY;
+        }
+
+        __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+        HCIProcessEvent(&controller->Base, HCIPROCESS_EVENT_RESET_DONE, transfer);
+        __Transfer_Reset(transfer);
+        return OS_EOK;
     }
 
     transfer->ChainLength = __AllocateDescriptors(controller, transfer);
@@ -606,7 +696,25 @@ HCITransferQueueIsochronous(
         return OS_EOK;
     }
 
+    oserr = USBTransferDmaBegin(transfer);
+    if (oserr != OS_EOK) {
+        __DestroyDescriptors(controller, transfer);
+        transfer->RootElement = NULL;
+        transfer->ChainLength = 0;
+        return oserr;
+    }
+
+    if (controller->Base.State.Phase >= USB_CONTROLLER_DESTROY_PENDING ||
+        transfer->ResultCode == USBTRANSFERCODE_CANCELLED) {
+        transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+        return OS_EBUSY;
+    }
+
     __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+    transfer->Dma.Unlinked = false;
+    transfer->Dma.ReleaseEpoch = 0;
+    dma_wmb();
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }

@@ -20,7 +20,6 @@
 #include <assert.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>
-#include <os/shm.h>
 #include <string.h>
 #include "scheduler.h"
 
@@ -59,15 +58,14 @@ UsbTransferArenaGetDma(
     _In_ UsbSchedulerPool_t* arenaPool,
     _In_ const uint8_t*      elementPointer)
 {
-    size_t offset = (uintptr_t)elementPointer - (uintptr_t)SHMBuffer(&arenaPool->ElementPoolDMA);
-
-    for (int i = 0; i < arenaPool->ElementPoolDMATable.Count; i++) {
-        if (offset < arenaPool->ElementPoolDMATable.Entries[i].Length) {
-            return arenaPool->ElementPoolDMATable.Entries[i].Address + offset;
-        }
-        offset -= arenaPool->ElementPoolDMATable.Entries[i].Length;
+    // Only hardware pools have a device address.
+    if (arenaPool->ElementPoolDMA == NULL) {
+        return 0;
     }
-    return 0;
+    // The element must be inside this pool. The device allocation is contiguous,
+    // so the element offset also applies across page boundaries.
+    return arenaPool->ElementPoolDeviceAddress
+        + (size_t)(elementPointer - arenaPool->ElementPool);
 }
 
 oserr_t

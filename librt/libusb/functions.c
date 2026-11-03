@@ -97,7 +97,7 @@ UsbTransferInitialize(
     _In_ size_t                     dataBufferOffset,
     _In_ size_t                     dataLength)
 {
-    // Support NULL endpoint to indicate control
+    // A NULL endpoint selects the device's control endpoint.
     uint8_t  endpointAddress   = endpoint ? USB_ENDPOINT_ADDRESS(endpoint->Address) : 0;
     uint16_t endpointMps       = endpoint ? USB_ENDPOINT_MPS(endpoint) : device->device_mps;
     uint8_t  endpointBandwidth = endpoint ? USB_ENDPOINT_BANDWIDTH(endpoint) : 0;
@@ -194,20 +194,33 @@ UsbTransferDequeuePeriodic(
 
 oserr_t
 UsbHubResetPort(
-    _In_ uuid_t                 hubDriverId,
-    _In_ uuid_t                 deviceId,
-    _In_ uint8_t                portAddress,
+    _In_ uuid_t               hubDriverId,
+    _In_ uuid_t               deviceId,
+    _In_ uint8_t              portAddress,
     _In_ USBPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oserr_t                  status;
     uint32_t                 descriptorLength = sizeof(USBPortDescriptor_t);
     
-    ctt_usbhub_reset_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, &descriptorLength);
+    // If the request fails, we cannot tell if the port was disabled or reset.
+    if (ctt_usbhub_reset_port(GetGrachtClient(), &msg.base, deviceId, portAddress) != 0) {
+        return OS_EUNKNOWN;
+    }
+    
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0) {
+        // If waiter allocation fails, the client still tracks the request.
+        // Remove it locally. A later remote completion does not make reuse safe.
+        (void)gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+    
+    if (ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status,
+        (uint8_t*)portDescriptor, &descriptorLength) != 0) {
+        return OS_EUNKNOWN;
+    }
 
-    // Check if the received descriptor length is as expected
+    // A successful reply must contain the full port descriptor.
     if (status == OS_EOK && descriptorLength != sizeof(USBPortDescriptor_t)) {
         return OS_EPROTOCOL;
     }
@@ -216,20 +229,33 @@ UsbHubResetPort(
 
 oserr_t
 UsbHubQueryPort(
-    _In_ uuid_t                 hubDriverId,
-    _In_ uuid_t                 deviceId,
-    _In_ uint8_t                portAddress,
+    _In_ uuid_t               hubDriverId,
+    _In_ uuid_t               deviceId,
+    _In_ uint8_t              portAddress,
     _In_ USBPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oserr_t                  status;
     uint32_t                 descriptorLength = sizeof(USBPortDescriptor_t);
     
-    ctt_usbhub_query_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, &descriptorLength);
+    // If the request fails, we cannot tell if the port was disabled or reset.
+    if (ctt_usbhub_query_port(GetGrachtClient(), &msg.base, deviceId, portAddress) != 0) {
+        return OS_EUNKNOWN;
+    }
 
-    // Check if the received descriptor length is as expected
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0) {
+        // If waiter allocation fails, the client still tracks the request.
+        // Remove it locally. A later remote completion does not make reuse safe.
+        (void)gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+    
+    if (ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status,
+        (uint8_t*)portDescriptor, &descriptorLength) != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    // A successful reply must contain the full port descriptor.
     if (status == OS_EOK && descriptorLength != sizeof(USBPortDescriptor_t)) {
         return OS_EPROTOCOL;
     }
@@ -298,9 +324,8 @@ UsbExecutePacket(
         }
     }
 
-    // When initializing control transfers the first 9 bytes must be the
-    // setup packet, and the remaining bytes must be the data that is to
-    // be sent or read
+    // Control transfers must start with the setup packet, followed by the
+    // data to send or read.
     UsbTransferInitialize(
             &transfer,
             deviceContext,
@@ -313,7 +338,7 @@ UsbExecutePacket(
             sizeof(usb_packet_t) + length
     );
 
-    // Execute the transaction and cleanup the buffer
+    // Submit the transfer before copying received data and freeing the buffer.
     oserr = UsbTransferQueue(deviceContext, &transfer, &transferStatus, &bytesTransferred);
     if (oserr != OS_EOK || transferStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("Usb transfer returned error %u/%u", oserr, transferStatus);
@@ -351,7 +376,7 @@ UsbGetDeviceDescriptor(
 	_In_ usb_device_context_t*    deviceContext,
     _In_ usb_device_descriptor_t* deviceDescriptor)
 {
-    const size_t DESCRIPTOR_SIZE = 0x12; // Max Descriptor Length is 18 bytes
+    const size_t DESCRIPTOR_SIZE = 0x12; // Device descriptors are 18 bytes.
     
     enum USBTransferCode status;
     
@@ -406,7 +431,7 @@ ParseConfigurationDescriptor(
             usb_interface_descriptor_t* interface = (usb_interface_descriptor_t*)pointer;
             currentInterface = &configuration->interfaces[interface->NumInterface];
             
-            // if there happen to be more settings than allocated for - resize buffer
+            // Grow the settings array if this alternate setting does not fit.
             if ((interface->AlternativeSetting + 1) > currentInterface->settings_count) {
                 int newCount = interface->AlternativeSetting + 1;
                 configuration->interfaces[i].settings_count = newCount;
@@ -463,7 +488,7 @@ UsbGetConfigDescriptor(
     void*                descriptorStorage;
     enum USBTransferCode status;
     
-    // Are we requesting the initial descriptor?
+    // Read the configuration header first if the full length is not yet known.
     if (deviceContext->configuration_length <= sizeof(usb_config_descriptor_t)) {
         status = UsbGetInitialConfigDescriptor(deviceContext, configuration);
         if (status != USBTRANSFERCODE_SUCCESS) {
@@ -571,7 +596,7 @@ UsbGetStringDescriptor(
             sizeof(usb_unicode_string_descriptor_t) + 2, desc);
 
     if (status == USBTRANSFERCODE_SUCCESS) {
-        // zero terminate the UTF-16 string, we allocated an extra two bytes
+        // Terminate the UTF-16 string using the two extra bytes allocated above.
         desc->string[desc->length - 2] = 0;
         desc->string[desc->length - 1] = 0;
         *stringOut = mstr_new_u16((const short*)&desc->string[0]);
@@ -623,8 +648,8 @@ UsbDetachDevice(
         return;
     }
 
-    // Tear down controller-side state before releasing the USB address or
-    // destroying the service-side device object.
+    // Remove the device from the controller before releasing its USB address
+    // or destroying the device object in the service.
     ctt_usbhost_device_detach(GetGrachtClient(), &msg.base,
             controllerId,
             device->hub_address,
@@ -632,4 +657,31 @@ UsbDetachDevice(
             device->device_address);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_usbhost_device_detach_result(GetGrachtClient(), &msg.base, &detachStatus);
+}
+
+oserr_t
+UsbHubDisablePort(
+    _In_ uuid_t  hubDriverId,
+    _In_ uuid_t  deviceId,
+    _In_ uint8_t portAddress)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
+    oserr_t                  status;
+
+    // Disable the port during failure recovery, outside the transfer path.
+    if (ctt_usbhub_disable_port(GetGrachtClient(), &msg.base, deviceId, portAddress) != 0) {
+        return OS_EUNKNOWN;
+    }
+    
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0) {
+        // If waiter allocation fails, the client still tracks the request.
+        // Remove it locally. A later remote completion does not make reuse safe.
+        (void)gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+
+    if (ctt_usbhub_disable_port_result(GetGrachtClient(), &msg.base, &status) != 0) {
+        return OS_EUNKNOWN;
+    }
+    return status;
 }

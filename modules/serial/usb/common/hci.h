@@ -16,8 +16,7 @@
  *
  *
  * MollenOS MCore - USB Controller Manager
- * - Contains the implementation of a shared controller manager
- *   for all the usb drivers
+ * - Shared controller interface for the USB drivers.
  */
 
 #ifndef __USB_HCI__
@@ -28,10 +27,10 @@
 #include "manager.h"
 
 /**
- * @brief Create a new usb controller instance from the given bus-device.
+ * @brief Create a USB controller from the bus device.
+ *
  * @param busDevice The bus device describing the device hardware.
- * @return A new instance of an usb controller if succesful.
- *         NULL on errors.
+ * @return The controller, or NULL on failure.
  */
 extern UsbManagerController_t*
 HCIControllerCreate(
@@ -39,8 +38,9 @@ HCIControllerCreate(
 
 /**
  * @brief Stop and release resources allocated by HCIControllerCreate.
- * @param controller Controller owned until destruction succeeds.
- * @return OS_EOK after release, or a cleanup error while the controller remains owned.
+ *
+ * @param controller The controller to destroy. It remains valid if cleanup fails.
+ * @return OS_EOK after release, or the cleanup error.
  */
 extern oserr_t
 HCIControllerDestroy(
@@ -52,35 +52,29 @@ HCIControllerDestroy(
  * @param transfer Transfer metadata and, for DMA controllers, device segments.
  * @param transferLength Number of bytes in this submission.
  * @param direction Transfer direction.
- * @param sgTable Physical segments for legacy controllers; NULL for DMA controllers.
- * @param sgTableOffset Offset into the physical segments; zero for DMA controllers.
  * @param elementCountOut Receives the required element count.
- * @return OS_EOK or an invalid buffer geometry error.
+ * @return OS_EOK, or an error if the buffer layout is invalid.
  */
 extern oserr_t
 HCITransferElementsNeeded(
         _In_  UsbManagerTransfer_t*     transfer,
         _In_  uint32_t                  transferLength,
         _In_  enum USBTransferDirection direction,
-        _In_  SHMSGTable_t*             sgTable,
-        _In_  uint32_t                  sgTableOffset,
         _Out_ int*                      elementCountOut);
 
 extern void
 HCITransferElementFill(
         _In_ UsbManagerTransfer_t*     transfer,
         _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction,
-        _In_ SHMSGTable_t*             sgTable,
-        _In_ uint32_t                  sgTableOffset);
+        _In_ enum USBTransferDirection direction);
 
 /**
- * @brief Resets the port at the index.
- * @param controller The usb controller of which the port index belongs to.
- * @param index The port index that should be reset
- * @return OS_EINVALPARAMS if the index was invalid.
- *         OS_ETIMEOUT if the port could not reset within the timeout.
- *         OS_EOK if the port was succesfully reset.
+ * @brief Reset a controller port.
+ *
+ * @param controller The controller to which the port belongs.
+ * @param index The port index to reset.
+ * @return OS_EOK if the port was reset, OS_EINVALPARAMS if the index is invalid,
+ *         or OS_ETIMEOUT if the reset timed out.
  */
 extern oserr_t
 HCIPortReset(
@@ -88,10 +82,23 @@ HCIPortReset(
     _In_ int                     index);
 
 /**
+ * @brief Disable a root-hub port and confirm that it cannot respond at address zero.
+ *
+ * @param controller The controller. Its registers must still be accessible.
+ * @param index A valid root-port index.
+ * @return OS_EOK once the port is disabled, or a hardware error.
+ */
+extern oserr_t
+HCIPortDisable(
+    _In_ UsbManagerController_t* controller,
+    _In_ int                     index);
+
+/**
  * @brief Retrieve the current port status.
- * @param controller The controller associated with the port index
- * @param index The port index of the controller
- * @param port The port status descriptor that should be updated.
+ *
+ * @param controller The controller to which the port belongs.
+ * @param index The port index.
+ * @param port Receives the port status.
  */
 extern void
 HCIPortStatus(
@@ -100,12 +107,12 @@ HCIPortStatus(
         _In_ USBPortDescriptor_t*    port);
 
 /**
- * @brief Resets a device endpoint. Invoked when a class driver has cleared
- * ENDPOINT_HALT on the device side and needs the host controller side to
- * forget any halt/stall condition and resume queuing transfers.
- * @param controller The controller owning the endpoint.
+ * @brief Reset the host controller's endpoint state so transfers can be queued again.
+ * The class driver must first clear ENDPOINT_HALT on the device.
+ *
+ * @param controller The controller managing the endpoint.
  * @param address The address (hub/port/device/endpoint) identifying the endpoint.
- * @return OS_EOK if the reset was performed/queued successfully.
+ * @return OS_EOK if the reset was completed or queued.
  */
 extern oserr_t
 HCIEndpointReset(
@@ -113,13 +120,13 @@ HCIEndpointReset(
     _In_ USBAddress_t*           address);
 
 /**
- * @brief Invoked by the USB common code every time queue elements
- * needs to be updated or on certain events.
- * @param controller The controller instance of the queue element.
- * @param element The queue element it needs to be updated/changed.
- * @param reason  The expected action from the usb common code.
- * @param context The context will vary based on the reason code.
- * @return 
+ * @brief Process a queue element for the common USB code.
+ *
+ * @param controller The controller to which the queue element belongs.
+ * @param element The queue element to process.
+ * @param reason The operation requested by the common USB code.
+ * @param context The operation-specific context.
+ * @return Whether to continue processing the chain.
  */
 extern bool
 HCIProcessElement(
@@ -129,11 +136,11 @@ HCIProcessElement(
         _In_ void*                   context);
 
 /**
- * @brief Called by the common usb code to indicate an event has
- * passed. The context can vary by event type.
+ * @brief Handle an event from the common USB code.
+ *
  * @param controller The controller affected.
  * @param event The event the HCI code should handle.
- * @param context The context associated with the event.
+ * @param context The event-specific context.
  */
 extern void
 HCIProcessEvent(
@@ -144,8 +151,8 @@ HCIProcessEvent(
 /**
  * @brief Unlink a completed submission or release a transfer's controller resources.
  *
- * DMA controllers keep descriptors after periodic completion for rearm.
- * Cancellation and cleanup must also release those descriptors.
+ * DMA controllers keep completed periodic descriptors for the next transfer.
+ * These descriptors must be released during cancellation and cleanup.
  */
 extern oserr_t
 HCITransferFinalize(
@@ -154,9 +161,9 @@ HCITransferFinalize(
         _In_ bool                    deferredClean);
 
 /**
- * @brief Fills and queues a non-isoc transfer. No guarantee is made towards the transfer
- * can be completed at once. Transfer success may depend on resource allocation, and a partial
- * transfer may be done.
+ * @brief Fill and queue a non-isochronous transfer.
+ * If controller resources are limited, the transfer may need several submissions.
+ *
  * @param transfer The transfer that needs to be queued.
  * @return OS_EOK if the transfer has been queued.
  */
@@ -164,26 +171,32 @@ extern oserr_t
 HCITransferQueue(
     _In_ UsbManagerTransfer_t* transfer);
 
-/* HCITransferQueueIsochronous
- * Queues a new isochronous transfer for the given driver and pipe. 
- * The function does not block. */
+/**
+ * @brief Queue an isochronous transfer without blocking.
+ *
+ * @param transfer The transfer to queue.
+ */
 extern oserr_t
 HCITransferQueueIsochronous(
     _In_ UsbManagerTransfer_t* transfer);
 
-/* HCITransferDequeue
- * Removes a queued transfer from the controller's transfer list */
+/**
+ * @brief Cancel a queued transfer.
+ *
+ * @param transfer The transfer to cancel.
+ */
 extern oserr_t
 HCITransferDequeue(
     _In_ UsbManagerTransfer_t* transfer);
 
 /**
- * @brief Configures a USB hub with the specified parameters.
+ * @brief Configure a USB hub.
+ *
  * @param controller The controller managing the hub.
  * @param hubAddress The address of the hub to configure.
  * @param portCount The number of downstream ports on the hub.
  * @param characteristics The hub descriptor characteristics.
- * @return OS_EOK if the hub was successfully configured, or an error code otherwise.
+ * @return OS_EOK if the hub was configured, or an error code.
  */
 extern oserr_t
 HCIConfigureHub(
@@ -193,10 +206,11 @@ HCIConfigureHub(
     _In_ uint16_t                characteristics);
 
 /**
- * @brief Detaches a USB device from the controller.
+ * @brief Detach a USB device from the controller.
+ *
  * @param controller The controller managing the device.
  * @param address The address of the device to detach.
- * @return OS_EOK if the device was successfully detached, or an error code otherwise.
+ * @return OS_EOK if the device was detached, or an error code.
  */
 extern oserr_t
 HCIDeviceDetach(
@@ -204,7 +218,8 @@ HCIDeviceDetach(
     _In_ USBAddress_t*           address);
 
 /**
- * Called when an interrupt was generated by an event descriptor
+ * @brief Handle an interrupt generated by an event descriptor.
+ *
  * @param baseController The controller that the event descriptor belonged to.
  */
 extern void
@@ -212,9 +227,9 @@ HciInterruptCallback(
     _In_ UsbManagerController_t* baseController);
 
 /**
- * @brief Called when an timer event was generated by the usb manager.
- * This is primarily targetted at UHCI controllers where hub events
- * are not supported, so we manually must query port status.
+ * @brief Handle a timer event from the USB manager.
+ * UHCI controllers need this to poll port status because they do not report hub events.
+ *
  * @param baseController The controller that the event belonged to.
  */
 extern void

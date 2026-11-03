@@ -27,6 +27,7 @@
 #include <os/mollenos.h>
 #include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
+#include <ddk/barrier.h>
 #include <os/device.h>
 #include "ohci.h"
 #include <threads.h>
@@ -40,35 +41,34 @@ UsbManagerController_t*
 HCIControllerCreate(
     _In_ Device_t* description)
 {
-    BusDevice_t*      device = (BusDevice_t*)description;
-    SHM_t             shm;
-    DeviceIo_t*       ioBase  = NULL;
-    OhciController_t* controller;
-    oserr_t           oserr;
-    int i;
+    BusDevice_t*             device = (BusDevice_t*)description;
+    const struct DMASegment* segments;
+    uint32_t                 segmentCount;
+    DeviceIo_t*              ioBase  = NULL;
+    OhciController_t*        controller;
+    oserr_t                  oserr;
 
     if (description->Length != sizeof(BusDevice_t)) {
         return NULL;
     }
 
-    controller = (OhciController_t*)UsbManagerCreateController(&device->Base, USBCONTROLLER_KIND_UHCI, sizeof(OhciController_t));
+    controller = (OhciController_t*)UsbManagerCreateController(&device->Base, USBCONTROLLER_KIND_OHCI, sizeof(OhciController_t));
     if (!controller) {
         return NULL;
     }
     
-    // Get I/O Base, and for OHCI it'll be the first address we encounter
-    // of type MMIO
-    for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
+    // OHCI registers use the first MMIO space.
+    for (int i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
         if (((BusDevice_t*)controller->Base.Device)->IoSpaces[i].Type == DeviceIoMemoryBased) {
             ioBase = &((BusDevice_t*)controller->Base.Device)->IoSpaces[i];
             break;
         }
     }
 
-    // Sanitize that we found the io-space
+    // A register space is required before setup can continue.
     if (ioBase == NULL) {
         ERROR("No memory space found for ohci-controller");
-        free(controller);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -76,46 +76,43 @@ HCIControllerCreate(
     TRACE("Found Io-Space (Type %u, Physical 0x%" PRIxIN ", Size 0x%" PRIxIN ")",
           ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
 
-    // Allocate the HCCA-space in low memory as controllers
-    // have issues with higher memory (<2GB)
-    shm.Key    = NULL;
-    shm.Flags  = SHM_DEVICE | SHM_CLEAN | SHM_PRIVATE;
-    shm.Size   = KB(4);
-    shm.Conformity = OSMEMORYCONFORMITY_LOW;
-    shm.Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE;
-
-    oserr = SHMCreate(&shm, &controller->HccaDMA);
-    if (oserr != OS_EOK) {
-        ERROR("Failed to allocate space for HCCA");
-        free(controller);
-        return NULL;
-    }
-    
-    // Retrieve the physical location of the HCCA
-    (void)SHMGetSGTable(&controller->HccaDMA, &controller->HccaDMATable, -1);
-
-    controller->Hcca        = (OhciHCCA_t*)SHMBuffer(&controller->HccaDMA);
-    controller->Base.IoBase = ioBase;
-    
     // Acquire the io-space
     if (AcquireDeviceIo(ioBase) != OS_EOK) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
-        free(controller);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
+
+    controller->Base.IoBase = ioBase;
 
     // Trace
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN,
           ioBase->Access.Memory.VirtualBase);
 
-    // Instantiate the register-access and disable interrupts on device
+    // Map the registers and disable device interrupts before setup.
     controller->Registers = (OhciRegisters_t*)ioBase->Access.Memory.VirtualBase;
     WRITE_VOLATILE(controller->Registers->HcInterruptEnable, 0);
     WRITE_VOLATILE(controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
-    // Initialize the interrupt settings
-    // Keep the allocation with the controller so disable and destruction can
-    // release every handler mapping before the controller memory is freed.
+    // Keep the HCCA mapped for DMA until the controller is destroyed.
+    // Keep the existing 2 GB address limit for older OHCI implementations.
+    oserr = DMAOpen(controller->Base.Device->Id, INT32_MAX, &controller->Base.DmaContext);
+    if (oserr == OS_EOK) {
+        oserr = DMAAllocate(controller->Base.DmaContext,
+            &(struct DMARequirements) { .Length = 4096, .Alignment = 256, .Contiguous = true },
+            &controller->HccaDMA);
+    }
+    if (oserr != OS_EOK) {
+        HCIControllerDestroy(&controller->Base);
+        return NULL;
+    }
+
+    segments = DMABufferSegments(controller->HccaDMA, &segmentCount);
+    controller->HccaDeviceAddress = (uintptr_t)segments[0].Address;
+    controller->Hcca = DMABufferData(controller->HccaDMA);
+
+    // Store the interrupt allocation in the controller. All handler mappings
+    // must be released before freeing the controller memory.
     oserr = UsbManagerConfigureInterrupt(
         &controller->Base,
         (InterruptHandler_t)OnFastInterrupt,
@@ -155,7 +152,8 @@ HCIControllerCreate(
     }
 
     TRACE("... initializing device");
-    if (OHCISetup(controller) == OS_EOK) {
+    if (OHCISetup(controller) == OS_EOK &&
+        UsbManagerCompleteControllerInitialization(&controller->Base)) {
         return &controller->Base;
     }
     else {
@@ -166,43 +164,71 @@ HCIControllerCreate(
 
 oserr_t
 HCIControllerDestroy(
-    _In_ UsbManagerController_t* Controller)
+    _In_ UsbManagerController_t* base)
 {
-    oserr_t status;
+    OhciController_t* controller = (OhciController_t*)base;
+    oserr_t           status;
 
-    WRITE_VOLATILE(((OhciController_t*)Controller)->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
+    if (!UsbManagerBeginControllerDestroy(base)) {
+        return OS_EBUSY;
+    }
+    if (controller->Registers != NULL) {
+        WRITE_VOLATILE(controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
+        status = OHCIStop(controller);
+        if (status != OS_EOK) {
+            goto retry;
+        }
+        base->State.DmaStopped = true;
+    }
     
-    // Synchronize delivery before freeing queues, events or mapped handler state.
-    status = DeviceInterruptDestroy(&Controller->Interrupt);
+    // Hardware must be stopped and the handler disconnected before freeing
+    // memory they can access. If cleanup fails, keep the controller registered
+    // for another attempt. Completed cleanup steps have cleared their pointers.
+    status = DeviceInterruptDestroy(&base->Interrupt);
     if (status != OS_EOK) {
-        ERROR("Failed to release controller interrupt; keeping its resources alive");
-        return status;
+        goto retry;
     }
-
-    // Unregister us with service
-    UsbManagerDestroyController(Controller);
-
-    // Cleanup scheduler
-    if (Controller->Scheduler != NULL) {
-        OHCIQueueDestroy((OhciController_t*)Controller);
+    
+    status = OHCIQueueDestroy(controller);
+    if (status != OS_EOK) {
+        goto retry;
     }
-
-    // Free resources
-    if (((OhciController_t*)Controller)->Hcca != NULL) {
-        OSHandleDestroy(&((OhciController_t *) Controller)->HccaDMA);
+    
+    status = DMAFree(&controller->HccaDMA);
+    if (status != OS_EOK) {
+        goto retry;
     }
-
-    // Release the io-space
-    ReleaseDeviceIo(Controller->IoBase);
-    free(Controller);
+    
+    controller->Hcca = NULL;
+    status = DMAClose(&base->DmaContext);
+    if (status != OS_EOK) {
+        goto retry;
+    }
+    
+    if (base->IoBase != NULL) {
+        status = ReleaseDeviceIo(base->IoBase);
+        if (status != OS_EOK) {
+            goto retry;
+        }
+        base->IoBase = NULL;
+    }
+    
+    UsbManagerDestroyController(base);
+    free(base->Device);
+    free(base);
     return OS_EOK;
+
+retry:
+    WARNING("OHCI: controller cleanup failed (%u), will retry", status);
+    UsbManagerRetryControllerDestroy(base);
+    return status;
 }
 
 void
 HciTimerCallback(
     _In_ UsbManagerController_t* baseController)
 {
-    // do nothing
+    UsbManagerProcessTransfers(baseController);
 }
 
 void
@@ -210,9 +236,14 @@ OHCISetMode(
     _In_ OhciController_t* controller,
     _In_ reg32_t           mode)
 {
-    // Read in value, mask it off, then update
+    // Preserve the other control bits when changing mode.
     reg32_t value = READ_VOLATILE(controller->Registers->HcControl);
-    value &= ~(OHCI_CONTROL_SUSPEND);
+    value &= ~OHCI_CONTROL_STATE_MASK;
+    if (mode == OHCI_CONTROL_ACTIVE) {
+        value |= controller->QueuesActive;
+        controller->Base.State.DmaStopped = false;
+        dma_wmb();
+    }
     value |= mode;
     WRITE_VOLATILE(controller->Registers->HcControl, value);
 }
@@ -228,18 +259,18 @@ OHCITakeControl(
     // Trace
     TRACE("OHCITakeControl()");
 
-    // Does SMM hold control of chip? Then ask for it back
+    // If SMM controls the chip, request control from firmware.
     HcControl = READ_VOLATILE(Controller->Registers->HcControl);
     if (HcControl & OHCI_CONTROL_IR) {
         Temp = READ_VOLATILE(Controller->Registers->HcCommandStatus);
         Temp |= OHCI_COMMAND_OWNERSHIP;
         WRITE_VOLATILE(Controller->Registers->HcCommandStatus, Temp);
 
-        // Now we wait for the bit to clear
+        // Wait for firmware to clear the interrupt routing bit.
         WaitForConditionWithFault(i, (READ_VOLATILE(Controller->Registers->HcControl) & OHCI_CONTROL_IR) == 0, 250, 10);
 
         if (i != 0) {
-            // Didn't work, we try to clear the IR bit
+            // Firmware timed out. Try clearing the IR bit directly.
             Temp = READ_VOLATILE(Controller->Registers->HcControl);
             Temp &= ~OHCI_CONTROL_IR;
             WRITE_VOLATILE(Controller->Registers->HcControl, Temp);
@@ -250,7 +281,7 @@ OHCITakeControl(
                 return OS_EUNKNOWN;
             }
         }
-    } else if ((HcControl & OHCI_CONTROL_STATE_MASK) != 0) { // Did BIOS play tricks on us?
+    } else if ((HcControl & OHCI_CONTROL_STATE_MASK) != 0) { // BIOS left the controller configured.
         // If it's suspended, resume and wait 10 ms
         if ((HcControl & OHCI_CONTROL_STATE_MASK) != OHCI_CONTROL_ACTIVE) {
             OHCISetMode(Controller, OHCI_CONTROL_ACTIVE);
@@ -260,6 +291,28 @@ OHCITakeControl(
         // Cold boot, wait 10 ms
         thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
     }
+    return OS_EOK;
+}
+
+oserr_t
+OHCIStop(
+    _In_ OhciController_t* controller)
+{
+    reg32_t control = READ_VOLATILE(controller->Registers->HcControl);
+
+    // Suspend stops descriptor fetches for the next frame. The current 1 ms
+    // frame must finish before the CPU can reuse the DMA memory.
+    WRITE_VOLATILE(controller->Registers->HcControl,
+        (control & ~(OHCI_CONTROL_STATE_MASK | OHCI_CONTROL_ALL_ACTIVE)) | OHCI_CONTROL_SUSPEND);
+    thrd_sleep(&(struct timespec) { .tv_nsec = 2 * NSEC_PER_MSEC }, NULL);
+    
+    control = READ_VOLATILE(controller->Registers->HcControl);
+    if ((control & OHCI_CONTROL_STATE_MASK) != OHCI_CONTROL_SUSPEND) {
+        WARNING("OHCI: controller did not suspend; keeping DMA resources");
+        return OS_ETIMEOUT;
+    }
+    
+    controller->Base.State.DmaStopped = true;
     return OS_EOK;
 }
 
@@ -276,40 +329,36 @@ OHCIReset(
     // Verify HcFmInterval and store the original value
     fmInterval = READ_VOLATILE(Controller->Registers->HcFmInterval);
 
-    // What the hell? You are supposed to be able 
-    // to set this yourself!
+    // Fill in the maximum packet size if firmware left it unset.
     if (OHCI_FMINTERVAL_GETFSMP(fmInterval) == 0) {
         fmInterval |= OHCI_FMINTERVAL_FSMP(fmInterval) << 16;
     }
 
-    // Sanitize the FI.. this should also be set but there
-    // are cases it isn't....
+    // Use the default frame interval if firmware left it unset.
     if ((fmInterval & OHCI_FMINTERVAL_FIMASK) == 0) {
         fmInterval |= OHCI_FMINTERVAL_FI;
     }
 
-    // We should check here if HcControl has RemoteWakeup Connected 
-    // and then set device to remote wake capable
+    // TODO: Check RemoteWakeupConnected in HcControl before marking the
+    // device as capable of remote wakeup.
     // Disable interrupts during this reset
     TRACE("OHCIReset suspending controller");
     WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
-    // Suspend the controller just in case it's running
-    // and wait for it to suspend
+    // The controller must be suspended before reset.
     OHCISetMode(Controller, OHCI_CONTROL_SUSPEND);
     thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
 
-    // Toggle bit 0 to initiate a reset
+    // Set bit 0 to start a reset.
     tempValue = READ_VOLATILE(Controller->Registers->HcCommandStatus);
     tempValue |= OHCI_COMMAND_RESET;
     WRITE_VOLATILE(Controller->Registers->HcCommandStatus, tempValue);
 
-    // Wait for reboot (takes maximum of 10 ms)
-    // But the world is not perfect, given it up to 50
+    // Reset should finish within 10 ms. Allow up to 50 ms for slow controllers.
     TRACE(" > Resetting controller");
     WaitForConditionWithFault(i, (READ_VOLATILE(Controller->Registers->HcCommandStatus) & OHCI_COMMAND_RESET) == 0, 50, 1);
 
-    // Sanitize the fault variable
+    // Stop setup if reset timed out.
     if (i != 0) {
         ERROR("Controller failed to reboot");
         ERROR("Reset Timeout :(");
@@ -326,8 +375,8 @@ OHCIReset(
     WRITE_VOLATILE(Controller->Registers->HcFmInterval, fmInterval);
 
     // Setup the Hcca Address and initiate some members of the HCCA
-    TRACE("... hcca address 0x%" PRIxIN, Controller->HccaDMATable.Entries[0].Address);
-    WRITE_VOLATILE(Controller->Registers->HcHCCA, Controller->HccaDMATable.Entries[0].Address);
+    TRACE("... hcca address 0x%" PRIxIN, Controller->HccaDeviceAddress);
+    WRITE_VOLATILE(Controller->Registers->HcHCCA, Controller->HccaDeviceAddress);
     Controller->Hcca->CurrentFrame = 0;
     Controller->Hcca->HeadDone     = 0;
 
@@ -337,7 +386,7 @@ OHCIReset(
     WRITE_VOLATILE(Controller->Registers->HcBulkHeadED, 0);
     WRITE_VOLATILE(Controller->Registers->HcBulkCurrentED, 0);
 
-    // Set HcEnableInterrupt to all except SOF and OC
+    // Disable SOF, root hub and control change interrupts.
     WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_SOF_EVENT | 
         OHCI_ROOTHUB_EVENT | OHCI_OWNERSHIP_EVENT);
 
@@ -364,6 +413,7 @@ OHCIReset(
     tempValue |= OHCI_CONTROL_REMOTEWAKE;
     WRITE_VOLATILE(Controller->Registers->HcControl, tempValue);
     
+    Controller->Base.State.DmaStopped = false;
     Controller->QueuesActive = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
     TRACE(" > Wrote control 0x%x to controller", tempValue);
     return OS_EOK;
@@ -386,15 +436,17 @@ OHCISetup(
         return OS_EUNKNOWN;
     }
 
-    // Initialize the queue system
-    OHCIQueueInitialize(controller);
+    // If setup fails, leave the scheduler attached for controller cleanup.
+    if (OHCIQueueInitialize(controller) != OS_EOK) {
+        return OS_EOOM;
+    }
 
     // Setup the i/o requirements
     controller->Base.IORequirements.BufferAlignment = 0;
-    controller->Base.IORequirements.Conformity      = OSMEMORYCONFORMITY_BITS32;
+    controller->Base.IORequirements.Conformity      = OSMEMORYCONFORMITY_NONE;
 
-    // Last step is to take ownership, reset the controller and initialize
-    // the registers, all resource must be allocated before this
+    // All resources must be allocated before taking control from firmware
+    // and resetting the controller.
     if (OHCITakeControl(controller) != OS_EOK || OHCIReset(controller) != OS_EOK) {
         ERROR("Failed to initialize the ohci-controller");
         return OS_EUNKNOWN;
@@ -405,8 +457,7 @@ OHCISetup(
           controller->Base.Id, controller->Registers->HcControl,
           controller->Registers->HcInterruptEnable, controller->Registers->HcFmInterval);
 
-    // We are not completely done yet, we need to figure out the
-    // power-mode of the controller, and we need the port-count
+    // Read the root hub power mode and port count.
     if (READ_VOLATILE(controller->Registers->HcRhDescriptorA) & (1 << 9)) {
         // Power is always on
         WRITE_VOLATILE(controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
@@ -414,13 +465,13 @@ OHCISetup(
         controller->PowerMode = OHCIPOWERMODE_ALWAYSON;
     }
     else {
-        // Ports have individual power
+        // Check whether the ports support individual power control.
         if (READ_VOLATILE(controller->Registers->HcRhDescriptorA) & (1 << 8)) {
-            // We prefer this, we can control each port's power
+            // Enable power control for each port.
             WRITE_VOLATILE(controller->Registers->HcRhDescriptorB, 0xFFFF0000);
             controller->PowerMode = OHCIPOWERMODE_PORTCONTROL;
         } else {
-            // Oh well, it's either all on or all off
+            // All ports share a single power control.
             WRITE_VOLATILE(controller->Registers->HcRhDescriptorB, 0);
             WRITE_VOLATILE(controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
             controller->PowerMode = OHCIPOWERMODE_GLOBALCONTROL;
@@ -433,23 +484,19 @@ OHCISetup(
         controller->Base.PortCount = OHCI_MAXPORTS;
     }
 
-    // Clear RhA
+    // Clear the device type bit in root hub descriptor A.
     tempValue = READ_VOLATILE(controller->Registers->HcRhDescriptorA);
     tempValue &= ~(0x00000000 | OHCI_DESCRIPTORA_DEVICETYPE);
     WRITE_VOLATILE(controller->Registers->HcRhDescriptorA, tempValue);
 
-    // Get Power On Delay
-    // PowerOnToPowerGoodTime (24 - 31)
-    // This byte specifies the duration HCD has to wait before
-    // accessing a powered-on Port of the Root Hub.
-    // It is implementation-specific.  The unit of time is 2 ms.
-    // The duration is calculated as POTPGT * 2 ms.
+    // Before accessing a powered port, wait for PowerOnToPowerGoodTime.
+    // Bits 24-31 give this controller-specific delay in units of 2 ms.
     tempValue = READ_VOLATILE(controller->Registers->HcRhDescriptorA);
     tempValue >>= 24;
     tempValue &= 0x000000FF;
     tempValue *= 2;
 
-    // Anything under 100 ms is not good in OHCI
+    // Wait at least 100 ms for port power to settle.
     if (tempValue < 100) {
         tempValue = 100;
     }
@@ -458,7 +505,7 @@ OHCISetup(
     TRACE("Ports %u (power mode %u, power delay %u)",
           controller->Base.PortCount, controller->PowerMode, tempValue);
     
-    // Register the controller before starting
+    // Register the controller before enabling root hub events.
     if (UsbManagerRegisterController(&controller->Base) != OS_EOK) {
         ERROR("Failed to register uhci controller with the system.");
     }
@@ -469,7 +516,7 @@ OHCISetup(
     WRITE_VOLATILE(controller->Registers->HcInterruptEnable,
                    READ_VOLATILE(controller->Registers->HcInterruptEnable) | OHCI_ROOTHUB_EVENT);
     
-    // If it's individual port power, iterate through port and power up
+    // Power each port when individual power control is enabled.
     if (controller->PowerMode == OHCIPOWERMODE_PORTCONTROL) {
         for (i = 0; i < (int)controller->Base.PortCount; i++) {
             reg32_t PortStatus = READ_VOLATILE(controller->Registers->HcRhPortStatus[i]);

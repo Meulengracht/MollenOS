@@ -126,3 +126,20 @@ UhciPortPrepare(
 	TRACE("UhciPortPrepare(Port %i)", Index);
 	return HCIPortReset(&Controller->Base, Index);
 }
+
+oserr_t
+HCIPortDisable(
+    _In_ UsbManagerController_t* controller,
+    _In_ int                     index)
+{
+    UhciController_t* legacy = (UhciController_t*)controller;
+    uint16_t          offset = UHCI_REGISTER_PORT_BASE + index * 2;
+    uint16_t          value = UhciRead16(legacy, offset);
+    int               fault;
+
+    // Write zero to the event bits so disabling the port leaves pending events set.
+    value &= ~(UHCI_PORT_ENABLED | UHCI_PORT_CONNECT_EVENT | UHCI_PORT_ENABLED_EVENT);
+    UhciWrite16(legacy, offset, value);
+    WaitForConditionWithFault(fault, !(UhciRead16(legacy, offset) & UHCI_PORT_ENABLED), 10, 1);
+    return fault ? OS_ETIMEOUT : OS_EOK;
+}

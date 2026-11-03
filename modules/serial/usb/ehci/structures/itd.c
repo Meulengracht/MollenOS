@@ -38,21 +38,22 @@ EHCITDIsochronous(
     uint32_t  bufferIndex = 0;
     int       transactionCount = 0;
 
-    // An iTD has seven buffer-page entries. Refuse a layout that would need
-    // another page instead of writing beyond the descriptor and corrupting
-    // adjacent scheduler metadata.
+    // The first transaction must have a buffer address and a nonzero length.
     if (addresses[0] == 0 || lengths[0] == 0) {
         return false;
     }
 
-    /**
-     * When calling these initializers for TDs, the TDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    // The TD must already be linked before initialization. Leave its links unchanged.
     iTd->Object.Flags |= EHCI_LINK_iTD;
 
-    // initialize the buffer special bits
+    memset((void*)iTd->Buffers, 0, sizeof(iTd->Buffers));
+    memset((void*)iTd->ExtBuffers, 0, sizeof(iTd->ExtBuffers));
+    memset((void*)iTd->Transactions, 0, sizeof(iTd->Transactions));
+    memset((void*)iTd->TransactionsCopy, 0, sizeof(iTd->TransactionsCopy));
+    
+    iTd->Object.Flags &= ~USB_ELEMENT_PROCESSED;
+
+    // The first three buffer entries also carry endpoint and transfer settings.
     iTd->Buffers[0]  = EHCI_iTD_DEVADDR(transfer->Address.DeviceAddress);
     iTd->Buffers[0] |= EHCI_iTD_EPADDR(transfer->Address.EndpointAddress);
     iTd->Buffers[0] |= EHCI_iTD_BUFFER(buffer);
@@ -65,18 +66,20 @@ EHCITDIsochronous(
     iTd->Buffers[1] = EHCI_iTD_MPS(transfer->MaxPacketSize);
     iTd->Buffers[1] |= pid;
 
-    iTd->Buffers[2] = MAX(3, transfer->TData.Periodic.Bandwith);
+    iTd->Buffers[2] = MIN(3, transfer->TData.Periodic.Bandwith + 1);
 
-    // Fill in buffer page settings and initial page
+    // Set up buffer pages and transactions for up to eight microframes.
     for (int i = 0; i < 8; i++) {
         if (!addresses[i] || !lengths[i]) {
             break;
         }
 
-        // Select the buffer based on address, and do some per-buffer init
+        // Add a buffer entry when the transaction starts on a different page.
         if ((addresses[i] & pageMask) != buffer) {
             buffer = addresses[i] & pageMask;
             bufferIndex++;
+            // An iTD has seven buffer-page entries. Reject an eighth page before
+            // writing beyond the descriptor into adjacent scheduler metadata.
             if (bufferIndex >= 7) {
                 return false;
             }
@@ -90,13 +93,12 @@ EHCITDIsochronous(
 
         iTd->Transactions[i]  = EHCI_iTD_OFFSET(addresses[i]);
         iTd->Transactions[i] |= EHCI_iTD_PAGE(bufferIndex);
-        iTd->Transactions[i] |= EHCI_iTD_LENGTH(lengths[i]);
+        iTd->Transactions[i] |= EHCI_iTD_LENGTH(lengths[i]) | EHCI_iTD_IOC;
         transactionCount++;
     }
 
-    // Publish all transaction ownership bits together, after every buffer and
-    // transaction field has been written. The copies retain the same active
-    // state for a later periodic restart.
+    // Buffer and transaction fields must be visible before setting ACTIVE.
+    // Save the active transactions for the next periodic restart.
     dma_mb();
     for (int i = 0; i < transactionCount; i++) {
         iTd->Transactions[i] |= EHCI_iTD_ACTIVE;
@@ -137,47 +139,28 @@ EHCIITDVerify(
         _In_ struct HCIProcessReasonScanContext* scanContext,
         _In_ EhciIsochronousDescriptor_t*        iTD)
 {
-    int cc = -1;
+    int cc;
+    int i;
 
-    // Have we already processed this one? In that case we ignore
-    // it completely.
     if (iTD->Object.Flags & USB_ELEMENT_PROCESSED) {
         scanContext->ElementsExecuted++;
         return;
     }
-
-    // Check status of the transactions
-    for (int i = 0; i < 8; i++) {
-        if (iTD->Transactions[i] & EHCI_iTD_ACTIVE) {
-            break;
+    // All scheduled microframes must finish before we process the descriptor.
+    for (i = 0; i < 8; i++) {
+        if (iTD->TransactionsCopy[i] != 0 && (iTD->Transactions[i] & EHCI_iTD_ACTIVE)) {
+            return;
         }
-
+    }
+    for (i = 0; i < 8 && iTD->TransactionsCopy[i] != 0; i++) {
         cc = EHCIConditionCodeToIndex(EHCI_iTD_CC(iTD->Transactions[i]));
-        switch (cc) {
-            case 1:
-                scanContext->Result = USBTRANSFERCODE_STALL;
-                break;
-            case 2:
-                scanContext->Result = USBTRANSFERCODE_BABBLE;
-                break;
-            case 3:
-                scanContext->Result = USBTRANSFERCODE_BUFFERERROR;
-                break;
-            default:
-                break;
-        }
-
-        if (scanContext->Result != USBTRANSFERCODE_INVALID) {
+        if (cc != 0) {
+            scanContext->Result = cc == 1 ? USBTRANSFERCODE_STALL :
+                cc == 2 ? USBTRANSFERCODE_BABBLE : USBTRANSFERCODE_BUFFERERROR;
             break;
         }
+        scanContext->BytesTransferred += (iTD->Transactions[i] >> 16) & 0xFFF;
     }
-
-    if (cc == -1) {
-        // still active
-        return;
-    }
-
-    // mark TD as processed
     iTD->Object.Flags |= USB_ELEMENT_PROCESSED;
     scanContext->ElementsProcessed++;
     scanContext->ElementsExecuted++;
@@ -187,8 +170,7 @@ void
 EHCIITDRestart(
         _In_ EhciIsochronousDescriptor_t* iTD)
 {
-    // Make sure we clear the PROCESSED status on the TD, otherwise it
-    // won't be processed again
+    // Clear PROCESSED so the next scan can process this TD again.
     iTD->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
 
     for (int i = 0; i < 8; i++) {

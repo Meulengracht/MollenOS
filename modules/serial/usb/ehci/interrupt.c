@@ -42,12 +42,12 @@ OnFastInterrupt(
     Registers           = (EchiOperationalRegisters_t*)RegisterAddress;
     InterruptStatus     = (Registers->UsbStatus & Registers->UsbIntr);
 
-    // Was the interrupt even from this controller?
+    // Only handle enabled interrupts reported by this controller.
     if (!InterruptStatus) {
         return IRQSTATUS_NOT_HANDLED;
     }
 
-    // Acknowledge the interrupt by clearing
+    // Write the reported status bits back to acknowledge the interrupt.
     Registers->UsbStatus = InterruptStatus;
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
 
@@ -66,23 +66,28 @@ HciInterruptCallback(
 ProcessInterrupt:
     interruptStatus = atomic_exchange(&controller->Base.InterruptStatus, 0);
 
-    // Transaction update, either error or completion
+    // Record the completed advance before transfer processing can queue another unlink.
+    if ((interruptStatus & EHCI_STATUS_ASYNC_DOORBELL) && controller->AdvancePending) {
+        controller->AdvanceCompleted = controller->AdvanceIssued;
+        controller->AdvancePending = false;
+        EhciRingDoorbell(controller);
+    }
+
+    // Process transfer completion, errors and asynchronous unlink progress.
     if (interruptStatus & (EHCI_STATUS_PROCESS | EHCI_STATUS_PROCESSERROR | EHCI_STATUS_ASYNC_DOORBELL)) {
         UsbManagerProcessTransfers(&controller->Base);
     }
 
-    // Hub change? We should enumerate ports and detect
-    // which events occured
+    // Scan the ports to identify which events occurred.
     if (interruptStatus & EHCI_STATUS_PORTCHANGE) {
-        // Give it ~0 if it doesn't support per-port change
+        // Scan all ports unless the controller reports changes per port.
         if (controller->CParameters & EHCI_CPARAM_PERPORT_CHANGE) {
             changeBits = (interruptStatus >> 16);
         }
         EhciPortScan(controller, changeBits);
     }
 
-    // HC Fatal Error
-    // Clear all queued, reset controller
+    // On a fatal controller error, reset the queue and restart the controller.
     if (interruptStatus & EHCI_STATUS_HOSTERROR) {
         if (EhciQueueReset(controller) != OS_EOK) {
             ERROR("EHCI-Failure: Failed to reset queue after fatal error");
@@ -92,7 +97,7 @@ ProcessInterrupt:
         }
     }
 
-    // In case an interrupt fired during processing
+    // Repeat if an interrupt arrived during processing.
     if (atomic_load(&controller->Base.InterruptStatus) != 0) {
         goto ProcessInterrupt;
     }

@@ -32,12 +32,11 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 
-#include <sys_usb_service_server.h>
 #include <ctt_usbhost_service_client.h>
 
 static uint64_t hub_hash(const void* element);
 static int      hub_cmp(const void* element1, const void* element2);
-static void     hub_free_entry(int index, const void* element, void* userContext);
+static void     __HubFreeEntry(int index, const void* element, void* userContext);
 
 static hashtable_t g_hubs;
 
@@ -48,10 +47,10 @@ void UsbCoreHubsInitialize(void)
 
 void UsbCoreHubsCleanup(void)
 {
-    hashtable_enumerate(&g_hubs, hub_free_entry, NULL);
+    hashtable_enumerate(&g_hubs, __HubFreeEntry, NULL);
     hashtable_destroy(&g_hubs);
+    memset(&g_hubs, 0, sizeof(hashtable_t));
 }
-
 oserr_t
 UsbCoreHubsRegister(
         _In_ uuid_t  parentHubDeviceId,
@@ -67,7 +66,7 @@ UsbCoreHubsRegister(
     TRACE("UsbCoreHubsRegister(parentHubDeviceId=%u, hubDeviceId=%u, hubDriverId=%u, portCount=%i)",
           parentHubDeviceId, hubDeviceId, hubDriverId, portCount);
 
-    // take into account root hubs, they provide same ids
+    // Root hubs use the same parent device and driver IDs.
     if (parentHubDeviceId != hubDriverId) {
        parentHub = hashtable_get(&g_hubs, &(struct UsbHub) { .DeviceId = parentHubDeviceId });
        if (parentHub) {
@@ -77,7 +76,7 @@ UsbCoreHubsRegister(
            for (i = 0; i < USB_MAX_PORTS; i++) {
                if (parentHub->Ports[i] && parentHub->Ports[i]->Device &&
                         parentHub->Ports[i]->Device->DeviceId == hubDeviceId) {
-                   // get the usb device address of this hub and the port address we recide on
+                   // Get the hub's USB device address and its port on the parent hub.
                    deviceAddress = parentHub->Ports[i]->Device->Base.device_address;
                    portAddress   = parentHub->Ports[i]->Address;
                    break;
@@ -87,6 +86,7 @@ UsbCoreHubsRegister(
     }
 
     hashtable_set(&g_hubs, &(struct UsbHub) {
+        .ParentHubDeviceId = parentHubDeviceId,
         .ControllerDeviceId = controllerDeviceId,
         .DeviceId = hubDeviceId,
         .DriverId = hubDriverId,
@@ -103,27 +103,48 @@ void
 UsbCoreHubsUnregister(
         _In_ uuid_t hubDeviceId)
 {
-    int            i;
-    struct UsbHub  hub;
-    struct UsbHub* hubCopy = hashtable_remove(&g_hubs, &(struct UsbHub) {
-        .DeviceId = hubDeviceId
-    });
+    struct UsbHub                  hub;
+    UsbController_t*               controller;
+    UsbHub_t*                      parent;
+    UsbHub_t*                      hubCopy;
+    struct UsbEnumerationRecovery* pending;
+
     TRACE("UsbCoreHubsUnregister(hubDeviceId=%u)", hubDeviceId);
 
+    hubCopy = hashtable_get(&g_hubs, &(struct UsbHub) {
+        .DeviceId = hubDeviceId
+    });
     if (!hubCopy) {
         return;
     }
 
     memcpy(&hub, hubCopy, sizeof(struct UsbHub));
-    for (i = 0; i < USB_MAX_PORTS; i++) {
+    controller = UsbCoreControllerGet(hub.ControllerDeviceId);
+    pending = controller != NULL ? &controller->EnumerationRecovery : NULL;
+    
+    for (int i = 0; i < USB_MAX_PORTS; i++) {
         if (hub.Ports[i] && hub.Ports[i]->Device) {
             if (UsbCoreHubsGet(hub.Ports[i]->Device->DeviceId) != NULL) {
                 UsbCoreHubsUnregister(hub.Ports[i]->Device->DeviceId);
             }
-            UsbCoreDevicesDestroy(UsbCoreControllerGet(hub.ControllerDeviceId), hub.Ports[i]);
-            free(hub.Ports[i]);
+            UsbCoreDevicesDestroy(controller, hub.Ports[i]);
+        }
+        free(hub.Ports[i]);
+    }
+
+    // Downstream ports may still be enabled after driver removal. If isolation
+    // is pending, use the upstream port while the parent is still registered.
+    // Recursive removal moves the pending isolation toward the root.
+    if (pending != NULL && pending->Pending && pending->HubDeviceId == hubDeviceId) {
+        parent = UsbCoreHubsGet(hub.ParentHubDeviceId);
+        if (parent != NULL && parent->DeviceId != hubDeviceId) {
+            pending->HubDeviceId = parent->DeviceId;
+            pending->HubDriverId = parent->DriverId;
+            pending->PortAddress = hub.PortAddress;
         }
     }
+
+    hashtable_remove(&g_hubs, &(struct UsbHub) { .DeviceId = hubDeviceId });
 }
 
 UsbPort_t* __CreatePort(
@@ -163,9 +184,22 @@ UsbCoreHubsGet(
     return hashtable_get(&g_hubs, &(struct UsbHub) { .DeviceId = hubDeviceId });
 }
 
-static void hub_free_entry(int index, const void* element, void* userContext)
+static void
+__HubFreeEntry(
+    _In_ int         index,
+    _In_ const void* element,
+    _In_ void*       userContext)
 {
-    // what do
+    const UsbHub_t* hub = element;
+    _CRT_UNUSED(index);
+    _CRT_UNUSED(userContext);
+
+    // Connected devices must already be removed by the controllers. Status
+    // queries can create port records on empty hubs, so free those before
+    // destroying the table.
+    for (int i = 0; i < USB_MAX_PORTS; i++) {
+        free(hub->Ports[i]);
+    }
 }
 
 static uint64_t hub_hash(const void* element)
@@ -181,17 +215,28 @@ static int hub_cmp(const void* element1, const void* element2)
     return hub1->DeviceId == hub2->DeviceId ? 0 : 1;
 }
 
-void sys_usb_register_hub_invocation(struct gracht_message* message, const uuid_t parentHubDeviceId,
-                                     const uuid_t deviceId, const uuid_t driverId, const int portCount,
-                                     const uint16_t characteristics)
+void
+UsbCoreHubsRegisterAndConfigure(
+    _In_ uuid_t   parentHubDeviceId,
+    _In_ uuid_t   deviceId,
+    _In_ uuid_t   driverId,
+    _In_ int      portCount,
+    _In_ uint16_t characteristics)
 {
-    oserr_t   osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount, characteristics);
-    UsbHub_t* hub = UsbCoreHubsGet(deviceId);
+    oserr_t                  osStatus;
+    oserr_t                  controllerStatus;
+    UsbHub_t*                hub;
+    UsbController_t*         controller;
+    struct vali_link_message msg;
+
+    // Register the hub and configure its controller in the same worker command
+    // so configuration finishes before the worker handles later port events.
+    osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount, characteristics);
+    hub = UsbCoreHubsGet(deviceId);
 
     if (osStatus == OS_EOK && hub != NULL && hub->DeviceAddress != 0) {
-        UsbController_t*         controller = UsbCoreControllerGet(hub->ControllerDeviceId);
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(controller->DriverId);
-        oserr_t                  controllerStatus;
+        controller = UsbCoreControllerGet(hub->ControllerDeviceId);
+        msg = (struct vali_link_message)VALI_MSG_INIT_HANDLE(controller->DriverId);
         
         ctt_usbhost_configure_hub(
             GetGrachtClient(), &msg.base,
@@ -204,11 +249,6 @@ void sys_usb_register_hub_invocation(struct gracht_message* message, const uuid_
         ctt_usbhost_configure_hub_result(GetGrachtClient(), &msg.base, &controllerStatus);
     }
     if (osStatus != OS_EOK) {
-        // log
+        WARNING("USB: hub %u registration failed (%u)", deviceId, osStatus);
     }
-}
-
-void sys_usb_unregister_hub_invocation(struct gracht_message* message, const uuid_t deviceId)
-{
-    UsbCoreHubsUnregister(deviceId);
 }

@@ -28,16 +28,14 @@ UHCITDSetup(
         _In_ enum USBSpeed             speed,
         _In_ uintptr_t                 address)
 {
-    /**
-     * When calling these initializers for TDs, the TDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    reg32_t flags;
 
-    td->Flags  = UHCI_TD_ACTIVE;
-    td->Flags |= UHCI_TD_SETCOUNT(3);
+    // The TD must already be linked. Leave its links unchanged.
+
+    flags  = UHCI_TD_ACTIVE;
+    flags |= UHCI_TD_SETCOUNT(3);
     if (speed == USBSPEED_LOW) {
-        td->Flags |= UHCI_TD_LOWSPEED;
+        flags |= UHCI_TD_LOWSPEED;
     }
 
     // Setup td header
@@ -48,12 +46,16 @@ UHCITDSetup(
 
     td->Buffer = LODWORD(address);
 
-    // Store data
-    td->OriginalFlags  = td->Flags;
+    // Save the flags and header for restarting the TD.
+    td->OriginalFlags  = flags;
     td->OriginalHeader = td->Header;
     
     // Set usb scheduler link info
     td->Object.Flags |= UHCI_LINK_DEPTH;
+
+    // The descriptor fields must be visible to the controller before ACTIVE is set.
+    dma_wmb();
+    td->Flags = flags;
 }
 
 void
@@ -68,30 +70,33 @@ UHCITDData(
     _In_ uint32_t                  length,
     _In_ int                       toggle)
 {
-    /**
-     * When calling these initializers for TDs, the TDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    reg32_t flags;
+
+    // The TD must already be linked. Leave its links unchanged.
 
     // Setup td flags
-    td->Flags  = UHCI_TD_ACTIVE;
-    td->Flags |= UHCI_TD_SETCOUNT(3);
+    flags  = UHCI_TD_ACTIVE;
+    flags |= UHCI_TD_SETCOUNT(3);
     if (speed == USBSPEED_LOW) {
-        td->Flags |= UHCI_TD_LOWSPEED;
+        flags |= UHCI_TD_LOWSPEED;
     }
     if (type == USBTRANSFER_TYPE_ISOC) {
-        td->Flags |= UHCI_TD_ISOCHRONOUS;
+        flags |= UHCI_TD_ISOCHRONOUS;
     }
 
-    // We set SPD on in transfers, but NOT on zero length
+    // Enable short packet detection for IN transfers, except for zero-length
+    // control packets.
     if (type == USBTRANSFER_TYPE_CONTROL) {
         if (pid == UHCI_TD_PID_IN && length > 0) {
-            td->Flags |= UHCI_TD_SHORT_PACKET;
+            flags |= UHCI_TD_SHORT_PACKET;
         }
     }
     else if (pid == UHCI_TD_PID_IN) {
-        td->Flags |= UHCI_TD_SHORT_PACKET;
+        flags |= UHCI_TD_SHORT_PACKET;
+    }
+
+    if (type == USBTRANSFER_TYPE_ISOC || type == USBTRANSFER_TYPE_INTERRUPT) {
+        flags |= UHCI_TD_IOC;
     }
 
     // Setup td header
@@ -108,12 +113,17 @@ UHCITDData(
     // Store buffer
     td->Buffer = LODWORD(address);
 
-    // Store data
-    td->OriginalFlags  = td->Flags;
+    // Save the flags and header for restarting the TD.
+    td->OriginalFlags  = flags;
     td->OriginalHeader = td->Header;
 
     // Set usb scheduler link info
     td->Object.Flags |= UHCI_LINK_DEPTH;
+
+    // Isochronous TDs stay linked between packets. The descriptor fields must
+    // be visible to the controller before ACTIVE is set.
+    dma_wmb();
+    td->Flags = flags;
 }
 
 void
@@ -136,8 +146,7 @@ UHCITDVerify(
 {
     int conditionCodeIndex;
 
-    // Have we already processed this one? In that case we ignore
-    // it completely.
+    // Count previously processed TDs without adding their transferred bytes again.
     if (td->Object.Flags & USB_ELEMENT_PROCESSED) {
         context->ElementsExecuted++;
         return;
@@ -155,18 +164,18 @@ UHCITDVerify(
         return; // Skip bytes transferred
     }
 
-    // Calculate length transferred 
-    // Take into consideration the N-1 
-    if (__Transfer_IsAsync(context->Transfer) && td->Buffer != 0) {
-        int bytesTransferred = UHCI_TD_ACTUALLENGTH(td->Flags) + 1;
-        int bytesRequested   = UHCI_TD_GET_LEN(td->Header) + 1;
+    // Length fields encode N-1. Mask after adding one so zero-length packets
+    // contribute no bytes.
+    if (td->Buffer != 0) {
+        int bytesTransferred = (UHCI_TD_ACTUALLENGTH(td->Flags) + 1) & UHCI_TD_LENGTH_MASK;
+        int bytesRequested   = (UHCI_TD_GET_LEN(td->Header) + 1) & UHCI_TD_LENGTH_MASK;
         if (bytesTransferred < bytesRequested) {
             context->Short = true;
         }
         context->BytesTransferred += bytesTransferred;
     }
 
-    // mark TD as processed, and retrieve the data-toggle
+    // Mark the TD as processed and record its data toggle.
     td->Object.Flags |= USB_ELEMENT_PROCESSED;
     context->LastToggle = (td->Flags & UHCI_TD_DATA_TOGGLE) ? 1 : 0;
     context->ElementsProcessed++;
@@ -181,8 +190,7 @@ UHCITDRestart(
 {
     int toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address);
 
-    // Make sure we clear the PROCESSED status on the TD, otherwise it
-    // won't be processed again
+    // Clear PROCESSED so the next completion can be counted.
     td->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
 
     td->OriginalFlags &= ~(UHCI_TD_DATA_TOGGLE);

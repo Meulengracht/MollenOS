@@ -30,24 +30,19 @@ OHCITDSetup(
 {
     TRACE("OHCITDSetup(dataAddress=0x%x)", element->Data.OHCI.Page0 + element->Data.OHCI.Offsets[0]);
 
-    /**
-     * When calling these initializers for TDs, the TDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    // The TD must already be linked before initialization. Leave its links intact.
 
-    // Initialize the Td flags, no toggle for SETUP
-    // packet
-    td->Flags |= OHCI_TD_SETUP;
+    // SETUP packets use DATA0.
+    td->Flags = OHCI_TD_SETUP;
     td->Flags |= OHCI_TD_IOC_NONE;
     td->Flags |= OHCI_TD_TOGGLE_LOCAL;
     td->Flags |= OHCI_TD_ACTIVE;
 
-    // Install the buffer
+    // Set the buffer addresses.
     td->Cbp       = element->Data.OHCI.Page0 + element->Data.OHCI.Offsets[0];
     td->BufferEnd = element->Data.OHCI.Page1;
 
-    // Store copy of original content
+    // Save the flags and buffer pointer for restart.
     td->OriginalFlags = td->Flags;
     td->OriginalCbp   = td->Cbp;
 }
@@ -62,14 +57,10 @@ OHCITDData(
 {
     TRACE("OHCITDData(length=%u)", element->Length);
 
-    /**
-     * When calling these initializers for TDs, the TDs have already been
-     * correctly linked, and their links set accordingly. So we do not touch
-     * the links, unless they need a specific hardcoded value.
-     */
+    // The TD must already be linked before initialization. Leave its links intact.
 
-    // Initialize flags as a IO Td
-    td->Flags |= pid;
+    // Initialize the data TD flags.
+    td->Flags = pid;
     td->Flags |= OHCI_TD_IOC_NONE;
     td->Flags |= OHCI_TD_TOGGLE_LOCAL;
     td->Flags |= OHCI_TD_ACTIVE;
@@ -78,8 +69,8 @@ OHCITDData(
         td->Flags |= OHCI_TD_TOGGLE;
     }
 
-    // We have to allow short-packets in some cases
-    // where data returned or send might be shorter
+    // Allow short IN packets. For control transfers, this applies only
+    // to the data stage.
     if (type == USBTRANSFER_TYPE_CONTROL) {
         if (pid == OHCI_TD_IN && element->Length > 0) {
             td->Flags |= OHCI_TD_SHORTPACKET_OK;
@@ -88,19 +79,20 @@ OHCITDData(
         td->Flags |= OHCI_TD_SHORTPACKET_OK;
     }
 
-    // Is there bytes to transfer or null packet?
+    td->Cbp = 0;
+    td->BufferEnd = 0;
+
+    // Leave both buffer addresses zero for a zero-length packet.
     if (element->Length > 0) {
-        // If during the data transfer the buffer address contained in the HC’s working
-        // copy of CurrentBufferPointer crosses a 4K boundary, the upper 20 bits of
-        // Buffer End are copied to the working value of CurrentBufferPointer causing
-        // the next buffer address to be the 0th byte in the same 4K page that contains
-        // the last byte of the buffer (the 4K boundary crossing may occur within
-        // a data packet transfer.)
+        // When CurrentBufferPointer crosses a 4K boundary, the controller copies
+        // the upper 20 bits of BufferEnd into its working pointer. Transfer then
+        // continues at offset zero in the page containing the last buffer byte.
+        // This can happen within a packet.
         td->Cbp       = element->Data.OHCI.Page0 + element->Data.OHCI.Offsets[0];
         td->BufferEnd = element->Data.OHCI.Page1;
     }
 
-    // Store copy of original content
+    // Save the flags and buffer pointer for restart.
     td->OriginalFlags = td->Flags;
     td->OriginalCbp   = td->Cbp;
 }
@@ -132,8 +124,7 @@ OHCITDVerify(
     int cc;
     TRACE("OHCITDVerify()");
 
-    // Have we already processed this one? In that case we ignore
-    // it completely.
+    // Count previously processed TDs without adding their bytes again.
     if (td->Object.Flags & USB_ELEMENT_PROCESSED) {
         TRACE("OHCITDVerify: already processed, skipping");
         scanContext->ElementsExecuted++;
@@ -143,8 +134,8 @@ OHCITDVerify(
     errorCount = OHCI_TD_ERRORCOUNT(td->Flags);
     cc         = OHCI_TD_ERRORCODE(td->Flags);
 
-    // If the TD is still active do nothing.
-    if (cc == OHCI_CC_INIT) {
+    // If the TD is still active, leave it for the next scan.
+    if (cc == OHCI_CC_INIT || cc == OHCI_CC_INIT0) {
         TRACE("OHCITDVerify: td is still active");
         return;
     }
@@ -153,17 +144,15 @@ OHCITDVerify(
         TRACE("OHCITDVerify: td failed to execute: %i", cc);
         scanContext->Result = OHCIErrorCodeToTransferStatus(cc);
     } else if (cc != 0) {
-        // TD is not exhausted yet
-        return;
+        scanContext->Result = OHCIErrorCodeToTransferStatus(cc);
     }
 
-    // Calculate length transferred 
-    // Take into consideration the N-1 
-    if (__Transfer_IsAsync(scanContext->Transfer) && td->BufferEnd != 0) {
+    // BufferEnd points to the last byte, so include it in the requested length.
+    if (td->BufferEnd != 0) {
         uint32_t bytesTransferred;
         uint32_t bytesRequested;
 
-        // Is CBP and BE crossing a page?
+        // A buffer spanning two pages may use non-contiguous physical pages.
         if (__XPAGE(td->OriginalCbp) != __XPAGE(td->BufferEnd)) {
             uint32_t bytesPage0 = __XUPPAGE(td->OriginalCbp) - td->OriginalCbp;
             uint32_t bytesPage1 = __XPAGEOFFSET(td->BufferEnd);
@@ -172,17 +161,16 @@ OHCITDVerify(
             if (td->Cbp == 0) {
                 bytesTransferred = bytesRequested;
             } else {
-                // Partial transfer, we need to determine whether Cbp is on the
-                // page 0 or 1
+                // For a partial transfer, locate Cbp in the first or second page.
                 if (__XPAGE(td->Cbp) == __XPAGE(td->OriginalCbp)) {
                     bytesTransferred = td->Cbp - td->OriginalCbp;
                 } else {
-                    // We still did cross transfer
+                    // The transfer reached the second page.
                     bytesTransferred = bytesPage0 + __XPAGEOFFSET(td->Cbp);
                 }
             }
         } else {
-            // Otherwise all transfers are done in the same page, much easier.
+            // The buffer fits within one page.
             bytesRequested = (td->BufferEnd - td->OriginalCbp) + 1;
             if (td->Cbp == 0) {
                 bytesTransferred = bytesRequested;
@@ -198,7 +186,7 @@ OHCITDVerify(
         scanContext->BytesTransferred += bytesTransferred;
     }
 
-    // mark TD as processed, and retrieve the data-toggle
+    // Mark the TD as processed and record its data toggle.
     td->Object.Flags |= USB_ELEMENT_PROCESSED;
     scanContext->LastToggle = (td->Flags & OHCI_TD_TOGGLE) ? 1 : 0;
     scanContext->ElementsProcessed++;
@@ -214,8 +202,7 @@ OHCITDRestart(
     uintptr_t linkAddress = 0;
     int       toggle      = UsbManagerGetToggle(&controller->Base, &transfer->Address);
 
-    // Make sure we clear the PROCESSED status on the TD, otherwise it
-    // won't be processed again
+    // Clear PROCESSED so the next scan checks this TD again.
     td->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
 
     td->OriginalFlags &= ~(OHCI_TD_TOGGLE);
@@ -236,11 +223,11 @@ OHCITDRestart(
         td->BufferEnd   = td->Cbp + (bufferStep - 1);
     }
 
-    // Reset attributes
+    // Restore the flags and buffer pointer.
     td->Flags = td->OriginalFlags;
     td->Cbp   = td->OriginalCbp;
     
-    // Restore link
+    // Restore the link from the scheduler's depth index.
     UsbSchedulerGetPoolElement(
             controller->Base.Scheduler,
             (td->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK,

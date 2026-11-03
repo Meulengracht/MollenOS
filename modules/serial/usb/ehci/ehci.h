@@ -29,13 +29,16 @@
 typedef struct EHCIController EhciController_t;
 
 /**
- * Generic magic constants and definitions for EHCI
+ * EHCI limits and supported versions.
  */
 #define EHCI_MAX_PORTS     15
 #define EHCI_MAX_BANDWIDTH 800
 #define EHCI_VERSION_10    0x0100
 #define EHCI_VERSION_11    0x0110
 
+/**
+ * Controller version, capabilities, and companion port routing registers.
+ */
 PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
     uint8_t  Length;
     uint8_t  Reserved;
@@ -46,7 +49,7 @@ PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
 });
 
 /**
- * Contains definitions and bitfield definitions for EchiCapabilityRegisters::SParams
+ * EchiCapabilityRegisters::SParams
  * Bits 0-3: Port Count (max of 15 ports) 
  * Bits 4: Port Power Control (If set, ports have power switches) 
  * Bits 5-6: Reserved
@@ -67,14 +70,14 @@ PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
 #define EHCI_SPARAM_DEBUGPORT(n)            ((n >> 20) & 0xF)
 
 /**
- * Contains definitions and bitfield definitions for EchiCapabilityRegisters::CParams
- * Bits 0: 64 Bit Capability if set (Use 64 bit data structures instead of 32 bit)! 
- * Bits 1: Frame List Flag, if set we can control how long a frame list is, otherwise it is 1024.
- * Bits 2: Asynchronous Schedule Park Support, if set it supports park feature for high-speed queue heads. 
+ * EchiCapabilityRegisters::CParams
+ * Bits 0: 64-bit capability. If set, use 64-bit data structures.
+ * Bits 1: Variable frame list length. If clear, the length is 1024.
+ * Bits 2: Asynchronous schedule park support for high-speed queue heads.
  * Bits 3: Reserved
  * Bits 4-7: Isochronous Scheduling Threshold
- * Bits 8-15: Extended Capability Pointer, EECP. If a value is above 0x40 its a valid offset into pci-space. 
- * Bits 16: Hardware Prefect Capability
+ * Bits 8-15: Extended Capability Pointer (EECP). Values above 0x40 are PCI-space offsets.
+ * Bits 16: Hardware Prefetch Capability
  * Bits 17: Link Power Management Capability
  * Bits 18: Per-Port Change Event Capability
  * Bits 19: 32-Frame Capability
@@ -91,8 +94,7 @@ PACKED_ATYPESTRUCT(volatile, EchiCapabilityRegisters, {
 #define EHCI_CPARAM_32FRAME_SUPPORT         (1 << 19)
 
 /**
- * Registers that are used to control and command the EHCI controller
- * and its ports.
+ * Command, status, schedule, and port registers for the EHCI controller.
  */
 PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
     reg32_t UsbCommand;
@@ -188,7 +190,7 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_PORT_RWC                   (EHCI_PORT_CONNECT_EVENT | EHCI_PORT_ENABLE_EVENT | EHCI_PORT_OC_EVENT)
 
 /**
- * Contains definitions and bitfield definitions for EhciLink::LinkBits
+ * EhciLink::LinkBits
  * Bit 0: Terminate
  * Bit 1-2: Type
  * Bit 3-4: 0
@@ -201,9 +203,8 @@ PACKED_ATYPESTRUCT(volatile, EchiOperationalRegisters, {
 #define EHCI_LINK_TYPE(n) ((n >> 1) & 0x3)
 
 /**
- * A generic isochronous transfer descripter specifcally for high-speed
- * devices. This is not used with queue heads, is its own queue head. 
- * Must be 32 byte aligned
+ * High-speed isochronous transfer descriptor, linked directly into the
+ * schedule without a queue head. Must be aligned to 32 bytes.
  */
 PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
     reg32_t Link;
@@ -269,8 +270,8 @@ PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
 #define EHCI_iTD_EXTBUFFER(n) ((n >> 32) & 0xFFFFFFFF)
 
 /**
- * All Full-speed isochronous transfers through Transaction Translators 
- * are managed using the siTD data structure. Must be 32 byte aligned
+ * Full-speed isochronous transfer descriptor for a transaction translator.
+ * Must be aligned to 32 bytes.
  */
 PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
     reg32_t  Link;
@@ -357,16 +358,18 @@ PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
 #define EHCI_siTD_POSITION_MID          (2 << 3)
 #define EHCI_siTD_POSITION_END          (3 << 3)
 
-/* EHCISiTDInitialize
- * Initializes a full/low-speed split isochronous TD from scheduler-selected
- * frame masks and the transfer's physical buffer segments.
- * @param controller The EHCI controller providing address-width capabilities.
- * @param transfer The USB transfer supplying endpoint, hub, port, and speed.
- * @param siTD The scheduler-owned siTD to initialize.
+/**
+ * @brief Initializes a full/low-speed split isochronous TD using the frame masks selected
+ * by the scheduler and the transfer's physical buffer segments.
+ *
+ * @param controller The EHCI controller with the address-width capabilities.
+ * @param transfer The USB transfer with endpoint, hub, port, and speed information.
+ * @param siTD The siTD allocated from the scheduler pool.
  * @param pid The EHCI split transaction direction, IN or OUT.
  * @param addresses Physical addresses for the transaction buffer segments.
  * @param lengths Lengths corresponding to the physical buffer segments.
- * @return true when the buffer and schedule fit in one siTD. */
+ * @return true when the buffer and schedule fit in one siTD.
+ */
 extern bool
 EHCISiTDInitialize(
     _In_ EhciController_t*                 controller,
@@ -376,26 +379,29 @@ EHCISiTDInitialize(
     _In_ const uintptr_t*                   addresses,
     _In_ const uint32_t*                    lengths);
 
-/* EHCISiTDVerify
- * Scans an siTD after hardware processing and updates the common transfer
- * scan context with completion and error information.
+/**
+ * @brief Checks siTD completion and errors and updates the transfer scan context.
+ *
  * @param scanContext Common transfer scan state being updated.
- * @param siTD The completed or still-active siTD to inspect. */
+ * @param siTD The completed or still-active siTD to inspect.
+ */
 extern void
 EHCISiTDVerify(
     _In_ struct HCIProcessReasonScanContext* scanContext,
     _In_ EhciSplitIsochronousDescriptor_t*   siTD);
 
-/* EHCISiTDRestart
- * Restores the original hardware state of an siTD for a periodic retry.
- * @param siTD The siTD whose software completion state is reset. */
+/**
+ * @brief Restores the original hardware state of an siTD for a periodic retry.
+ *
+ * @param siTD The siTD whose software completion state is reset.
+ */
 extern void
 EHCISiTDRestart(
     _In_ EhciSplitIsochronousDescriptor_t* siTD);
 
 /**
- * Generic transfer descriptor, used for bulk and control transactions.
- * 52 Bytes are used by hardware - structure must be 32 byte aligned.
+ * Transfer descriptor for bulk and control transactions.
+ * Hardware uses the first 52 bytes. Must be aligned to 32 bytes.
  */
 PACKED_TYPESTRUCT(EhciTransferDescriptor, {
     reg32_t  Link;
@@ -439,7 +445,7 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
 #define EHCI_TD_IOC                 (1 << 7)
 
 /**
- * Contains definitions and bitfield definitions for EhciTransferDescriptor::Length
+ * EhciTransferDescriptor::Length
  * Bit 0-14: Length (Max Value 0x5000 (5 Pages))
  * Bit 15: Data Toggle
  */
@@ -448,7 +454,7 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
 #define EHCI_TD_TOGGLE              (1 << 15)
 
 /**
- * Contains definitions and bitfield definitions for EhciTransferDescriptor::Buffers[5]
+ * EhciTransferDescriptor::Buffers[5]
  * Bit 0-11: Current Offset
  * Bit 12-31: Buffer Page
  */
@@ -460,9 +466,8 @@ PACKED_TYPESTRUCT(EhciTransferDescriptor, {
 #define EHCI_TD_CC(n)               (n & 0xFF)
 
 /**
- * This is the TD work area, most of the members are equal to the definitions
- * presented in the generic transfer descriptor. We only describe them if they
- * differ.
+ * Queue head work area for the current TD. Fields follow the transfer
+ * descriptor layout except where described below.
  */
 PACKED_TYPESTRUCT(EhciQueueHeadOverlay, {
     reg32_t  NextTD;
@@ -499,8 +504,8 @@ PACKED_TYPESTRUCT(EhciQueueHeadOverlay, {
 #define EHCI_TD_SBYTES(Val)             ((Val >> 5) & 0x7F)
 
 /**
- * Generic queue head, contains a working area aswell. 
- * The structure must be 32 bytes aligned.
+ * Queue head with endpoint settings and the current TD work area.
+ * Must be aligned to 32 bytes.
  */
 PACKED_TYPESTRUCT(EhciQueueHead, {
     reg32_t                LinkPointer;
@@ -550,12 +555,10 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
 #define EHCI_QH_MULTIPLIER(n)           ((n & 0x3) << 14)
 
 /**
- * This data structure is to be used only for managing Full- and Low-speed transactions that span a Host-frame
- * boundary. Software must not use an FSTN in the
- * Asynchronous Schedule. An FSTN in the Asynchronous schedule results in undefined behavior. Software
- * must not use the FSTN feature with a host controller whose HCIVERSION register indicates a revision
- * implementation below 0096h. FSTNs are not defined for implementations before 0.96 and their use will
- * yield undefined results.
+ * Frame span traversal node for full- and low-speed transactions that cross
+ * a host-frame boundary. Use only in the periodic schedule, with HCIVERSION
+ * at least 0096h (revision 0.96). Use in the asynchronous schedule or with an
+ * earlier controller revision has undefined behavior.
  */
 PACKED_TYPESTRUCT(EhciFSTN, {
     reg32_t PathPointer;     // HW Link (Next Periodic Element)
@@ -566,10 +569,8 @@ PACKED_TYPESTRUCT(EhciFSTN, {
 });
 
 /**
- * The Ehci controller must keep track of pools for each type of transfer object
- * - Queue Heads
- * - (+Split)Isochronous (High-Speed) Descriptors
- * - Queue Element Transfer Descriptors
+ * Scheduler pool sizes and alignments for queue heads, transfer descriptors,
+ * isochronous descriptors, and frame span traversal nodes.
  */
 #define EHCI_QH_ALIGNMENT                   32
 #define EHCI_QH_POOL                        0
@@ -608,8 +609,7 @@ PACKED_TYPESTRUCT(EhciFSTN, {
 #define EHCI_FSTN_START                     1
 
 /**
- * Contains all per-controller information that is
- * needed to control, queue and handle devices on an ehci-controller.
+ * EHCI controller registers, schedule state, and saved settings for stop retries.
  */
 typedef struct EHCIController {
     UsbManagerController_t      Base;
@@ -619,7 +619,18 @@ typedef struct EHCIController {
     EchiOperationalRegisters_t* OpRegisters;
     size_t                      FrameCount;
 
-    // Copy of vital registers
+    // Wait for the pending asynchronous-advance request before issuing another.
+    uint32_t AdvanceIssued;
+    uint32_t AdvanceCompleted;
+    uint32_t AdvanceQueued;
+    bool     AdvancePending;
+
+    // On a stop retry, restore the registers saved before the first attempt.
+    reg32_t ResumeCommand;
+    reg32_t ResumeInterrupts;
+    bool    ResumePending;
+
+    // Cached controller capabilities
     reg32_t                     SParameters;
     reg32_t                     CParameters;
 } EhciController_t;
@@ -628,38 +639,50 @@ typedef struct EHCIController {
  * Controller Methods
  *******************************************************************************/
 
-/* EhciQueueInitialize
- * Initialize the controller's queue resources and resets counters */
+/**
+ * @brief Initializes the controller's queue resources and resets counters.
+ */
 extern
 oserr_t
 EhciQueueInitialize(
     _In_ EhciController_t *Controller);
 
-/* EhciQueueDestroy
- * Unschedules any scheduled ed's and frees all resources allocated
- * by the initialize function */
+/**
+ * @brief Clears transfers and frees the controller's queue resources.
+ * Hardware must be stopped before calling.
+ *
+ * @return OS_EBUSY if transfers remain, or the scheduler destruction status.
+ */
 extern
 oserr_t
 EhciQueueDestroy(
     _In_ EhciController_t *Controller);
 
-/* EhciQueueReset
- * Removes and cleans up any existing transfers, then reinitializes. */
+/**
+ * @brief Clears existing transfers and reinitializes the queue.
+ */
 extern
 oserr_t
 EhciQueueReset(
     _In_ EhciController_t *Controller);
 
-/* EhciEnableScheduler
- * Enables the relevant scheduler if it is not enabled already */
+/**
+ * @brief Enables the schedule used by the transfer type if needed.
+ */
 extern
 void
 EhciEnableScheduler(
     _In_ EhciController_t*  Controller,
     _In_ uint8_t  Type);
 
-/* EhciSetPrefetching
- * Disables the prefetching related to the transfer-type. */
+/**
+ * @brief Enables or disables prefetching for the transfer type.
+ *
+ * @param Controller The EHCI controller.
+ * @param Type The USB transfer type selecting the schedule.
+ * @param Set Nonzero to enable prefetching, zero to disable it.
+ * @return OS_EOK on success, or OS_EUNKNOWN if prefetching is unsupported.
+ */
 extern
 oserr_t
 EhciSetPrefetching(
@@ -667,23 +690,25 @@ EhciSetPrefetching(
     _In_ uint8_t  Type,
     _In_ int                Set);
 
-/* EhciHalt
- * Halt's the controller and clears any pending events. */
+/**
+ * @brief Halts the controller and clears pending events.
+ */
 extern
 oserr_t
 EhciHalt(
     _In_ EhciController_t *Controller);
 
-/* EhciRestart
- * Resets and restarts the entire controller and schedule, this can be used in
- * case of serious failures. */
+/**
+ * @brief Resets and restarts the controller and schedule after a serious failure.
+ */
 extern
 oserr_t
 EhciRestart(
     _In_ EhciController_t *Controller);
 
-/* EhciPortClearBits
- * Clears the given bits without touching the R/WC bits */
+/**
+ * @brief Clears the given port bits without clearing R/WC status bits.
+ */
 extern
 void
 EhciPortClearBits(
@@ -691,8 +716,9 @@ EhciPortClearBits(
     _In_ int                        Index,
     _In_ reg32_t                    Bits);
 
-/* EhciPortSetBits
- * Sets the given bits without touching the R/WC bits */
+/**
+ * @brief Sets the given port bits without clearing R/WC status bits.
+ */
 extern
 void
 EhciPortSetBits(
@@ -700,9 +726,9 @@ EhciPortSetBits(
     _In_ int                        Index,
     _In_ reg32_t                    Bits);
 
-/* EhciPortScan
- * Scans all ports of the controller for event-changes and handles
- * them accordingly. */
+/**
+ * @brief Scans the controller's ports and handles status changes.
+ */
 extern
 void
 EhciPortScan(
@@ -713,9 +739,9 @@ EhciPortScan(
  * Queue Head Methods
  *******************************************************************************/
 
-/* EHCIQHInitialize
- * This initiates any periodic scheduling information 
- * that might be needed */
+/**
+ * @brief Initializes the queue head, including periodic scheduling when needed.
+ */
 extern
 oserr_t
 EHCIQHInitialize(
@@ -725,16 +751,18 @@ EHCIQHInitialize(
         _In_ uint8_t               deviceAddress,
         _In_ uint8_t               endpointAddress);
 
-/* EHCIQHDump
- * Dumps the information contained in the queue-head by writing it to stdout */
+/**
+ * @brief Dumps the queue head fields for debugging.
+ */
 extern
 void
 EHCIQHDump(
     _In_ EhciController_t*          controller,
     _In_ EhciQueueHead_t*           qh);
 
-/* EHCIQHRestart
- * Restarts an interrupt QH by resetting it to it's start state */
+/**
+ * @brief Restarts an interrupt queue head from its initial state.
+ */
 extern
 void
 EHCIQHRestart(
@@ -745,55 +773,69 @@ EHCIQHRestart(
  * Transfer Descriptor Methods
  *******************************************************************************/
 
-/* EHCITDSetup
- * This allocates & initializes a TD for a setup transaction 
- * this is only used for control transactions */
+/**
+ * @brief Initializes a TD for the setup stage of a control transfer.
+ * The TD must already be allocated and linked.
+ *
+ * @param controller The EHCI controller.
+ * @param td The TD to initialize.
+ * @param element The setup packet's mapped buffer segments.
+ */
 extern void
 EHCITDSetup(
         _In_ EhciController_t*         controller,
         _In_ EhciTransferDescriptor_t* td,
-        _In_ uintptr_t                 dataAddress);
+        _In_ const struct TransferElement* element);
 
-/* EHCITDData
- * This allocates & initializes a TD for an i/o transaction 
- * and is used for control, bulk and interrupt */
+/**
+ * @brief Initializes a data TD for a control, bulk, or interrupt transfer.
+ * The TD must already be allocated and linked.
+ *
+ * @param controller The EHCI controller.
+ * @param td The TD to initialize.
+ * @param pid The transaction direction.
+ * @param element The mapped buffer segments and transaction length.
+ * @param toggle The initial data toggle.
+ */
 extern void
 EHCITDData(
         _In_ EhciController_t*         controller,
         _In_ EhciTransferDescriptor_t* td,
         _In_ uint8_t                   pid,
-        _In_ uintptr_t                 dataAddress,
-        _In_ size_t                    length,
+        _In_ const struct TransferElement* element,
         _In_ int                       toggle);
 
-/* EHCITDDump
- * Dumps the information contained in the descriptor by writing it. */
+/**
+ * @brief Dumps the transfer descriptor fields for debugging.
+ */
 extern
 void
 EHCITDDump(
     _In_ EhciController_t*          controller,
     _In_ EhciTransferDescriptor_t*  td);
 
-/* EHCITDVerify
- * Checks the transfer descriptors for errors and updates the transfer that is attached
- * with the bytes transferred and error status. */
+/**
+ * @brief Checks TD completion and updates the scan context with the transferred
+ * byte count and error status.
+ */
 extern void
 EHCITDVerify(
         _In_ struct HCIProcessReasonScanContext* scanContext,
         _In_ EhciTransferDescriptor_t*           td);
 
-/* EhciTdSynchronize
- * Synchronizes the toggle status of the transfer descriptor by retrieving
- * current and updating the pipe toggle. */
+/**
+ * @brief Updates the pipe's data toggle from the transfer descriptor.
+ */
 extern
 void
 EhciTdSynchronize(
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ EhciTransferDescriptor_t*  Td);
 
-/* EHCITDRestart
- * Restarts a transfer descriptor by resettings it's status and updating buffers if the
- * trasnfer type is an interrupt-transfer that uses circularbuffers. */
+/**
+ * @brief Resets the TD status and advances the buffer for interrupt transfers
+ * that use a circular buffer.
+ */
 extern
 void
 EHCITDRestart(
@@ -806,13 +848,16 @@ EHCITDRestart(
  *******************************************************************************/
 
 /**
- * @brief
- * @param controller
- * @param transfer
- * @param iTd
- * @param pid
- * @param addresses
- * @param lengths
+ * @brief Initializes a high-speed isochronous TD from physical buffer segments.
+ * The TD must already be allocated and linked.
+ *
+ * @param controller The EHCI controller.
+ * @param transfer The transfer with endpoint and packet-size settings.
+ * @param iTd The iTD to initialize.
+ * @param pid The isochronous transaction direction.
+ * @param addresses Physical addresses for up to eight transactions.
+ * @param lengths Transaction lengths. A zero address or length ends the list.
+ * @return true if the transactions fit in the iTD's seven buffer-page entries.
  */
 extern bool
 EHCITDIsochronous(
@@ -824,28 +869,32 @@ EHCITDIsochronous(
         _In_ const uint32_t*              lengths);
 
 /**
- * @brief
- * @param controller
- * @param td
+ * @brief Dumps the iTD's physical address and hardware fields.
+ *
+ * @param controller The EHCI controller with the iTD pool.
+ * @param td The iTD to dump.
  */
 extern void
 EHCIITDDump(
     _In_ EhciController_t*              controller,
     _In_ EhciIsochronousDescriptor_t*   td);
 
-/* EHCISiTDDump
- * Dumps the physical link and hardware fields of a split isochronous TD.
- * @param controller The EHCI controller owning the siTD pool.
- * @param siTD The siTD to dump. */
+/**
+ * @brief Dumps the physical link and hardware fields of a split isochronous TD.
+ *
+ * @param controller The EHCI controller with the siTD pool.
+ * @param siTD The siTD to dump.
+ */
 extern void
 EHCISiTDDump(
     _In_ EhciController_t*                 controller,
     _In_ EhciSplitIsochronousDescriptor_t* siTD);
 
 /**
- * @brief
- * @param scanContext
- * @param iTD
+ * @brief Updates the scan context when all iTD transactions have completed.
+ *
+ * @param scanContext Transfer byte counts, completion counts, and error status.
+ * @param iTD The iTD to inspect.
  */
 extern void
 EHCIITDVerify(
@@ -853,8 +902,9 @@ EHCIITDVerify(
         _In_ EhciIsochronousDescriptor_t*        iTD);
 
 /**
- * @brief
- * @param iTD
+ * @brief Restores the saved iTD transactions and clears software completion state.
+ *
+ * @param iTD The iTD to restart.
  */
 extern void
 EHCIITDRestart(
@@ -864,30 +914,33 @@ EHCIITDRestart(
  * Queue Methods
  *******************************************************************************/
     
-/* EhciGetStatusCode
- * Retrieves a status-code from a given condition code */
+/**
+ * @brief Converts an EHCI condition code to a USB transfer status.
+ */
 extern
 enum USBTransferCode
 EHCIErrorCodeToTransferStatus(
     _In_ int                    ConditionCode);
 
-/* EHCIConditionCodeToIndex
- * Converts a given condition bit-index to number */
+/**
+ * @brief Returns the one-based index of the highest set condition bit, or zero.
+ */
 extern
 int
 EHCIConditionCodeToIndex(
     _In_ unsigned               ConditionCode);
 
-/* EhciRingDoorbell
- * This functions rings the bell */
+/**
+ * @brief Requests asynchronous advance if queued work exists and no request is pending.
+ */
 extern
 void
 EhciRingDoorbell(
      _In_ EhciController_t*     Controller);
 
-/* EhciTransactionDispatch
- * Queues the transfer up in the controller hardware, after finalizing the
- * transactions and preparing them. */
+/**
+ * @brief Finishes preparing the transfer and queues it in the hardware schedule.
+ */
 extern void
 __DispatchTransfer(
     _In_ EhciController_t*      Controller,

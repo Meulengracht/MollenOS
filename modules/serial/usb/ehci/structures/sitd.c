@@ -13,9 +13,8 @@ static uint8_t
 __FirstSetSubframe(
         _In_ uint16_t frameMask)
 {
-    // The scheduler stores the selected start microframe(s) in FrameMask. EHCI
-    // uses the lowest reserved bit as the first split, while any remaining
-    // bits are either additional OUT start-splits or IN complete-splits.
+    // FrameMask must contain the reserved start-split microframes.
+    // The lowest set bit gives the first split.
     for (uint8_t i = 0; i < 8; i++) {
         if (frameMask & (1u << i)) {
             return i;
@@ -45,9 +44,8 @@ EHCISiTDInitialize(
         _In_ const uintptr_t*                  addresses,
         _In_ const uint32_t*                   lengths)
 {
-    // Keep scheduler metadata separate from the hardware fields. The common
-    // allocator initializes Object before this function runs, and clearing
-    // the complete descriptor must not discard its pool links or reservation.
+    // The allocator must initialize Object before this call. Save its pool
+    // links and reservation before clearing the descriptor.
     UsbSchedulerObject_t schedulerObject;
     uintptr_t            page0;
     uintptr_t            page1;
@@ -61,44 +59,36 @@ EHCISiTDInitialize(
     uint16_t             startBandwidth;
     uint16_t             completeBandwidth;
 
-    // Preserve common scheduler ownership metadata while clearing hardware
-    // fields. The split reservation itself is stored in EHCI-private fields.
+    // Save the scheduler data and the EHCI split reservation fields.
     schedulerObject = siTD->Object;
     completionFrameOffset = siTD->CompletionFrameOffset;
     startBandwidth = siTD->StartBandwidth;
     completeBandwidth = siTD->CompleteBandwidth;
     completeMask = siTD->FrameCompletionMask;
 
-    // A split isochronous TD carries one full/low-speed transaction and two
-    // buffer pages. Refuse layouts that cannot be represented by the siTD
-    // instead of truncating the physical buffer address.
+    // The siTD needs a nonempty buffer, a length that fits its 10-bit field,
+    // and at least one reserved start-split microframe.
     if (addresses == NULL || lengths == NULL || addresses[0] == 0 || lengths[0] == 0 ||
         lengths[0] > 0x3FF || frameMask == 0) {
         return false;
     }
 
-    // EHCI stores the first page base separately from the byte offset. A
-    // transfer may cross into exactly one following page, but a third page
-    // would require another descriptor.
+    // The buffer must fit in two pages. EHCI stores the first page base and
+    // byte offset separately. A third page needs another descriptor.
     page0 = addresses[0] & ~((uintptr_t)0xFFF);
     page1 = (addresses[0] + lengths[0] - 1) & ~((uintptr_t)0xFFF);
     if (page1 != page0 && page1 - page0 > 0x1000) {
         return false;
     }
 
-    // OUT splits reserve one or more consecutive start-split microframes and
-    // never use a complete-split; IN splits reserve a single start-split
-    // followed by a complete-split window. Mixing the two here would make
-    // the controller run complete-split transactions on an OUT endpoint or
-    // silently truncate a multi-microframe OUT payload.
+    // OUT needs consecutive start-split microframes and no complete-splits.
+    // IN needs one start-split followed by a complete-split window.
     startSubframe = __FirstSetSubframe(frameMask);
     startMask = (uint8_t)frameMask;
     if (isOut) {
         transactionCount = __PopCount8(startMask);
         completeMask = 0;
-        // The hardware T-Count/Position fields only describe a single,
-        // contiguous run of start-split microframes; reject anything else
-        // rather than programming a schedule the TT cannot execute.
+        // T-Count/Position require consecutive start-split microframes.
         if (startMask != (uint8_t)(((1u << transactionCount) - 1) << startSubframe)) {
             return false;
         }
@@ -119,10 +109,8 @@ EHCISiTDInitialize(
     siTD->FrameStartMask = startMask;
     siTD->FrameCompletionMask = completeMask;
 
-    // The first siTD word contains endpoint characteristics only. Transfer
-    // length, active state, and IOC belong to the transfer-state word below.
-    // Hub and port fields identify the transaction translator that converts
-    // the high-speed split schedule into the full/low-speed bus transaction.
+    // Flags describes the endpoint. Hub and port select the transaction
+    // translator. Transfer length, active state, and IOC go in Status below.
     siTD->Flags = EHCI_siTD_DEVADDR(transfer->Address.DeviceAddress) |
                   EHCI_siTD_EPADDR(transfer->Address.EndpointAddress) |
                   EHCI_siTD_HUBADDR(transfer->Address.HubAddress) |
@@ -131,19 +119,17 @@ EHCISiTDInitialize(
         siTD->Flags |= EHCI_siTD_IN;
     }
 
-    // The active and IOC bits are published together only after all buffer
-    // pointers have been populated. This prevents EHCI from fetching a
-    // partially initialized descriptor.
+    // Finish setting the buffer pointers before linking this active siTD
+    // into the schedule, so EHCI cannot read an incomplete descriptor.
     siTD->Status = EHCI_siTD_XFERLENGTH(lengths[0]) |
                    EHCI_siTD_ACTIVE |
                    (1u << 31);
     siTD->Bp0AndOffset = EHCI_siTD_BUFFER(page0) |
                          EHCI_siTD_OFFSET(addresses[0]);
 
-    // T-Count and Transaction Position are only meaningful for OUT: they tell
-    // the TT how many consecutive start-split bus transactions this single
-    // descriptor represents. They are reserved for IN, where the transfer
-    // length alone drives how many complete-splits are needed.
+    // For OUT, T-Count and Transaction Position describe the consecutive
+    // start-splits. These fields are reserved for IN, where the transfer
+    // length determines the number of complete-splits.
     siTD->Bp1AndInfo = EHCI_siTD_BUFFER(page1);
     if (isOut) {
         siTD->Bp1AndInfo |= EHCI_siTD_TCOUNT(transactionCount) | EHCI_siTD_POSITION_ALL;
@@ -161,8 +147,8 @@ EHCISiTDInitialize(
     }
 #endif
 
-    // Keep an ownership-free copy of the initial state so periodic retries
-    // can restore the descriptor without rebuilding the transfer metadata.
+    // Save the initial hardware fields for periodic retries.
+    // Scheduler data stays in Object.
     siTD->OriginalFlags = siTD->Flags;
     siTD->OriginalStatus = siTD->Status;
     siTD->OriginalBp0AndOffset = siTD->Bp0AndOffset;
@@ -178,8 +164,7 @@ EHCISiTDInitialize(
     {
         uintptr_t physical = 0;
 
-        // Resolve the DMA address through the scheduler rather than printing the
-        // virtual descriptor address; EHCI consumes the physical link value.
+        // Get the physical descriptor address used by EHCI from the scheduler.
         UsbSchedulerGetPoolElement(
             controller->Base.Scheduler,
             EHCI_siTD_POOL,
@@ -202,24 +187,22 @@ EHCISiTDVerify(
 {
     uint8_t status;
 
-    // The common manager may scan a descriptor more than once while processing
-    // periodic transfers. Processed descriptors must not increment completion
-    // counters a second time.
+    // A periodic transfer may be scanned again after completion. Count the
+    // descriptor as executed, but only add its bytes and process it once.
     if (siTD->Object.Flags & USB_ELEMENT_PROCESSED) {
         scanContext->ElementsExecuted++;
         return;
     }
 
-    // EHCI reports the split transaction condition code in the low status
-    // byte. An active bit means the controller still owns this descriptor.
+    // Wait for EHCI to clear the active bit before reading the result.
+    // Split transaction status is in the low byte.
     status = (uint8_t)(siTD->Status & 0xFF);
     if (status & EHCI_siTD_ACTIVE) {
         return;
     }
 
-    // The status byte contains independent flags. Split-state and missed-
-    // microframe bits are informational; only transaction, babble, and data
-    // buffer errors change the transfer result.
+    // Status bits are independent. Only transaction, babble, and data buffer
+    // errors change the result here. Ignore split-state and missed-microframe.
     if (status & EHCI_TD_XACT) {
         scanContext->Result = USBTRANSFERCODE_NORESPONSE;
     } else if (status & EHCI_TD_BABBLE) {
@@ -228,6 +211,8 @@ EHCISiTDVerify(
         scanContext->Result = USBTRANSFERCODE_BUFFERERROR;
     }
 
+    scanContext->BytesTransferred += ((siTD->OriginalStatus >> 16) & 0x3FF) -
+        ((siTD->Status >> 16) & 0x3FF);
     siTD->Object.Flags |= USB_ELEMENT_PROCESSED;
     scanContext->ElementsProcessed++;
     scanContext->ElementsExecuted++;
@@ -237,8 +222,8 @@ void
 EHCISiTDRestart(
         _In_ EhciSplitIsochronousDescriptor_t* siTD)
 {
-    // Clear software completion state and restore every hardware-owned field
-    // from the original snapshot before giving the siTD back to EHCI.
+    // Clear the completion flag and restore the saved hardware fields
+    // before scheduling the siTD again.
     siTD->Object.Flags &= ~USB_ELEMENT_PROCESSED;
     siTD->Flags = siTD->OriginalFlags;
     siTD->Status = siTD->OriginalStatus;

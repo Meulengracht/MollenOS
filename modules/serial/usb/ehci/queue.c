@@ -65,8 +65,8 @@ EhciQueueResetInternalData(
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, 
         EHCI_TD_NULL, (uint8_t**)&NullTd, &NullTdPhysical);
     
-    // Initialize the dummy (async) queue-head that we use for end-link
-    // It must be a circular queue, so must always point back to 
+    // The asynchronous queue must be circular. Point the dummy queue head
+    // back to itself while the queue is empty.
     AsyncQh->Flags                      = EHCI_QH_RECLAMATIONHEAD | EHCI_QH_HIGHSPEED | 
         EHCI_QH_EPADDR(1) | EHCI_QH_MAXLENGTH(64);
     AsyncQh->Object.Flags               |= EHCI_LINK_QH;
@@ -95,9 +95,9 @@ oserr_t
 EhciQueueInitialize(
     _In_ EhciController_t*  Controller)
 {
-    // Variables
     UsbSchedulerSettings_t Settings;
-    unsigned int SchedulerFlags = 0;
+    oserr_t                oserr;
+    unsigned int           SchedulerFlags = 0;
 
     // Trace
     TRACE("EhciQueueInitialize()");
@@ -148,17 +148,17 @@ EhciQueueInitialize(
         EHCI_siTD_START, offsetof(EhciSplitIsochronousDescriptor_t, Link), 
         offsetof(EhciSplitIsochronousDescriptor_t, Link), offsetof(EhciSplitIsochronousDescriptor_t, Object));
 
-    // Add FSTNs for full/low-speed periodic schedules that need a separate
-    // complete-split path after a frame boundary. The pool is reserved here;
-    // frame-list insertion is enabled only once both scheduler paths are
-    // available for the descriptor.
+    // Reserve FSTNs for full/low-speed periodic schedules whose complete-split
+    // path crosses a frame boundary. Both scheduler paths must be available
+    // before an FSTN can be inserted into the frame list.
     UsbSchedulerSettingsAddPool(&Settings, sizeof(EhciFSTN_t), EHCI_FSTN_ALIGNMENT, EHCI_FSTN_COUNT,
         EHCI_FSTN_START, offsetof(EhciFSTN_t, PathPointer),
         offsetof(EhciFSTN_t, PathPointer), offsetof(EhciFSTN_t, Object));
     
     // Create the scheduler
     TRACE(" > Initializing scheduler");
-    oserr_t oserr = UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    Settings.DmaContext = Controller->Base.DmaContext;
+    oserr = UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -171,26 +171,31 @@ oserr_t
 EhciQueueReset(
     _In_ EhciController_t*  Controller)
 {
-    // Debug
     TRACE("EhciQueueReset()");
 
-    // Stop Controller
-    EhciHalt(Controller);
+    if (EhciHalt(Controller) != OS_EOK) {
+        return OS_EBUSY;
+    }
+    
     UsbManagerClearTransfers(&Controller->Base);
+    if (Controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
+
     return EhciQueueResetInternalData(Controller);
 }
 
 oserr_t
 EhciQueueDestroy(
-    _In_ EhciController_t* Controller)
+    _In_ EhciController_t* controller)
 {
-    // Debug
-    TRACE("EhciQueueDestroy()");
-
-    // Reset first
-    EhciQueueReset(Controller);
-    UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OS_EOK;
+    // Hardware must be stopped before calling this function. Keep the pool
+    // while any transfer still uses DMA.
+    UsbManagerClearTransfers(&controller->Base);
+    if (controller->Base.TransactionList.head != NULL) {
+        return OS_EBUSY;
+    }
+    return UsbSchedulerDestroy(&controller->Base.Scheduler);
 }
 
 int
@@ -201,7 +206,7 @@ EHCIConditionCodeToIndex(
     unsigned Cc = ConditionCode;
     int bCount  = 0;
 
-    // Shift untill we reach 0, count number of shifts
+    // Count the shifts needed to reach zero.
     for (; Cc != 0;) {
         bCount++;
         Cc >>= 1;
@@ -213,7 +218,6 @@ enum USBTransferCode
 EHCIErrorCodeToTransferStatus(
     _In_ int ConditionCode)
 {
-    // One huuuge if/else
     if (ConditionCode == 0) {
         return USBTRANSFERCODE_SUCCESS;
     } else if (ConditionCode == 4) {
@@ -275,6 +279,15 @@ EhciEnableScheduler(
     reg32_t Status  = READ_VOLATILE(Controller->OpRegisters->UsbStatus);
     reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
 
+    // If cancellation yields while stopping the controller, a new request
+    // can be linked here. Save its schedule enable bit for the restart so
+    // the controller can finish halting.
+    if (Controller->ResumePending) {
+        Controller->ResumeCommand |= (Type == USBTRANSFER_TYPE_CONTROL || Type == USBTRANSFER_TYPE_BULK) ?
+            EHCI_COMMAND_ASYNC_ENABLE : EHCI_COMMAND_PERIODIC_ENABLE;
+        return;
+    }
+
     // Sanitize the current status
     if (Type == USBTRANSFER_TYPE_CONTROL || Type == USBTRANSFER_TYPE_BULK) {
         if (Status & EHCI_STATUS_ASYNC_ACTIVE) {
@@ -321,12 +334,20 @@ void
 EhciRingDoorbell(
     _In_ EhciController_t*  Controller)
 {
-    // Do not ring the doorbell if the schedule is not running
-    if (READ_VOLATILE(Controller->OpRegisters->UsbStatus) & EHCI_STATUS_ASYNC_ACTIVE) {
-        reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
-        WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, 
-            Command | EHCI_COMMAND_IOC_ASYNC_DOORBELL);
+    reg32_t command;
+
+    if (Controller->AdvancePending || Controller->AdvanceQueued == Controller->AdvanceIssued) {
+        return;
     }
+    
+    Controller->AdvanceIssued = Controller->AdvanceQueued;
+    Controller->AdvancePending = true;
+    
+    // The schedule must stay enabled until the advance completes. Make link
+    // removals visible to hardware before writing the doorbell register.
+    dma_wmb();
+    command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
+    WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, command | EHCI_COMMAND_IOC_ASYNC_DOORBELL);
 }
 
 bool
@@ -340,7 +361,7 @@ HCIProcessElement(
     UsbSchedulerPool_t* iTDPool = &controller->Scheduler->Settings.Pools[EHCI_iTD_POOL];
     UsbSchedulerPool_t* siTDPool = &controller->Scheduler->Settings.Pools[EHCI_siTD_POOL];
     UsbSchedulerPool_t* pool  = NULL;
-    uint8_t* asyncRootElement = NULL;
+    uint8_t*            asyncRootElement = NULL;
 
     UsbSchedulerGetPoolFromElement(controller->Scheduler, element, &pool);
     assert(pool != NULL);
@@ -376,6 +397,12 @@ HCIProcessElement(
             } else {
                 EHCIITDVerify(scanContext, (EhciIsochronousDescriptor_t*)element);
             }
+            
+            // Completed bytes must be contiguous from the start of the mapping.
+            // Stop at the first active, short or failed packet, even if hardware
+            // has processed later packets independently.
+            return ((*USB_ELEMENT_OBJECT(pool, element)).Flags & USB_ELEMENT_PROCESSED) != 0 &&
+                !scanContext->Short && scanContext->Result == USBTRANSFERCODE_SUCCESS;
         } break;
         
         case HCIPROCESS_REASON_RESET: {
@@ -393,10 +420,8 @@ HCIProcessElement(
 
         case HCIPROCESS_REASON_LINK: {
             UsbManagerTransfer_t* transfer = context;
-            // Periodic descriptors and asynchronous QHs share the scheduler,
-            // but their hardware linking rules differ. Only QHs enter the
-            // asynchronous reclamation list; iTDs and siTDs enter the frame
-            // list through the periodic linker.
+            // Only asynchronous QHs use the reclamation list. Periodic QHs,
+            // iTDs and siTDs enter the frame list through the periodic linker.
             if (pool == qhPool || pool == iTDPool || pool == siTDPool) {
                 spinlock_acquire(&controller->Lock);
                 EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 0);
@@ -467,9 +492,8 @@ HCIProcessElement(
             if (pool == siTDPool) {
                 EhciSplitIsochronousDescriptor_t* siTD = (EhciSplitIsochronousDescriptor_t*)element;
                 if (siTD->StartBandwidth != 0 || siTD->CompleteBandwidth != 0) {
-                    // Split reservations are not represented by the generic
-                    // single-phase bandwidth flag. Release both phases before
-                    // returning the siTD to its DMA pool.
+                    // The generic bandwidth flag covers one phase. Release
+                    // both split phases before returning the siTD to its DMA pool.
                     UsbSchedulerFreeSplitBandwidth(
                             controller->Scheduler,
                             element,

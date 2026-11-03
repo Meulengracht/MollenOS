@@ -16,8 +16,7 @@
  *
  *
  * USB Controller Manager
- * - Contains the implementation of a shared controller manager
- *   for all the usb drivers
+ * - Shared controller management for the USB drivers.
  */
 
 //#define __TRACE
@@ -25,6 +24,7 @@
 #include <assert.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
+#include <ddk/barrier.h>
 #include <ds/hashtable.h>
 #include <event.h>
 #include "hci.h"
@@ -68,8 +68,7 @@ static list_t      g_destroyPending = LIST_INIT;
 oserr_t
 UsbManagerInitialize(void)
 {
-    // Create the event queue and wait for usb services, give it
-    // up to 5 seconds before appearing
+    // Wait up to 5 seconds for the USB service before starting the manager.
     if (WaitForUsbService(5000) != OS_EOK) {
         ERROR(" => Failed to start usb manager, as usb service never became available.");
         return OS_ETIMEOUT;
@@ -100,9 +99,8 @@ UsbManagerCreateController(
     UsbManagerController_t* controller;
     int                     opt = 1;
 
-    // Register the monitor before publishing a controller that depends on it.
-    if ((kind == USBCONTROLLER_KIND_OHCI || kind == USBCONTROLLER_KIND_XHCI) &&
-        !g_hciCheckupRegistered) {
+    // Queue the monitor before we add a controller to the registry.
+    if (!g_hciCheckupRegistered) {
         if (usched_job_queue(__ControllerMonitor, NULL) == UUID_INVALID) {
             return NULL;
         }
@@ -129,14 +127,14 @@ UsbManagerCreateController(
     );
     spinlock_init(&controller->Lock);
 
-    // create the event descriptor to allow listening for interrupts
+    // Use an event descriptor to receive interrupt notifications.
     controller->event_descriptor = eventd(0, EVT_RESET_EVENT);
     if (controller->event_descriptor < 0) {
         free(controller);
         return NULL;
     }
 
-    // add the event descriptor to the gracht server, and then we would like to set it non-blocking
+    // Add the descriptor to the gracht server and make reads non-blocking.
     ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
                IOSET_ADD, controller->event_descriptor,
                &(struct ioset_event){ .data.context = controller, .events = IOSETSYN });
@@ -164,13 +162,26 @@ UsbManagerRegisterController(
     return oserr;
 }
 
+bool
+UsbManagerCompleteControllerInitialization(
+    _In_ UsbManagerController_t* controller)
+{
+    // If a fatal interrupt requested destruction while setup waited for hardware,
+    // leave the controller in that state. It must stay on the cleanup queue and
+    // reject new requests even though initialization succeeded.
+    if (controller->State.Phase != USB_CONTROLLER_INITIALIZING) {
+        return false;
+    }
+    controller->State.Phase = USB_CONTROLLER_READY;
+    return true;
+}
+
 void
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller)
 {
-    if (controller->DestroyPending) {
+    if (controller->State.Phase >= USB_CONTROLLER_DESTROY_PENDING) {
         list_remove(&g_destroyPending, &controller->DestroyElement);
-        controller->DestroyPending = false;
     }
 
     // clear the lists
@@ -187,7 +198,7 @@ UsbManagerDestroyController(
     // clean up resources
     hashtable_destroy(&controller->Endpoints);
 
-    // remove the event descriptor to the gracht server
+    // Remove the event descriptor from the gracht server.
     ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
                IOSET_DEL, controller->event_descriptor, NULL);
     close(controller->event_descriptor);
@@ -200,13 +211,38 @@ void
 UsbManagerDeferControllerDestroy(
     _In_ UsbManagerController_t* controller)
 {
-    // Only teardown touches this queue. Keep the original controller so its
-    // cleared resource slots describe exactly what remains after partial cleanup.
-    if (!controller->DestroyPending) {
+    // Only controller cleanup uses this queue. Keep the same controller between
+    // attempts so its cleared fields show which resources have been released.
+    if (controller->State.Phase < USB_CONTROLLER_DESTROY_PENDING) {
         ELEMENT_INIT(&controller->DestroyElement, 0, controller);
         list_append(&g_destroyPending, &controller->DestroyElement);
-        controller->DestroyPending = true;
+        controller->State.Phase = USB_CONTROLLER_DESTROY_PENDING;
     }
+}
+
+bool
+UsbManagerBeginControllerDestroy(
+    _In_ UsbManagerController_t* controller)
+{
+    // Stop new requests even if an operation is still running. If destruction
+    // was already requested, keep its queue entry and let that attempt finish.
+    UsbManagerDeferControllerDestroy(controller);
+    if (controller->State.Phase == USB_CONTROLLER_DESTROYING ||
+        controller->State.OperationsInFlight != 0) {
+        return false;
+    }
+
+    controller->State.Phase = USB_CONTROLLER_DESTROYING;
+    return true;
+}
+
+void
+UsbManagerRetryControllerDestroy(
+    _In_ UsbManagerController_t* controller)
+{
+    // The current cleanup attempt must call this before returning for a retry.
+    // Keep new requests blocked and the queue entry linked until cleanup finishes.
+    controller->State.Phase = USB_CONTROLLER_DESTROY_PENDING;
 }
 
 static void
@@ -215,10 +251,10 @@ __RetryControllerDestruction(void)
     element_t* node;
     size_t     remaining;
 
-    // IPC can yield while teardown runs. Rotate before calling out and fetch
-    // the current head each time: another request may remove any queued owner.
-    // Do not keep a next pointer across that call or modify the registry from
-    // its enumeration callback. Bound each tick by the initial pending count.
+    // Destruction can yield during IPC, allowing another request to remove a
+    // queued controller. Move each entry to the tail before the call and read
+    // the head again afterwards. A saved next pointer may no longer be valid.
+    // Run this outside the registry callback and try each pending entry once.
     remaining = g_destroyPending.count;
     while (remaining-- != 0 && g_destroyPending.head != NULL) {
         node = g_destroyPending.head;
@@ -235,11 +271,14 @@ __CheckController(
     _In_ void*       context)
 {
     const struct usb_controller_device_index* deviceIndex = element;
+    UsbManagerController_t*                   controller = deviceIndex->pointer;
     _CRT_UNUSED(index);
     _CRT_UNUSED(context);
 
-    if (!deviceIndex->pointer->DestroyPending) {
-        HciTimerCallback(deviceIndex->pointer);
+    if (controller->State.Phase == USB_CONTROLLER_READY) {
+        controller->State.OperationsInFlight++;
+        HciTimerCallback(controller);
+        controller->State.OperationsInFlight--;
     }
 }
 
@@ -351,8 +390,7 @@ void ctt_usbhost_reset_endpoint_invocation(
         ctt_usbhost_reset_endpoint_response(message, OS_ENOENT);
         return;
     }
-    // Toggle state and any hardware-specific halt/dequeue recovery is handled
-    // by the HCI implementation behind this callback.
+    // The HCI resets the toggle and handles any halt or dequeue recovery.
     err = HCIEndpointReset(controller, &address);
     ctt_usbhost_reset_endpoint_response(message, err);
 }
@@ -403,7 +441,7 @@ __QueueWaitingTransfers(
     foreach(node, &controller->TransactionList) {
         UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)node->value;
 
-        if (transfer->State == USBTRANSFER_STATE_WAITING) {
+        if (!transfer->Submitting && transfer->State == USBTRANSFER_STATE_WAITING) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
                 HCITransferQueueIsochronous(transfer);
             } else {
@@ -421,15 +459,15 @@ __FinalizeTransfer(
     bool isPartial = false;
     TRACE("__FinalizeTransfer()");
 
-    // Only async (control/bulk) transfers can be partially allocated and need
-    // re-queuing of the remaining elements. Periodic transfers only reach here
-    // through cancellation (dequeue/detach), which is always terminal.
+    // Control and bulk transfers may need another group of descriptors.
+    // Periodic transfers reach here only after cancellation or detach, so they
+    // must not be queued again.
     if (__Transfer_IsAsync(transfer)) {
         isPartial = __Transfer_IsPartial(transfer);
     }
 
-    // We don't allocate the queue head before the transfer
-    // is done, we might not be done yet
+    // If only part of the transfer has completed, queue the remaining elements
+    // before notifying the caller.
     if (isPartial && transfer->ResultCode == USBTRANSFERCODE_SUCCESS) {
         HCITransferQueue(transfer);
         return OS_EINCOMPLETE;
@@ -439,45 +477,29 @@ __FinalizeTransfer(
     return OS_EOK;
 }
 
-static void
-__ClearTransfer(
-    _In_ element_t* item,
-    _In_ void*      context)
-{
-    UsbManagerController_t* controller = context;
-    UsbManagerTransfer_t*   transfer   = (UsbManagerTransfer_t*)item->value;
-
-    // Mark the transfer as cancelled, to let users know that their request
-    // cannot be met at this time.
-    transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
-
-    // finalize the transfer
-    if (HCITransferFinalize(controller, transfer, false) != OS_EOK) {
-        return;
-    }
-    (void)__FinalizeTransfer(transfer);
-    USBTransferDestroy(transfer);
-}
-
 void
 UsbManagerClearTransfers(
     _In_ UsbManagerController_t* controller)
 {
     UsbManagerTransfer_t* transfer;
 
-    if (controller->DmaContext == NULL) {
-        list_clear(&controller->TransactionList, __ClearTransfer, controller);
-        return;
-    }
-
     while (controller->TransactionList.head != NULL) {
         transfer = controller->TransactionList.head->value;
+        if (transfer->Submitting) {
+            return;
+        }
+
         transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
         transfer->State = USBTRANSFER_STATE_CLEANUP;
         
         if (HCITransferFinalize(controller, transfer, false) != OS_EOK) {
             return;
         }
+
+        if (USBTransferDmaComplete(transfer, transfer->Dma.Completed) != OS_EOK) {
+            return;
+        }
+        
         USBTransferNotify(transfer);
         if (USBTransferDestroy(transfer) != OS_EOK) {
             return;
@@ -492,6 +514,10 @@ __ScheduleTransfer(
     _In_ void*                   context)
 {
     _CRT_UNUSED(context);
+
+    if (transfer->Submitting) {
+        return ITERATOR_CONTINUE;
+    }
 
     if (transfer->State == USBTRANSFER_STATE_UNSCHEDULE) {
         TRACE("__ScheduleTransfer: [unschedule] transferID=%u", transfer->ID);
@@ -510,6 +536,7 @@ __ScheduleTransfer(
                 HCIProcessElement,
                 transfer
         );
+        transfer->Dma.Linked = true;
         transfer->State = USBTRANSFER_STATE_QUEUED;
     }
     return ITERATOR_CONTINUE;
@@ -527,20 +554,26 @@ UsbManagerScheduleTransfers(
 }
 
 static int
+__FinishLegacyTransfer(
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t* transfer);
+
+static int
 __ProcessCleanup(
     _In_ UsbManagerController_t* controller,
     _In_ UsbManagerTransfer_t*   transfer)
 {
-    if (transfer->Dma.Context != NULL) {
-        // DMA controllers also own descriptors kept between submissions.
-        if (HCITransferFinalize(controller, transfer, false) != OS_EOK) {
-            return ITERATOR_CONTINUE;
-        }
+    if (controller->Kind != USBCONTROLLER_KIND_XHCI) {
+        return __FinishLegacyTransfer(controller, transfer);
     }
 
-    // If there is an endpoint descriptor, then we free it and mark
-    // it NULL to indicate a new must be allocated. We do this for convenience
-    // to avoid having extra code to detect whether we have to allocate one.
+    // Let the HCI release descriptors kept between periodic submissions.
+    if (HCITransferFinalize(controller, transfer, false) != OS_EOK) {
+        return ITERATOR_CONTINUE;
+    }
+
+    // Clear RootElement after freeing the chain so the next submission allocates
+    // a new descriptor.
     if (transfer->RootElement != NULL) {
         UsbManagerChainEnumerate(
                 controller,
@@ -553,9 +586,8 @@ __ProcessCleanup(
         transfer->RootElement = NULL;
     }
 
-    // Try to finalize the transfer, if this does not return OS_EOK,
-    // it means the transfer wasn't finished, but maybe only partially
-    // finished, so we cannot clean it.
+    // A partially completed transfer may have been queued again. Only remove
+    // it when finalization returns OS_EOK.
     if (__FinalizeTransfer(transfer) == OS_EOK) {
         return ITERATOR_REMOVE;
     }
@@ -570,20 +602,18 @@ __TransferCompleted(
 {
     TRACE("__TransferCompleted(transfer=%u, result=%u)", transfer->ID, scanContext->Result);
 
-    // If the transfer is in error-state, then it's done.
+    // An error ends the transfer.
     if (scanContext->Result != USBTRANSFERCODE_SUCCESS) {
         return true;
     }
 
-    // If the transfer was short, then it's by default also done. Nothing
-    // more to be executed at this point.
+    // A short packet also ends the transfer.
     TRACE("__TransferCompleted: short=%u", scanContext->Short);
     if (scanContext->Short) {
         return true;
     }
 
-    // If the transfer is OK and not short, then check whether all the
-    // elements has executed
+    // Otherwise, all elements must have executed.
     TRACE("__TransferCompleted: executed=%u/%u", scanContext->ElementsExecuted, transfer->ChainLength);
     if (scanContext->ElementsExecuted == transfer->ChainLength) {
         return true;
@@ -608,6 +638,154 @@ __ResetTransfer(
 }
 
 static int
+__RestartLegacyTransfer(
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    oserr_t status;
+
+    status = USBTransferDmaPrepare(transfer);
+    if (transfer->State == USBTRANSFER_STATE_CLEANUP) {
+        return ITERATOR_CONTINUE;
+    }
+
+    if (status == OS_EOK) {
+        status = transfer->Type == USBTRANSFER_TYPE_ISOC ?
+            HCITransferQueueIsochronous(transfer) : HCITransferQueue(transfer);
+    }
+
+    if (status != OS_EOK) {
+        // Keep the inactive descriptors and mapping for another attempt.
+        // The caller was already notified, so retry without sending it again.
+        if (transfer->State != USBTRANSFER_STATE_CLEANUP) {
+            transfer->State = USBTRANSFER_STATE_RESTART;
+        }
+        return ITERATOR_CONTINUE;
+    }
+
+    transfer->Flags &= ~__USBTRANSFER_FLAG_NOTIFIED;
+    return ITERATOR_CONTINUE;
+}
+
+static int
+__FinishLegacyTransfer(
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer)
+{
+    bool    periodic = __Transfer_IsPeriodic(transfer);
+    bool    success = transfer->ResultCode == USBTRANSFERCODE_SUCCESS;
+    oserr_t status;
+
+    if (!periodic && success && !__Transfer_IsPartial(transfer) &&
+        !(transfer->Flags & __USBTRANSFER_FLAG_SHORT)) {
+        status = USBTransferDmaComplete(transfer, transfer->Dma.Completed);
+        if (status != OS_EOK) {
+            return ITERATOR_CONTINUE;
+        }
+        USBTransferNotify(transfer);
+    }
+
+    // Successful periodic packets leave inactive descriptors linked for reuse.
+    // Async chains and cancellation must pass the HCI's unlink/stop checks first.
+    if (!periodic || !success ||
+        ((transfer->Flags & __USBTRANSFER_FLAG_SHORT) && transfer->ChainLength > 1)) {
+        status = HCITransferFinalize(controller, transfer, false);
+        if (status != OS_EOK) {
+            return ITERATOR_CONTINUE;
+        }
+    }
+
+    if (!periodic && success && __Transfer_IsPartial(transfer)) {
+        // The buffer stays mapped for the device while we allocate the next
+        // group of descriptors. There is no need to map or sync it again here.
+        status = HCITransferQueue(transfer);
+        if (status != OS_EOK) {
+            transfer->ResultCode = USBTRANSFERCODE_INVALID;
+            transfer->State = USBTRANSFER_STATE_FINISHING;
+        }
+        return ITERATOR_CONTINUE;
+    }
+
+    status = USBTransferDmaComplete(transfer, transfer->Dma.Completed);
+    if (status != OS_EOK) {
+        return ITERATOR_CONTINUE;
+    }
+
+    if (!(transfer->Flags & __USBTRANSFER_FLAG_NOTIFIED)) {
+        if (transfer->ResultCode != USBTRANSFERCODE_NAK) {
+            USBTransferNotify(transfer);
+        }
+        transfer->Flags |= __USBTRANSFER_FLAG_NOTIFIED;
+    }
+
+    if (!periodic) {
+        return ITERATOR_REMOVE;
+    }
+    
+    // If notification yielded to cancellation or controller removal, leave the
+    // transfer for cleanup. It must be unlinked before another packet is queued.
+    if (transfer->ResultCode == USBTRANSFERCODE_CANCELLED ||
+        controller->State.Phase >= USB_CONTROLLER_DESTROY_PENDING) {
+        transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+        return transfer->RootElement == NULL ? ITERATOR_REMOVE : ITERATOR_CONTINUE;
+    }
+    
+    if (transfer->ResultCode == USBTRANSFERCODE_STALL) {
+        transfer->State = USBTRANSFER_STATE_STALLED;
+        return ITERATOR_CONTINUE;
+    }
+    
+    transfer->State = USBTRANSFER_STATE_RESTART;
+    return __RestartLegacyTransfer(transfer);
+}
+
+static int
+__CheckLegacyTransfer(
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer)
+{
+    struct HCIProcessReasonScanContext context = {
+        .Transfer = transfer,
+        .Result = USBTRANSFERCODE_SUCCESS
+    };
+
+    dma_rmb();
+    UsbManagerChainEnumerate(
+        controller,
+        transfer->RootElement,
+        USB_CHAIN_DEPTH,
+        HCIPROCESS_REASON_SCAN,
+        HCIProcessElement,
+        &context
+    );
+    
+    // Each descriptor is counted once. Save the completed byte count before
+    // calling DMA completion, so a failed call does not lose it on the next scan.
+    transfer->Dma.Completed += context.BytesTransferred;
+    
+    if (__Transfer_IsAsync(transfer)) {
+        transfer->TData.Async.ElementsCompleted += context.ElementsProcessed;
+        transfer->TData.Async.BytesTransferred += context.BytesTransferred;
+    }
+    
+    if (!__TransferCompleted(transfer, &context)) {
+        return ITERATOR_CONTINUE;
+    }
+    
+    transfer->ResultCode = context.Result;
+    if (context.Short) {
+        transfer->Flags |= __USBTRANSFER_FLAG_SHORT;
+    }
+
+    if ((context.Result != USBTRANSFERCODE_SUCCESS || context.Short) && context.ElementsProcessed != 0) {
+        UsbManagerSetToggle(controller, &transfer->Address, context.LastToggle);
+    }
+    
+    transfer->State = USBTRANSFER_STATE_FINISHING;
+    return __FinishLegacyTransfer(controller, transfer);
+}
+
+static int
 __CheckTransfer(
     _In_ UsbManagerController_t* controller,
     _In_ UsbManagerTransfer_t*   transfer)
@@ -617,6 +795,10 @@ __CheckTransfer(
             .Result = USBTRANSFERCODE_SUCCESS
     };
     
+    if (controller->Kind != USBCONTROLLER_KIND_XHCI) {
+        return __CheckLegacyTransfer(controller, transfer);
+    }
+
     if (transfer->Dma.HardwareActive) {
         return ITERATOR_CONTINUE;
     }
@@ -632,13 +814,13 @@ __CheckTransfer(
     );
     TRACE("__ProcessTransfer: finished scan status=%u", context.Result);
 
-    if (transfer->Dma.Context != NULL && __TransferCompleted(transfer, &context)) {
+    if (__TransferCompleted(transfer, &context)) {
         if (USBTransferDmaComplete(transfer, context.BytesTransferred) != OS_EOK) {
             return ITERATOR_CONTINUE;
         }
     }
 
-    // Increase metrics for async transfers, but only if it doesn't need to be re-executed
+    // Count completed elements and bytes unless a toggle mismatch requires a retry.
     if (__Transfer_IsAsync(transfer) && context.Result != USBTRANSFERCODE_DATATOGGLEMISMATCH) {
         transfer->TData.Async.ElementsCompleted += context.ElementsProcessed;
         transfer->TData.Async.BytesTransferred += context.BytesTransferred;
@@ -656,22 +838,20 @@ __CheckTransfer(
         return ITERATOR_CONTINUE;
     }
 
-    // Update result-code for transfer, it's needed to report back to
-    // the subscribers, and determine completion status.
+    // Save the result for completion checks and notification.
     transfer->ResultCode = context.Result;
     if (context.Short) {
         transfer->Flags |= __USBTRANSFER_FLAG_SHORT;
     }
 
-    // On error transfers, or short transfers, the toggle may end up
-    // being invalid, if some processing has taken place. Update the stored
-    // toggle in preparation of failing transfers.
+    // If an error or short packet ended the transfer after some elements ran,
+    // update the stored toggle to match the last processed element.
     if ((context.Result != USBTRANSFERCODE_SUCCESS || context.Short) &&
         context.ElementsProcessed > 0) {
          UsbManagerSetToggle(controller, &transfer->Address, context.LastToggle);
     }
 
-    if (__Transfer_IsPeriodic(transfer) && transfer->Dma.Context != NULL) {
+    if (__Transfer_IsPeriodic(transfer)) {
         if (context.Result != USBTRANSFERCODE_NAK) {
             USBTransferNotify(transfer);
         }
@@ -695,36 +875,13 @@ __CheckTransfer(
         return ITERATOR_CONTINUE;
     }
 
-    // For INT and ISOC we support restarting of transfers.
-    if (__Transfer_IsPeriodic(transfer)) {
-        // In case of stall we need should not restart the transfer, and instead let it sit untill host
-        // has reset the endpoint and cleared STALL condition.
-        if (context.Result != USBTRANSFERCODE_STALL) {
-            __ResetTransfer(controller, transfer);
-        }
+    if (HCITransferFinalize(controller, transfer, false) != OS_EOK) {
+        return ITERATOR_CONTINUE;
+    }
 
-        // Don't notify driver when recieving a NAK response. Simply means device had
-        // no data to send us. I just wished that it would leave the data intact instead.
-        if (context.Result != USBTRANSFERCODE_NAK) {
-            USBTransferNotify(transfer);
-        }
-
-        if (context.Result != USBTRANSFERCODE_STALL) {
-            __Transfer_Reset(transfer);
-        }
-    } else if (__Transfer_IsAsync(transfer)) {
-        bool deferredClean = (controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN) != 0;
-        
-        if (HCITransferFinalize(controller, transfer, deferredClean) != OS_EOK) {
-            return ITERATOR_CONTINUE;
-        }
-
-        if (!deferredClean) {
-            transfer->RootElement = NULL;
-            if (__FinalizeTransfer(transfer) == OS_EOK) {
-                return ITERATOR_REMOVE;
-            }
-        }
+    transfer->RootElement = NULL;
+    if (__FinalizeTransfer(transfer) == OS_EOK) {
+        return ITERATOR_REMOVE;
     }
     return ITERATOR_CONTINUE;
 }
@@ -739,6 +896,12 @@ __ProcessTransfer(
           controller, transfer, transfer ? transfer->Flags : 0);
     _CRT_UNUSED(context);
 
+    // Submission may yield while a cancellation request is handled. Wait for
+    // submission to finish before freeing the mapping or descriptors.
+    if (transfer->Submitting) {
+        return ITERATOR_CONTINUE;
+    }
+
     switch (transfer->State) {
         case USBTRANSFER_STATE_CREATED:
         case USBTRANSFER_STATE_WAITING:
@@ -747,6 +910,10 @@ __ProcessTransfer(
         case USBTRANSFER_STATE_COMPLETED:
         case USBTRANSFER_STATE_STALLED:
             break;
+        case USBTRANSFER_STATE_FINISHING:
+            return __FinishLegacyTransfer(controller, transfer);
+        case USBTRANSFER_STATE_RESTART:
+            return __RestartLegacyTransfer(transfer);
         case USBTRANSFER_STATE_QUEUED:
             return __CheckTransfer(controller, transfer);
         case USBTRANSFER_STATE_CLEANUP:
@@ -764,12 +931,17 @@ __ProcessReadyTransfers(
     int                   result;
     oserr_t               status;
 
-    // Work that fails and is requeued gets one attempt per dispatch. In
-    // particular, a failed DMA sync or unmap must not spin in this loop.
+    // Try each queued transfer once per dispatch. A failed DMA sync or unmap
+    // must wait until the next dispatch instead of spinning in this loop.
     while (remaining-- > 0 && controller->ReadyTransfers.head != NULL) {
         transfer = controller->ReadyTransfers.head->value;
-
         UsbManagerForgetTransferWork(transfer);
+        
+        if (transfer->Submitting) {
+            UsbManagerQueueTransferWork(controller, transfer);
+            continue;
+        }
+
         if (transfer->State == USBTRANSFER_STATE_WAITING) {
             status = HCITransferQueue(transfer);
             if (status == OS_EOK) {
@@ -799,15 +971,25 @@ void
 UsbManagerProcessTransfers(
     _In_ UsbManagerController_t* controller)
 {
-    TRACE("UsbManagerProcessTransfers(controller=0x%" PRIxIN ")", controller);
-    
-    if (controller->DmaContext != NULL) {
-        __ProcessReadyTransfers(controller);
+    if (controller->State.ProcessingTransfers ||
+        controller->State.Phase >= USB_CONTROLLER_DESTROY_PENDING) {
         return;
     }
-
-    UsbManagerIterateTransfers(controller, __ProcessTransfer, NULL);
-    __QueueWaitingTransfers(controller);
+    // DMA syscalls and completion IPC can yield. Allow cancellation requests
+    // during that time, but keep other dispatches from removing transfers while
+    // this pass is using the list.
+    controller->State.ProcessingTransfers = true;
+    controller->State.OperationsInFlight++;
+    
+    if (controller->Kind == USBCONTROLLER_KIND_XHCI) {
+        __ProcessReadyTransfers(controller);
+    } else {
+        UsbManagerIterateTransfers(controller, __ProcessTransfer, NULL);
+        __QueueWaitingTransfers(controller);
+    }
+    
+    controller->State.OperationsInFlight--;
+    controller->State.ProcessingTransfers = false;
 }
 
 
@@ -905,27 +1087,21 @@ UsbManagerChainEnumerate(
             }
         }
 
-        // Allow the callback to early break by returning false
+        // The callback can stop enumeration by returning false.
         if (!elementCallback(controller, element, reason, context)) {
             break;
         }
 
-        // There are two different cases of why we are end of chain
-        // 1. We reach a direct end, with no chain element
-        // 2. We reach the root index again (head element)
-        //    This indicates a cyclic chain, which is valid, but
-        //    we need to guard against it.
+        // Stop at the end of the chain or when we reach the root again.
+        // Cyclic chains are valid, but each element must only be visited once.
         if (linkIndex == USB_ELEMENT_NO_INDEX || linkIndex == rootIndex) {
             break;
         }
 
-        // Elements can be linked across pools which makes it impossible to rely
-        // on the pool being identical, make sure we retrieve the correct pool
-        // on each link
+        // Links can cross pools, so look up the pool for each element.
         pool = USB_ELEMENT_GET_POOL(controller->Scheduler, linkIndex);
 
-        // Lookup the correct element in that pool, and then get the UsbSchedulerObject_t
-        // instance of that element.
+        // Get the element and its scheduler object from that pool.
         element   = USB_ELEMENT_INDEX(pool, linkIndex);
         object    = USB_ELEMENT_OBJECT(pool, element);
         linkIndex = (direction == USB_CHAIN_BREATH) ? object->BreathIndex : object->DepthIndex;
@@ -1015,9 +1191,9 @@ static int endpoint_cmp(const void* element1, const void* element2)
     return endpoint1->Address == endpoint2->Address ? 0 : 1;
 }
 
-// Shares the handler setup used by all four USB controller drivers.
-// Each handler needs its controller state, register region and event descriptor;
-// keeping that ordering here gives each driver the same resource-table layout.
+// Set up the interrupt handler resources for all four USB controller drivers.
+// Keep the register region, controller state and event descriptor in the same
+// resource-table slots for each driver.
 oserr_t
 UsbManagerConfigureInterrupt(
     _In_ UsbManagerController_t* controller,

@@ -15,9 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Usb Definitions & Structures
- * - This header describes the base usb-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
+ * USB Definitions and Structures
+ * Common types and functions for USB devices and transfers.
  */
 
 #ifndef _USB_INTERFACE_H_
@@ -32,8 +31,7 @@
 
 DECL_STRUCT(UsbDevice);
 
-/* USB Definitions
- * Contains magic constants, settings and bit definitions */
+/* USB constants and flags. */
 #define USB_DEVICE_CLASS     0x0000CABB
 #define USB_TRANSACTIONCOUNT 3
 
@@ -82,7 +80,7 @@ enum USBTransferType {
 };
 
 /**
- * @brief Represents a USB controller port.
+ * @brief Connection state and speed of a USB controller port.
  */
 typedef struct USBPortDescriptor {
     enum USBSpeed Speed;
@@ -91,7 +89,7 @@ typedef struct USBPortDescriptor {
 } USBPortDescriptor_t;
 
 /**
- * @brief Describes the characteristics of an USB controller device.
+ * @brief USB controller type, bus device and port states.
  */
 typedef struct USBControllerDevice {
     BusDevice_t            Device;
@@ -100,7 +98,7 @@ typedef struct USBControllerDevice {
 } USBControllerDevice_t;
 
 /**
- * @brief Describes an absolute USB address for a USB packet.
+ * @brief Hub, port, device and endpoint addresses for a USB packet.
  */
 typedef struct USBAddress {
     uint8_t HubAddress;
@@ -152,8 +150,7 @@ typedef struct USBTransfer {
 } USBTransfer_t;
 
 /**
- * UsbTransfer::Flags
- * Bit-definitions and declarations for the field.
+ * USBTransfer_t::Flags bits.
  */
 #define USB_TRANSFER_NO_NOTIFICATION 0x01
 #define USB_TRANSFER_SHORT_NOT_OK    0x02
@@ -165,7 +162,8 @@ extern void             UsbCleanup(void);
 extern struct dma_pool* UsbRetrievePool(void);
 
 /**
- * @brief Initialize shared data common to all usb transfers.
+ * @brief Initialize the fields common to all USB transfers.
+ *
  * @param transfer
  * @param device
  * @param endpoint
@@ -220,7 +218,8 @@ UsbTransferQueuePeriodic(
         _Out_ uuid_t*               transferIdOut);
 
 /**
- * Can be used to reset an interrupt or isochronous transfer after a stall condition has occurred and been cleared.
+ * @brief Reset an interrupt or isochronous transfer after clearing its stall.
+ *
  * @param deviceContext
  * @param transferId
  * @return
@@ -243,9 +242,8 @@ UsbTransferDequeuePeriodic(
         _In_ uuid_t                transferId);
 
 /**
- * Resets the given port on the given hub and queries it's
- * status afterwards. This returns an updated status of the port after
- * the reset.
+ * @brief Reset a hub port and return its status after the reset.
+ *
  * @param hubDriverId
  * @param deviceId
  * @param portAddress
@@ -254,13 +252,14 @@ UsbTransferDequeuePeriodic(
  */
 extern oserr_t
 UsbHubResetPort(
-        _In_ uuid_t                 hubDriverId,
-        _In_ uuid_t                 deviceId,
-        _In_ uint8_t                portAddress,
+        _In_ uuid_t               hubDriverId,
+        _In_ uuid_t               deviceId,
+        _In_ uint8_t              portAddress,
         _In_ USBPortDescriptor_t* portDescriptor);
 
 /**
- * Queries the port-descriptor of host-controller port.
+ * @brief Query the status of a hub port.
+ *
  * @param hubDriverId
  * @param deviceId
  * @param portAddress
@@ -269,10 +268,24 @@ UsbHubResetPort(
  */
 extern oserr_t
 UsbHubQueryPort(
-        _In_ uuid_t                 hubDriverId,
-        _In_ uuid_t                 deviceId,
-        _In_ uint8_t                portAddress,
+        _In_ uuid_t               hubDriverId,
+        _In_ uuid_t               deviceId,
+        _In_ uint8_t              portAddress,
         _In_ USBPortDescriptor_t* portDescriptor);
+
+/**
+ * @brief Disable a hub port before allowing another device to use address zero.
+ *
+ * @param hubDriverId Driver serving the hub.
+ * @param deviceId Hub device identifier.
+ * @param portAddress Port index on the hub, using the same numbering as reset.
+ * @return OS_EOK when the port is disabled, otherwise a transport or device error.
+ */
+__EXTERN oserr_t
+UsbHubDisablePort(
+    _In_ uuid_t  hubDriverId,
+    _In_ uuid_t  deviceId,
+    _In_ uint8_t portAddress);
 
 /**
  * UsbSetAddress
@@ -379,7 +392,8 @@ UsbEndpointReset(
     _In_ uint8_t               endpointAddress);
 
 /**
- * Registers a new controller and root hub with the usb stack
+ * @brief Register a controller and its root hub with the USB stack.
+ *
  * @param device
  * @param type
  * @param portCount
@@ -392,7 +406,8 @@ UsbControllerRegister(
     _In_ int                    portCount));
 
 /**
- * Removes a controller from the usb stack and any device associated with it
+ * @brief Remove a controller and its devices from the USB stack.
+ *
  * @param DeviceID the device ID of the controller to unregister
  */
 DDKDECL(void,
@@ -421,7 +436,8 @@ UsbHubUnregister(
         _In_ uuid_t deviceId));
 
 /**
- * Call this event when any port status update needs action taken by the usb stack
+ * @brief Notify the USB stack when a port status change needs to be handled.
+ *
  * @param DeviceId
  * @param PortAddress
  * @return
@@ -467,10 +483,10 @@ UsbQueryController(
 
 
 /**
- * @brief Detaches a USB device from the specified controller.
+ * @brief Detach a USB device from the given controller.
  * 
- * @param controllerId The controller device ID carried in the detach request.
- * @param device The USB device, including its controller driver IPC destination.
+ * @param controllerId Controller device ID to send in the detach request.
+ * @param device USB device context containing the controller driver ID.
  * @return None.
  */
 DDKDECL(void,

@@ -17,9 +17,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Service - Usb Manager
- * - Contains the implementation of the usb-manager which keeps track
- *   of all usb-controllers and their devices
+ * Service - USB Manager
+ * Handles USB port connection changes and port errors.
  */
 
 #define __TRACE
@@ -29,9 +28,9 @@
 #include "manager.h"
 #include <stdlib.h>
 
-#include "sys_usb_service_server.h"
 
-void __HandlePortEvent(
+void
+UsbCorePortEvent(
     _In_ uuid_t  hubDeviceId,
     _In_ uint8_t portAddress)
 {
@@ -41,81 +40,79 @@ void __HandlePortEvent(
     UsbHub_t*             hub;
     UsbPort_t*            port = NULL;
 
-    TRACE("__HandlePortEvent(deviceId=%u, portAddress=%u)", hubDeviceId, portAddress);
+    TRACE("UsbCorePortEvent(deviceId=%u, portAddress=%u)", hubDeviceId, portAddress);
 
-    // Retrieve hub, controller and port instances
+    // The hub and its controller must still be registered.
     hub = UsbCoreHubsGet(hubDeviceId);
     if (!hub) {
-        ERROR("__HandlePortEvent hub device id was invalid");
+        ERROR("UsbCorePortEvent hub device id was invalid");
         return;
     }
 
     controller = UsbCoreControllerGet(hub->ControllerDeviceId);
     if (!controller) {
-        ERROR("__HandlePortEvent controller related to hub was invalid");
+        ERROR("UsbCorePortEvent controller related to hub was invalid");
         return;
     }
 
-    // Query port status so we know the status of the port
-    // Also compare to the current state to see if the change was valid
+    // Read the port status before comparing it with the saved connection state.
     if (UsbHubQueryPort(hub->DriverId, hubDeviceId, portAddress, &portDescriptor) != OS_EOK) {
-        ERROR("__HandlePortEvent Query port failed");
+        ERROR("UsbCorePortEvent Query port failed");
         return;
     }
 
     port = UsbCoreHubsGetPort(hub, portAddress);
     if (!port) {
-        ERROR("__HandlePortEvent failed to retrieve port instance");
+        ERROR("UsbCorePortEvent failed to retrieve port instance");
         return;
     }
 
-    // Now handle connection events
+    // Create or remove a device only when the connection state changes.
     if (portDescriptor.Connected == 1 && port->Connected == 0) {
-        // Connected event
-        // This function updates port-status after reset
+        // Device setup updates the port status after reset.
         oserr = UsbCoreDevicesCreate(controller, hub, port);
         if (oserr != OS_EOK) {
-            // TODO
+            WARNING("USB: port %u event failed (%u)", portAddress, oserr);
         }
     } else if (portDescriptor.Connected == 0 && port->Connected == 1) {
-        // Disconnected event, remember that the descriptor pointer
-        // becomes unavailable the moment we call the destroy device
+        // The device pointer is no longer valid after device removal.
         oserr = UsbCoreDevicesDestroy(controller, port);
         if (oserr != OS_EOK) {
-            // TODO
+            WARNING("USB: port %u event failed (%u)", portAddress, oserr);
         }
 
         port->Speed     = portDescriptor.Speed;              // TODO: invalid
         port->Enabled   = portDescriptor.Enabled;            // TODO: invalid
         port->Connected = portDescriptor.Connected;          // TODO: invalid
     } else {
-        // Ignore
+        // Refresh the port status without changing the attached device.
         port->Speed     = portDescriptor.Speed;
         port->Enabled   = portDescriptor.Enabled;
         port->Connected = portDescriptor.Connected;
     }
 }
 
-void __HandlePortError(
-        _In_ uuid_t  hubDeviceId,
-        _In_ uint8_t portAddress)
+void
+UsbCorePortError(
+    _In_ uuid_t  hubDeviceId,
+    _In_ uint8_t portAddress)
 {
     UsbController_t* controller;
     UsbHub_t*        hub;
     UsbPort_t*       port;
 
-    TRACE("__HandlePortError(deviceId=%u, portAddress=%u)", hubDeviceId, portAddress);
+    TRACE("UsbCorePortError(deviceId=%u, portAddress=%u)", hubDeviceId, portAddress);
 
-    // Retrieve hub, controller and port instances
+    // The hub and its controller must still be registered.
     hub = UsbCoreHubsGet(hubDeviceId);
     if (!hub) {
-        ERROR("__HandlePortError hub device id was invalid");
+        ERROR("UsbCorePortError hub device id was invalid");
         return;
     }
 
     controller = UsbCoreControllerGet(hub->ControllerDeviceId);
     if (!controller) {
-        ERROR("__HandlePortError controller related to hub was invalid");
+        ERROR("UsbCorePortError controller related to hub was invalid");
         return;
     }
 
@@ -123,14 +120,4 @@ void __HandlePortError(
     if (port && port->Device) {
         UsbCoreDevicesDestroy(controller, port);
     }
-}
-
-void sys_usb_port_event_invocation(struct gracht_message* message, const uuid_t hubDeviceId, const uint8_t portAddress)
-{
-    __HandlePortEvent(hubDeviceId, portAddress);
-}
-
-void sys_usb_port_error_invocation(struct gracht_message* message, const uuid_t hubDeviceId, const uint8_t portAddress)
-{
-    __HandlePortError(hubDeviceId, portAddress);
 }

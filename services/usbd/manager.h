@@ -32,6 +32,9 @@
 
 typedef struct UsbHub UsbHub_t;
 
+/**
+ * @brief USB context, descriptor fields and identity strings for a connected device.
+ */
 typedef struct UsbPortDevice {
     usb_device_context_t Base;
 
@@ -60,7 +63,11 @@ typedef struct UsbPort {
     UsbPortDevice_t* Device;
 } UsbPort_t;
 
+/**
+ * @brief Hub position in the USB topology, descriptor data and downstream ports.
+ */
 typedef struct UsbHub {
+    uuid_t     ParentHubDeviceId; // Root hubs use their own device ID.
     uuid_t     ControllerDeviceId;
     uuid_t     DeviceId;
     uuid_t     DriverId;
@@ -71,24 +78,73 @@ typedef struct UsbHub {
     UsbPort_t* Ports[USB_MAX_PORTS];
 } UsbHub_t;
 
+/**
+ * @brief Port to disable or confirm disconnected before using address zero again.
+ */
+typedef struct UsbEnumerationRecovery {
+    uuid_t  HubDeviceId;
+    uuid_t  HubDriverId;
+    uint8_t PortAddress;
+    bool    Pending;
+} UsbEnumerationRecovery_t;
+
+/**
+ * @brief Controller registration, USB address map and pending enumeration recovery.
+ */
 typedef struct UsbController {
-    Device_t*           Device;
-    element_t           Header;
-    uuid_t              DriverId;
-    enum USBControllerKind Type;
-    uint32_t            AddressMap[4]; // 4 x 32 bits = 128 possible addresses which match the max in usb-spec
+    Device_t*                Device;
+    element_t                Header;
+    uuid_t                   DriverId;
+    enum USBControllerKind   Type;
+    UsbEnumerationRecovery_t EnumerationRecovery;
+    uint32_t                 AddressMap[4]; // 128 bits for USB addresses 0 through 127.
 } UsbController_t;
+
+// Core topology routines must run in the topology worker. Initialize the core
+// before protocol registration and finish cleanup only after joining the worker.
+// Transfers run in the controller and class driver services.
+
+/**
+ * @brief Start the single topology worker before accepting RPCs.
+ *
+ * One caller must handle startup and shutdown. A previous shutdown must finish
+ * before starting the worker again.
+ *
+ * @return OS_EOK, OS_EBUSY if already started, or OS_EOOM on job creation failure.
+ */
+__EXTERN oserr_t
+UsbTopologyStart(void);
+
+/**
+ * @brief Stop accepting commands, drain the FIFO and join the worker.
+ *
+ * Must be called outside the worker while the service still processes replies.
+ * The caller must serialize shutdown through final core cleanup. On failure,
+ * the worker identifier and topology state stay valid so the caller can retry.
+ *
+ * @return OS_EOK when joined, OS_EBUSY for self-join, or OS_EUNKNOWN on join failure.
+ */
+__EXTERN oserr_t
+UsbTopologyStop(void);
 
 /** Initializes the USB manager state and USB library resources. */
 __EXTERN oserr_t UsbCoreInitialize(void);
 
-/** Releases USB manager state and all registered controller/hub resources. */
-__EXTERN void UsbCoreDestroy(void);
+/**
+ * @brief Drain topology work before freeing controller, hub and USB library state.
+ *
+ * Must be called by the caller handling startup and shutdown while the service
+ * still processes replies.
+ *
+ * @return OS_EOK after cleanup. On failure, state stays intact for a later retry.
+ */
+__EXTERN oserr_t
+UsbCoreDestroy(void);
 
 /** Initializes the hub registry. Must run before hub registration. */
 __EXTERN void UsbCoreHubsInitialize(void);
 
-/** Releases all hubs and devices owned by registered controllers. */
+/** Releases all hubs and devices attached to registered controllers. */
 __EXTERN void UsbCoreHubsCleanup(void);
 
 /** Removes all registered controllers and their associated USB state. */
@@ -96,7 +152,7 @@ __EXTERN void UsbCoreControllersCleanup(void);
 
 /**
  * Creates and enumerates a device connected to a hub port.
- * @param usbController Controller that owns the hub
+ * @param usbController Controller connected to the hub
  * @param usbHub        Hub containing the port
  * @param usbPort       Port where the device is connected
  * @return OS_EOK on successful enumeration, otherwise an error code
@@ -109,7 +165,7 @@ UsbCoreDevicesCreate(
 
 /**
  * Disconnects and frees the device currently attached to a hub port.
- * @param controller Controller that owns the device
+ * @param controller Controller connected to the device
  * @param port       Port whose device should be destroyed
  * @return OS_EOK on success, otherwise an error code
  */
@@ -148,7 +204,7 @@ UsbCoreHubsUnregister(
 
 /**
  * Retrieves or creates the state object for a hub port.
- * @param hub       Hub owning the port
+ * @param hub       Hub containing the port
  * @param portIndex Hub-local port index
  * @return The port state, or NULL when the arguments are invalid or allocation fails
  */
@@ -180,7 +236,7 @@ UsbCoreControllerReserveAddress(
 /**
  * Releases a previously reserved USB device address.
  * @param controller Controller whose address map should be updated
- * @param address    Address to release; address zero is never released
+ * @param address    Address to release. Address zero is never released.
  */
 __EXTERN void
 UsbCoreControllerReleaseAddress(
@@ -195,5 +251,86 @@ UsbCoreControllerReleaseAddress(
 __EXTERN UsbController_t*
 UsbCoreControllerGet(
         _In_ uuid_t deviceId);
+
+/**
+ * @brief Register a controller and its root hub.
+ *
+ * The device and its identity strings must be allocated separately. After this
+ * call, the caller must not access or free them, including when registration fails.
+ *
+ * @param driverId Controller driver handle.
+ * @param device Converted device and its independently allocated identity strings.
+ * @param controllerType USB controller kind.
+ * @param rootPorts Number of root ports.
+ * @return OS_EOK or an allocation/registration error.
+ */
+__EXTERN oserr_t
+UsbCoreControllerRegister(
+    _In_ uuid_t                 driverId,
+    _In_ Device_t*              device,
+    _In_ enum USBControllerKind controllerType,
+    _In_ int                    rootPorts);
+
+/**
+ * @brief Remove a controller after recursively destroying its connected devices.
+ * @param deviceId Controller device identifier.
+ * @return OS_EOK or OS_EINVALPARAMS for an unknown controller.
+ */
+__EXTERN oserr_t
+UsbCoreControllerUnregister(
+    _In_ uuid_t deviceId);
+
+/**
+ * @brief Count registered controllers in the topology worker.
+ * @return Registered controller count.
+ */
+__EXTERN int
+UsbCoreControllerCount(void);
+
+/**
+ * @brief Copy controller query data. Must be called from the topology worker.
+ * @param index Zero-based controller index.
+ * @param snapshot Receives the controller data, or zeroes for an invalid index.
+ */
+__EXTERN void
+UsbCoreControllerSnapshot(
+    _In_  int                    index,
+    _Out_ USBControllerDevice_t* snapshot);
+
+/**
+ * @brief Register a hub and configure its controller-side hub state.
+ * @param parentHubDeviceId Parent hub identifier, or this hub for a root hub.
+ * @param deviceId Hub device identifier.
+ * @param driverId Hub driver handle.
+ * @param portCount Number of downstream ports.
+ * @param characteristics Hub descriptor characteristics.
+ */
+__EXTERN void
+UsbCoreHubsRegisterAndConfigure(
+    _In_ uuid_t   parentHubDeviceId,
+    _In_ uuid_t   deviceId,
+    _In_ uuid_t   driverId,
+    _In_ int      portCount,
+    _In_ uint16_t characteristics);
+
+/**
+ * @brief Process a connection change in the topology worker.
+ * @param hubDeviceId Hub device identifier.
+ * @param portAddress Hub-local port index.
+ */
+__EXTERN void
+UsbCorePortEvent(
+    _In_ uuid_t  hubDeviceId,
+    _In_ uint8_t portAddress);
+
+/**
+ * @brief Process a port error in the topology worker.
+ * @param hubDeviceId Hub device identifier.
+ * @param portAddress Hub-local port index.
+ */
+__EXTERN void
+UsbCorePortError(
+    _In_ uuid_t  hubDeviceId,
+    _In_ uint8_t portAddress);
 
 #endif //!__USBMANAGER_H__

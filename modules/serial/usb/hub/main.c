@@ -238,3 +238,32 @@ void ctt_driver_ioctl_invocation(
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }
 void ctt_usbhub_event_port_status_invocation(void) { }
+
+void
+ctt_usbhub_disable_port_invocation(
+    struct gracht_message* message,
+    const uuid_t           deviceId,
+    const uint8_t          portId)
+{
+    HubDevice_t*        hub = HubDeviceGet(deviceId);
+    PortStatus_t        portStatus;
+    USBPortDescriptor_t descriptor = { 0 };
+    oserr_t             status = OS_ENOENT;
+
+    if (hub != NULL) {
+        // The port must be disabled before usbd can use the default address again.
+        // Clear PORT_ENABLE and read back the status. If this fails, usbd
+        // handles recovery.
+        status = HubPortClearChange(hub, portId, HUB_FEATURE_PORT_ENABLE);
+        if (status == OS_EOK) {
+            status = HubGetPortStatus(hub, portId, &portStatus);
+            if (status == OS_EOK) {
+                __PortStatusToDescriptor(&portStatus, &descriptor);
+                if (descriptor.Enabled) {
+                    status = OS_EBUSY;
+                }
+            }
+        }
+    }
+    ctt_usbhub_disable_port_response(message, status);
+}
