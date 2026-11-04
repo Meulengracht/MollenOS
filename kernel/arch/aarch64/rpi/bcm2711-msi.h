@@ -37,6 +37,8 @@
 #define BCM_MSI_DATA          0x404cU
 // Byte offset of pending messages, one bit per message number.
 #define BCM_MSI_STATUS        0x4500U
+// Byte offset where writing a one sets that message's pending bit.
+#define BCM_MSI_SET           0x4504U
 // Byte offset where writing a one clears that message's pending bit.
 #define BCM_MSI_CLEAR         0x4508U
 // Byte offset of current delivery masks; one means masked.
@@ -49,9 +51,8 @@
 #define BCM_MSI_DATA_CONFIG   0xffe06540U
 // Fixed message data bits supplied to drivers, combined with their message number.
 #define BCM_MSI_DATA_BASE     0x6540U
-// Preferred aligned destination: the last 32-bit word below 4 GiB.
-#define BCM_MSI_ADDRESS_LOW   0xfffffffcULL
-// Alternative destination: the last 32-bit word below 64 GiB if RAM covers the first.
+// Pi 4/VL805 working destination: 64 GiB minus four; requires a 64-bit MSI address.
+// Allocation fails if the programmed DMA window covers it.
 #define BCM_MSI_ADDRESS_HIGH  0xffffffffcULL
 // Bit zero enables address matching; zero disables the receiver during setup.
 #define BCM_MSI_BAR_ENABLE    1U

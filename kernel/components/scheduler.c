@@ -621,6 +621,32 @@ __HasDeadlineSet(
     return false;
 }
 
+static clock_t
+__SleepTimeRemaining(
+    _In_ const OSTimestamp_t* deadline,
+    _In_ const OSTimestamp_t* currentTime)
+{
+    clock_t  maximum = (clock_t)__MASK - 1;
+    uint64_t seconds;
+    int64_t  nanoseconds;
+
+    // Both timestamps are normalized and deadline is later than currentTime.
+    // Unsigned subtraction also covers dates on opposite sides of the epoch.
+    seconds = (uint64_t)deadline->Seconds - (uint64_t)currentTime->Seconds;
+    nanoseconds = deadline->Nanoseconds - currentTime->Nanoseconds;
+    if (nanoseconds < 0) {
+        seconds--;
+        nanoseconds += NSEC_PER_SEC;
+    }
+
+    // Keep finite waits distinct from __MASK, which disables an idle timer.
+    // The absolute deadline stays on the sleeper for the next timer update.
+    if (seconds > (maximum - (uint64_t)nanoseconds) / NSEC_PER_SEC) {
+        return maximum;
+    }
+    return seconds * NSEC_PER_SEC + (uint64_t)nanoseconds;
+}
+
 // The sleep list is thread-safe due to the fact that the function that removes
 // from the sleep queue is only called on this core, while the function that adds
 // is also only called on this core, and the list here is only iterated on this core.
@@ -632,7 +658,6 @@ __UpdateSleepQueue(
     clock_t            nextUpdate = __MASK;
     SchedulerObject_t* i          = scheduler->SleepQueue.Head;
     SchedulerObject_t* next;
-    OSTimestamp_t      timeDiff;
     clock_t            remaining;
 
     while (i) {
@@ -644,10 +669,7 @@ __UpdateSleepQueue(
             if (OSTimestampCompare(currentTime, &i->WakeUpTime) >= 0) {
                 __PerformObjectTimeout(scheduler, i);
             } else {
-                OSTimestampSubtract(&timeDiff, &i->WakeUpTime, currentTime);
-
-                // Calculate the next time we should update
-                remaining = (timeDiff.Seconds * NSEC_PER_SEC) + timeDiff.Nanoseconds;
+                remaining = __SleepTimeRemaining(&i->WakeUpTime, currentTime);
                 nextUpdate = MIN(nextUpdate, remaining);
             }
         }

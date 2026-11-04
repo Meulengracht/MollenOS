@@ -164,7 +164,7 @@ static oserr_t __GetSuperSpeedHubDescriptor(
     // Calculate descriptor length
     hubDevice->DescriptorLength = 10 + DIVUP(descriptor.NumberOfPorts, 8);
     hubDevice->PortCount = descriptor.NumberOfPorts;
-    hubDevice->PowerOnDelay = MIN(50, descriptor.PowerOnDelay * 2);
+    hubDevice->PowerOnDelay = MAX(50, descriptor.PowerOnDelay * 2U);
     hubDevice->HubCharacteristics = descriptor.HubCharacteristics;
     return OS_EOK;
 }
@@ -191,7 +191,7 @@ static oserr_t __GetHubDescriptor(
     // Calculate descriptor length
     hubDevice->DescriptorLength = 8 + DIVUP(descriptor.NumberOfPorts, 8);
     hubDevice->PortCount = descriptor.NumberOfPorts;
-    hubDevice->PowerOnDelay = MIN(50, descriptor.PowerOnDelay * 2);
+    hubDevice->PowerOnDelay = MAX(50, descriptor.PowerOnDelay * 2U);
     hubDevice->HubCharacteristics = descriptor.HubCharacteristics;
     return OS_EOK;
 }
@@ -220,18 +220,16 @@ void
 HubEnumeratePorts(
     _In_ HubDevice_t* hubDevice)
 {
-    uint8_t i;
+    oserr_t      osStatus;
+    PortStatus_t portStatus;
     TRACE("__EnumeratePorts(hubDevice=0x%" PRIxIN ")", hubDevice);
 
-    // Power on ports
-    for (i = 1; i <= hubDevice->PortCount; i++) {
-        oserr_t osStatus = HubPowerOnPort(hubDevice, i);
+    // Send PORT_POWER to every port, including hubs with ganged power switching.
+    // A shared power supply does not replace each port's logical power request.
+    for (unsigned int i = 1; i <= hubDevice->PortCount; i++) {
+        osStatus = HubPowerOnPort(hubDevice, i);
         if (osStatus != OS_EOK) {
             ERROR("__EnumeratePorts failed to power on port %u", i);
-        }
-
-        if (__IsHubPortsPoweredGlobal(hubDevice)) {
-            break;
         }
     }
 
@@ -240,10 +238,7 @@ HubEnumeratePorts(
 
     // Now we iterate through each port again, get the connection status and
     // then send a notification to the usb service that its ready for enumeration
-    for (i = 1; i <= hubDevice->PortCount; i++) {
-        PortStatus_t portStatus;
-        oserr_t   osStatus;
-
+    for (unsigned int i = 1; i <= hubDevice->PortCount; i++) {
         osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
         if (osStatus != OS_EOK) {
             ERROR("__EnumeratePorts failed to get status for port %u", i);

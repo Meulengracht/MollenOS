@@ -158,6 +158,8 @@ UsbManagerRegisterController(
     );
     if (oserr != OS_EOK) {
         ERROR("[UsbManagerRegisterController] failed with code %u", oserr);
+    } else {
+        controller->State.Registered = true;
     }
     return oserr;
 }
@@ -203,8 +205,12 @@ UsbManagerDestroyController(
                IOSET_DEL, controller->event_descriptor, NULL);
     close(controller->event_descriptor);
 
-    // Unregister controller with usbmanager service
-    UsbControllerUnregister(controller->Device->Id);
+    // We keep track of whether the controller ever
+    // registered with usbd
+    if (controller->State.Registered) {
+        controller->State.Registered = false;
+        UsbControllerUnregister(controller->Device->Id);
+    }
 }
 
 void

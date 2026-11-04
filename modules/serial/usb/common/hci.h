@@ -190,7 +190,7 @@ HCITransferDequeue(
     _In_ UsbManagerTransfer_t* transfer);
 
 /**
- * @brief Configure a USB hub.
+ * @brief Configure a USB hub and wait for completion.
  *
  * @param controller The controller managing the hub.
  * @param hubAddress The address of the hub to configure.

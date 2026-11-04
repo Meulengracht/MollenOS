@@ -22,6 +22,7 @@
 #include <machine.h>
 #include <threading.h>
 #include "private.h"
+#include "utils.h"
 
 extern void Arm64EnableTimerInterrupt(void);
 
@@ -98,9 +99,7 @@ Arm64TimerAdvance(
         return;
     }
     
-    deadline = __ReadCounter() + ((uint64_t)next / ARM64_NANOSECONDS_PER_SECOND) * frequency +
-        (((uint64_t)next % ARM64_NANOSECONDS_PER_SECOND) * frequency +
-            ARM64_NANOSECONDS_PER_SECOND - 1) / ARM64_NANOSECONDS_PER_SECOND;
+    deadline = __ReadCounter() + __TimerIntervalTicks(next, frequency);
     __ArmTimer(deadline);
 }
 

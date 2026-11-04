@@ -298,14 +298,15 @@ UsbCoreControllerSnapshot(
     _Out_ USBControllerDevice_t* snapshot);
 
 /**
- * @brief Register a hub and configure its controller-side hub state.
- * @param parentHubDeviceId Parent hub identifier, or this hub for a root hub.
+ * @brief Register an external hub and wait for controller configuration.
+ * @param parentHubDeviceId Parent hub identifier. Root hubs use UsbCoreHubsRegister.
  * @param deviceId Hub device identifier.
  * @param driverId Hub driver handle.
  * @param portCount Number of downstream ports.
  * @param characteristics Hub descriptor characteristics.
+ * @return Configuration status. Failed configuration removes the new hub record.
  */
-__EXTERN void
+__EXTERN oserr_t
 UsbCoreHubsRegisterAndConfigure(
     _In_ uuid_t   parentHubDeviceId,
     _In_ uuid_t   deviceId,

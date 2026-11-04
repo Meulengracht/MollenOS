@@ -30,6 +30,7 @@
 #include <vboot/vboot.h>
 
 DECL_STRUCT(PlatformMemoryMapping);
+DECL_STRUCT(HandleGrantsTable);
 
 /**
  * MemorySpace (Type) Definitions
@@ -73,11 +74,12 @@ DECL_STRUCT(PlatformMemoryMapping);
 
 #define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace)
 
-// Security context associated with a memory-space group. This can be
-// retrieved with MemorySpaceGetSecurityContext().
+// Security context associated with a memory-space group. Retrieve it with
+// MemorySpaceGetSecurityContext().
 typedef struct MSContextSecurity {
-    uuid_t         Handle;
-    Capabilities_t Capabilities;
+    uuid_t               Handle;
+    Capabilities_t       Capabilities;
+    HandleGrantsTable_t* HandleTable;
 } MSContextSecurity_t;
 
 /**

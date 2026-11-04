@@ -106,6 +106,8 @@ HubPowerOnPort(
                                    USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                                    portIndex,
                                    HUB_FEATURE_PORT_POWER);
+    TRACE("HubPowerOnPort complete: address=%u port=%u USB-status=%u",
+        hubDevice->Base->DeviceContext.device_address, portIndex, transferStatus);
     if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }

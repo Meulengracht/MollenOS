@@ -49,6 +49,7 @@ typedef struct UsbManagerControllerState {
     unsigned int                   OperationsInFlight;
     bool                           ProcessingTransfers;
     bool                           DmaStopped;
+    bool                           Registered;
 } UsbManagerControllerState_t;
 
 /**

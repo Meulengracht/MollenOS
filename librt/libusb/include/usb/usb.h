@@ -415,14 +415,16 @@ UsbControllerUnregister(
         _In_ uuid_t deviceID));
 
 /**
+ * @brief Register a hub and wait until its controller-side configuration completes.
  *
- * @param usbDevice
- * @param portCount
- * @return
+ * @param usbDevice Enumerated USB hub device.
+ * @param portCount Number of downstream ports.
+ * @param characteristics Hub descriptor characteristics.
+ * @return OS_EOK when port operations may begin, otherwise a registration error.
  */
 DDKDECL(oserr_t,
 UsbHubRegister(
-        _In_ UsbDevice_t* usbDevice,
+    _In_ UsbDevice_t* usbDevice,
     _In_ int          portCount,
     _In_ uint16_t     characteristics));
 

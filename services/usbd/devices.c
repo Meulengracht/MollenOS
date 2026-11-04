@@ -199,6 +199,10 @@ static enum USBTransferCode __GetDeviceDescriptor(
     TRACE("__GetDeviceDescriptor configurations 0x%x, mps 0x%x",
           deviceDescriptor.ConfigurationCount, deviceDescriptor.MaxPacketSize);
 
+    TRACE("USB string indexes: manufacturer=%u product=%u serial=%u",
+        deviceDescriptor.StringIndexManufactor, deviceDescriptor.StringIndexProduct,
+        deviceDescriptor.StringIndexSerialNumber);
+
     // Update information from the device descriptor
     device->Base.device_mps   = deviceDescriptor.MaxPacketSize;
     device->ManufactorerIndex = deviceDescriptor.StringIndexManufactor;
@@ -212,17 +216,32 @@ static enum USBTransferCode __GetDeviceDescriptor(
 }
 
 // TODO: Read the supported language list before requesting strings.
-static enum USBTransferCode __GetDeviceString(
-        _In_  UsbPortDevice_t* device,
-        _In_  uint8_t          stringIndex,
-        _Out_ mstring_t**      stringOut)
+static enum USBTransferCode
+__GetDeviceString(
+    _In_  UsbPortDevice_t* device,
+    _In_  uint8_t          stringIndex,
+    _Out_ mstring_t**      stringOut)
 {
     enum USBTransferCode transferStatus;
 
+    // A zero index means this device has no string for the field. Descriptor
+    // zero is the language table and must not be requested as an identity string.
+    *stringOut = NULL;
+    if (stringIndex == 0) {
+        return USBTRANSFERCODE_SUCCESS;
+    }
+
+    TRACE("USB string request: address=%u index=%u language=%04x attempt=1",
+        device->Base.device_address, stringIndex, USB_LANGUAGE_ENGLISH);
+    
     transferStatus = UsbGetStringDescriptor(&device->Base, USB_LANGUAGE_ENGLISH, stringIndex, stringOut);
     if (transferStatus != USBTRANSFERCODE_SUCCESS) {
+        TRACE("USB string request: address=%u index=%u language=%04x attempt=2 previous=%u",
+            device->Base.device_address, stringIndex, USB_LANGUAGE_ENGLISH, transferStatus);
         transferStatus = UsbGetStringDescriptor(&device->Base, USB_LANGUAGE_ENGLISH, stringIndex, stringOut);
     }
+    TRACE("USB string result: address=%u index=%u status=%u",
+        device->Base.device_address, stringIndex, transferStatus);
     return transferStatus;
 }
 
@@ -281,8 +300,9 @@ static enum USBTransferCode
 __QueryInitialDeviceDescriptor(
         _In_ UsbPortDevice_t* device)
 {
-    usb_device_descriptor_t deviceDescriptor;
+    usb_device_descriptor_t deviceDescriptor = { 0 };
     enum USBTransferCode    status;
+    const uint8_t*          bytes = (const uint8_t*)&deviceDescriptor;
 
     // Read the first 8 bytes of the device descriptor to get the control endpoint's
     // maximum packet size. This keeps the initial request within one packet.
@@ -296,6 +316,8 @@ __QueryInitialDeviceDescriptor(
             &deviceDescriptor
     );
     if (status == USBTRANSFERCODE_SUCCESS) {
+        TRACE("USB EP0 descriptor bytes: %02x %02x %02x %02x %02x %02x %02x %02x",
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]);
         device->Base.device_mps = deviceDescriptor.MaxPacketSize;
     }
     return status;
@@ -394,11 +416,15 @@ UsbCoreDevicesCreate(
     };
 
     // Initialize the port by resetting it
+    TRACE("[usb] [%u:%u] first reset begin", usbHub->PortAddress, usbPort->Address);
     if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OS_EOK) {
         ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [1st-reset]",
               usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
+    TRACE("[usb] [%u:%u] first reset complete: connected=%u enabled=%u speed=%u",
+        usbHub->PortAddress, usbPort->Address,
+        portDescriptor.Connected, portDescriptor.Enabled, portDescriptor.Speed);
 
     // The device must still be connected and enabled after reset.
     if (portDescriptor.Connected != 1 || portDescriptor.Enabled != 1) {
@@ -418,7 +444,10 @@ UsbCoreDevicesCreate(
 
     // The first request after an initial reset must be the Device Descriptor
     // request with a length less than or equal to max packet size.
+    TRACE("[usb] [%u:%u] initial descriptor begin", usbHub->PortAddress, usbPort->Address);
     usbStatus = __QueryInitialDeviceDescriptor(device);
+    TRACE("[usb] [%u:%u] initial descriptor complete: status=%u packet-size=%u",
+        usbHub->PortAddress, usbPort->Address, usbStatus, device->Base.device_mps);
     if (usbStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [query-initial-dd]: %u",
               usbHub->PortAddress, usbPort->Address, usbStatus);
@@ -427,6 +456,7 @@ UsbCoreDevicesCreate(
 
     // Reset again after reading the initial descriptor bytes, then set the
     // address before requesting the full 18-byte descriptor.
+    TRACE("[usb] [%u:%u] second reset begin", usbHub->PortAddress, usbPort->Address);
     oserr = UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor);
     if (oserr != OS_EOK) {
         ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [2nd-reset]",

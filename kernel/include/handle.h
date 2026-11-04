@@ -27,6 +27,9 @@
 
 #include <os/osdefs.h>
 
+DECL_STRUCT(MSContextSecurity);
+DECL_STRUCT(HandleGrantsTable);
+
 typedef enum HandleType {
     HandleTypeGeneric = 0,
     HandleTypeSet,
@@ -41,6 +44,12 @@ typedef void (*HandleDestructorFn)(void*);
 
 KERNELAPI oserr_t KERNELABI InitializeHandles(void);
 KERNELAPI oserr_t KERNELABI InitializeHandleJanitor(void);
+
+KERNELAPI HandleGrantsTable_t* KERNELABI CreateHandleGrantsTable(void);
+
+KERNELAPI void KERNELABI
+DestroyHandleGrantsTable(
+    _In_ HandleGrantsTable_t* table);
 
 /**
  * @brief Allocates a new handle for a system resource with a reference of 1.
@@ -60,7 +69,17 @@ CreateHandle(
  */
 KERNELAPI oserr_t KERNELABI
 DestroyHandle(
-        _In_ uuid_t handleId);
+    _In_ uuid_t handleId);
+
+/**
+ * @brief Grants the specified handle to the given security context.
+ * @param securityContext [In] The security context to grant the handle to.
+ * @param handleId        [In] The handle to grant.
+ */
+KERNELAPI oserr_t KERNELABI
+GrantHandle(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ uuid_t               handleId);
 
 /**
  * @brief Registers a global handle path that can be used to look up the handle.
@@ -70,8 +89,8 @@ DestroyHandle(
  */
 KERNELAPI oserr_t KERNELABI
 RegisterHandlePath(
-        _In_ uuid_t      handleId,
-        _In_ const char* path);
+    _In_ uuid_t      handleId,
+    _In_ const char* path);
 
 /**
  * @brief Tries to resolve a handle from the given path.
@@ -81,8 +100,8 @@ RegisterHandlePath(
  */
 KERNELAPI oserr_t KERNELABI
 LookupHandleByPath(
-        _In_  const char* path,
-        _Out_ uuid_t*     handleOut);
+    _In_  const char* path,
+    _Out_ uuid_t*     handleOut);
 
 /**
  * @brief Acquires the handle given for the calling process. This can fail if the handle
@@ -91,8 +110,8 @@ LookupHandleByPath(
  */
 KERNELAPI oserr_t KERNELABI
 AcquireHandle(
-        _In_  uuid_t handleId,
-        _Out_ void** resourceOut);
+    _In_  uuid_t handleId,
+    _Out_ void** resourceOut);
 
 /**
  * @brief Acquires the handle given for the calling process. This can fail if the handle
@@ -101,9 +120,9 @@ AcquireHandle(
  */
 KERNELAPI oserr_t KERNELABI
 AcquireHandleOfType(
-        _In_  uuid_t       handleId,
-        _In_  HandleType_t handleType,
-        _Out_ void**       resourceOut);
+    _In_  uuid_t       handleId,
+    _In_  HandleType_t handleType,
+    _Out_ void**       resourceOut);
 
 /**
  * Retrieves the handle given, while also performing type validation of the handle. 
@@ -111,7 +130,7 @@ AcquireHandleOfType(
  */
 KERNELAPI void* KERNELABI
 LookupHandleOfType(
-        _In_ uuid_t       ID,
-        _In_ HandleType_t type);
+    _In_ uuid_t       ID,
+    _In_ HandleType_t type);
 
 #endif //! __HANDLE_H__

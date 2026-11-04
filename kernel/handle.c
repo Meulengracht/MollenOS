@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
  * GNU General Public License for more details.
- *ock
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
@@ -30,10 +30,20 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
+#include <memoryspace.h>
 #include <threading.h>
 
 // Handle is being destroyed
 #define __HANDLE_FLAG_DESTROYING 0x1
+
+// Handles are managed in two layers
+// 1. The global handle table (g_handles) keeps track of all active handles.
+// 2. The thread-cluster level grant table that keeps track of handles a thread
+//    cluster has access to, and a level of references counting for those handles.
+typedef struct HandleGrantsTable {
+    hashtable_t Table;
+    Spinlock_t  Lock;
+} HandleGrantsTable_t;
 
 struct ResourceHandle {
     element_t          QueueHeader;
@@ -46,11 +56,12 @@ struct ResourceHandle {
     HandleDestructorFn Destructor;
 };
 
-/**
- * Hash buckets move during insertion, growth, removal and shrink. Only this
- * index entry may move: acquired handles and janitor queue links require the
- * separately allocated ResourceHandle to stay at one address until cleanup.
- */
+struct HandleGrantEntry {
+    uuid_t                 ID;
+    int                    References;
+    struct ResourceHandle* Handle;
+};
+
 struct HandleEntry {
     uuid_t                 ID;
     struct ResourceHandle* Handle;
@@ -66,6 +77,8 @@ static uint64_t mapping_hash(const void* element);
 static int      mapping_cmp(const void* element1, const void* element2);
 static uint64_t handle_hash(const void* element);
 static int      handle_cmp(const void* element1, const void* element2);
+static uint64_t grant_hash(const void* element);
+static int      grant_cmp(const void* element1, const void* element2);
 
 static hashtable_t     g_handlemappings;
 static hashtable_t     g_handles;
@@ -78,12 +91,25 @@ static uuid_t          g_janitorHandle = UUID_INVALID;
 oserr_t
 InitializeHandles(void)
 {
-    hashtable_construct(&g_handlemappings, HASHTABLE_MINIMUM_CAPACITY,
-                        sizeof(struct HandleMapping), mapping_hash,
-                        mapping_cmp);
-    hashtable_construct(&g_handles, HASHTABLE_MINIMUM_CAPACITY,
-                        sizeof(struct HandleEntry), handle_hash,
-                        handle_cmp);
+    // Initialize the global handle mappings
+    // These are a way to register global names to lookup
+    // certain handles.
+    hashtable_construct(
+        &g_handlemappings,
+        HASHTABLE_MINIMUM_CAPACITY,
+        sizeof(struct HandleMapping),
+        mapping_hash,
+        mapping_cmp
+    );
+
+    // Initialize the global handle table
+    hashtable_construct(
+        &g_handles,
+        HASHTABLE_MINIMUM_CAPACITY,
+        sizeof(struct HandleEntry),
+        handle_hash,
+        handle_cmp
+    );
     SpinlockConstruct(&g_handlesLock);
     atomic_store(&g_nextHandleId, 1);
     return OS_EOK;
@@ -93,13 +119,71 @@ oserr_t
 InitializeHandleJanitor(void)
 {
     // Create the thread with all defaults
-    return ThreadCreate("janitor", HandleJanitorThread, NULL,
-                        0, UUID_INVALID, 0, 0,
-                        &g_janitorHandle);
+    return ThreadCreate(
+        "janitor",
+        HandleJanitorThread,
+        NULL,
+        0,
+        UUID_INVALID,
+        0,
+        0,
+        &g_janitorHandle
+    );
+}
+
+HandleGrantsTable_t*
+CreateHandleGrantsTable(void)
+{
+    HandleGrantsTable_t* table = kmalloc(sizeof(HandleGrantsTable_t));
+    if (table == NULL) {
+        return NULL;
+    }
+
+    hashtable_construct(
+        &table->Table,
+        HASHTABLE_MINIMUM_CAPACITY,
+        sizeof(struct HandleGrantEntry),
+        grant_hash,
+        grant_cmp
+    );
+    SpinlockConstruct(&table->Lock);
+
+    return table;
+}
+
+static void
+__CleanupGrant(
+    _In_ int         index,
+    _In_ const void* element,
+    _In_ void*       userContext)
+{
+    struct HandleGrantEntry* grant = (struct HandleGrantEntry*)element;
+    (void)index;
+    (void)userContext;
+
+    if (grant == NULL) {
+        return;
+    }
+    
+    // every grant keeps a reference on a handle
+    DestroyHandle(grant->ID);
+}
+
+void
+DestroyHandleGrantsTable(
+    _In_ HandleGrantsTable_t* table)
+{
+    if (table == NULL) {
+        return;
+    }
+
+    hashtable_enumerate(&table->Table, __CleanupGrant, NULL);
+    hashtable_destroy(&table->Table);
+    kfree(table);
 }
 
 static inline struct ResourceHandle*
-__LookupSafe(
+__LookupGlobalSafe(
     _In_ uuid_t ID)
 {
     struct ResourceHandle* handle;
@@ -121,16 +205,55 @@ __LookupSafe(
 }
 
 static struct ResourceHandle*
+__AcquireHandleByGrant(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ uuid_t               handleId)
+{
+    struct HandleGrantEntry* entry;
+    struct ResourceHandle*   handle;
+
+    SpinlockAcquireIrq(&securityContext->HandleTable->Lock);
+    entry = hashtable_get(
+        &securityContext->HandleTable->Table,
+        &(struct HandleGrantEntry) {
+            .ID = handleId
+        }
+    );
+    if (entry == NULL) {
+        SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+        return NULL;
+    }
+    
+    entry->References++;
+    hashtable_set(
+        &securityContext->HandleTable->Table,
+        entry
+    );
+
+    handle = entry->Handle;
+    SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+    return handle;
+}
+
+static struct ResourceHandle*
 __AcquireHandle(
     _In_ uuid_t handleId)
 {
     struct ResourceHandle* handle;
+    MSContextSecurity_t*   securityContext;
+
     if (!atomic_load(&g_nextHandleId)) {
         return NULL;
     }
 
+    securityContext = MemorySpaceGetSecurityContext();
+    if (securityContext != NULL) {
+        assert(securityContext->HandleTable != NULL);
+        return __AcquireHandleByGrant(securityContext, handleId);
+    }
+
     SpinlockAcquireIrq(&g_handlesLock);
-    handle = __LookupSafe(handleId);
+    handle = __LookupGlobalSafe(handleId);
     if (handle == NULL) {
         SpinlockReleaseIrq(&g_handlesLock);
         return NULL;
@@ -141,6 +264,63 @@ __AcquireHandle(
     return handle;
 }
 
+static bool
+__InsertGlobalTable(
+    _In_ struct HandleEntry* entry)
+{
+    void* existing;
+    bool  inserted;
+
+    // Insert the handle into the global handle table
+    SpinlockAcquireIrq(&g_handlesLock);
+    existing = hashtable_set(&g_handles, entry);
+    assert(existing == NULL);
+
+    inserted = hashtable_get(&g_handles, entry) != NULL;
+    SpinlockReleaseIrq(&g_handlesLock);
+    return inserted;
+}
+
+static void
+__RemoveGlobalTable(
+    _In_ struct HandleEntry* entry)
+{
+    // Remove the handle from the global handle table
+    SpinlockAcquireIrq(&g_handlesLock);
+    hashtable_remove(&g_handles, entry);
+    SpinlockReleaseIrq(&g_handlesLock);
+}
+
+static bool
+__InsertGrantTable(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ struct HandleEntry*  baseEntry)
+{
+    struct HandleGrantEntry grantEntry;
+    void*                   existing;
+    bool                    inserted;
+
+    if (securityContext == NULL) {
+        // If no security context is available, this is kernel
+        // context and we skip this part. Return true to indicate success.
+        return true;
+    }
+
+    assert(securityContext->HandleTable != NULL);
+
+    grantEntry.ID = baseEntry->ID;
+    grantEntry.Handle = baseEntry->Handle;
+    grantEntry.References = 1;
+
+    SpinlockAcquireIrq(&securityContext->HandleTable->Lock);
+    existing = hashtable_set(&securityContext->HandleTable->Table, &grantEntry);
+    assert(existing == NULL);
+
+    inserted = hashtable_get(&securityContext->HandleTable->Table, &grantEntry) != NULL;
+    SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+    return inserted;
+}
+
 uuid_t
 CreateHandle(
     _In_ HandleType_t       handleType,
@@ -149,7 +329,6 @@ CreateHandle(
 {
     struct ResourceHandle* handle;
     struct HandleEntry     entry;
-    void*                  existing;
     bool                   inserted;
     uuid_t                 id;
 
@@ -172,15 +351,17 @@ CreateHandle(
     entry.ID = id;
     entry.Handle = handle;
 
-    SpinlockAcquireIrq(&g_handlesLock);
-    existing = hashtable_set(&g_handles, &entry);
-    assert(existing == NULL);
-    
-    // hashtable_set returns NULL for both insertion and allocation failure.
-    // Confirm publication before transferring record ownership to the index.
-    inserted = hashtable_get(&g_handles, &entry) != NULL;
-    SpinlockReleaseIrq(&g_handlesLock);
+    // Insert the handle into the global handle table
+    inserted = __InsertGlobalTable(&entry);
     if (!inserted) {
+        kfree(handle);
+        return UUID_INVALID;
+    }
+
+    // Insert, and grant the caller ownership of the handle
+    inserted = __InsertGrantTable(MemorySpaceGetSecurityContext(), &entry);
+    if (!inserted) {
+        __RemoveGlobalTable(&entry);
         kfree(handle);
         return UUID_INVALID;
     }
@@ -231,6 +412,114 @@ AcquireHandleOfType(
     return OS_EOK;
 }
 
+static inline struct ResourceHandle*
+__LookupGrantSafe(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ uuid_t               handleId)
+{
+    struct ResourceHandle*   handle = NULL;
+    struct HandleGrantEntry* entry;
+
+    entry = hashtable_get(
+        &securityContext->HandleTable->Table,
+        &(struct HandleGrantEntry) {
+            .ID = handleId
+        }
+    );
+    if (entry != NULL) {
+        handle = entry->Handle;
+    }
+    return handle;
+}
+
+static oserr_t
+__DestroyGlobalHandle(
+    _In_ uuid_t handleId)
+{
+    struct ResourceHandle* handle;
+
+    SpinlockAcquireIrq(&g_handlesLock);
+    handle = __LookupGlobalSafe(handleId);
+    if (handle == NULL) {
+        SpinlockReleaseIrq(&g_handlesLock);
+        return OS_ENOENT;
+    }
+
+    // do nothing if there still is active handles
+    handle->References--;
+    if (handle->References) {
+        SpinlockReleaseIrq(&g_handlesLock);
+        return OS_EINCOMPLETE;
+    }
+
+    // mark handle for destruction
+    handle->Flags |= __HANDLE_FLAG_DESTROYING;
+    if (handle->Path) {
+        hashtable_remove(&g_handlemappings, &(struct HandleMapping) { .path = handle->Path });
+    }
+    SpinlockReleaseIrq(&g_handlesLock);
+
+    queue_push(&g_cleanQueue, &handle->QueueHeader);
+    SemaphoreSignal(&g_eventHandle, 1);
+    return OS_EOK;
+}
+
+oserr_t
+GrantHandle(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ uuid_t               handleId)
+{
+    MSContextSecurity_t*   currentContext;
+    struct ResourceHandle* handle;
+    bool                   inserted;
+
+    if (!securityContext) {
+        return OS_EINVALPARAMS;
+    }
+
+    // We need to know whether we can access a handle
+    currentContext = MemorySpaceGetSecurityContext();
+    if (currentContext == NULL) {
+        return OS_ENOTSUPPORTED;
+    }
+    assert(currentContext->HandleTable != NULL);
+
+    // Do we even have the needed grant?
+    SpinlockAcquireIrq(&currentContext->HandleTable->Lock);
+    handle = __LookupGrantSafe(currentContext, handleId);
+    if (handle == NULL) {
+        SpinlockReleaseIrq(&currentContext->HandleTable->Lock);
+        return OS_ENOENT;
+    }
+
+    // Okay we did, do a safe increment of the reference count
+    // for this we dont need the global lock, as long as we have
+    // the grant table lock we know its safe to increment.
+    handle->References++;
+
+    // At this point we can release the lock, as we have an 
+    // extra reference on the underlying handle
+    SpinlockReleaseIrq(&currentContext->HandleTable->Lock);
+
+    inserted = __InsertGrantTable(
+        MemorySpaceGetSecurityContext(),
+        &(struct HandleEntry) {
+            .ID = handleId,
+            .Handle = handle,
+        }
+    );
+    if (!inserted) {
+        // This is more tricky, we failed to grant, now we need to reduce
+        // the reference count we previously incremented. However we cannot
+        // simply do this.
+        __DestroyGlobalHandle(handleId);
+
+        // Idk? maybe out of memory :/
+        return OS_EOOM;
+    }
+    return OS_EOK;
+}
+
 oserr_t
 RegisterHandlePath(
     _In_ uuid_t      handleId,
@@ -249,7 +538,7 @@ RegisterHandlePath(
     }
 
     SpinlockAcquireIrq(&g_handlesLock);
-    handle = __LookupSafe(handleId);
+    handle = __LookupGlobalSafe(handleId);
     if (handle == NULL) {
         SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
@@ -310,9 +599,24 @@ LookupHandleOfType(
 {
     struct ResourceHandle* handle;
     void*                  resource;
+    MSContextSecurity_t*   securityContext;
+
+    securityContext = MemorySpaceGetSecurityContext();
+    if (securityContext != NULL) {
+        assert(securityContext->HandleTable != NULL);
+        SpinlockAcquireIrq(&securityContext->HandleTable->Lock);
+        handle = __LookupGrantSafe(securityContext, ID);
+        if (handle == NULL || handle->Type != type) {
+            SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+            return NULL;
+        }
+        resource = handle->Resource;
+        SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+        return resource;
+    }
 
     SpinlockAcquireIrq(&g_handlesLock);
-    handle = __LookupSafe(ID);
+    handle = __LookupGlobalSafe(ID);
     if (handle == NULL || handle->Type != type) {
         SpinlockReleaseIrq(&g_handlesLock);
         return NULL;
@@ -323,36 +627,66 @@ LookupHandleOfType(
     return resource;
 }
 
+static oserr_t
+__DestroyGrantHandle(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ uuid_t               handleId)
+{
+    struct HandleGrantEntry* entry;
+    oserr_t                  oserr;
+
+    SpinlockAcquireIrq(&securityContext->HandleTable->Lock);
+
+    entry = hashtable_get(
+        &securityContext->HandleTable->Table,
+        &(struct HandleGrantEntry) {
+            .ID = handleId
+        }
+    );
+    if (!entry) {
+        SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+        return OS_ENOENT;
+    }
+    
+    // do nothing if there still is active handles
+    entry->References--;
+    if (entry->References) {
+        hashtable_set(&securityContext->HandleTable->Table, entry);
+        SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+        return OS_EINCOMPLETE;
+    }
+
+    // remove the entry from the grant table
+    hashtable_remove(
+        &securityContext->HandleTable->Table,
+        &(struct HandleGrantEntry) {
+            .ID = handleId
+        }
+    );
+    SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+
+    // destroy the global handle at this point
+    oserr = __DestroyGlobalHandle(handleId);
+    if (oserr != OS_EOK) {
+        ERROR("__DestroyGrantHandle failed to destroy global handle: %d", oserr);
+        return OS_EOK;
+    }
+
+    return OS_EOK;
+}
+
 oserr_t
 DestroyHandle(
     _In_ uuid_t handleId)
 {
-    struct ResourceHandle* handle;
+    MSContextSecurity_t* securityContext;
 
-    SpinlockAcquireIrq(&g_handlesLock);
-    handle = __LookupSafe(handleId);
-    if (handle == NULL) {
-        SpinlockReleaseIrq(&g_handlesLock);
-        return OS_ENOENT;
+    securityContext = MemorySpaceGetSecurityContext();
+    if (securityContext != NULL) {
+        assert(securityContext->HandleTable != NULL);
+        return __DestroyGrantHandle(securityContext, handleId);
     }
-
-    // do nothing if there still is active handles
-    handle->References--;
-    if (handle->References) {
-        SpinlockReleaseIrq(&g_handlesLock);
-        return OS_EINCOMPLETE;
-    }
-
-    // mark handle for destruction
-    handle->Flags |= __HANDLE_FLAG_DESTROYING;
-    if (handle->Path) {
-        hashtable_remove(&g_handlemappings, &(struct HandleMapping) { .path = handle->Path });
-    }
-    SpinlockReleaseIrq(&g_handlesLock);
-
-    queue_push(&g_cleanQueue, &handle->QueueHeader);
-    SemaphoreSignal(&g_eventHandle, 1);
-    return OS_EOK;
+    return __DestroyGlobalHandle(handleId);
 }
 
 static void
@@ -417,6 +751,21 @@ static int handle_cmp(const void* element1, const void* element2)
 {
     const struct HandleEntry* lh = element1;
     const struct HandleEntry* rh = element2;
+
+    // return 0 on true, 1 on false
+    return lh->ID == rh->ID ? 0 : 1;
+}
+
+static uint64_t grant_hash(const void* element)
+{
+    const struct HandleGrantEntry* entry = element;
+    return entry->ID; // already unique identifier
+}
+
+static int grant_cmp(const void* element1, const void* element2)
+{
+    const struct HandleGrantEntry* lh = element1;
+    const struct HandleGrantEntry* rh = element2;
 
     // return 0 on true, 1 on false
     return lh->ID == rh->ID ? 0 : 1;

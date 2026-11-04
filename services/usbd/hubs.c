@@ -215,7 +215,7 @@ static int hub_cmp(const void* element1, const void* element2)
     return hub1->DeviceId == hub2->DeviceId ? 0 : 1;
 }
 
-void
+oserr_t
 UsbCoreHubsRegisterAndConfigure(
     _In_ uuid_t   parentHubDeviceId,
     _In_ uuid_t   deviceId,
@@ -229,26 +229,56 @@ UsbCoreHubsRegisterAndConfigure(
     UsbController_t*         controller;
     struct vali_link_message msg;
 
-    // Register the hub and configure its controller in the same worker command
-    // so configuration finishes before the worker handles later port events.
+    // The registration reply must follow hardware completion. The hub driver
+    // starts its interrupt pipe and port-power requests only after this reply.
     osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount, characteristics);
-    hub = UsbCoreHubsGet(deviceId);
-
-    if (osStatus == OS_EOK && hub != NULL && hub->DeviceAddress != 0) {
-        controller = UsbCoreControllerGet(hub->ControllerDeviceId);
-        msg = (struct vali_link_message)VALI_MSG_INIT_HANDLE(controller->DriverId);
-        
-        ctt_usbhost_configure_hub(
-            GetGrachtClient(), &msg.base,
-            hub->ControllerDeviceId, 
-            hub->DeviceAddress,
-            (uint8_t)portCount,
-            characteristics
-        );
-        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-        ctt_usbhost_configure_hub_result(GetGrachtClient(), &msg.base, &controllerStatus);
-    }
     if (osStatus != OS_EOK) {
-        WARNING("USB: hub %u registration failed (%u)", deviceId, osStatus);
+        return osStatus;
     }
+
+    hub = UsbCoreHubsGet(deviceId);
+    if (hub == NULL) {
+        return OS_ENOENT;
+    }
+    
+    if (hub->DeviceAddress == 0) {
+        osStatus = OS_ENOENT;
+        goto error;
+    }
+
+    controller = UsbCoreControllerGet(hub->ControllerDeviceId);
+    if (controller == NULL) {
+        osStatus = OS_ENOENT;
+        goto error;
+    }
+
+    msg = (struct vali_link_message)VALI_MSG_INIT_HANDLE(controller->DriverId);
+    if (ctt_usbhost_configure_hub(GetGrachtClient(), &msg.base,
+            hub->ControllerDeviceId, hub->DeviceAddress, (uint8_t)portCount,
+            characteristics) != 0) {
+        osStatus = OS_EUNKNOWN;
+        goto error;
+    }
+
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0) {
+        osStatus = OS_EUNKNOWN;
+        goto error;
+    }
+
+    if (ctt_usbhost_configure_hub_result(GetGrachtClient(), &msg.base, &controllerStatus) != 0) {
+        osStatus = OS_EUNKNOWN;
+        goto error;
+    }
+    
+    if (controllerStatus != OS_EOK) {
+        osStatus = controllerStatus;
+        goto error;
+    }
+    return OS_EOK;
+
+error:
+    // No downstream ports exist yet. Remove only this registration record.
+    hashtable_remove(&g_hubs, &(struct UsbHub) { .DeviceId = deviceId });
+    WARNING("USB: hub %u configuration failed (%u)", deviceId, osStatus);
+    return osStatus;
 }

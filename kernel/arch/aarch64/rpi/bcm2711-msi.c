@@ -22,9 +22,11 @@
 #include <ddk/io.h>
 #include <heap.h>
 #include <interrupts.h>
+#include <debug.h>
 
 #include "bcm2711-msi.h"
 #include "../common/device.h"
+#include "../common/private.h"
 
 enum __BcmMsiState {
     // No caller owns setup; an allocation may try once the PCI host is ready.
@@ -106,7 +108,7 @@ __BcmMsiSelectAddress(
     uint32_t revision;
     uint64_t base;
     uint64_t size;
-    uint64_t address = BCM_MSI_ADDRESS_LOW;
+    uint64_t address = BCM_MSI_ADDRESS_HIGH;
 
     // The device service (deviced) resets this block and programs its device-to-
     // RAM window before publishing PCI devices. Boot only reserved our parent
@@ -149,17 +151,18 @@ __BcmMsiSelectAddress(
         return OS_EINVALPARAMS;
     }
 
-    // Prefer a destination below 4 GiB for devices with 32-bit message addresses.
-    // If RAM covers it, try the higher destination. Never give a driver an
-    // address inside RAM: its interrupt write could become a memory write.
+    // Pi 4/VL805 rejected MSI writes to 0xfffffffc with root-port AER Unsupported
+    // Request, although reading it back gave the correct value. At 64 GiB minus four, the
+    // GIC delivery and descriptor transfers succeeded with AER clear. Keep this
+    // address outside RAM. Aligned DWORDs and windows cannot overlap
     if (address >= base && address - base < size) {
-        address = BCM_MSI_ADDRESS_HIGH;
-    }
-
-    if (address >= base && address - base < size) {
+        WARNING("BCM2711 MSI target overlaps DMA: address=0x%llx base=0x%llx size=0x%llx",
+            address, base, size);
         return OS_ENOTSUPPORTED;
     }
-    
+
+    DEBUG("BCM2711 MSI target: address=0x%llx DMA-base=0x%llx DMA-size=0x%llx",
+        address, base, size);
     controller->MessageAddress = address;
     return OS_EOK;
 }
@@ -200,6 +203,12 @@ __BcmMsiPrepare(
     if (__BcmMsiRead(controller, BCM_MSI_BAR_LOW) !=
             ((uint32_t)controller->MessageAddress | BCM_MSI_BAR_ENABLE) ||
         __BcmMsiRead(controller, BCM_MSI_MASK_STATUS) != BCM_MSI_ALL_BITS) {
+        status = OS_EUNKNOWN;
+        goto disable;
+    }
+    
+    if (__BcmMsiRead(controller, BCM_MSI_BAR_HIGH) !=
+        (uint32_t)(controller->MessageAddress >> BCM_PCIE_ADDRESS_BITS)) {
         status = OS_EUNKNOWN;
         goto disable;
     }
@@ -278,10 +287,14 @@ __BcmMsiSetEnabled(
 {
     struct __BcmMsiController* controller = context;
 
-    // Mask commands are per-bit, with no read/modify/write or shared lock.
-    // Preserve pending messages across disable/re-enable of the same owner.
+    // Preserve pending messages across disable/re-enable
     __BcmMsiWrite(controller, enable ? BCM_MSI_MASK_CLEAR : BCM_MSI_MASK_SET,
         1U << resource->Token);
+    if (enable) {
+        DEBUG("BCM2711 MSI enabled: ordinal=%u mask=0x%08x pending=0x%08x",
+            resource->Token, __BcmMsiRead(controller, BCM_MSI_MASK_STATUS),
+            __BcmMsiRead(controller, BCM_MSI_STATUS));
+    }
     return OS_EOK;
 }
 
@@ -369,7 +382,6 @@ Arm64Bcm2711MsiInitialize(
 
     memset(controller, 0, sizeof(struct __BcmMsiController));
     controller->ParentId = UUID_INVALID;
-    
     controller->Registers = Arm64MapDevice(route.RegisterBase, BCM2711_MSI_REGISTER_LENGTH);
     if (!controller->Registers) {
         status = OS_EOOM;
