@@ -15,7 +15,7 @@ partitions:
   - label: vali-data
     type: mfs
     id: 80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53
-    size: 2GB
+    size: 128MB
     sources:
       - type: dir
         source: deploy/hdd/system

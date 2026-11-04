@@ -71,7 +71,9 @@ AllocateSyncAddress(
     uintptr_t dmaAddress;
     oserr_t   oserr;
     uintptr_t userAddress;
-    void*     kernelAddress = MemoryCacheAllocate(syncAddressCache);
+    void*     kernelAddress;
+    
+    kernelAddress = MemoryCacheAllocate(syncAddressCache);
     if (!kernelAddress) {
         return OS_EOOM;
     }
@@ -156,12 +158,11 @@ UserEventCreate(
 
 oserr_t
 UserEventSignal(
-        _In_ uuid_t handle)
+    _In_ uuid_t handle)
 {
     UserEvent_t* event  = LookupHandleOfType(handle, HandleTypeUserEvent);
-    oserr_t      status = OS_EINCOMPLETE;
+    oserr_t      status = OS_EOK;
     int          currentValue;
-    int          i;
     int          result;
     int          value = 1;
 
@@ -172,11 +173,15 @@ UserEventSignal(
     // assert not max
     currentValue = atomic_load(event->KernelMapping);
     if ((currentValue + value) <= event->InitialValue) {
-        for (i = 0; i < value; i++) {
+        for (int i = 0; i < value; i++) {
             while ((currentValue + 1) <= event->InitialValue) {
-                result = atomic_compare_exchange_weak(event->KernelMapping,
-                        &currentValue, currentValue + 1);
+                result = atomic_compare_exchange_weak(
+                    event->KernelMapping,
+                    &currentValue,
+                    currentValue + 1
+                );
                 if (result) {
+                    status = OS_EINCOMPLETE;
                     break;
                 }
 

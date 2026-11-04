@@ -330,7 +330,7 @@ add_custom_target (install_vmdk
 add_dependencies(install_vmdk install_prepare)
 
 add_custom_target (mkimage
-    COMMAND ${TOOL_DU} -o ./disk.img ${VALI_IMAGE_RECIPE}
+    COMMAND ${TOOL_DU} -o ./disk.img -s 512M ${VALI_IMAGE_RECIPE}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(mkimage install_prepare)
