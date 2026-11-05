@@ -31,32 +31,41 @@ _CODE_BEGIN
 struct dma_pool;
 
 /**
- * @brief Create CPU suballocations within a mapped shared-memory buffer.
+ * @brief Creates an allocation pool within a mapped SHM buffer.
  *
- * The caller must keep the SHM attachment and its CPU mapping until the pool is
- * destroyed. This helper does not prepare DMA or expose device addresses.
+ * The SHM buffer must stay attached and mapped until the pool is destroyed.
+ * The pool uses CPU addresses. DMA setup is handled separately.
+ *
  * @param shm Mapped buffer used for all pool allocations.
  * @param poolOut Receives the pool on success.
- * @return OS_EOK, or an argument/allocation error.
+ * @return OS_EOK, or an argument, allocation or CPU information query error.
  */
 DDKDECL(oserr_t,
 dma_pool_create(
     _In_  OSHandle_t*       shm,
     _Out_ struct dma_pool** poolOut));
 
-/* BufferPoolDestroy
- * Cleans up the buffer-pool and deallocates resources previously
- * allocated. This does not destroy the buffer-object. */
+/**
+ * @brief Frees the pool and its allocator data. The SHM buffer remains valid.
+ *
+ * @param pool Pool to destroy.
+ * @return OS_EOK.
+ */
 DDKDECL(oserr_t,
 dma_pool_destroy(
     _In_ struct dma_pool* pool));
 
 /**
- * @brief Allocate CPU-accessible bytes within the pool.
+ * @brief Allocates CPU-accessible memory on separate cache lines within the pool.
+ *
+ * The caller must serialize allocation and free calls. Wait for all DMA use of
+ * an allocation to complete before freeing it. Allocations do not share cache
+ * lines with each other or with allocator data.
+ *
  * @param pool Pool created from a mapped SHM buffer.
  * @param length Number of bytes to allocate.
  * @param address_out Receives a CPU pointer. Use dma_pool_offset for SHM I/O.
- * @return OS_EOK or OS_EOOM when the pool cannot fit the allocation.
+ * @return OS_EOK, OS_EINVALPARAMS for zero length, or OS_EOOM if the pool cannot fit it.
  */
 DDKDECL(oserr_t,
 dma_pool_allocate(
@@ -64,9 +73,14 @@ dma_pool_allocate(
     _In_  size_t           length,
     _Out_ void**           address_out));
 
-/* BufferPoolFree
- * Frees previously allocations made by the buffer-pool. The virtual
- * address must be the one passed back. */
+/**
+ * @brief Frees an allocation from the pool.
+ * All DMA use of the allocation must have completed before this call.
+ *
+ * @param pool Pool the allocation came from.
+ * @param address CPU pointer returned by dma_pool_allocate.
+ * @return OS_EOK.
+ */
 DDKDECL(oserr_t,
 dma_pool_free(
     _In_ struct dma_pool* pool,

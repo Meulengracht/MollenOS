@@ -26,12 +26,15 @@
 #include <ddk/bytepool.h>
 #include <ddk/utils.h>
 #include <os/shm.h>
+#include <os/mollenos.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
 struct dma_pool {
     struct bytepool* pool;
     OSHandle_t       handle;
+    size_t           Alignment;
 };
 
 oserr_t
@@ -39,25 +42,47 @@ dma_pool_create(
     _In_  OSHandle_t*       shm,
     _Out_ struct dma_pool** poolOut)
 {
-    struct dma_pool* pool;
-    oserr_t          oserr;
-    
+    struct dma_pool*  pool;
+    OSSystemCPUInfo_t cacheInfo;
+    size_t            queried;
+    oserr_t           oserr;
+
     if (shm == NULL || poolOut == NULL) {
         return OS_EINVALPARAMS;
     }
-    
+
+    oserr = OSSystemQuery(
+        OSSYSTEMQUERY_CPUINFO,
+        &cacheInfo,
+        sizeof(OSSystemCPUInfo_t),
+        &queried
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (queried != sizeof(cacheInfo) || cacheInfo.DataCacheLineSizeBytes == 0 ||
+        (cacheInfo.DataCacheLineSizeBytes & (cacheInfo.DataCacheLineSizeBytes - 1)) != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    // The byte allocator uses signed lengths and adds its own block headers.
+    if (SHMBufferLength(shm) > LONG_MAX / 2) {
+        return OS_EINVALPARAMS;
+    }
+
     pool = (struct dma_pool*)malloc(sizeof(struct dma_pool));
     if (!pool) {
         return OS_EOOM;
     }
-    
-    // Only CPU addresses and SHM byte offsets are needed here. The controller
-    // maps each submitted range for DMA; querying physical pages would add two
-    // syscalls without contributing to pool allocation or transfer submission.
-    memcpy(&pool->handle, shm, sizeof(OSHandle_t));
 
-    // bpool accepts an existing allocator when extending a pool. This is the
-    // first region, so its input slot must not contain uninitialized heap data.
+    // The pool uses CPU addresses and SHM byte offsets. The controller maps
+    // each submitted range for DMA, so we do not need to query physical pages here.
+    memcpy(&pool->handle, shm, sizeof(OSHandle_t));
+    pool->Alignment = cacheInfo.DataCacheLineSizeBytes;
+
+    // bpool requires NULL when creating the first region. A non-NULL pointer
+    // tells it to extend an existing pool.
     pool->pool = NULL;
     oserr = bpool(SHMBuffer(shm), (long)SHMBufferLength(shm), &pool->pool);
     if (oserr != OS_EOK) {
@@ -84,17 +109,41 @@ dma_pool_allocate(
     _In_  size_t           length,
     _Out_ void**           address_out)
 {
-    void* allocation;
+    void*     allocation;
+    uintptr_t payload;
+    size_t    rounded;
+    size_t    total;
+    size_t    mask = pool->Alignment - 1;
 
-    TRACE("dma_pool_allocate(Size %u)", length);
+    if (length == 0) {
+        return OS_EINVALPARAMS;
+    }
 
-    allocation = bget(pool->pool, (long)length);
-    if (!allocation) {
-        ERROR("Failed to allocate bufferpool memory (size %u)", length);
+    if (length > SIZE_MAX - mask) {
         return OS_EOOM;
     }
-    
-    *address_out = allocation;
+
+    rounded = (length + mask) & ~mask;
+    if (mask > SIZE_MAX - sizeof(void*) || rounded > SIZE_MAX - mask - sizeof(void*)) {
+        return OS_EOOM;
+    }
+
+    total = rounded + mask + sizeof(void*);
+    if (total > SHMBufferLength(&pool->handle)) {
+        return OS_EOOM;
+    }
+
+    allocation = bget(pool->pool, (long)total);
+    if (allocation == NULL) {
+        return OS_EOOM;
+    }
+
+    // Align the payload and round its size to whole cache lines. Keep the saved
+    // pointer and bget headers outside those lines so the pool can allocate or
+    // free other buffers while DMA uses this one.
+    payload = ((uintptr_t)allocation + sizeof(void*) + mask) & ~(uintptr_t)mask;
+    memcpy((void*)(payload - sizeof(void*)), &allocation, sizeof(allocation));
+    *address_out = (void*)payload;
     return OS_EOK;
 }
 
@@ -103,7 +152,14 @@ dma_pool_free(
     _In_ struct dma_pool* pool,
     _In_ void*            address)
 {
-    brel(pool->pool, address);
+    void* allocation;
+
+    memcpy(
+        &allocation,
+        (const uint8_t*)address - sizeof(void*),
+        sizeof(void*)
+    );
+    brel(pool->pool, allocation);
     return OS_EOK;
 }
 

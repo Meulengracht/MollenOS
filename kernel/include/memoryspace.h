@@ -72,12 +72,13 @@ DECL_STRUCT(HandleGrantsTable);
 #define MAPPING_VIRTUAL_FIXED           0x00000040U  // (Virtual) Mapping is supplied
 #define MAPPING_VIRTUAL_MASK            0x000000F0U
 
-#define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace)
+#define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandle(handle, HandleTypeMemorySpace)
 
-// Security context associated with a memory-space group. Retrieve it with
-// MemorySpaceGetSecurityContext().
+/**
+ * @brief Security state shared by the thread/memoryspace clusters.
+ */
 typedef struct MSContextSecurity {
-    uuid_t               Handle;
+    uuid_t               GlobalHandleID;
     Capabilities_t       Capabilities;
     HandleGrantsTable_t* HandleTable;
 } MSContextSecurity_t;
@@ -88,7 +89,7 @@ typedef struct MSContextSecurity {
 typedef struct MemorySpace {
     // The memory space group contains shared resources
     // for this memory space and it's relatives.
-    uuid_t                GroupHandle;
+    uuid_t                GroupGlobalHandleID;
     uuid_t                ParentHandle;
     unsigned int          Flags;
     DynamicMemoryPool_t   ThreadMemory;

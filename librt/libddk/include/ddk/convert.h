@@ -25,6 +25,8 @@
 #ifndef __DDK_CONVERT_H__
 #define __DDK_CONVERT_H__
 
+#include <ddk/convert/grants.h>
+
 #include <ddk/storage.h>
 #include <ddk/devices/device.h>
 #include <ddk/devices/usb.h>
@@ -195,9 +197,8 @@ static void to_sys_bus_io(DeviceIo_t* in, struct sys_bus_io* out)
             });
         } break;
         case DeviceIoInvalid: {
-            // PCI BAR positions are significant, so do not compact unused
-            // entries out of the array. Encode an empty slot with a valid union
-            // tag; an unset tag is rejected by the generated wire validator.
+            // Keep unused entries so PCI BAR indices stay unchanged. An empty
+            // entry still needs a valid union tag to pass the generated validator.
             out->id = UUID_INVALID;
             sys_bus_io_access_set_bus_io_memory(out, &(struct sys_bus_io_memory){ 0 });
         } break;

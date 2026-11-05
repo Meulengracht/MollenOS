@@ -86,10 +86,10 @@ IPCContextSend(
         return -1;
     }
 
-    msg.SenderHandle = handle->ID;
-    msg.Address      = address;
-    msg.Payload      = data;
-    msg.Length       = length;
+    msg.SenderHandleID = handle->ID;
+    msg.Address        = address;
+    msg.Payload        = data;
+    msg.Length         = length;
     return Syscall_IPCSend(&msgArray, 1, deadline, asyncContext);
 }
 
@@ -126,18 +126,17 @@ IPCContextRecv(
     bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);
     TRACE("IPCContextRecv bytes=%u", (uint32_t)bytesAvailable);
     if (!bytesAvailable) {
-        msgContext->SenderHandle = UUID_INVALID;
+        msgContext->SenderGlobalHandleID = UUID_INVALID;
         *bytesReceived = 0;
         return OS_EOK;
     }
 
-    // The packet stream includes a message header, but callers receive that
-    // separately. Report only payload bytes actually copied, including when
-    // the caller's buffer truncates a packet. Counting the prefix breaks framed
-    // protocols which compare their declared length against this receive count.
+    // Return the header separately in msgContext. bytesReceived must count only
+    // the payload bytes copied, also when the buffer is too small for the packet.
+    // Protocols use this count to check the payload against their declared length.
     if (bytesAvailable < sizeof(IPCMessageContext_t)) {
         streambuffer_read_packet_end(&packetCtx);
-        msgContext->SenderHandle = UUID_INVALID;
+        msgContext->SenderGlobalHandleID = UUID_INVALID;
         *bytesReceived = 0;
         return OS_EPROTOCOL;
     }

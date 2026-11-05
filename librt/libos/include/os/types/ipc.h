@@ -23,25 +23,40 @@
 #define IPC_ADDRESS_HANDLE 0
 #define IPC_ADDRESS_PATH   1
 
+/**
+ * @brief Identifies the destination IPC endpoint by path or global handle ID.
+ * The kernel can send to this endpoint without giving the caller a grant for
+ * its buffer.
+ */
 typedef struct IPCAddress {
     int Type;
     union {
-        uuid_t      Handle;
+        uuid_t      GlobalHandleID;
         const char* Path;
     } Data;
 } IPCAddress_t;
 
+/**
+ * @brief Describes an outgoing message and its reply endpoint.
+ * SenderHandleID must identify an IPC endpoint in the caller's grant table.
+ * Use UUID_INVALID when no reply endpoint is supplied.
+ */
 typedef struct IPCMessage {
-    uuid_t        SenderHandle;
+    uuid_t        SenderHandleID;
     IPCAddress_t* Address;
     const void*   Payload;
     size_t        Length;
 } IPCMessage_t;
 
+/**
+ * @brief Stores the sender's security group, capabilities and reply endpoint.
+ * The kernel supplies the group and capabilities and checks the sender endpoint.
+ * SenderGlobalHandleID allows replies without a grant for the sender's buffer.
+ */
 typedef struct IPCMessageContext {
-    uint64_t Sender;
+    uint64_t SenderGroupGlobalHandleID;
     uint32_t Capabilities;
-    uuid_t   SenderHandle;
+    uuid_t   SenderGlobalHandleID;
 } IPCMessageContext_t;
 
 #define IPC_ADDRESS_HANDLE_INIT(handle) { IPC_ADDRESS_HANDLE, { handle } }

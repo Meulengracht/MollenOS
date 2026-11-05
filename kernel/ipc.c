@@ -21,6 +21,7 @@
 #include <ds/streambuffer.h>
 #include <debug.h>
 #include <handles/global.h>
+#include <handles/paths.h>
 #include <handles/set.h>
 #include <memoryspace.h>
 #include <ioset.h>
@@ -120,7 +121,8 @@ __SendMessage(
         return OS_EINVALPARAMS;
     }
 
-    // Keep the emitted sender ID equal to the validated ID across a blocked send.
+    // Copy the request before checking the sender ID, so we use the same ID
+    // even if the send blocks.
     request = *message;
     if (request.Address == NULL) {
         return OS_EINVALPARAMS;

@@ -19,6 +19,7 @@
 #define __OS_TYPES_DMA_H__
 
 #include <os/osdefs.h>
+#include <os/types/shm.h>
 
 // Which way data moves during a transfer. Cache handling and bounce copies use
 // this to skip work that cannot matter for that direction.
@@ -33,6 +34,9 @@ enum DMADirection {
 
 // It must use the original SHM pages directly, without bounce buffers.
 #define DMA_MAP_REQUIRE_DIRECT 0x1U
+// Whether the mapping is persistent across multiple map/unmaps. Must
+// be used in conjunction with DMA_MAP_REQUIRE_DIRECT.
+#define DMA_MAP_PERSISTENT     0x2U
 
 /**
  * Unlike SHMSG_t, which holds CPU physical addresses in a pointer-sized type,

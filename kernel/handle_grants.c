@@ -27,8 +27,6 @@
 #include <string.h>
 #include "memory/private.h"
 
-#define GRANT_TOKEN_VERSION 1
-
 // TODO: Replace the fixed key with a separate, unpredictable secret for each export.
 static const uint8_t g_grantTokenSecret[16] = {
     0x56, 0x61, 0x6C, 0x69, 0x47, 0x72, 0x61, 0x6E,
@@ -51,7 +49,9 @@ static bool
 __GrantTokenScopeValid(
     _In_ GrantTokenScope_t scope)
 {
-    return scope == GrantTokenScopeRead || scope == GrantTokenScopeWrite;
+    unsigned int knownFlags = GrantTokenScopeRead | GrantTokenScopeWrite;
+
+    return scope != 0 && ((unsigned int)scope & ~knownFlags) == 0;
 }
 
 static oserr_t
@@ -278,8 +278,8 @@ GrantTokenVerify(
         return OS_ENOTSUPPORTED;
     }
 
-    // Look up the export record so we can check the token. Access to the SHM
-    // buffer still requires the checks below.
+    // The export ID locates the record. We must verify the token before adding
+    // a reference to the SHM buffer.
     snapshot = *token;
     oserr = AcquireGlobalHandle(snapshot.ExportGlobalHandleID, HandleTypeGrantToken, &resource);
     if (oserr != OS_EOK) {
@@ -299,7 +299,7 @@ GrantTokenVerify(
         record->Options.TargetGlobalHandleID != securityContext->GlobalHandleID) {
         goto exit;
     }
-    if (!__GrantTokenScopeValid(scope) || scope != record->Options.Scope) {
+    if (!__GrantTokenScopeValid(scope) || (scope & record->Options.Scope) != scope) {
         goto exit;
     }
 

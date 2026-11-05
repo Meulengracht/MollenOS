@@ -24,6 +24,7 @@
 
 #define __TRACE
 
+#include <internal/_async.h>
 #include <internal/_syscalls.h>
 #include <os/types/syscall.h>
 #include <os/notification_queue.h>
@@ -101,13 +102,7 @@ OSNotificationQueueWait(
     }
 
     oserr = Syscall_ListenHandleSet(setHandle->ID, asyncContext, &parameters, numEventsOut);
-    if (oserr == OS_EFORKED) {
-        // The system call was postponed, so we should coordinate with the
-        // userspace threading system right here.
-        usched_wait_async();
-        return asyncContext->ErrorCode;
-    }
-    return oserr;
+    return __SyscallAwaitFork(oserr, asyncContext);
 }
 
 oserr_t

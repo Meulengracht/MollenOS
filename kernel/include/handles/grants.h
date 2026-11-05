@@ -30,6 +30,16 @@ DECL_STRUCT(HandleGrantsTable);
 KERNELAPI HandleGrantsTable_t* KERNELABI CreateHandleGrantsTable(void);
 
 /**
+ * @brief Releases all grants in a security group's handle table and frees the table.
+ * The caller must prevent further access to the table before destroying it.
+ *
+ * @param table Handle table to destroy.
+ */
+KERNELAPI void KERNELABI
+DestroyHandleGrantsTable(
+    _In_ HandleGrantsTable_t* table);
+
+/**
  * @brief Grants the specified handle to the given security context.
  * The caller must keep both security contexts valid and prevent the destination
  * handle table from being destroyed during this call. If the destination already
@@ -79,19 +89,20 @@ GrantTokenRevoke(
 /**
  * @brief Verifies a grant token and adds a reference to its SHM buffer.
  * token and handleIDOut must point to kernel memory. The current security group
- * is the receiver, and scope must match the token's Read or Write value exactly.
+ * is the receiver. scope must contain Read, Write or both, and the token must
+ * permit each requested flag.
  * The kernel operation using the returned handle must enforce the token's range
  * and scope, then release the reference with ReleaseGlobalHandle when done.
- * This call creates no process grant or mapping. Verification must be part of
- * the kernel operation that uses the buffer. The returned ID must not give
- * userspace unrestricted access to it.
+ * Verification must be part of the kernel operation that uses the buffer.
+ * This call creates no process grant or mapping. Do not use the returned ID
+ * to give userspace unrestricted access to the buffer.
  *
  * @param token       Token to copy and verify.
  * @param scope       Requested access to the buffer.
  * @param handleIDOut Receives the SHM handle with one added reference on success.
  *                    Unchanged on failure.
  * @return OS_EOK on success, OS_EINVALPARAMS for an invalid token,
- *         OS_EPERMISSIONS if the receiver or scope does not match,
+ *         OS_EPERMISSIONS if the receiver does not match or scope is not permitted,
  *         OS_ECANCELLED if the export was revoked, OS_ENOTSUPPORTED without a
  *         current security context, or an error from adding the SHM reference.
  *         Receiver, scope and revoke errors are reported only after the token

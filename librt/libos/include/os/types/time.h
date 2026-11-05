@@ -48,6 +48,9 @@ typedef struct OSTimestamp {
     int64_t Nanoseconds;
 } OSTimestamp_t;
 
+// A far-distant deadline!
+#define OS_DEADLINE_INFINITE (&((OSTimestamp_t){ .Seconds = INT64_MAX, .Nanoseconds = 0 }))
+
 /**
  * @brief Checks the timestamp for being zero
  * @param timestamp The timestamp that should be checked.

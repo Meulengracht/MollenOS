@@ -1,6 +1,5 @@
 /**
- * Shared system types that are reused through-out the system services and contracts.
- * Contains some default structures also
+ * Shared types used by system services and contracts.
  */
  
 namespace sys
@@ -10,6 +9,33 @@ define oserr_t from "os/osdefs.h"
 define size_t from "stddef.h"
 define uintptr_t from "stdint.h"
 define time_t from "time.h"
+
+// Grant token fields sent over IPC. export_id also supplies the native
+// ControlHandleID. The four secret words store the 16 secret bytes in
+// little-endian order.
+struct grant_token {
+    uint32 version;
+    uint32 export_id;
+    uint32 buffer_offset;
+    uint32 buffer_length;
+    uint32 target_id;
+    uint32 scope;
+    uint32 target_type;
+    uint32 secret0;
+    uint32 secret1;
+    uint32 secret2;
+    uint32 secret3;
+}
+
+// Grant token and requested range for one SHM operation. In full-range mode,
+// relative_offset and requested_length must be zero. A subrange starts at
+// relative_offset within the token range and must fit within buffer_length.
+struct shm_transfer {
+    grant_token token;
+    uint32 range_mode;
+    uint32 relative_offset;
+    uint32 requested_length;
+}
 
 struct timestamp {
     time_t tv_sec;
@@ -41,8 +67,8 @@ enum transfer_direction {
     WRITE
 }
 
-// Used by the device manager to identify drivers for devices. Also used
-// to provide human readable information about the device.
+// Device identifiers used to find a matching driver, with descriptive strings
+// for displaying device information.
 struct device_identification {
     uint32 vendor_id;
     uint32 product_id;
@@ -56,8 +82,7 @@ struct device_identification {
     string serial;
 }
 
-// Represents the bare minimum information to represent/identify an
-// device in the system.
+// Device ID, parent ID and identification details.
 struct device_base {
     uuid_t                id;
     uuid_t                parent_id;

@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <internal/_async.h>
 #include <internal/_syscalls.h>
 #include <os/futex.h>
 
@@ -31,11 +32,5 @@ OSFutex(
         return Syscall_FutexWake(parameters);
     }
 
-    if (oserr == OS_EFORKED) {
-        // The system call was postponed, so we should coordinate with the
-        // userspace threading system right here.
-        usched_wait_async();
-        return asyncContext->ErrorCode;
-    }
-    return oserr;
+    return __SyscallAwaitFork(oserr, asyncContext);
 }
