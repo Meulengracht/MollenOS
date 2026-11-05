@@ -25,7 +25,7 @@
 #include <ddk/types/interrupt-controller.h>
 #include <ddk/types/interrupt.h>
 #include <os/osdefs.h>
-#include <interrupt_types.h>
+#include <interrupts/types.h>
 
 // Maps from a source IRQ to its system line and flags.
 typedef struct SystemInterruptOverride {

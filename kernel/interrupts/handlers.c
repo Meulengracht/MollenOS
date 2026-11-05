@@ -29,7 +29,7 @@
 #include <debug.h>
 #include <ddk/barrier.h>
 #include <heap.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <machine.h>
 
 static uuid_t         InterruptHandlers[CpuFunctionCount] = {0 };

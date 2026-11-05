@@ -17,7 +17,8 @@
 
 #include <arch/mmu.h>
 #include <debug.h>
-#include <handle.h>
+#include <handles/global.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <machine.h>
 #include <string.h>
@@ -41,9 +42,9 @@ MemorySpaceNew(
     threadRegionStart = GetMachine()->MemoryMap.ThreadLocal.Start;
     threadRegionSize  = GetMachine()->MemoryMap.ThreadLocal.Length + 1;
 
-    memorySpace->Flags        = flags;
-    memorySpace->ParentHandle = UUID_INVALID;
-    memorySpace->GroupHandle  = UUID_INVALID;
+    memorySpace->Flags               = flags;
+    memorySpace->ParentHandle        = UUID_INVALID;
+    memorySpace->GroupGlobalHandleID = UUID_INVALID;
     DynamicMemoryPoolConstruct(
             &memorySpace->ThreadMemory,
             threadRegionStart,
@@ -64,8 +65,8 @@ MemorySpaceDelete(
     DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
     MmuDestroyVirtualSpace(memorySpace);
 
-    if (memorySpace->GroupHandle != UUID_INVALID) {
-        DestroyHandle(memorySpace->GroupHandle);
+    if (memorySpace->GroupGlobalHandleID != UUID_INVALID) {
+        ReleaseGlobalHandle(memorySpace->GroupGlobalHandleID);
     }
     
     // Some cleanup for non-root memory spaces

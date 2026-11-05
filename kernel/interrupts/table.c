@@ -26,9 +26,9 @@
 #include <ddk/interrupts/interrupt.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <userevent.h>
-#include <shm.h>
+#include <shm/shm.h>
 #include <stdarg.h>
 #include <stdio.h>
 

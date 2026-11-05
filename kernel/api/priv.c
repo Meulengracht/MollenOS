@@ -37,11 +37,11 @@
 #include <capabilities.h>
 #include <deviceio.h>
 #include <firmware.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
-#include <interrupts.h>
-#include <interrupts_group.h>
-#include <interrupts_chain.h>
+#include <interrupts/interrupts.h>
+#include <interrupts/group.h>
+#include <interrupts/chain.h>
 #include <component/ic.h>
 #include <machine.h>
 #include <memoryspace.h>

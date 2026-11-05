@@ -22,14 +22,14 @@
 #define __TRACE
 
 #include <arch/interrupts.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/domain.h>
 #include <component/cpu.h>
 #include <ddk/io.h>
 #include <debug.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <machine.h>
 #include <memoryspace.h>

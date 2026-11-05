@@ -34,12 +34,12 @@
 #include <deviceio.h>
 #include <debug.h>
 #include <heap.h>
-#include <handle.h>
+#include <handles/global.h>
 #include <memoryspace.h>
 #include <spinlock.h>
-#include <interrupts.h>
-#include <interrupts_chain.h>
-#include <interrupts_resources.h>
+#include <interrupts/interrupts.h>
+#include <interrupts/chain.h>
+#include <interrupts/resources.h>
 #include <threading.h>
 #include <string.h>
 
@@ -801,7 +801,7 @@ __BeginInterruptUpdate(
     // Reaping requires the process to have exited. Keep its process ID in the
     // entry, as a cleanup retry may run on another thread or service process.
     if (reap && ((entry->Flags & INTERRUPT_KERNEL) ||
-        LookupHandleOfType(entry->Owner, HandleTypeMSContext) != NULL)) {
+        LookupGlobalHandle(entry->Owner, HandleTypeMSContext) != NULL)) {
         SpinlockReleaseIrq(&g_interruptTableLock);
         return OS_EBUSY;
     }
@@ -831,7 +831,7 @@ InterruptCurrentOwner(void)
     // Use the process ID from the security context. Threads have separate local
     // address spaces, and another thread in the same process may need to update
     // the interrupt or bus callback.
-    return security != NULL ? security->Handle : UUID_INVALID;
+    return security != NULL ? security->GlobalHandleID : UUID_INVALID;
 }
 
 // End the update and release the interrupt reference.

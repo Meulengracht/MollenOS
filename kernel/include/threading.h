@@ -83,7 +83,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_FORKED                0x00000020U  // Thread was forked during blockage
 #define THREADING_TRANSITION_USERMODE   0x10000000U
 
-#define THREAD_GET(Handle) (Thread_t*)LookupHandleOfType(Handle, HandleTypeThread)
+#define THREAD_GET(Handle) (Thread_t*)LookupHandle(Handle, HandleTypeThread)
 
 /**
  * @brief Creates a new thread that will execute the given function as soon as possible. The

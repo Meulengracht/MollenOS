@@ -28,7 +28,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <heap.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 
 struct IrqParseContext {
     list_t* AvailableIrqs;

@@ -18,7 +18,7 @@
 
 #include <arch/utils.h>
 #include <component/timer.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <machine.h>
 #include <threading.h>
 #include "private.h"

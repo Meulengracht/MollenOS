@@ -20,7 +20,7 @@
 #include <assert.h>
 #include <component/timer.h>
 #include <debug.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <os/types/syscall.h>
 #include <spinlock.h>

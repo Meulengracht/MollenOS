@@ -19,8 +19,8 @@
 #include <machine.h>
 #include <os/types/memory.h>
 #include "private.h"
-#include <handle.h>
-#include <shm.h>
+#include <handles/handle.h>
+#include <shm/shm.h>
 #include <ds/streambuffer.h>
 #include <os/futex.h>
 #include <string.h>
@@ -94,7 +94,7 @@ struct __AreMemorySpacesRelated {
     MOCK_STRUCT_RETURN(oserr_t);
 };
 
-struct __AcquireHandleOfType {
+struct __AcquireHandle {
     uuid_t       ExpectedID;
     bool         CheckID;
     HandleType_t ExpectedType;
@@ -104,7 +104,7 @@ struct __AcquireHandleOfType {
     int          Calls;
 };
 
-struct __LookupHandleOfType {
+struct __LookupHandle {
     uuid_t       ExpectedID;
     bool         CheckID;
     HandleType_t ExpectedType;
@@ -126,8 +126,8 @@ DEFINE_TEST_CONTEXT({
     MOCK_STRUCT_FUNC(MemorySpaceUnmap);
     MOCK_STRUCT_FUNC(GetMemorySpaceMapping);
     MOCK_STRUCT_FUNC(AreMemorySpacesRelated);
-    MOCK_STRUCT_FUNC(AcquireHandleOfType);
-    MOCK_STRUCT_FUNC(LookupHandleOfType);
+    MOCK_STRUCT_FUNC(AcquireHandle);
+    MOCK_STRUCT_FUNC(LookupHandle);
 });
 
 int Setup(void** state) {
@@ -145,7 +145,7 @@ int SetupTest(void** state) {
     memset(&g_testContext, 0, sizeof(struct __TestContext));
 
     // Initialize the memory space
-    g_testContext.MemorySpace.GroupHandle = 1;
+    g_testContext.MemorySpace.GroupGlobalHandleID = 1;
     g_testContext.MemorySpace.Flags   = MEMORY_SPACE_APPLICATION;
 
     // Default to a page size of 4KB. If a test needs something else
@@ -183,59 +183,22 @@ void* __TestAllocPage(size_t length)
     return (void*)address;
 }
 
-void TestSHMCreate_DEVICE(void** state)
+void
+TestSHMCreate_RetiredDeviceKind(
+    void** state)
 {
-    oserr_t     oserr;
+    SHM_t configuration = {
+        .Flags = 0x00000300U,
+        .Size = 0x1000
+    };
     SHMHandle_t handle;
+    SHMHandle_t saved;
+
     (void)state;
-
-    // The following function calls are expected during normal
-    // creation:
-
-    // 1. CreateHandle, nothing really we care enough to check here except
-    //    that it gets invoked as expected. The default returned value is 1
-
-    // 2. ArchSHMTypeToPageMask, this makes a bit more sense to check, that
-    //    we indeed have the expected type, it should be passed through
-    g_testContext.ArchSHMTypeToPageMask.ExpectedConformity = OSMEMORYCONFORMITY_LEGACY;
-    g_testContext.ArchSHMTypeToPageMask.CheckConformity    = true;
-    g_testContext.ArchSHMTypeToPageMask.PageMask           = 0xFFFFFFFF;
-    g_testContext.ArchSHMTypeToPageMask.PageMaskProvided   = true;
-    g_testContext.ArchSHMTypeToPageMask.ReturnValue        = OS_EOK;
-
-    // 3. MemorySpaceMap, this is the most interesting call to check, as that
-    //    needs to contain the expected setup for the virtual region
-    g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 1; // expect 1
-    g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
-    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = 0x1000;
-    g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
-    g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE | MAPPING_USERSPACE;
-    g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
-    g_testContext.MemorySpaceMap.Calls[0].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS;
-    g_testContext.MemorySpaceMap.Calls[0].CheckPlacement          = true;
-    g_testContext.MemorySpaceMap.Calls[0].ReturnedMapping         = 0x10000;
-    g_testContext.MemorySpaceMap.Calls[0].ReturnedMappingProvided = true;
-    g_testContext.MemorySpaceMap.Calls[0].ReturnValue             = OS_EOK;
-
-    // What we are testing here, is that specifically MemorySpaceMap is invoked
-    // with the correct parameters.
-    oserr = SHMCreate(
-            &(SHM_t) {
-                .Flags = SHM_DEVICE,
-                .Conformity = OSMEMORYCONFORMITY_LEGACY,
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                .Size = 0x1000,
-            },
-            &handle
-    );
-    assert_int_equal(oserr, OS_EOK);
-    assert_ptr_equal(handle.Buffer, 0x10000);
-    assert_int_equal(handle.ID, 1);
-    assert_int_equal(handle.SourceID, UUID_INVALID);
-    assert_int_equal(handle.SourceFlags, 0);
-    assert_int_equal(handle.Capacity, 0x1000);
-    assert_int_equal(handle.Length, 0x1000);
-    assert_int_equal(handle.Offset, 0);
+    memset(&handle, 0xa5, sizeof(handle));
+    memcpy(&saved, &handle, sizeof(saved));
+    assert_int_equal(SHMCreate(&configuration, &handle), OS_ENOTSUPPORTED);
+    assert_memory_equal(&handle, &saved, sizeof(handle));
     TeardownTest(state);
 }
 
@@ -304,12 +267,12 @@ void TestSHMCreate_IPC(void** state)
     assert_int_equal(handle.Length, 0x1000);
     assert_int_equal(handle.Offset, 0);
 
-    // Before calling SHMKernelMapping, we must set up the LookupHandleOfType call
-    g_testContext.LookupHandleOfType.ExpectedID   = 1;
-    g_testContext.LookupHandleOfType.CheckID      = true;
-    g_testContext.LookupHandleOfType.ExpectedType = HandleTypeSHM;
-    g_testContext.LookupHandleOfType.CheckType    = true;
-    g_testContext.LookupHandleOfType.ReturnValue  = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    // Before calling SHMKernelMapping, we must set up the LookupHandle call
+    g_testContext.LookupHandle.ExpectedID   = 1;
+    g_testContext.LookupHandle.CheckID      = true;
+    g_testContext.LookupHandle.ExpectedType = HandleTypeSHM;
+    g_testContext.LookupHandle.CheckType    = true;
+    g_testContext.LookupHandle.ReturnValue  = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // Verify the kernel mapping
     oserr = SHMKernelMapping(handle.ID, &kernelMapping);
@@ -531,7 +494,7 @@ void TestSHMCreate_PRIVATE(void** state)
     // 3. AreMemorySpacesRelated
     g_testContext.AreMemorySpacesRelated.ReturnValue = OS_EUNKNOWN;
 
-    // 4. AcquireHandleOfType
+    // 4. AcquireHandle
     //    set resource after SHMCreate
 
     // What we are testing here, is that specifically MemorySpaceMap is invoked
@@ -553,11 +516,11 @@ void TestSHMCreate_PRIVATE(void** state)
     assert_int_equal(handle.Length, 0x1000);
     assert_int_equal(handle.Offset, 0);
 
-    // Update the resource that should be returned by AcquireHandleOfType & LookupHandleOfType
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // Update the resource that should be returned by AcquireHandle & LookupHandle
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
-    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.LookupHandle.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // When stuff is private, we expect some functions to return an error
     // when invoked.
@@ -775,9 +738,9 @@ void TestSHMExport_PRIVATE(void** state)
     assert_int_equal(handle.Length, 0x1000);
     assert_int_equal(handle.Offset, 0);
 
-    // 3. AcquireHandleOfType
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // 3. AcquireHandle
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
     // 4. AreMemorySpacesRelated
     g_testContext.AreMemorySpacesRelated.ReturnValue = OS_EUNKNOWN;
@@ -837,18 +800,18 @@ void TestSHMConform_IsConformed(void** state)
     assert_int_equal(handle.Length, 0x8400);
     assert_int_equal(handle.Offset, 0);
 
-    // 3. AcquireHandleOfType. We will be acquiring the original buffer created.
+    // 3. AcquireHandle. We will be acquiring the original buffer created.
     // This will be called twice in this case. Once during SG creation, and once
     // when we decide to use the original buffer.
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
-    // 4. LookupHandleOfType
-    g_testContext.LookupHandleOfType.ExpectedID   = 1;
-    g_testContext.LookupHandleOfType.CheckID      = true;
-    g_testContext.LookupHandleOfType.ExpectedType = HandleTypeSHM;
-    g_testContext.LookupHandleOfType.CheckType    = true;
-    g_testContext.LookupHandleOfType.ReturnValue  = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    // 4. LookupHandle
+    g_testContext.LookupHandle.ExpectedID   = 1;
+    g_testContext.LookupHandle.CheckID      = true;
+    g_testContext.LookupHandle.ExpectedType = HandleTypeSHM;
+    g_testContext.LookupHandle.CheckType    = true;
+    g_testContext.LookupHandle.ReturnValue  = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // 5. ArchSHMTypeToPageMask
     g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
@@ -898,8 +861,8 @@ void TestSHMConform_IsConformed(void** state)
     // Ensure the right number of calls were made.
     assert_int_equal(g_testContext.CreateHandle.CallCount, 1);
     assert_int_equal(g_testContext.ArchSHMTypeToPageMask.Calls, 1);
-    assert_int_equal(g_testContext.AcquireHandleOfType.Calls, 2);
-    assert_int_equal(g_testContext.LookupHandleOfType.Calls, 1);
+    assert_int_equal(g_testContext.AcquireHandle.Calls, 2);
+    assert_int_equal(g_testContext.LookupHandle.Calls, 1);
     assert_int_equal(g_testContext.GetMemorySpaceMapping.Calls, 1);
     assert_int_equal(g_testContext.MemorySpaceMap.CallCount, 1);
     TeardownTest(state);
@@ -960,9 +923,9 @@ void TestSHMConform_NotAlignmentConformed(void** state)
     g_testContext.CreateHandle.Calls[1].ReturnedID         = 0x20;
     g_testContext.CreateHandle.Calls[1].ReturnedIDProvided = true;
 
-    // 4. AcquireHandleOfType. We will be acquiring the original buffer created.
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // 4. AcquireHandle. We will be acquiring the original buffer created.
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
     // 5. ArchSHMTypeToPageMask
     g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
@@ -1012,7 +975,7 @@ void TestSHMConform_NotAlignmentConformed(void** state)
     // Ensure the right number of calls were made.
     assert_int_equal(g_testContext.CreateHandle.CallCount, 2);
     assert_int_equal(g_testContext.ArchSHMTypeToPageMask.Calls, 1);
-    assert_int_equal(g_testContext.AcquireHandleOfType.Calls, 1);
+    assert_int_equal(g_testContext.AcquireHandle.Calls, 1);
     assert_int_equal(g_testContext.GetMemorySpaceMapping.Calls, 1);
     assert_int_equal(g_testContext.MemorySpaceMap.CallCount, 1);
     TeardownTest(state);
@@ -1073,9 +1036,9 @@ void TestSHMConform_NotMemoryConformed(void** state)
     g_testContext.CreateHandle.Calls[1].ReturnedID         = 0x20;
     g_testContext.CreateHandle.Calls[1].ReturnedIDProvided = true;
 
-    // 4. AcquireHandleOfType. We will be acquiring the original buffer created.
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // 4. AcquireHandle. We will be acquiring the original buffer created.
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
     // 5. ArchSHMTypeToPageMask
     g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
@@ -1125,7 +1088,7 @@ void TestSHMConform_NotMemoryConformed(void** state)
     // Ensure the right number of calls were made.
     assert_int_equal(g_testContext.CreateHandle.CallCount, 2);
     assert_int_equal(g_testContext.ArchSHMTypeToPageMask.Calls, 2);
-    assert_int_equal(g_testContext.AcquireHandleOfType.Calls, 1);
+    assert_int_equal(g_testContext.AcquireHandle.Calls, 1);
     assert_int_equal(g_testContext.GetMemorySpaceMapping.Calls, 1);
     assert_int_equal(g_testContext.MemorySpaceMap.CallCount, 1);
     TeardownTest(state);
@@ -1186,9 +1149,9 @@ void TestSHMConform_NotConformedFilledOnCreation(void** state)
     g_testContext.CreateHandle.Calls[1].ReturnedID         = 0x20;
     g_testContext.CreateHandle.Calls[1].ReturnedIDProvided = true;
 
-    // 4. AcquireHandleOfType. We will be acquiring the original buffer created.
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // 4. AcquireHandle. We will be acquiring the original buffer created.
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
     // 5. ArchSHMTypeToPageMask
     g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
@@ -1283,7 +1246,7 @@ void TestSHMConform_NotConformedFilledOnCreation(void** state)
     // Ensure the right number of calls were made.
     assert_int_equal(g_testContext.CreateHandle.CallCount, 2);
     assert_int_equal(g_testContext.ArchSHMTypeToPageMask.Calls, 2);
-    assert_int_equal(g_testContext.AcquireHandleOfType.Calls, 1);
+    assert_int_equal(g_testContext.AcquireHandle.Calls, 1);
     assert_int_equal(g_testContext.GetMemorySpaceMapping.Calls, 1);
     assert_int_equal(g_testContext.MemorySpaceMap.CallCount, 4);
     assert_int_equal(g_testContext.MemorySpaceUnmap.CallCount, 3);
@@ -1342,9 +1305,9 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     assert_int_equal(handle.Length, 0x8400);
     assert_int_equal(handle.Offset, 0);
 
-    // 3. AcquireHandleOfType. We will be acquiring the original buffer created.
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // 3. AcquireHandle. We will be acquiring the original buffer created.
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
     // 4. ArchSHMTypeToPageMask
     g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
@@ -1404,13 +1367,13 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     assert_int_equal(conformedHandle.Length, 0x8400);
     assert_int_equal(conformedHandle.Offset, 0);
 
-    // 8. LookupHandleOfType. __CopyBufferToSource will look up the source handle
+    // 8. LookupHandle. __CopyBufferToSource will look up the source handle
     //    when trying to build an SG of the buffer.
-    g_testContext.LookupHandleOfType.ExpectedID   = 0x10;
-    g_testContext.LookupHandleOfType.CheckID      = true;
-    g_testContext.LookupHandleOfType.ExpectedType = HandleTypeSHM;
-    g_testContext.LookupHandleOfType.CheckType    = true;
-    g_testContext.LookupHandleOfType.ReturnValue  = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.LookupHandle.ExpectedID   = 0x10;
+    g_testContext.LookupHandle.CheckID      = true;
+    g_testContext.LookupHandle.ExpectedType = HandleTypeSHM;
+    g_testContext.LookupHandle.CheckType    = true;
+    g_testContext.LookupHandle.ReturnValue  = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // 9-11. MemorySpaceMap+MemorySpaceUnmap, the next 3 calls is to individually map SG segments
     //       and copying data to these buffers, then unmapping them
@@ -1461,7 +1424,7 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     // Ensure the right number of calls were made.
     assert_int_equal(g_testContext.CreateHandle.CallCount, 2);
     assert_int_equal(g_testContext.ArchSHMTypeToPageMask.Calls, 2);
-    assert_int_equal(g_testContext.AcquireHandleOfType.Calls, 1);
+    assert_int_equal(g_testContext.AcquireHandle.Calls, 1);
     assert_int_equal(g_testContext.GetMemorySpaceMapping.Calls, 1);
     assert_int_equal(g_testContext.MemorySpaceMap.CallCount, 4);
     assert_int_equal(g_testContext.MemorySpaceUnmap.CallCount, 4);
@@ -1507,9 +1470,9 @@ void TestSHMAttach_Simple(void** state)
     );
     assert_int_equal(oserr, OS_EOK);
 
-    // 3. AcquireHandleOfType
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // 3. AcquireHandle
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
     oserr = SHMAttach(handle.ID, &otherHandle);
     assert_int_equal(oserr, OS_EOK);
@@ -1556,9 +1519,9 @@ void TestSHMAttach_PrivateFailed(void** state)
     );
     assert_int_equal(oserr, OS_EOK);
 
-    // 3. AcquireHandleOfType
-    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
-    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    // 3. AcquireHandle
+    g_testContext.AcquireHandle.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandle.ResourceProvided = true;
 
     // 4. AreMemorySpacesRelated
     g_testContext.AreMemorySpacesRelated.ReturnValue = OS_EUNKNOWN;
@@ -1657,8 +1620,8 @@ void TestSHMMap_Simple(void** state)
     // Ensure new mapping
     shm.Buffer = NULL;
 
-    // 1. LookupHandleOfType
-    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    // 1. LookupHandle
+    g_testContext.LookupHandle.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // 2. MemorySpaceMap, this is the most interesting call to check, as that
     //    needs to contain the expected setup for the virtual region
@@ -1749,8 +1712,8 @@ void TestSHMMap_SimpleExported(void** state)
     // Ensure new mapping
     shm.Buffer = NULL;
 
-    // 1. LookupHandleOfType
-    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    // 1. LookupHandle
+    g_testContext.LookupHandle.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // 2. MemorySpaceMap, this is the most interesting call to check, as that
     //    needs to contain the expected setup for the virtual region
@@ -1800,8 +1763,8 @@ void TestSHMMap_CanCommit(void** state)
     // Create a normal buffer we can use. It must not be comitted.
     __CreateRegularSHM(&shm, 0x1000);
 
-    // 1. LookupHandleOfType
-    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    // 1. LookupHandle
+    g_testContext.LookupHandle.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // 2. AllocatePhysicalMemory
     paddr_t page = 0x25000;
@@ -1849,8 +1812,8 @@ void TestSHMMap_CanRemap(void** state)
     // a bit larger than the other tests, so we can move the virtual mapping
     __CreateRegularSHM(&shm, 0x4000);
 
-    // 1. LookupHandleOfType
-    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    // 1. LookupHandle
+    g_testContext.LookupHandle.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
     // 2. MemorySpaceMap, expect a new mapping of 0x3000 when we map from page 2-4
     g_testContext.MemorySpaceMap.Calls[1].ExpectedSHMTag          = 1; // expect 1
@@ -1891,7 +1854,7 @@ void TestSHMMap_CanRemap(void** state)
 int main(void)
 {
     const struct CMUnitTest tests[] = {
-            cmocka_unit_test_setup(TestSHMCreate_DEVICE, SetupTest),
+            cmocka_unit_test_setup(TestSHMCreate_RetiredDeviceKind, SetupTest),
             cmocka_unit_test_setup(TestSHMCreate_IPC, SetupTest),
             cmocka_unit_test_setup(TestSHMCreate_TRAP, SetupTest),
             cmocka_unit_test_setup(TestSHMCreate_REGULAR, SetupTest),
@@ -2156,6 +2119,7 @@ oserr_t AreMemorySpacesRelated(
 
 uuid_t CreateHandle(
         _In_ HandleType_t       handleType,
+        _In_ HandleDestructorFn grantCleanup,
         _In_ HandleDestructorFn destructor,
         _In_ void*              resource)
 {
@@ -2184,45 +2148,45 @@ DestroyHandle(
     return OS_EOK;
 }
 
-oserr_t AcquireHandleOfType(
+oserr_t AcquireHandle(
         _In_  uuid_t       handleId,
         _In_  HandleType_t handleType,
         _Out_ void**       resourceOut)
 {
-    printf("AcquireHandleOfType()\n");
+    printf("AcquireHandle()\n");
     assert_non_null(resourceOut);
 
-    if (g_testContext.AcquireHandleOfType.CheckID) {
-        assert_int_equal(handleId, g_testContext.AcquireHandleOfType.ExpectedID);
+    if (g_testContext.AcquireHandle.CheckID) {
+        assert_int_equal(handleId, g_testContext.AcquireHandle.ExpectedID);
     }
 
-    if (g_testContext.AcquireHandleOfType.CheckType) {
-        assert_int_equal(handleType, g_testContext.AcquireHandleOfType.ExpectedType);
+    if (g_testContext.AcquireHandle.CheckType) {
+        assert_int_equal(handleType, g_testContext.AcquireHandle.ExpectedType);
     }
 
-    g_testContext.AcquireHandleOfType.Calls++;
-    if (g_testContext.AcquireHandleOfType.ResourceProvided) {
-        *resourceOut = g_testContext.AcquireHandleOfType.Resource;
+    g_testContext.AcquireHandle.Calls++;
+    if (g_testContext.AcquireHandle.ResourceProvided) {
+        *resourceOut = g_testContext.AcquireHandle.Resource;
         return OS_EOK;
     } else {
         return OS_ENOENT;
     }
 }
 
-void* LookupHandleOfType(
+void* LookupHandle(
         _In_ uuid_t       handleId,
         _In_ HandleType_t handleType)
 {
-    printf("LookupHandleOfType()\n");
-    if (g_testContext.LookupHandleOfType.CheckID) {
-        assert_int_equal(handleId, g_testContext.LookupHandleOfType.ExpectedID);
+    printf("LookupHandle()\n");
+    if (g_testContext.LookupHandle.CheckID) {
+        assert_int_equal(handleId, g_testContext.LookupHandle.ExpectedID);
     }
 
-    if (g_testContext.LookupHandleOfType.CheckType) {
-        assert_int_equal(handleType, g_testContext.LookupHandleOfType.ExpectedType);
+    if (g_testContext.LookupHandle.CheckType) {
+        assert_int_equal(handleType, g_testContext.LookupHandle.ExpectedType);
     }
-    g_testContext.LookupHandleOfType.Calls++;
-    return g_testContext.LookupHandleOfType.ReturnValue;
+    g_testContext.LookupHandle.Calls++;
+    return g_testContext.LookupHandle.ReturnValue;
 }
 
 oserr_t

@@ -23,7 +23,7 @@
 #include <debug.h>
 #include <memoryspace.h>
 #include <machine.h>
-#include <shm.h>
+#include <shm/shm.h>
 #include <stdio.h>
 #include <string.h>
 

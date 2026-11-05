@@ -120,11 +120,11 @@ static struct __TestContext {
 } g_testContext;
 
 void*
-LookupHandleOfType(
-    _In_ uuid_t       handle,
+LookupGlobalHandle(
+    _In_ uuid_t       globalHandleID,
     _In_ HandleType_t type)
 {
-    assert_int_equal(handle, 1);
+    assert_int_equal(globalHandleID, 1);
     assert_int_equal(type, HandleTypeMSContext);
     return &g_testContext.Context;
 }
@@ -144,7 +144,7 @@ int SetupTest(void** state) {
     memset(&g_testContext, 0, sizeof(struct __TestContext));
 
     // Initialize the memory space
-    g_testContext.MemorySpace.GroupHandle = 1;
+    g_testContext.MemorySpace.GroupGlobalHandleID = 1;
     g_testContext.MemorySpace.Flags   = MEMORY_SPACE_APPLICATION;
 
     // Default to a page size of 4KB. If a test needs something else

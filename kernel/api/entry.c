@@ -37,7 +37,7 @@
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <debug.h>
-#include <handle_set.h>
+#include <handles/set.h>
 #include <ipc_context.h>
 #include <threading.h>
 
@@ -164,11 +164,10 @@ extern oserr_t ScDmaOpen(uuid_t, const struct OSDmaOpenParameters*, uuid_t*);
 extern oserr_t ScDmaAllocate(uuid_t, const struct DMARequirements*, struct OSDmaAllocationResult*);
 extern oserr_t ScDmaMapShm(uuid_t, uuid_t, const struct OSDmaMapParameters*, struct OSDmaMappingResult*);
 extern oserr_t ScDmaGetSegments(uuid_t, struct DMASegment*, uint32_t, uint32_t*);
-extern oserr_t ScDmaSyncForDevice(uuid_t, size_t, size_t);
-extern oserr_t ScDmaSyncForCpu(uuid_t, size_t, size_t);
-extern oserr_t ScDmaUnmap(uuid_t);
-extern oserr_t ScDmaClose(uuid_t);
-
+extern oserr_t ScResourceRelease(uuid_t);
+extern oserr_t ScShmAccessEnd(uuid_t, enum SHMAccessKind, size_t);
+extern oserr_t ScShmAccessBegin(OSAsyncContext_t*, uuid_t, const struct SHMAccessBeginParameters*);
+extern oserr_t ScShmAccessCreate(uuid_t, size_t, size_t, uuid_t*);
 #define SYSTEM_CALL_COUNT 86
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
@@ -290,15 +289,15 @@ static struct SystemCallDescriptor {
         DefineSyscall(76, ScTimeSleep),
         DefineSyscall(77, ScTimeStall),
 
-        // DMA interface
+        // DMA mappings and shared range access
         DefineSyscall(78, ScDmaOpen),
         DefineSyscall(79, ScDmaAllocate),
         DefineSyscall(80, ScDmaMapShm),
         DefineSyscall(81, ScDmaGetSegments),
-        DefineSyscall(82, ScDmaSyncForDevice),
-        DefineSyscall(83, ScDmaSyncForCpu),
-        DefineSyscall(84, ScDmaUnmap),
-        DefineSyscall(85, ScDmaClose)
+        DefineSyscall(82, ScShmAccessBegin),
+        DefineSyscall(83, ScShmAccessEnd),
+        DefineSyscall(84, ScResourceRelease),
+        DefineSyscall(85, ScShmAccessCreate)
 };
 
 Context_t*

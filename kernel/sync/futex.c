@@ -41,7 +41,8 @@ typedef struct FutexItem {
     Spinlock_t   BlockQueueSyncObject;
     _Atomic(int) Waiters;
     
-    uuid_t    GroupHandle;
+    // Group identifier for private waiters; no additional reference is counted.
+    uuid_t    GroupGlobalHandleID;
     uintptr_t FutexAddress;
 } FutexItem_t;
 
@@ -93,12 +94,12 @@ static FutexItem_t*
 FutexGetNode(
         _In_ FutexBucket_t* bucket,
         _In_ uintptr_t      futexAddress,
-        _In_ uuid_t         groupHandle)
+        _In_ uuid_t         groupGlobalHandleID)
 {
     foreach(i, &bucket->Futexes) {
         FutexItem_t* Item = (FutexItem_t*)i->value;
         if (Item->FutexAddress == futexAddress &&
-            Item->GroupHandle == groupHandle) {
+            Item->GroupGlobalHandleID == groupGlobalHandleID) {
             return Item;
         }
     }
@@ -109,12 +110,12 @@ static FutexItem_t*
 FutexGetNodeLocked(
         _In_ FutexBucket_t* bucket,
         _In_ uintptr_t      futexAddress,
-        _In_ uuid_t         groupHandle)
+        _In_ uuid_t         groupGlobalHandleID)
 {
     FutexItem_t* item;
 
     SpinlockAcquireIrq(&bucket->SyncObject);
-    item = FutexGetNode(bucket, futexAddress, groupHandle);
+    item = FutexGetNode(bucket, futexAddress, groupGlobalHandleID);
     SpinlockReleaseIrq(&bucket->SyncObject);
 
     return item;
@@ -125,7 +126,7 @@ static FutexItem_t*
 FutexCreateNode(
         _In_ FutexBucket_t* bucket,
         _In_ uintptr_t      futexAddress,
-        _In_ uuid_t         groupHandle)
+        _In_ uuid_t         groupGlobalHandleID)
 {
     FutexItem_t* existing;
     FutexItem_t* item = (FutexItem_t*)kmalloc(sizeof(FutexItem_t));
@@ -137,11 +138,11 @@ FutexCreateNode(
     ELEMENT_INIT(&item->Header, 0, item);
     list_construct(&item->BlockQueue);
     SpinlockConstruct(&item->BlockQueueSyncObject);
-    item->FutexAddress = futexAddress;
-    item->GroupHandle  = groupHandle;
+    item->FutexAddress        = futexAddress;
+    item->GroupGlobalHandleID = groupGlobalHandleID;
 
     SpinlockAcquireIrq(&bucket->SyncObject);
-    existing = FutexGetNode(bucket, futexAddress, groupHandle);
+    existing = FutexGetNode(bucket, futexAddress, groupGlobalHandleID);
     if (!existing) {
         list_append(&bucket->Futexes, &item->Header);
     }
@@ -250,7 +251,7 @@ FutexWait(
         _In_ int               operation,
         _In_ OSTimestamp_t*    deadline)
 {
-    uuid_t         groupHandle = UUID_INVALID;
+    uuid_t         groupGlobalHandleID = UUID_INVALID;
     FutexBucket_t* futexBucket;
     FutexItem_t*   futexItem;
     uintptr_t      futexAddress;
@@ -273,8 +274,8 @@ FutexWait(
     // we can stick to the virtual address for sleeping
     // otherwise we need to look up the physical page
     if (flags & FUTEX_FLAG_PRIVATE) {
-        groupHandle  = GetCurrentMemorySpace()->GroupHandle;
-        futexAddress = (uintptr_t)futex;
+        groupGlobalHandleID = GetCurrentMemorySpace()->GroupGlobalHandleID;
+        futexAddress        = (uintptr_t)futex;
     } else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)futex,
                 1, &futexAddress) != OS_EOK) {
@@ -289,9 +290,9 @@ FutexWait(
     // cpus here, we must take care to flush any changes and reload any changes
     irqState = InterruptDisable();
 
-    futexItem = FutexGetNodeLocked(futexBucket, futexAddress, groupHandle);
+    futexItem = FutexGetNodeLocked(futexBucket, futexAddress, groupGlobalHandleID);
     if (!futexItem) {
-        futexItem = FutexCreateNode(futexBucket, futexAddress, groupHandle);
+        futexItem = FutexCreateNode(futexBucket, futexAddress, groupGlobalHandleID);
         if (!futexItem) {
             InterruptRestoreState(irqState);
             return OS_EOOM;
@@ -359,7 +360,7 @@ FutexWake(
     _In_ int           Count,
     _In_ int           Flags)
 {
-    uuid_t         groupHandle = UUID_INVALID;
+    uuid_t         groupGlobalHandleID = UUID_INVALID;
     FutexBucket_t* Bucket;
     FutexItem_t*   FutexItem;
     oserr_t        Status = OS_ENOENT;
@@ -371,7 +372,7 @@ FutexWake(
     // we can stick to the virtual address for sleeping
     // otherwise we need to look up the physical page
     if (Flags & FUTEX_FLAG_PRIVATE) {
-        groupHandle = GetCurrentMemorySpace()->GroupHandle;
+        groupGlobalHandleID = GetCurrentMemorySpace()->GroupGlobalHandleID;
         FutexAddress = (uintptr_t)Futex;
     }
     else {
@@ -383,7 +384,7 @@ FutexWake(
     
     Bucket = __GetBucket(FutexAddress);
 
-    FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, groupHandle);
+    FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, groupGlobalHandleID);
     if (!FutexItem) {
         return OS_ENOENT;
     }

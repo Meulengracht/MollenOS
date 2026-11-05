@@ -27,7 +27,7 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/memory.h>
 #include <assert.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <machine.h>
 #include <memoryspace.h>
@@ -60,7 +60,7 @@ MmVirtualGetMasterTable(
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
     if (memorySpace->ParentHandle != UUID_INVALID) {
         if (address < MEMORY_LOCATION_RING3_THREAD_START) {
-            MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandleOfType(
+            MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandle(
                     memorySpace->ParentHandle, HandleTypeMemorySpace);
             parent = (PageDirectory_t*)MemorySpaceParent->PlatformData.Cr3VirtualAddress;
         }

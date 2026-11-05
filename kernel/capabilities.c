@@ -23,7 +23,7 @@
 
 #include <debug.h>
 #include <capabilities.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <memoryspace.h>
 #include "memory/private.h"
 
@@ -48,7 +48,7 @@ CapabilityGrant(
     }
 
     // Get a temporary reference on the memory space
-    oserr = AcquireHandleOfType(memorySpaceHandle, HandleTypeMemorySpace, (void**)&memorySpace);
+    oserr = AcquireHandle(memorySpaceHandle, HandleTypeMemorySpace, (void**)&memorySpace);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -62,7 +62,7 @@ CapabilityGrant(
 
     context->Security.Capabilities |= capabilities;
     TRACE("CapabilityGrant: principal=%llu capabilities=0x%x",
-          (unsigned long long)context->Security.Handle, capabilities);
+          (unsigned long long)context->Security.GlobalHandleID, capabilities);
 
     DestroyHandle(memorySpaceHandle);
     return OS_EOK;
@@ -75,7 +75,7 @@ CapabilityVerify(
     MemorySpace_t*    memorySpace = GetCurrentMemorySpace();
     struct MSContext* context;
     
-    if (memorySpace == NULL || memorySpace->GroupHandle == UUID_INVALID) {
+    if (memorySpace == NULL || memorySpace->GroupGlobalHandleID == UUID_INVALID) {
         // Only kernel threads or early system init code can have no context.
         // In this case, we assume the caller has all capabilities.
         return OS_EOK;

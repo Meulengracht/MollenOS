@@ -30,7 +30,7 @@
 #include <arch/x86/apic.h>
 #include <arch/x86/mp.h>
 #include <acpiinterface.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <memoryspace.h>
 #include <machine.h>
 #include <debug.h>

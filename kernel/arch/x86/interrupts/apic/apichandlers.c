@@ -22,7 +22,7 @@
 
 #include <arch/utils.h>
 #include <arch/x86/apic.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 
 irqstatus_t
 ApicErrorHandler(

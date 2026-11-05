@@ -36,11 +36,11 @@
 #include <devicetree.h>
 
 #include <console.h>
-#include <crc32.h>
+#include <utils/crc32.h>
 #include <debug.h>
 #include <futex.h>
-#include <handle.h>
-#include <handle_set.h>
+#include <handles/init.h>
+#include <handles/set.h>
 #include <hpet.h>
 #include <scheduler.h>
 #include <stdio.h>

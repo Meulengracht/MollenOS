@@ -18,9 +18,9 @@
  * bus hardware. The device driver only needs to handle its own interrupt.
  */
 
-#include <interrupts.h>
-#include <interrupts_chain.h>
-#include <interrupts_resources.h>
+#include <interrupts/interrupts.h>
+#include <interrupts/chain.h>
+#include <interrupts/resources.h>
 #include <heap.h>
 #include <spinlock.h>
 #include <string.h>

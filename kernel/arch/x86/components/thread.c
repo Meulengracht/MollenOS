@@ -31,7 +31,7 @@
 #include <arch/x86/cpu.h>
 #include <ddk/ddkdefs.h>
 #include <threading.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <debug.h>
 #include <heap.h>
 

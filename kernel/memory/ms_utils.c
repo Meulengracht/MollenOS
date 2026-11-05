@@ -32,8 +32,8 @@ MemorySpaceInitialize(
     _In_ PlatformMemoryMapping_t* kernelMappings)
 {
     // initialzie the data structure
-    memorySpace->ParentHandle = UUID_INVALID;
-    memorySpace->GroupHandle  = UUID_INVALID;
+    memorySpace->ParentHandle        = UUID_INVALID;
+    memorySpace->GroupGlobalHandleID = UUID_INVALID;
 
     // initialize arch specific stuff
     return MmuLoadKernel(memorySpace, bootInformation, kernelMappings);
@@ -245,7 +245,7 @@ AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2)
 {
-    return (Space1->GroupHandle == Space2->GroupHandle) ? OS_EOK : OS_EUNKNOWN;
+    return (Space1->GroupGlobalHandleID == Space2->GroupGlobalHandleID) ? OS_EOK : OS_EUNKNOWN;
 }
 
 oserr_t

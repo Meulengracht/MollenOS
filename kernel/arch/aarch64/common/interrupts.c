@@ -18,7 +18,7 @@
 
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <component/cpu.h>
 #include <debug.h>
 #include <machine.h>

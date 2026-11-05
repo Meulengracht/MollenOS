@@ -29,7 +29,7 @@
 #include <ddk/io.h>
 #include <debug.h>
 #include <hpet.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <arch/x86/pit.h>
 
 typedef struct Pit {

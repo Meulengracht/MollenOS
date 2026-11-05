@@ -17,7 +17,8 @@
 
 #include <arch/mmu.h>
 #include <debug.h>
-#include <handle.h>
+#include <handles/global.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <string.h>
 #include "private.h"
@@ -60,7 +61,7 @@ CreateMemorySpace(
                     parentHandle = GetCurrentMemorySpaceHandle();
                 }
 
-                oserr = AcquireHandleOfType(
+                oserr = AcquireHandle(
                     parentHandle,
                     HandleTypeMemorySpace,
                     (void**)&parent
@@ -70,21 +71,21 @@ CreateMemorySpace(
                 }
                 memorySpace->ParentHandle = parentHandle;
 
-                oserr = AcquireHandleOfType(parent->GroupHandle, HandleTypeMSContext, NULL);
+                oserr = AcquireGlobalHandle(parent->GroupGlobalHandleID, HandleTypeMSContext, NULL);
                 if (oserr != OS_EOK) {
                     goto error;
                 }
-                memorySpace->GroupHandle = parent->GroupHandle;
+                memorySpace->GroupGlobalHandleID = parent->GroupGlobalHandleID;
                 memcpy(&memorySpace->PlatformData, &parent->PlatformData, sizeof(PlatformMemoryBlock_t));
             } else {
                 parent = NULL;
             }
         }
 
-        // A root space owns the initial reference to a new group.
+        // The new group supplies this root space's global reference.
         if (memorySpace->ParentHandle == UUID_INVALID) {
-            memorySpace->GroupHandle = MSContextNew();
-            if (memorySpace->GroupHandle == UUID_INVALID) {
+            memorySpace->GroupGlobalHandleID = MSContextNew();
+            if (memorySpace->GroupGlobalHandleID == UUID_INVALID) {
                 oserr = OS_EOOM;
                 goto error;
             }
@@ -100,6 +101,7 @@ CreateMemorySpace(
 
     *handleOut = CreateHandle(
         HandleTypeMemorySpace,
+        NULL,
         (HandleDestructorFn)MemorySpaceDelete,
         memorySpace
     );
@@ -111,8 +113,8 @@ CreateMemorySpace(
 
 error:
     // A failed clone unwinds its own page tables; only our references remain.
-    if (memorySpace->GroupHandle != UUID_INVALID) {
-        DestroyHandle(memorySpace->GroupHandle);
+    if (memorySpace->GroupGlobalHandleID != UUID_INVALID) {
+        ReleaseGlobalHandle(memorySpace->GroupGlobalHandleID);
     }
     
     if (memorySpace->ParentHandle != UUID_INVALID) {

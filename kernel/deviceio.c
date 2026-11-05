@@ -23,7 +23,7 @@
 #include <debug.h>
 #include <deviceio.h>
 #include <ds/list.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <limits.h>
 #include <memoryspace.h>
@@ -244,7 +244,7 @@ ReleaseSystemDeviceIo(
             uintptr_t BaseAddress = ioEntry->Io.Access.Memory.PhysicalBase;
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = ioEntry->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            assert(memorySpace->GroupHandle != UUID_INVALID);
+            assert(memorySpace->GroupGlobalHandleID != UUID_INVALID);
             MemorySpaceUnmap(memorySpace, ioEntry->MappedAddress, Length);
         } break;
 
@@ -413,7 +413,7 @@ uintptr_t
 ValidateDeviceIoMemoryAddress(
     _In_ uintptr_t Address)
 {
-    TRACE("ValidateDeviceIoMemoryAddress(Process %" PRIuIN ", Address 0x%" PRIxIN ")", Handle, Address);
+    TRACE("ValidateDeviceIoMemoryAddress(address 0x%" PRIxIN ")", Address);
 
     // Iterate and check each io-space if the process has this mapped in
     foreach(i, &g_ioSpaces) {

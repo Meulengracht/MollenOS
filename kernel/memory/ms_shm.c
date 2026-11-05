@@ -21,11 +21,11 @@
 #include <arch/utils.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <machine.h>
 #include <threading.h>
-#include <shm.h>
+#include <shm/shm.h>
 #include <string.h>
 #include "private.h"
 
@@ -109,56 +109,6 @@ __SHMBufferNew(
 }
 
 static unsigned int
-__MapFlagsForDevice(
-        _In_ SHM_t* shm)
-{
-    unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_NOCACHE | MAPPING_COMMIT;
-    if (!(shm->Access & SHM_ACCESS_WRITE)) {
-        flags |= MAPPING_READONLY;
-    }
-    if (shm->Access & SHM_ACCESS_EXECUTE) {
-        flags |= MAPPING_EXECUTABLE;
-    }
-    if (shm->Flags & SHM_CLEAN) {
-        flags |= MAPPING_CLEAN;
-    }
-    return flags;
-}
-
-static oserr_t
-__CreateDeviceBuffer(
-        _In_  struct SHMBuffer* buffer,
-        _In_  SHM_t*            shm,
-        _Out_ void**            userMapping)
-{
-    unsigned int mapFlags = __MapFlagsForDevice(shm);
-    oserr_t      oserr;
-    size_t       pageMask;
-    vaddr_t      mapping;
-
-    ArchSHMTypeToPageMask(shm->Conformity, &pageMask);
-    oserr = MemorySpaceMap(
-            GetCurrentMemorySpace(),
-            &(struct MemorySpaceMapOptions) {
-                .SHMTag = buffer->ID,
-                .Pages = &buffer->Pages[0],
-                .Length = shm->Size,
-                .Mask = pageMask,
-                .Flags = mapFlags,
-                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
-            },
-            &mapping
-    );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    buffer->PageMask = pageMask;
-    *userMapping = (void*)mapping;
-    return OS_EOK;
-}
-
-static unsigned int
 __MapFlagsForIPC(
         _In_  SHM_t* shm)
 {
@@ -179,7 +129,6 @@ __CreateIPCBuffer(
     unsigned int   userMapFlags   = __MapFlagsForIPC(shm);
     unsigned int   kernelMapFlags = MAPPING_COMMIT | MAPPING_PERSISTENT;
     oserr_t        oserr;
-    oserr_t        cleanupStatus;
     vaddr_t        userMapping;
     vaddr_t        kernelMapping;
 
@@ -205,6 +154,8 @@ __CreateIPCBuffer(
               buffer->ID, shm->Size, oserr);
         return oserr;
     }
+    
+    *userMappingOut = (void*)userMapping;
 
     oserr = MemorySpaceMap(
             memorySpace,
@@ -221,11 +172,6 @@ __CreateIPCBuffer(
     if (oserr != OS_EOK) {
         ERROR("__CreateIPCBuffer: MemorySpaceMap kernel mapping id %u, size %zu failed: %u",
               buffer->ID, shm->Size, oserr);
-        cleanupStatus = MemorySpaceUnmap(memorySpace, userMapping, shm->Size);
-        if (cleanupStatus != OS_EOK) {
-            ERROR("__CreateIPCBuffer: MemorySpaceUnmap user mapping id %u failed during rollback: %u",
-                  buffer->ID, cleanupStatus);
-        }
         return oserr;
     }
 
@@ -238,7 +184,6 @@ __CreateIPCBuffer(
     );
 
     buffer->KernelMapping = kernelMapping;
-    *userMappingOut = (void*)userMapping;
     TRACE("__CreateIPCBuffer: id %u stream initialized with capacity %zu",
           buffer->ID, shm->Size - sizeof(streambuffer_t));
     return OS_EOK;
@@ -405,12 +350,19 @@ SHMCreate(
 {
     struct SHMBuffer* buffer;
     oserr_t           oserr;
-    void*             mapping;
+    oserr_t           cleanupStatus;
+    void*             mapping = NULL;
 
     TRACE("SHMCreate(shm=%p, handle=%p)", shm, handle);
     if (shm == NULL || handle == NULL || shm->Size == 0) {
         WARNING("SHMCreate: missing request, output or buffer size");
         return OS_EINVALPARAMS;
+    }
+
+    // Only regular, trap and IPC storage can be created through this API.
+    // The retired device kind must not fall through to ordinary allocation.
+    if (SHM_KIND(shm->Flags) > SHM_IPC) {
+        return OS_ENOTSUPPORTED;
     }
 
     // Check before creating a handle or mapping storage: an IPC buffer needs
@@ -428,9 +380,7 @@ SHMCreate(
 
     // Determine the type of shared memory that should be setup from
     // the flags.
-    if (SHM_KIND(shm->Flags) == SHM_DEVICE) {
-        oserr = __CreateDeviceBuffer(buffer, shm, &mapping);
-    } else if (SHM_KIND(shm->Flags) == SHM_IPC) {
+    if (SHM_KIND(shm->Flags) == SHM_IPC) {
         oserr = __CreateIPCBuffer(buffer, shm, &mapping);
     } else if (SHM_KIND(shm->Flags) == SHM_TRAP) {
         oserr = __CreateTrapBuffer(buffer, shm, &mapping);
@@ -440,8 +390,7 @@ SHMCreate(
 
     if (oserr != OS_EOK) {
         ERROR("SHMCreate: buffer setup id %u, kind 0x%x failed: %u", buffer->ID, SHM_KIND(shm->Flags), oserr);
-        __SHMBufferDelete(buffer);
-        return oserr;
+        goto error;
     }
 
     // Was a key provided? Then we should set up the key
@@ -449,8 +398,7 @@ SHMCreate(
         oserr = RegisterHandlePath(buffer->ID, shm->Key);
         if (oserr != OS_EOK) {
             ERROR("SHMCreate: RegisterHandlePath id %u failed: %u", buffer->ID, oserr);
-            __SHMBufferDelete(buffer);
-            return oserr;
+            goto error;
         }
     }
 
@@ -464,6 +412,22 @@ SHMCreate(
     );
     TRACE("SHMCreate: published id %u, size %zu", buffer->ID, shm->Size);
     return OS_EOK;
+
+error:
+    if (mapping != NULL) {
+        cleanupStatus = MemorySpaceUnmap(GetCurrentMemorySpace(), (vaddr_t)mapping, shm->Size);
+        if (cleanupStatus != OS_EOK) {
+            ERROR("SHMCreate: user unmap id %u failed during rollback: %u", buffer->ID, cleanupStatus);
+            // Keep the creator's reference while its pages remain mapped. Group
+            // teardown removes the address spaces before releasing their grants.
+            return oserr;
+        }
+    }
+
+    // The registered handle schedules kernel-mapping and backing cleanup once
+    // its final reference ends, including any concurrent IPC send references.
+    DestroyHandle(buffer->ID);
+    return oserr;
 }
 
 oserr_t
@@ -495,7 +459,7 @@ SHMCreateDeviceBuffer(
         return oserr;
     }
 
-    buffer = __SHMBufferNew(0, size, SHM_DEVICE | SHM_CLEAN, false);
+    buffer = __SHMBufferNew(0, size, SHM_COMMIT | SHM_CLEAN, false);
     if (buffer == NULL) {
         (void)SystemMemoryReleaseAllocation(&allocation);
         return OS_EOOM;
@@ -576,7 +540,7 @@ SHMExport(
             &buffer->Pages[0]
     );
     if (oserr != OS_EOK) {
-        __SHMBufferDelete(buffer);
+        DestroyHandle(buffer->ID);
         return oserr;
     }
 
@@ -877,7 +841,7 @@ __CopyBufferToSource(
     SHMSG_t*          sg;
     oserr_t           oserr;
 
-    source = LookupHandleOfType(sourceID, HandleTypeSHM);
+    source = LookupHandle(sourceID, HandleTypeSHM);
     if (source == NULL) {
         return OS_ENOENT;
     }
@@ -965,7 +929,7 @@ SHMConform(
     oserr_t           oserr;
     size_t            correctedLength;
 
-    oserr = AcquireHandleOfType(shmID, HandleTypeSHM, (void**)&source);
+    oserr = AcquireHandle(shmID, HandleTypeSHM, (void**)&source);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -1014,7 +978,7 @@ SHMAttach(
     struct SHMBuffer* shmBuffer;
     oserr_t           oserr;
 
-    oserr = AcquireHandleOfType(
+    oserr = AcquireHandle(
             shmID,
             HandleTypeSHM,
             (void**)&shmBuffer
@@ -1258,7 +1222,7 @@ SHMMap(
         return OS_ENOTSUPPORTED;
     }
 
-    shmBuffer = LookupHandleOfType(handle->ID, HandleTypeSHM);
+    shmBuffer = LookupHandle(handle->ID, HandleTypeSHM);
     if (!shmBuffer) {
         return OS_ENOENT;
     }
@@ -1381,7 +1345,7 @@ SHMCommit(
     TRACE("SHMCommit(memoryBase=%p, memory=%p, length=0x%zx)",
           memoryBase, memory, length);
 
-    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    shmBuffer = LookupHandle(handle, HandleTypeSHM);
     if (!shmBuffer) {
         return OS_ENOENT;
     }
@@ -1480,7 +1444,7 @@ SHMBuildSG(
         return OS_EINVALPARAMS;
     }
 
-    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    shmBuffer = LookupHandle(handle, HandleTypeSHM);
     if (!shmBuffer) {
         return OS_ENOENT;
     }
@@ -1500,11 +1464,64 @@ SHMKernelMapping(
         return OS_EINVALPARAMS;
     }
 
-    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    shmBuffer = LookupHandle(handle, HandleTypeSHM);
     if (!shmBuffer) {
         return OS_ENOENT;
     }
 
     *bufferOut = (void*)shmBuffer->KernelMapping;
     return OS_EOK;
+}
+
+static oserr_t
+__GetIPCBufferMapping(
+    _In_  struct SHMBuffer* shmBuffer,
+    _Out_ void**            bufferOut)
+{
+    if (SHM_KIND(shmBuffer->Flags) != SHM_IPC || shmBuffer->KernelMapping == 0) {
+        // Both callers supply a global reference. Rejecting the buffer ends it.
+        ReleaseGlobalHandle(shmBuffer->ID);
+        return OS_EINVALPARAMS;
+    }
+
+    *bufferOut = (void*)shmBuffer->KernelMapping;
+    return OS_EOK;
+}
+
+oserr_t
+SHMAcquireIPCBufferReference(
+    _In_  uuid_t  handleID,
+    _Out_ void** bufferOut)
+{
+    struct SHMBuffer* shmBuffer;
+    oserr_t           oserr;
+
+    if (bufferOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = AcquireHandleReference(handleID, HandleTypeSHM, (void**)&shmBuffer);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return __GetIPCBufferMapping(shmBuffer, bufferOut);
+}
+
+oserr_t
+SHMAcquireGlobalIPCBuffer(
+    _In_  uuid_t  globalHandleID,
+    _Out_ void** bufferOut)
+{
+    struct SHMBuffer* shmBuffer;
+    oserr_t           oserr;
+
+    if (bufferOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = AcquireGlobalHandle(globalHandleID, HandleTypeSHM, (void**)&shmBuffer);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return __GetIPCBufferMapping(shmBuffer, bufferOut);
 }

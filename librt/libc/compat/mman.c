@@ -97,12 +97,10 @@ __get_anonymous_flags(
         _In_  int                      prot,
         _In_  int                      flags,
         _Out_ unsigned int*            flagsOut,
-        _Out_ enum OSMemoryConformity* conformityOut,
         _Out_ unsigned int*            accessOut)
 {
-    unsigned int            mflags = SHM_PRIVATE | SHM_CLEAN;
-    enum OSMemoryConformity conformity = OSMEMORYCONFORMITY_NONE;
-    unsigned int            access = 0;
+    unsigned int mflags = SHM_PRIVATE | SHM_CLEAN;
+    unsigned int access = 0;
 
     // MAP_SHARED indicate that we create a mapping that can
     // be shared with others. This is the default of our SHM buffers
@@ -143,11 +141,6 @@ __get_anonymous_flags(
         // Locked memory means that the memory can't be swapped.
     }
 
-    if (flags & MAP_32BIT) {
-        mflags |= SHM_DEVICE;
-        conformity = OSMEMORYCONFORMITY_BITS32;
-    }
-
     if (prot & PROT_READ) {
         access |= SHM_ACCESS_READ;
     }
@@ -159,7 +152,6 @@ __get_anonymous_flags(
     }
 
     *flagsOut = mflags;
-    *conformityOut = conformity;
     *accessOut = access;
 }
 
@@ -180,8 +172,15 @@ __mmap_anonymous(
     // TODO: when we support MAP_FIXED then we can use this parameter
     _CRT_UNUSED(addr);
 
+    // MAP_32BIT constrains virtual placement. The SHM allocator cannot select
+    // a low virtual range; restricting physical pages would not satisfy it.
+    if ((flags & MAP_32BIT) && !(flags & MAP_FIXED)) {
+        errno = ENOTSUP;
+        return NULL;
+    }
+
     // Convert flags to SHM attributes
-    __get_anonymous_flags(prot, flags, &shm.Flags, &shm.Conformity, &shm.Access);
+    __get_anonymous_flags(prot, flags, &shm.Flags, &shm.Access);
 
     oserr = SHMCreate(&shm, &osHandle);
     if (oserr != OS_EOK) {

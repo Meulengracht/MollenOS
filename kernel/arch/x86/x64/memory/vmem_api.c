@@ -29,7 +29,7 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/memory.h>
 #include <assert.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <debug.h>
 #include <machine.h>
@@ -62,7 +62,7 @@ MmVirtualGetMasterTable(
     if (memorySpace->ParentHandle != UUID_INVALID) {
         if (address >= MEMORY_LOCATION_RING3_CODE &&
             address < MEMORY_LOCATION_RING3_THREAD_START) {
-            MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandleOfType(
+            MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandle(
                     memorySpace->ParentHandle, HandleTypeMemorySpace);
             parent = (PageMasterTable_t*)MemorySpaceParent->PlatformData.Cr3VirtualAddress;
         }

@@ -21,7 +21,7 @@
 #include <arch/aarch64/arch.h>
 #include <component/ic.h>
 #include <devicetree.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 
 #include "../common/platform.h"
 #include "bcm2711-msi.h"

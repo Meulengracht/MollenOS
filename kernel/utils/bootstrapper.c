@@ -20,7 +20,7 @@
 
 #include <capabilities.h>
 #include <debug.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <threading.h>

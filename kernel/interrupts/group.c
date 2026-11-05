@@ -22,12 +22,12 @@
 #include <ddk/types/interrupt-bus.h>
 #include <string.h>
 
-#include <interrupts_group.h>
-#include <interrupts.h>
-#include <interrupts_chain.h>
+#include <interrupts/group.h>
+#include <interrupts/interrupts.h>
+#include <interrupts/chain.h>
 #include <component/ic.h>
 #include <heap.h>
-#include <handle.h>
+#include <handles/global.h>
 #include <memoryspace.h>
 #include <spinlock.h>
 #include <debug.h>
@@ -781,7 +781,7 @@ InterruptGroupReap(
 
     // All native threads share the process identity. The driver process must
     // have exited before we clean up its group, even if one worker has exited.
-    if (group->KernelHandlers || LookupHandleOfType(group->Owner, HandleTypeMSContext) != NULL) {
+    if (group->KernelHandlers || LookupGlobalHandle(group->Owner, HandleTypeMSContext) != NULL) {
         __EndGroup(group);
         return OS_EBUSY;
     }

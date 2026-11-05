@@ -21,7 +21,7 @@
 #include <component/ic.h>
 #include <ddk/io.h>
 #include <heap.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <debug.h>
 
 #include "bcm2711-msi.h"

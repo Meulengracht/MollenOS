@@ -23,7 +23,7 @@
 
 #include <arch/interrupts.h>
 #include <assert.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <machine.h>
 #include <mutex.h>
 #include <scheduler.h>

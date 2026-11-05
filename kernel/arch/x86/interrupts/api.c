@@ -27,7 +27,7 @@
 //#define __TRACE
 
 #include <arch/interrupts.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <arch/utils.h>
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>

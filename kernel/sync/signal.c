@@ -29,7 +29,7 @@
 #include <component/cpu.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <machine.h>
 #include <scheduler.h>
 #include <threading.h>

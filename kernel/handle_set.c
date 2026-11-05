@@ -29,8 +29,8 @@
 #include <ds/rbtree.h>
 #include <ds/hashtable.h>
 #include <futex.h>
-#include <handle.h>
-#include <handle_set.h>
+#include <handles/handle.h>
+#include <handles/set.h>
 #include <heap.h>
 #include <ioset.h>
 #include <string.h>
@@ -143,7 +143,7 @@ ControlHandleSet(
         _In_ uuid_t              handle,
         _In_ struct ioset_event* event)
 {
-    struct handle_set*        set = LookupHandleOfType(setHandle, HandleTypeSet);
+    struct handle_set*        set = LookupHandle(setHandle, HandleTypeSet);
     struct handleset_element* setElement;
     oserr_t                osStatus;
     TRACE("ControlHandleSet(setHandle=%u, op=%i, handle=%u)", setHandle, operation, handle);
@@ -201,7 +201,7 @@ WaitForHandleSet(
         _In_  OSTimestamp_t*      deadline,
         _Out_ int*                numEventsOut)
 {
-    struct handle_set* set = LookupHandleOfType(handle, HandleTypeSet);
+    struct handle_set* set = LookupHandle(handle, HandleTypeSet);
     int                numberOfEvents;
     int                available;
     list_t             spliced;

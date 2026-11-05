@@ -29,7 +29,7 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
 #include <arch/x86/cpu.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <debug.h>
 
 static void

@@ -27,7 +27,7 @@
 #include <arch/x86/pit.h>
 #include <arch/x86/tsc.h>
 #include <debug.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <component/timer.h>
 
 oserr_t

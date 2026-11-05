@@ -25,7 +25,7 @@
 #define __VALI_ARCH_INTERRUPT_H__
 
 #include <os/osdefs.h>
-#include <interrupt_types.h>
+#include <interrupts/types.h>
 
 /**
  * @brief Initializes the interrupts for the platform.

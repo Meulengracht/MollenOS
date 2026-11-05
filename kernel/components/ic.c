@@ -30,7 +30,7 @@
 #include <component/ic.h>
 #include <debug.h>
 #include <heap.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <limits.h>
 #include <machine.h>
 #include <spinlock.h>

@@ -20,8 +20,9 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <handle.h>
-#include <handle_set.h>
+#include <handles/handle.h>
+#include <handles/paths.h>
+#include <handles/set.h>
 #include <os/types/syscall.h>
 #include <memoryspace.h>
 
@@ -62,7 +63,7 @@ ScDestroyHandle(
     
     // CPU and DMA resources use the release syscall, which checks their operation
     // state. Generic close must not consume a suspended begin's reference.
-    if (LookupHandleOfType(Handle, HandleTypeSHMAccess) != NULL) {
+    if (LookupHandle(Handle, HandleTypeSHMAccess) != NULL) {
         return OS_EINVALPARAMS;
     }
     return DestroyHandle(Handle);

@@ -20,7 +20,7 @@
 #include <arch/utils.h>
 #include <arch/interrupts.h>
 #include <debug.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include <machine.h>
 #include <spinlock.h>
 #include "../components/cpu_private.h"

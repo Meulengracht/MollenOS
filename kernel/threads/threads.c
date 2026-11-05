@@ -32,7 +32,7 @@
 #include <component/timer.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <memoryspace.h>
 #include <string.h>
@@ -103,7 +103,7 @@ __InheritAddressSpace(
         return OS_EOK;
     }
 
-    oserr = AcquireHandleOfType(
+    oserr = AcquireHandle(
             parent->MemorySpaceHandle,
             HandleTypeMemorySpace,
             (void**)&memorySpace
@@ -297,7 +297,7 @@ ThreadCreate(
     if (!(flags & THREADING_INHERIT) && memorySpaceHandle != UUID_INVALID) {
         MemorySpace_t* memorySpace;
 
-        oserr = AcquireHandleOfType(
+        oserr = AcquireHandle(
                 memorySpaceHandle,
                 HandleTypeMemorySpace,
                 (void**)&memorySpace

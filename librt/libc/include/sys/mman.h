@@ -42,7 +42,9 @@
 // processors. Modern x86-64 processors no longer have this
 // performance problem, so use of this flag is not required
 // on those systems. The MAP_32BIT flag is ignored when
-// MAP_FIXED is set.
+// MAP_FIXED is set. Anonymous mappings currently return 
+// ENOTSUP when this constraint is requested without MAP_FIXED; 
+// low virtual placement is unsupported.
 #define MAP_32BIT 0x4
 
 // The mapping is not backed by any file; its contents are

@@ -20,7 +20,7 @@
  *  - Implemented using lookup tables for speed
  */
 
-#include <crc32.h>
+#include <utils/crc32.h>
 
 // Standard CRC-32 polynomial
 #define POLYNOMIAL 0x04c11db7L
