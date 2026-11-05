@@ -129,14 +129,14 @@ memcpy_select(
 	_In_ const void* Source,
 	_In_ size_t      Count)
 {
-	OSSystemCPUFeaturesInfo_t features = { 0 };
-	size_t                    bytesQueried = 0;
-	MemCpyTemplate            impl = memcpy_base;
+	OSSystemCPUInfo_t features = { 0 };
+	size_t            bytesQueried = 0;
+	MemCpyTemplate    impl = memcpy_base;
 
 	atomic_store_explicit(&g_memcpyImpl, memcpy_base, memory_order_relaxed);
-	if (OSSystemQuery(OSSYSTEMQUERY_CPUFEATURES, &features,
-			sizeof(features), &bytesQueried) == OS_EOK &&
-		bytesQueried == sizeof(features)) {
+	if (OSSystemQuery(OSSYSTEMQUERY_CPUINFO, &features,
+			sizeof(OSSystemCPUInfo_t), &bytesQueried) == OS_EOK &&
+		bytesQueried == sizeof(OSSystemCPUInfo_t)) {
 		if (features.Features & OSSYSTEMCPUFEATURE_MOPS) {
 			impl = memcpy_mops;
 		} else if (features.Features & OSSYSTEMCPUFEATURE_NEON) {
