@@ -27,10 +27,10 @@
 #include <os/types/syscall.h>
 #include <capabilities.h>
 #include <debug.h>
-#include <handle.h>
+#include <handles/handle.h>
 #include <heap.h>
 #include <memoryspace.h>
-#include <shm.h>
+#include <shm/shm.h>
 #include <threading.h>
 #include <string.h>
 
@@ -405,7 +405,7 @@ ScCreateMemorySpaceMapping(
     _In_  struct MemoryMappingParameters* mappingParameters,
     _Out_ void**                          addressOut)
 {
-    MemorySpace_t* memorySpace = (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace);
+    MemorySpace_t* memorySpace = (MemorySpace_t*)LookupHandle(handle, HandleTypeMemorySpace);
     unsigned int   memoryFlags   = MAPPING_COMMIT | MAPPING_USERSPACE;
     vaddr_t        copyPlacement = 0;
     int            pageCount;

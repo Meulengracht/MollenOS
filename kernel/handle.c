@@ -28,10 +28,15 @@
 #include <ds/mstring.h>
 #include <ds/queue.h>
 #include <debug.h>
-#include <handle.h>
 #include <heap.h>
 #include <memoryspace.h>
 #include <threading.h>
+
+#include <handles/handle.h>
+#include <handles/global.h>
+#include <handles/paths.h>
+#include <handles/init.h>
+#include <handles/grants.h>
 
 // Handle is being destroyed
 #define __HANDLE_FLAG_DESTROYING 0x1
@@ -311,13 +316,6 @@ __InsertGrantTable(
     };
     oserr_t status = OS_EOK;
 
-    if (securityContext == NULL) {
-        // If no security context is available, this is kernel
-        // context and we skip this part. Return true to indicate success.
-        return OS_EOK;
-    }
-
-
     SpinlockAcquireIrq(&securityContext->HandleTable->Lock);
     if (hashtable_get(&securityContext->HandleTable->Table, &grantEntry) != NULL) {
         status = OS_EEXISTS;
@@ -346,12 +344,13 @@ AllocateHandleId(void)
     return UUID_INVALID;
 }
 
-uuid_t
-CreateHandle(
-    _In_ HandleType_t       handleType,
-    _In_ HandleDestructorFn grantCleanup,
-    _In_ HandleDestructorFn globalCleanup,
-    _In_ void*              resource)
+static uuid_t
+__CreateHandle(
+    _In_ HandleType_t         handleType,
+    _In_ HandleDestructorFn   grantCleanup,
+    _In_ HandleDestructorFn   globalCleanup,
+    _In_ void*                resource,
+    _In_ MSContextSecurity_t* securityContext)
 {
     struct ResourceHandle* handle;
     struct HandleEntry     entry;
@@ -390,8 +389,9 @@ CreateHandle(
         return UUID_INVALID;
     }
 
-    // Insert, and grant the caller ownership of the handle
-    if (__InsertGrantTable(MemorySpaceGetSecurityContext(), &entry) != OS_EOK) {
+    // With a security context, the grant tracks the initial reference.
+    // Otherwise, the kernel caller must release it.
+    if (securityContext != NULL && __InsertGrantTable(securityContext, &entry) != OS_EOK) {
         __RemoveGlobalTable(&entry);
         kfree(handle);
         return UUID_INVALID;
@@ -399,26 +399,33 @@ CreateHandle(
     return id;
 }
 
-oserr_t
-AcquireHandle(
-    _In_  uuid_t handleId,
-    _Out_ void** resourceOut)
+uuid_t
+CreateHandle(
+    _In_ HandleType_t       handleType,
+    _In_ HandleDestructorFn grantCleanup,
+    _In_ HandleDestructorFn globalCleanup,
+    _In_ void*              resource)
 {
-    struct ResourceHandle* handle;
+    return __CreateHandle(
+        handleType,
+        grantCleanup,
+        globalCleanup,
+        resource,
+        MemorySpaceGetSecurityContext()
+    );
+}
 
-    handle = __AcquireHandle(handleId);
-    if (!handle) {
-        return OS_ENOENT;
-    }
-    
-    if (resourceOut) {
-        *resourceOut = handle->Resource;
-    }
-    return OS_EOK;
+uuid_t
+CreateGlobalHandle(
+    _In_ HandleType_t       handleType,
+    _In_ HandleDestructorFn cleanup,
+    _In_ void*              resource)
+{
+    return __CreateHandle(handleType, NULL, cleanup, resource, NULL);
 }
 
 oserr_t
-AcquireHandleOfType(
+AcquireHandle(
     _In_  uuid_t       handleId,
     _In_  HandleType_t handleType,
     _Out_ void**       resourceOut)
@@ -431,7 +438,7 @@ AcquireHandleOfType(
     }
 
     if (handle->Type != handleType) {
-        ERROR("AcquireHandleOfType requested handle type %u, but handle was of type %u",
+        ERROR("AcquireHandle requested handle type %u, but handle was of type %u",
               handleType, handle->Type);
         DestroyHandle(handleId);
         return OS_EUNKNOWN;
@@ -441,6 +448,37 @@ AcquireHandleOfType(
         *resourceOut = handle->Resource;
     }
     return OS_EOK;
+}
+
+oserr_t
+AcquireGlobalHandle(
+    _In_  uuid_t       handleId,
+    _In_  HandleType_t handleType,
+    _Out_ void**       resourceOut)
+{
+    struct ResourceHandle* handle;
+    oserr_t                status = OS_EOK;
+
+    SpinlockAcquireIrq(&g_handlesLock);
+    handle = __LookupGlobalSafe(handleId);
+    if (handle == NULL) {
+        status = OS_ENOENT;
+    } else if (handle->Type != handleType) {
+        status = OS_EUNKNOWN;
+    } else if (handle->Type == HandleTypeSHMAccess) {
+        // CPU sessions and DMA operations must finish in the security group
+        // that created them.
+        status = OS_EPERMISSIONS;
+    } else if (handle->References == INT_MAX) {
+        status = OS_EOVERFLOW;
+    } else {
+        handle->References++;
+        if (resourceOut != NULL) {
+            *resourceOut = handle->Resource;
+        }
+    }
+    SpinlockReleaseIrq(&g_handlesLock);
+    return status;
 }
 
 static inline struct ResourceHandle*
@@ -522,7 +560,7 @@ GrantHandle(
         return OS_ENOENT;
     }
 
-    if (handle->Type == HandleTypeSHMAccess) {
+    if (handle->Type == HandleTypeSHMAccess || handle->Type == HandleTypeGrantToken) {
         SpinlockReleaseIrq(&currentContext->HandleTable->Lock);
         return OS_EPERMISSIONS;
     }
@@ -543,7 +581,7 @@ GrantHandle(
 }
 
 oserr_t
-AcquireHandleReferenceOfType(
+AcquireHandleReference(
     _In_  uuid_t       handleId,
     _In_  HandleType_t handleType,
     _Out_ void**       resourceOut)
@@ -584,7 +622,7 @@ AcquireHandleReferenceOfType(
 }
 
 oserr_t
-ReleaseHandleReference(
+ReleaseGlobalHandle(
     _In_ uuid_t handleId)
 {
     return __DestroyGlobalHandle(handleId);
@@ -663,7 +701,7 @@ LookupHandleByPath(
 }
 
 void*
-LookupHandleOfType(
+LookupHandle(
     _In_ uuid_t       ID,
     _In_ HandleType_t type)
 {

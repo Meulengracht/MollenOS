@@ -69,11 +69,22 @@ ScSystemQuery(
         } break;
         case OSSYSTEMQUERY_CPUINFO: {
             OSSystemCPUInfo_t* info = buffer;
+            size_t             line = CpuDataCacheLineSize();
+            
             if (bufferSize < sizeof(OSSystemCPUInfo_t)) {
                 return OS_EINVALPARAMS;
             }
+            
             info->NumberOfProcessors = atomic_load(&GetMachine()->NumberOfProcessors);
             info->NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
+            info->DataCacheLineSizeBytes = line != 0 ? line : 1;
+
+#if defined(__aarch64__)
+            info->Features = Arm64GetCpuFeatures();
+#else
+            info->Features = 0;
+#endif
+
             *bytesQueriedOut = sizeof(OSSystemCPUInfo_t);
             return OS_EOK;
         } break;
@@ -89,20 +100,6 @@ ScSystemQuery(
             info->PagesTotal = maxBlocks;
             info->PagesUsed  = maxBlocks - freeBlocks;
             *bytesQueriedOut = sizeof(OSSystemMemoryInfo_t);
-            return OS_EOK;
-        } break;
-        case OSSYSTEMQUERY_CPUFEATURES: {
-            OSSystemCPUFeaturesInfo_t* info = buffer;
-
-            if (bufferSize < sizeof(OSSystemCPUFeaturesInfo_t)) {
-                return OS_EINVALPARAMS;
-            }
-#if defined(__aarch64__)
-            info->Features = Arm64GetCpuFeatures();
-#else
-            info->Features = 0;
-#endif
-            *bytesQueriedOut = sizeof(OSSystemCPUFeaturesInfo_t);
             return OS_EOK;
         } break;
         default: {

@@ -22,6 +22,7 @@
 #define __HANDLES_TYPES_H__
 
 #include <os/osdefs.h>
+#include <os/types/grants.h>
 
 typedef enum HandleType {
     HandleTypeGeneric = 0,
@@ -31,13 +32,11 @@ typedef enum HandleType {
     HandleTypeThread,
     HandleTypeUserEvent,
     HandleTypeSHM,
-    HandleTypeSHMAccess
+    HandleTypeSHMAccess,
+    // Export record with a control handle granted to its creator.
+    HandleTypeGrantToken
 } HandleType_t;
 
 typedef void (*HandleDestructorFn)(void*);
-
-typedef struct GrantTokenOptions {
-    uint32_t Flags;
-} GrantTokenOptions_t;
 
 #endif //! __HANDLES_TYPES_H__

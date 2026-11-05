@@ -31,9 +31,12 @@ KERNELAPI HandleGrantsTable_t* KERNELABI CreateHandleGrantsTable(void);
 
 /**
  * @brief Grants the specified handle to the given security context.
- * The caller must keep both contexts alive and exclude destination-table teardown
- * for this call. Repeated grants succeed without changing destination references.
- * CPU sessions and DMA access resources cannot be granted to another context.
+ * The caller must keep both security contexts valid and prevent the destination
+ * handle table from being destroyed during this call. If the destination already
+ * has a grant, the call succeeds without adding a reference.
+ * CPU sessions, DMA access resources and token control handles cannot be granted
+ * to another context.
+ *
  * @param securityContext [In] The security context to grant the handle to.
  * @param handleId        [In] The handle to grant.
  */
@@ -43,29 +46,61 @@ GrantHandle(
     _In_ uuid_t               handleId);
 
 /**
- * @brief Create an export from a handle accessible to the caller.
- * The resource must support the requested access and receiver restriction.
+ * @brief Creates a grant token for an SHM buffer in the caller's grant table.
+ * The caller must have a current security context. SHM_PRIVATE buffers cannot be shared.
+ * If the buffer was created with SHMExport, its original memory must stay valid
+ * until the export and all references added by verification have been released.
+ * options and tokenOut must point to kernel memory. Only use tokenOut on success.
+ * The fixed secret is temporary and must be replaced before production use.
  *
- * @param handleID   Resource handle in the caller's grant table.
- * @param options    Access, range, and receiver restriction.
- * @param resultOut  Receives the token and its local control handle on success.
+ * @param handleID   SHM handle in the caller's grant table.
+ * @param options    Requested access, buffer range and allowed receiver.
+ * @param tokenOut   Receives the token on success.
  * @return OS_EOK on success, or a validation or resource error.
  */
 __EXTERN oserr_t
 GrantTokenCreate(
     _In_  uuid_t                     handleID,
     _In_  const GrantTokenOptions_t* options,
-    _Out_ GrantTokenCreateResult_t*  resultOut);
+    _Out_ GrantToken_t*              tokenOut);
 
 /**
- * @brief Revoke an export and close the caller's control reference.
- * Existing imports continue under their established reference rules.
+ * @brief Disables an export and closes the caller's control handle.
+ * The caller must have a grant for the control handle. References added by
+ * successful verification calls remain valid until released.
  *
- * @param controlHandleID Local control handle returned by creation.
+ * @param controlHandleID Control handle returned by GrantTokenCreate.
  * @return OS_EOK on success, or a handle validation error.
  */
 __EXTERN oserr_t
 GrantTokenRevoke(
     _In_ uuid_t controlHandleID);
+
+/**
+ * @brief Verifies a grant token and adds a reference to its SHM buffer.
+ * token and handleIDOut must point to kernel memory. The current security group
+ * is the receiver, and scope must match the token's Read or Write value exactly.
+ * The kernel operation using the returned handle must enforce the token's range
+ * and scope, then release the reference with ReleaseGlobalHandle when done.
+ * This call creates no process grant or mapping. Verification must be part of
+ * the kernel operation that uses the buffer. The returned ID must not give
+ * userspace unrestricted access to it.
+ *
+ * @param token       Token to copy and verify.
+ * @param scope       Requested access to the buffer.
+ * @param handleIDOut Receives the SHM handle with one added reference on success.
+ *                    Unchanged on failure.
+ * @return OS_EOK on success, OS_EINVALPARAMS for an invalid token,
+ *         OS_EPERMISSIONS if the receiver or scope does not match,
+ *         OS_ECANCELLED if the export was revoked, OS_ENOTSUPPORTED without a
+ *         current security context, or an error from adding the SHM reference.
+ *         Receiver, scope and revoke errors are reported only after the token
+ *         fields have been verified.
+ */
+__EXTERN oserr_t
+GrantTokenVerify(
+    _In_  const GrantToken_t* token,
+    _In_  GrantTokenScope_t   scope,
+    _Out_ uuid_t*             handleIDOut);
 
 #endif //! __HANDLES_GRANTS_H__

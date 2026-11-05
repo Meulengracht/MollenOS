@@ -22,8 +22,7 @@ enum OSSystemQueryRequest {
     OSSYSTEMQUERY_BOOTVIDEOINFO,
     OSSYSTEMQUERY_CPUINFO,
     OSSYSTEMQUERY_MEMINFO,
-    OSSYSTEMQUERY_THREADS,
-    OSSYSTEMQUERY_CPUFEATURES,
+    OSSYSTEMQUERY_THREADS
 };
 
 enum OSSystemCPUFeatures {
@@ -31,14 +30,11 @@ enum OSSystemCPUFeatures {
     OSSYSTEMCPUFEATURE_MOPS = 1 << 1,
 };
 
-/** Userspace-enabled instruction features common to all configured CPU cores. */
-typedef struct OSSystemCPUFeaturesInfo {
-    unsigned int Features;
-} OSSystemCPUFeaturesInfo_t;
-
 typedef struct OSSystemCPUInfo {
-    size_t NumberOfProcessors;
-    size_t NumberOfActiveCores;
+    size_t       NumberOfProcessors;
+    size_t       NumberOfActiveCores;
+    size_t       DataCacheLineSizeBytes;
+    unsigned int Features;
 } OSSystemCPUInfo_t;
 
 typedef struct OSSystemMemoryInfo {

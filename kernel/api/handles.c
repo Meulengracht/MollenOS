@@ -20,6 +20,8 @@
 //#define __TRACE
 
 #include <assert.h>
+#include <debug.h>
+#include <handles/grants.h>
 #include <handles/handle.h>
 #include <handles/paths.h>
 #include <handles/set.h>
@@ -67,6 +69,56 @@ ScDestroyHandle(
         return OS_EINVALPARAMS;
     }
     return DestroyHandle(Handle);
+}
+
+oserr_t
+ScGrantTokenCreate(
+    _In_  uuid_t                     handleID,
+    _In_  const GrantTokenOptions_t* userOptions,
+    _Out_ GrantToken_t*              tokenOut)
+{
+    GrantTokenOptions_t options;
+    GrantToken_t        token;
+    oserr_t             oserr;
+    oserr_t             cleanupStatus;
+
+    // Copy the options once so the caller cannot change them during validation
+    // or export creation.
+    oserr = MemorySpaceCopyUser((void*)userOptions, &options, sizeof(options), false);
+    if (oserr != OS_EOK) {
+        ERROR("ScGrantTokenCreate: options copy for handle %u failed: %u", handleID, oserr);
+        return oserr;
+    }
+
+    oserr = GrantTokenCreate(handleID, &options, &token);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = MemorySpaceCopyUser(tokenOut, &token, sizeof(token), true);
+    if (oserr != OS_EOK) {
+        ERROR("ScGrantTokenCreate: token copy for control %u failed: %u",
+              token.ControlHandleID, oserr);
+        goto error;
+    }
+    return OS_EOK;
+
+error:
+    cleanupStatus = GrantTokenRevoke(token.ControlHandleID);
+    // If another thread already closed the control handle, the export is
+    // disabled and no further cleanup is needed.
+    if (cleanupStatus != OS_EOK && cleanupStatus != OS_ENOENT) {
+        ERROR("ScGrantTokenCreate: cancel control %u failed: %u (original status %u)",
+              token.ControlHandleID, cleanupStatus, oserr);
+    }
+    return oserr;
+}
+
+oserr_t
+ScGrantTokenRevoke(
+    _In_ uuid_t controlHandleID)
+{
+    return GrantTokenRevoke(controlHandleID);
 }
 
 oserr_t
