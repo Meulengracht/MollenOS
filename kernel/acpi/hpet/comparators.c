@@ -18,7 +18,7 @@
 //#define __TRACE
 
 #include <debug.h>
-#include <interrupts.h>
+#include <interrupts/interrupts.h>
 #include "private.h"
 
 extern HPET_t g_hpet;
