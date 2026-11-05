@@ -29,10 +29,7 @@
  *                 pages on page-faults.
  * SHM_TRAP        will mark the region a trap region. Only in use for OS services.
  * SHM_IPC         will mark region for IPC and needs a kernel accessible copy.
- * SHM_DEVICE      will mark the region device memory accessible. This allows for using
- *                 the different types in SHM_TYPE_* to request specifiy memory attributes for
- *                 the underlying physical memory pages. This flag automatically implies that
- *                 SHM_COMMIT will be set.
+ * SHM_CONFORM     applies the physical memory constraint in Conformity.
  * SHM_PRIVATE     region is intended for private use (private to the process memory space).
  */
 #define SHM_COMMIT       0x00000001U
@@ -43,7 +40,8 @@
 #define SHM_CONFORM      0x00000040U
 #define SHM_TRAP         0x00000100U
 #define SHM_IPC          0x00000200U
-#define SHM_DEVICE       0x00000300U
+// Kind 0x00000300U is reserved for the retired SHM_DEVICE mode. Use DMAAllocate
+// for controller storage, or SHM_COMMIT and DMAMapSHM for transfer buffers.
 #define SHM_KIND_MASK    0x00000F00U
 #define SHM_KIND(_flags) ((_flags) & SHM_KIND_MASK)
 

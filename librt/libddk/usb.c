@@ -42,7 +42,8 @@ UsbControllerRegister(
     if (status != OS_EOK) {
         return status;
     }
-    sys_usb_register_controller(
+    
+    status = sys_usb_register_controller(
         GetGrachtClient(), &msg.base,
         serverHandle,
         &protoDevice,
@@ -50,7 +51,7 @@ UsbControllerRegister(
         (int)portCount
     );
     sys_device_destroy(&protoDevice);
-    return OS_EOK;
+    return status == 0 ? OS_EOK : OS_EUNKNOWN;
 }
 
 void
@@ -77,8 +78,10 @@ UsbHubRegister(
 {
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
+    int                      status;
+    oserr_t                  hubStatus;
 
-    sys_usb_register_hub(
+    status = sys_usb_register_hub(
         GetGrachtClient(), &msg.base,
         usbDevice->DeviceContext.hub_device_id,
         usbDevice->Base.Id,
@@ -86,7 +89,23 @@ UsbHubRegister(
         portCount,
         characteristics
     );
-    return OS_EOK;
+    if (status != 0) {
+        return OS_EUNKNOWN;
+    }
+    
+    status = gracht_client_await(
+        GetGrachtClient(), &msg.base,
+        GRACHT_AWAIT_ASYNC
+    );
+    if (status != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    status = sys_usb_register_hub_result(
+        GetGrachtClient(), &msg.base,
+        &hubStatus
+    );
+    return status == 0 ? hubStatus : OS_EUNKNOWN;
 }
 
 oserr_t

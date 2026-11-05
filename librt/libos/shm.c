@@ -58,9 +58,13 @@ __ValidateNewBuffer(
         return OS_EINVALPARAMS;
     }
 
-    // If conformity is set, then either it must be device or SHM_CONFORM
+    // TODO: This is a very coarse validation. We should refine this
+    if (SHM_KIND(shm->Flags) > SHM_IPC) {
+        return OS_ENOTSUPPORTED;
+    }
+
     if (shm->Conformity != OSMEMORYCONFORMITY_NONE) {
-        if (!(shm->Flags & SHM_CONFORM) && !(shm->Flags & SHM_DEVICE)) {
+        if (!(shm->Flags & SHM_CONFORM)) {
             return OS_ENOTSUPPORTED;
         }
     }
@@ -382,29 +386,6 @@ SHMGetSGTable(
     }
     return Syscall_SHMMetrics(handle->ID, &sgTable->Count, sgTable->Entries);
 }
-
-oserr_t
-SHMSGTableOffset(
-    _In_  SHMSGTable_t* sgTable,
-    _In_  size_t        offset,
-    _Out_ int*          sgIndex,
-    _Out_ size_t*       sgOffset)
-{
-    if (sgTable == NULL || sgIndex == NULL || sgOffset == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    for (int i = 0; i < sgTable->Count; i++) {
-        if (offset < sgTable->Entries[i].Length) {
-            *sgIndex  = i;
-            *sgOffset = offset;
-            return OS_EOK;
-        }
-        offset -= sgTable->Entries[i].Length;
-    }
-    return OS_ENOENT;
-}
-
 
 static size_t
 __SHMImport(

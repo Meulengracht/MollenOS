@@ -212,21 +212,5 @@ SHMGetSGTable(
         _In_ SHMSGTable_t* sgTable,
         _In_ int           maxCount));
 
-/**
- * Converts a virtual buffer offset into a memory_sg index + offset
- * 
- * @param sgTable  [In]  Scatter-gather table to perform the lookup in.
- * @param offset    [In]  The offset that should be converted to a sg-index/offset 
- * @param sg_index  [Out] A pointer to the variable for the index.
- * @param sg_offset [Out] A pointer to the variable for the offset.
- * @return Status of the operation.
- */
-CRTDECL(oserr_t,
-SHMSGTableOffset(
-        _In_  SHMSGTable_t* sgTable,
-        _In_  size_t        offset,
-        _Out_ int*          sgIndex,
-        _Out_ size_t*       sgOffset));
-
 _CODE_END
 #endif //!__OS_SHM_H__
