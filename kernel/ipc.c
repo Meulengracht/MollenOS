@@ -20,47 +20,46 @@
 #include <ddk/barrier.h>
 #include <ds/streambuffer.h>
 #include <debug.h>
-#include <handle.h>
-#include <handle_set.h>
+#include <handles/global.h>
+#include <handles/set.h>
 #include <memoryspace.h>
 #include <ioset.h>
 #include <ipc_context.h>
-#include <shm.h>
+#include <shm/shm.h>
 
 static oserr_t
 __AllocateMessage(
     _In_  IPCMessage_t*              message,
     _In_  streambuffer_rw_options_t* options,
     _In_  streambuffer_packet_ctx_t* packetCtx,
-    _Out_ uuid_t*                    streamIDOut)
+    _Out_ uuid_t*                    destinationGlobalHandleIDOut)
 {
     streambuffer_t* stream;
     size_t          bytesAvailable;
     size_t          payloadLength = message->Length;
     size_t          bytesToAllocate;
-    uuid_t          streamID;
+    uuid_t          destinationGlobalHandleID;
     oserr_t         oserr;
-
-    TRACE("__AllocateMessage(target=%u, len=%" PRIuIN ")", message->Address->Data.Handle, bytesToAllocate);
 
     if (payloadLength > SIZE_MAX - sizeof(IPCMessageContext_t)) {
         return OS_EINVALPARAMS;
     }
+    
     bytesToAllocate = sizeof(IPCMessageContext_t) + payloadLength;
         
     if (message->Address->Type == IPC_ADDRESS_HANDLE) {
-        streamID = message->Address->Data.Handle;
-    } else {
-        oserr = LookupHandleByPath(message->Address->Data.Path, &streamID);
+        destinationGlobalHandleID = message->Address->Data.GlobalHandleID;
+    } else if (message->Address->Type == IPC_ADDRESS_PATH) {
+        oserr = LookupHandleByPath(message->Address->Data.Path, &destinationGlobalHandleID);
         if (oserr != OS_EOK) {
-            ERROR("__AllocateMessage could not find target path %s", message->Address->Data.Path);
             return oserr;
         }
+    } else {
+        return OS_EINVALPARAMS;
     }
 
-    oserr = SHMKernelMapping(streamID, (void**)&stream);
+    oserr = SHMAcquireGlobalIPCBuffer(destinationGlobalHandleID, (void**)&stream);
     if (oserr != OS_EOK) {
-        ERROR("__AllocateMessage could not find target handle %u", streamID);
         return oserr;
     }
 
@@ -71,11 +70,11 @@ __AllocateMessage(
         packetCtx
     );
     if (!bytesAvailable) {
-        ERROR("__AllocateMessage timeout allocating space for message");
+        ReleaseGlobalHandle(destinationGlobalHandleID);
         return OS_ENOENT;
     }
     
-    *streamIDOut = streamID;
+    *destinationGlobalHandleIDOut = destinationGlobalHandleID;
     return OS_EOK;
 }
 
@@ -83,27 +82,20 @@ static void
 __WriteMessage(
     _In_ IPCMessage_t*              message,
     _In_ streambuffer_packet_ctx_t* packetCtx,
-    _In_ MSContextSecurity_t*       secCtx)
+    _In_ IPCMessageContext_t*       context)
 {
-    // The message header carries sender information and capabilities.
-    IPCMessageContext_t context = {
-        .Sender = secCtx->Handle,
-        .Capabilities = (uint32_t)secCtx->Capabilities,
-        .SenderHandle = message->SenderHandle
-    };
     size_t payloadLength = packetCtx->_length - sizeof(IPCMessageContext_t);
     
     TRACE("__WriteMessage()");
     
-    // write the header (senders handle)
+    // The kernel supplied the process identity and validated the sender endpoint.
     streambuffer_write_packet_data(
-        &context,
+        context,
         sizeof(IPCMessageContext_t),
         packetCtx
     );
 
-    // The sender can change its descriptor while allocation waits. Only write
-    // the payload length recorded in the successful reservation.
+    // Write only the payload length recorded in the successful reservation.
     streambuffer_write_packet_data(
         (void*)message->Payload,
         payloadLength,
@@ -111,14 +103,51 @@ __WriteMessage(
     );
 }
 
-static inline void
-SendMessage(
-    _In_ uuid_t                     streamID,
-    _In_ streambuffer_packet_ctx_t* packetCtx)
+static oserr_t
+__SendMessage(
+    _In_ IPCMessage_t*              message,
+    _In_ streambuffer_rw_options_t* options,
+    _In_ MSContextSecurity_t*       securityContext)
 {
-    TRACE("SendMessage()");
-    streambuffer_write_packet_end(packetCtx);
-    MarkHandle(streamID, IOSETIN);
+    IPCMessage_t              request;
+    IPCMessageContext_t       context;
+    streambuffer_packet_ctx_t packetContext;
+    void*                     senderMapping;
+    uuid_t                    destinationGlobalHandleID;
+    oserr_t                   oserr;
+
+    if (message == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Keep the emitted sender ID equal to the validated ID across a blocked send.
+    request = *message;
+    if (request.Address == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    context.SenderGroupGlobalHandleID = securityContext->GlobalHandleID;
+    context.Capabilities = (uint32_t)securityContext->Capabilities;
+    context.SenderGlobalHandleID = request.SenderHandleID;
+    if (request.SenderHandleID != UUID_INVALID) {
+        oserr = SHMAcquireIPCBufferReference(request.SenderHandleID, &senderMapping);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+
+    oserr = __AllocateMessage(&request, options, &packetContext, &destinationGlobalHandleID);
+    if (oserr == OS_EOK) {
+        __WriteMessage(&request, &packetContext, &context);
+        streambuffer_write_packet_end(&packetContext);
+        MarkHandle(destinationGlobalHandleID, IOSETIN);
+        ReleaseGlobalHandle(destinationGlobalHandleID);
+    }
+
+    if (request.SenderHandleID != UUID_INVALID) {
+        ReleaseGlobalHandle(request.SenderHandleID);
+    }
+    return oserr;
 }
 
 oserr_t
@@ -129,7 +158,6 @@ IpcContextSendMultiple(
     _In_ OSAsyncContext_t* asyncContext)
 {
     MSContextSecurity_t*      secCtx;
-    streambuffer_packet_ctx_t packetCtx;
     streambuffer_rw_options_t options = {
             .flags = 0,
             .async_context = asyncContext,
@@ -137,7 +165,7 @@ IpcContextSendMultiple(
     };
     TRACE("IpcContextSendMultiple(count=%i)", messageCount);
     
-    if (!messages || !messageCount) {
+    if (!messages || messageCount <= 0) {
         return OS_EINVALPARAMS;
     }
 
@@ -148,19 +176,11 @@ IpcContextSendMultiple(
     }
     
     for (int i = 0; i < messageCount; i++) {
-        uuid_t  streamID;
-        oserr_t status = __AllocateMessage(
-            messages[i],
-            &options,
-            &packetCtx,
-            &streamID
-        );
+        oserr_t status = __SendMessage(messages[i], &options, secCtx);
         if (status != OS_EOK) {
             // todo store status in context and return incomplete
             return OS_EINCOMPLETE;
         }
-        __WriteMessage(messages[i], &packetCtx, secCtx);
-        SendMessage(streamID, &packetCtx);
     }
     return OS_EOK;
 }
