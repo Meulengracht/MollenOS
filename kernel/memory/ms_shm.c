@@ -89,6 +89,7 @@ __SHMBufferNew(
     MutexConstruct(&buffer->Mutex, MUTEX_FLAG_PLAIN);
     buffer->ID = CreateHandle(
             HandleTypeSHM,
+            NULL,
             __SHMBufferDelete,
             buffer
     );

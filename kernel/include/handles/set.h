@@ -22,8 +22,8 @@
  *   resource handles and maintience of resources. 
  */
 
-#ifndef __HANDLE_SET_H__
-#define __HANDLE_SET_H__
+#ifndef __HANDLES_SET_H__
+#define __HANDLES_SET_H__
 
 #include <os/types/async.h>
 #include <os/types/time.h>
@@ -88,4 +88,4 @@ MarkHandle(
         _In_ uuid_t       handle,
         _In_ unsigned int flags);
 
-#endif //! __HANDLE_SET_H__
+#endif //! __HANDLES_SET_H__

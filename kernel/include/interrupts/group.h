@@ -24,7 +24,7 @@
 #define __VALI_INTERRUPT_GROUP_H__
 
 #include <ddk/types/interrupt-group.h>
-#include <interrupt_types.h>
+#include <interrupts/types.h>
 #include <ddk/types/interrupt.h>
 #include <ddk/types/interrupt-bus.h>
 

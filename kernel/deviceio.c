@@ -144,7 +144,7 @@ RegisterSystemDeviceIo(
     
     memset(ioEntry, 0, sizeof(DeviceIOEntry_t));
     ioEntry->Owner = UUID_INVALID;
-    ioSpace->Id     = CreateHandle(HandleTypeGeneric, DestroySystemDeviceIo, ioEntry);
+    ioSpace->Id     = CreateHandle(HandleTypeGeneric, NULL, DestroySystemDeviceIo, ioEntry);
     ELEMENT_INIT(&ioEntry->Header, VOID_KEY(ioSpace->Id), ioEntry);
     memcpy(&ioEntry->Io, ioSpace, sizeof(DeviceIo_t));
     

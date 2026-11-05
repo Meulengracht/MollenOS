@@ -140,7 +140,7 @@ UserEventCreate(
     event->InitialValue = initialValue;
     event->flags        = flags;
 
-    handle = CreateHandle(HandleTypeUserEvent, UserEventDestroy, event);
+    handle = CreateHandle(HandleTypeUserEvent, NULL, UserEventDestroy, event);
     if (handle == UUID_INVALID) {
         MemoryCacheFree(syncAddressCache, event->KernelMapping);
         kfree(event);

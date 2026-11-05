@@ -53,7 +53,8 @@ struct ResourceHandle {
     mstring_t*         Path;
     void*              Resource;
     int                References;
-    HandleDestructorFn Destructor;
+    HandleDestructorFn GrantCleanup;
+    HandleDestructorFn GlobalCleanup;
 };
 
 struct HandleGrantEntry {
@@ -73,6 +74,7 @@ struct HandleMapping {
 };
 
 _Noreturn static void HandleJanitorThread(void* arg);
+static oserr_t  __DestroyGlobalHandle(uuid_t handleId);
 static uint64_t mapping_hash(const void* element);
 static int      mapping_cmp(const void* element1, const void* element2);
 static uint64_t handle_hash(const void* element);
@@ -139,13 +141,19 @@ CreateHandleGrantsTable(void)
         return NULL;
     }
 
-    hashtable_construct(
+    if (hashtable_construct(
         &table->Table,
         HASHTABLE_MINIMUM_CAPACITY,
         sizeof(struct HandleGrantEntry),
         grant_hash,
         grant_cmp
-    );
+    ) != 0) {
+        kfree(table);
+        return NULL;
+    }
+
+    // avoid shrinking the hashtable while interrupts are off
+    table->Table.flags = HASHTABLE_FLAG_NO_SHRINK;
     SpinlockConstruct(&table->Lock);
 
     return table;
@@ -166,7 +174,12 @@ __CleanupGrant(
     }
     
     // every grant keeps a reference on a handle
-    DestroyHandle(grant->ID);
+    if (grant->Handle->GrantCleanup) {
+        grant->Handle->GrantCleanup(grant->Handle->Resource);
+    }
+
+    // destroy the global handle reference
+    __DestroyGlobalHandle(grant->ID);
 }
 
 void
@@ -188,7 +201,7 @@ __LookupGlobalSafe(
 {
     struct ResourceHandle* handle;
     struct HandleEntry*    entry;
-    if (!atomic_load(&g_nextHandleId)) {
+    if (g_handles.capacity == 0) {
         return NULL;
     }
 
@@ -224,12 +237,11 @@ __AcquireHandleByGrant(
         return NULL;
     }
     
+    if (entry->References == INT_MAX) {
+        SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
+        return NULL;
+    }
     entry->References++;
-    hashtable_set(
-        &securityContext->HandleTable->Table,
-        entry
-    );
-
     handle = entry->Handle;
     SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
     return handle;
@@ -241,10 +253,6 @@ __AcquireHandle(
 {
     struct ResourceHandle* handle;
     MSContextSecurity_t*   securityContext;
-
-    if (!atomic_load(&g_nextHandleId)) {
-        return NULL;
-    }
 
     securityContext = MemorySpaceGetSecurityContext();
     if (securityContext != NULL) {
@@ -291,40 +299,58 @@ __RemoveGlobalTable(
     SpinlockReleaseIrq(&g_handlesLock);
 }
 
-static bool
+static oserr_t
 __InsertGrantTable(
     _In_ MSContextSecurity_t* securityContext,
     _In_ struct HandleEntry*  baseEntry)
 {
-    struct HandleGrantEntry grantEntry;
-    void*                   existing;
-    bool                    inserted;
+    struct HandleGrantEntry grantEntry = {
+        .ID = baseEntry->ID,
+        .Handle = baseEntry->Handle,
+        .References = 1
+    };
+    oserr_t status = OS_EOK;
 
     if (securityContext == NULL) {
         // If no security context is available, this is kernel
         // context and we skip this part. Return true to indicate success.
-        return true;
+        return OS_EOK;
     }
 
-    assert(securityContext->HandleTable != NULL);
-
-    grantEntry.ID = baseEntry->ID;
-    grantEntry.Handle = baseEntry->Handle;
-    grantEntry.References = 1;
 
     SpinlockAcquireIrq(&securityContext->HandleTable->Lock);
-    existing = hashtable_set(&securityContext->HandleTable->Table, &grantEntry);
-    assert(existing == NULL);
-
-    inserted = hashtable_get(&securityContext->HandleTable->Table, &grantEntry) != NULL;
+    if (hashtable_get(&securityContext->HandleTable->Table, &grantEntry) != NULL) {
+        status = OS_EEXISTS;
+    } else {
+        hashtable_set(&securityContext->HandleTable->Table, &grantEntry);
+        if (hashtable_get(&securityContext->HandleTable->Table, &grantEntry) == NULL) {
+            status = OS_EOOM;
+        }
+    }
     SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
-    return inserted;
+    return status;
+}
+
+uuid_t
+AllocateHandleId(void)
+{
+    uuid_t id = atomic_load(&g_nextHandleId);
+    uuid_t next;
+
+    while (id != UUID_INVALID) {
+        next = id == UINT32_MAX ? UUID_INVALID : id + 1;
+        if (atomic_compare_exchange_weak(&g_nextHandleId, &id, next)) {
+            return id;
+        }
+    }
+    return UUID_INVALID;
 }
 
 uuid_t
 CreateHandle(
     _In_ HandleType_t       handleType,
-    _In_ HandleDestructorFn destructor,
+    _In_ HandleDestructorFn grantCleanup,
+    _In_ HandleDestructorFn globalCleanup,
     _In_ void*              resource)
 {
     struct ResourceHandle* handle;
@@ -337,15 +363,21 @@ CreateHandle(
         return UUID_INVALID;
     }
 
-    id = atomic_fetch_add(&g_nextHandleId, 1);
+    id = AllocateHandleId();
+    if (id == UUID_INVALID) {
+        kfree(handle);
+        return UUID_INVALID;
+    }
+    
     ELEMENT_INIT(&handle->QueueHeader, NULL, NULL);
-    handle->ID         = id;
-    handle->Type       = handleType;
-    handle->Path       = NULL;
-    handle->Resource   = resource;
-    handle->Destructor = destructor;
-    handle->References = 1;
-    handle->Flags      = 0;
+    handle->ID            = id;
+    handle->Type          = handleType;
+    handle->Path          = NULL;
+    handle->Resource      = resource;
+    handle->GrantCleanup  = grantCleanup;
+    handle->GlobalCleanup = globalCleanup;
+    handle->References    = 1;
+    handle->Flags         = 0;
     
     // setup the hashtable entry for this handle
     entry.ID = id;
@@ -359,8 +391,7 @@ CreateHandle(
     }
 
     // Insert, and grant the caller ownership of the handle
-    inserted = __InsertGrantTable(MemorySpaceGetSecurityContext(), &entry);
-    if (!inserted) {
+    if (__InsertGrantTable(MemorySpaceGetSecurityContext(), &entry) != OS_EOK) {
         __RemoveGlobalTable(&entry);
         kfree(handle);
         return UUID_INVALID;
@@ -471,20 +502,19 @@ GrantHandle(
 {
     MSContextSecurity_t*   currentContext;
     struct ResourceHandle* handle;
-    bool                   inserted;
+    struct HandleEntry     entry;
+    oserr_t                status;
 
-    if (!securityContext) {
+    if (securityContext == NULL) {
         return OS_EINVALPARAMS;
     }
-
-    // We need to know whether we can access a handle
     currentContext = MemorySpaceGetSecurityContext();
     if (currentContext == NULL) {
         return OS_ENOTSUPPORTED;
     }
-    assert(currentContext->HandleTable != NULL);
 
-    // Do we even have the needed grant?
+    // The source grant keeps the resource allocated until the global reference
+    // is counted. No path takes a grant lock while holding the global lock.
     SpinlockAcquireIrq(&currentContext->HandleTable->Lock);
     handle = __LookupGrantSafe(currentContext, handleId);
     if (handle == NULL) {
@@ -492,32 +522,72 @@ GrantHandle(
         return OS_ENOENT;
     }
 
-    // Okay we did, do a safe increment of the reference count
-    // for this we dont need the global lock, as long as we have
-    // the grant table lock we know its safe to increment.
-    handle->References++;
+    if (handle->Type == HandleTypeSHMAccess) {
+        SpinlockReleaseIrq(&currentContext->HandleTable->Lock);
+        return OS_EPERMISSIONS;
+    }
 
-    // At this point we can release the lock, as we have an 
-    // extra reference on the underlying handle
+    SpinlockAcquireIrq(&g_handlesLock);
+    handle->References++;
+    SpinlockReleaseIrq(&g_handlesLock);
     SpinlockReleaseIrq(&currentContext->HandleTable->Lock);
 
-    inserted = __InsertGrantTable(
-        MemorySpaceGetSecurityContext(),
-        &(struct HandleEntry) {
-            .ID = handleId,
-            .Handle = handle,
-        }
-    );
-    if (!inserted) {
-        // This is more tricky, we failed to grant, now we need to reduce
-        // the reference count we previously incremented. However we cannot
-        // simply do this.
+    entry.ID = handleId;
+    entry.Handle = handle;
+    
+    status = __InsertGrantTable(securityContext, &entry);
+    if (status != OS_EOK) {
         __DestroyGlobalHandle(handleId);
-
-        // Idk? maybe out of memory :/
-        return OS_EOOM;
     }
-    return OS_EOK;
+    return status == OS_EEXISTS ? OS_EOK : status;
+}
+
+oserr_t
+AcquireHandleReferenceOfType(
+    _In_  uuid_t       handleId,
+    _In_  HandleType_t handleType,
+    _Out_ void**       resourceOut)
+{
+    MSContextSecurity_t*   context = MemorySpaceGetSecurityContext();
+    struct ResourceHandle* handle = NULL;
+    oserr_t                status = OS_EOK;
+
+    if (context != NULL) {
+        SpinlockAcquireIrq(&context->HandleTable->Lock);
+        handle = __LookupGrantSafe(context, handleId);
+    }
+
+    SpinlockAcquireIrq(&g_handlesLock);
+    if (context == NULL) {
+        handle = __LookupGlobalSafe(handleId);
+    }
+    
+    if (handle == NULL) {
+        status = OS_ENOENT;
+    } else if (handle->Type != handleType) {
+        status = OS_EUNKNOWN;
+    } else if (handle->Type == HandleTypeSHMAccess) {
+        // Access resources cannot have users outside their creating group.
+        status = OS_EPERMISSIONS;
+    } else if (handle->References == INT_MAX) {
+        status = OS_EOVERFLOW;
+    } else {
+        handle->References++;
+        *resourceOut = handle->Resource;
+    }
+    SpinlockReleaseIrq(&g_handlesLock);
+
+    if (context != NULL) {
+        SpinlockReleaseIrq(&context->HandleTable->Lock);
+    }
+    return status;
+}
+
+oserr_t
+ReleaseHandleReference(
+    _In_ uuid_t handleId)
+{
+    return __DestroyGlobalHandle(handleId);
 }
 
 oserr_t
@@ -615,6 +685,17 @@ LookupHandleOfType(
         return resource;
     }
 
+    return LookupGlobalHandle(ID, type);
+}
+
+void*
+LookupGlobalHandle(
+    _In_ uuid_t       ID,
+    _In_ HandleType_t type)
+{
+    struct ResourceHandle* handle;
+    void*                  resource;
+
     SpinlockAcquireIrq(&g_handlesLock);
     handle = __LookupGlobalSafe(ID);
     if (handle == NULL || handle->Type != type) {
@@ -634,6 +715,7 @@ __DestroyGrantHandle(
 {
     struct HandleGrantEntry* entry;
     oserr_t                  oserr;
+    struct ResourceHandle*   handle;
 
     SpinlockAcquireIrq(&securityContext->HandleTable->Lock);
 
@@ -647,11 +729,13 @@ __DestroyGrantHandle(
         SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
         return OS_ENOENT;
     }
+
+    // store the handle pointer before we do anything else
+    handle = entry->Handle;
     
     // do nothing if there still is active handles
     entry->References--;
     if (entry->References) {
-        hashtable_set(&securityContext->HandleTable->Table, entry);
         SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
         return OS_EINCOMPLETE;
     }
@@ -665,9 +749,15 @@ __DestroyGrantHandle(
     );
     SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
 
+    // Invoke the grant cleanup at this point before we potentially
+    // destroy the global reference
+    if (handle->GrantCleanup) {
+        handle->GrantCleanup(handle->Resource);
+    }
+
     // destroy the global handle at this point
     oserr = __DestroyGlobalHandle(handleId);
-    if (oserr != OS_EOK) {
+    if (oserr != OS_EOK && oserr != OS_EINCOMPLETE) {
         ERROR("__DestroyGrantHandle failed to destroy global handle: %d", oserr);
         return OS_EOK;
     }
@@ -693,8 +783,8 @@ static void
 __CleanupHandle(
     _In_ struct ResourceHandle* handle)
 {
-    if (handle->Destructor) {
-        handle->Destructor(handle->Resource);
+    if (handle->GlobalCleanup) {
+        handle->GlobalCleanup(handle->Resource);
     }
     
     if (handle->Path) {

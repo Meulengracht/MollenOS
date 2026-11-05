@@ -186,4 +186,30 @@ SHMKernelMapping(
     _In_  uuid_t handle,
     _Out_ void** bufferOut);
 
+/**
+ * @brief Validate a caller-granted IPC buffer and add one global reference.
+ * The caller must have a security context.
+ * Release the reference with ReleaseGlobalHandle after using the mapping.
+ * @param handleID IPC buffer accessible through the caller's grant table.
+ * @param bufferOut Receives the initialized kernel mapping on success.
+ * @return OS_EOK, or an error without adding a reference or changing bufferOut.
+ */
+KERNELAPI oserr_t KERNELABI
+SHMAcquireIPCBufferReference(
+    _In_  uuid_t  handleID,
+    _Out_ void** bufferOut);
+
+/**
+ * @brief Find a globally addressed IPC buffer and add one global reference.
+ * No caller grant is required or added. Release the reference with
+ * ReleaseGlobalHandle after using the mapping.
+ * @param globalHandleID Global address of the destination IPC buffer.
+ * @param bufferOut Receives the initialized kernel mapping on success.
+ * @return OS_EOK, or an error without adding a reference or changing bufferOut.
+ */
+KERNELAPI oserr_t KERNELABI
+SHMAcquireGlobalIPCBuffer(
+    _In_  uuid_t  globalHandleID,
+    _Out_ void** bufferOut);
+
 #endif //!__SHM_H__

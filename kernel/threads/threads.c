@@ -181,6 +181,7 @@ ThreadFork(
 
     thread->Handle = CreateHandle(
             HandleTypeThread,
+            NULL,
             __DestroyThread,
             thread
     );
@@ -1011,7 +1012,7 @@ __InitializeDefaultsForThread(
     MutexConstruct(&thread->SyncObject, MUTEX_FLAG_PLAIN);
     SemaphoreConstruct(&thread->EventObject, 0, 1);
 
-    handle = CreateHandle(HandleTypeThread, __DestroyThread, thread);
+    handle = CreateHandle(HandleTypeThread, NULL, __DestroyThread, thread);
     thread->Handle          = handle;
     thread->References      = 0;
     thread->Function        = threadEntry;

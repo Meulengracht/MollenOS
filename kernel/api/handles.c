@@ -29,7 +29,7 @@ oserr_t
 ScCreateHandle(
         _Out_ uuid_t* HandleOut)
 {
-    *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL);
+    *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL, NULL);
     if (*HandleOut != UUID_INVALID) {
         return OS_EOK;
     }
@@ -57,6 +57,12 @@ ScDestroyHandle(
         _In_ uuid_t Handle)
 {
     if (Handle == UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+    
+    // CPU and DMA resources use the release syscall, which checks their operation
+    // state. Generic close must not consume a suspended begin's reference.
+    if (LookupHandleOfType(Handle, HandleTypeSHMAccess) != NULL) {
         return OS_EINVALPARAMS;
     }
     return DestroyHandle(Handle);

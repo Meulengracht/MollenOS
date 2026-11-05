@@ -121,9 +121,10 @@ CreateHandleSet(
     }
 
     handleId = CreateHandle(
-            HandleTypeSet,
-            DestroyHandleSet,
-            handleSet
+        HandleTypeSet,
+        NULL,
+        DestroyHandleSet,
+        handleSet
     );
 
     // initialize the handle set

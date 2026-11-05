@@ -21,7 +21,7 @@
 #ifndef _MCORE_INTERRUPTS_H_
 #define _MCORE_INTERRUPTS_H_
 
-#include <interrupt_types.h>
+#include <interrupts/types.h>
 #include <os/osdefs.h>
 #include <os/context.h>
 
