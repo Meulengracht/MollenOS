@@ -113,14 +113,16 @@ MemorySpaceInitialize(
 
 /**
  * @brief
- * @param flags
- * @param handleOut
- * @return
+ * @param flags            Memory-space creation flags.
+ * @param msHandleOut      Receives the memory-space handle on success.
+ * @param securityGroupOut Receives the security-group ID on success.
+ * @return                 Status of the operation.   
  */
 KERNELAPI oserr_t KERNELABI
 CreateMemorySpace(
     _In_  unsigned int flags,
-    _Out_ uuid_t*      handleOut);
+    _Out_ uuid_t*      msHandleOut,
+    _Out_ uuid_t*      securityGroupOut);
 
 /**
  * @brief Switches the current address space out with the the address space provided

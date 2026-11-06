@@ -317,6 +317,7 @@ ThreadCreate(
             thread->MemorySpace       = GetDomainMemorySpace();
             thread->MemorySpaceHandle = UUID_INVALID;
         } else {
+            uuid_t       securityGroupID;
             unsigned int memorySpaceFlags = 0;
 
             if (THREADING_RUNMODE(flags) == THREADING_USERMODE) {
@@ -326,7 +327,11 @@ ThreadCreate(
                 memorySpaceFlags |= MEMORY_SPACE_INHERIT;
             }
 
-            oserr = CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle);
+            oserr = CreateMemorySpace(
+                memorySpaceFlags,
+                &thread->MemorySpaceHandle,
+                &securityGroupID
+            );
             if (oserr != OS_EOK) {
                 __DestroyThread(thread);
                 return OS_EUNKNOWN;

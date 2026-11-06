@@ -29,9 +29,11 @@ void
 SpawnBootstrapper(void)
 {
     uuid_t  memorySpaceHandle;
+    uuid_t  securityGroupHandle;
     uuid_t  threadHandle;
     oserr_t oserr;
     vaddr_t codeAddress;
+
     TRACE("SpawnBootstrapper(base=0x%llx, entry=0x%llx, len=0x%x)",
           GetMachine()->BootInformation.Phoenix.Base,
           GetMachine()->BootInformation.Phoenix.EntryPoint,
@@ -43,9 +45,10 @@ SpawnBootstrapper(void)
     }
 
     // Create a new memoryspace that is application specific
-    oserr = CreateMemorySpace(MEMORY_SPACE_APPLICATION, &memorySpaceHandle);
+    oserr = CreateMemorySpace(MEMORY_SPACE_APPLICATION, &memorySpaceHandle, &securityGroupHandle);
     if (oserr != OS_EOK) {
         ERROR("SpawnBootstrapper failed to create memory space for bootstrapper");
+        return;
     }
 
     codeAddress = GetMachine()->MemoryMap.UserCode.Start;

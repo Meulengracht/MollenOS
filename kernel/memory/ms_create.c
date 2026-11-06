@@ -26,12 +26,14 @@
 oserr_t
 CreateMemorySpace(
     _In_  unsigned int flags,
-    _Out_ uuid_t*      handleOut)
+    _Out_ uuid_t*      msHandleOut,
+    _Out_ uuid_t*      securityGroupOut)
 {
     MemorySpace_t* memorySpace;
     MemorySpace_t* parent = NULL;
     uuid_t         parentHandle;
     oserr_t        oserr;
+
     TRACE("CreateMemorySpace(flags=0x%x)", flags);
 
     memorySpace = MemorySpaceNew(flags);
@@ -99,16 +101,19 @@ CreateMemorySpace(
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", flags);
     }
 
-    *handleOut = CreateHandle(
+    // Capture the identity before the handle makes the space visible.
+    *msHandleOut = CreateHandle(
         HandleTypeMemorySpace,
         NULL,
         (HandleDestructorFn)MemorySpaceDelete,
         memorySpace
     );
-    if (*handleOut == UUID_INVALID) {
+    if (*msHandleOut == UUID_INVALID) {
         MemorySpaceDelete(memorySpace);
         return OS_EOOM;
     }
+
+    *securityGroupOut = memorySpace->GroupGlobalHandleID;
     return OS_EOK;
 
 error:

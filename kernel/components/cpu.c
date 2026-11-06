@@ -141,6 +141,7 @@ CpuCoreStart(void)
 #if !defined(__aarch64__)
     oserr_t          osStatus;
     uuid_t           memorySpace;
+    uuid_t           securityGroup;
 #endif
 
     TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
@@ -155,7 +156,7 @@ CpuCoreStart(void)
 #if !defined(__aarch64__)
     // Now we need to do a new memory space for this core. We simply create a new memory space
     // with kernel flags and switch to it.
-    osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
+    osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace, &securityGroup);
     if (osStatus != OS_EOK) {
         // failed to boot this core!
         ERROR("CpuCoreStart failed to create idle memoryspace for coreId=%u", ArchGetProcessorCoreId());

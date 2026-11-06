@@ -355,12 +355,13 @@ ScSHMUnmap(
 
 oserr_t
 ScCreateMemorySpace(
-    _In_  unsigned int flags,
-    _Out_ uuid_t*      handleOut)
+    _In_  unsigned int               flags,
+    _Out_ MemorySpaceCreateResult_t* resultOut)
 {
-    oserr_t oserr;
+    MemorySpaceCreateResult_t result;
+    oserr_t                   oserr;
 
-    if (handleOut == NULL) {
+    if (resultOut == NULL) {
         return OS_EUNKNOWN;
     }
     
@@ -368,10 +369,21 @@ ScCreateMemorySpace(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return CreateMemorySpace(
+
+    oserr = CreateMemorySpace(
         flags | MEMORY_SPACE_APPLICATION,
-        handleOut
+        &result.Handle,
+        &result.SecurityGroupID
     );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = MemorySpaceCopyUser(resultOut, &result, sizeof(result), true);
+    if (oserr != OS_EOK) {
+        DestroyHandle(result.Handle);
+    }
+    return oserr;
 }
 
 oserr_t
