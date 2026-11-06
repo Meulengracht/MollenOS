@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,8 @@
 #include <os/types/shm.h>
 
 /**
- * @brief Create a new page-aligned memory region that stretches over <Capacity>. The
- * entire region is only committed directly to memory for <Length> bytes.
+ * @brief Create a page-aligned memory region of <Capacity> bytes.
+ * Only <Length> bytes are committed directly to memory.
  * @param shm           [In]  Configuration details of the new shared memory buffer.
  * @param handleOut     [Out] The global handle for the memory region.
  * @return Status of the operation
@@ -35,17 +35,18 @@ SHMCreate(
 /**
  * @brief Create a zeroed device buffer from reserved system memory.
  *
- * The pages form one physically contiguous run that starts on a multiple of
- * alignment and whose first size bytes do not cross a multiple of boundary.
- * Every view of it is cached or uncached as the pool requires. The buffer is
- * mapped into the calling process; releasing it returns the pages to the pool.
+ * The pages are physically contiguous. The physical start address is a multiple
+ * of alignment, and the first size bytes do not cross a multiple of boundary.
+ * Each mapping is cached or uncached as required by the pool. The buffer is
+ * mapped into the calling process. Releasing it returns the pages to the pool.
  *
  * @param size Nonzero number of bytes, a multiple of the page size.
  * @param alignment Zero or a power of two, measured in physical addresses.
  * @param boundary Zero or a power of two no smaller than size.
  * @param handle Receives the buffer handle, including the CPU pointer.
- * @return OS_EOK; OS_EINVALPARAMS for bad arguments; OS_ENOTSUPPORTED if the
- *         system has no device pool; OS_EOOM if the pool has no fitting run.
+ * @return OS_EOK on success. OS_EINVALPARAMS for invalid arguments.
+ *         OS_ENOTSUPPORTED if the system has no device pool. OS_EOOM if the
+ *         pool has no fitting run.
  */
 KERNELAPI oserr_t KERNELABI
 SHMCreateDeviceBuffer(
@@ -53,23 +54,6 @@ SHMCreateDeviceBuffer(
     _In_  size_t       alignment,
     _In_  size_t       boundary,
     _Out_ SHMHandle_t* handle);
-
-/**
- * @brief Exports an existing memory region that stretches over <Length>. Makes sure
- * all the memory from <Memory> to <Memory + Length> is committed.
- * @param memory [In]  The buffer that should be exported.
- * @param size   [In]  Length of the buffer.
- * @param flags  [In]  Configuration of the memory region and behaviour.
- * @param Handle [Out] The global handle for the memory region.
- * @return Status of the operation
- */
-KERNELAPI oserr_t KERNELABI
-SHMExport(
-    _In_  void*        memory,
-    _In_  size_t       size,
-    _In_  unsigned int flags,
-    _In_  unsigned int accessFlags,
-    _In_  SHMHandle_t* handle);
 
 /**
  * @brief
@@ -83,12 +67,13 @@ SHMAttach(
     _In_ SHMHandle_t* handle);
 
 /**
- * @brief Release a CPU attachment, preserving unfinished stages on failure.
- * Other attachments and device mappings retain their own references. A successful
- * reference drop is complete even when the underlying storage remains live.
+ * @brief Release a CPU attachment. On failure, leave unfinished stages for retry.
+ * Other attachments and device mappings have separate references. Once this
+ * attachment's reference is released, that step is complete even if the storage
+ * is still in use.
  * 
- * @param handle Attachment updated after each completed stage; retry on failure.
- * @return OS_EOK on release, including empty attachments, or cleanup error.
+ * @param handle Attachment updated after each completed stage. Retry on failure.
+ * @return OS_EOK if released or already empty, or a cleanup error.
  */
 KERNELAPI oserr_t KERNELABI
 SHMDetach(
@@ -139,8 +124,7 @@ SHMCommit(
     _In_ size_t length);
 
 /**
- * Retrieves a scatter gather list of the physical memory block
- * s for the given memory region.
+ * Retrieves a scatter gather list of physical memory blocks for the given region.
  * @param handle
  * @param sgCountOut
  * @param sgOut
@@ -153,7 +137,7 @@ SHMBuildSG(
     _Out_ SHMSG_t* sgOut);
 
 /**
- * Retrieves the kernel memory mapping for a given memory region handle
+ * Retrieves the kernel memory mapping for a given memory region handle.
  * @param handle    The handle of the memory region
  * @param bufferOut A pointer to the buffer will be set if successful.
  * @return          The status of the operation.

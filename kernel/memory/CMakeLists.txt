@@ -1,35 +1,40 @@
 if (__BUILD_UNIT_TESTS)
     set (KMEM_INCLUDES
-            ../include
-            ${CMAKE_SOURCE_DIR}/librt/libds/include
-            ${CMAKE_SOURCE_DIR}/librt/libddk/include
-            ${CMAKE_SOURCE_DIR}/librt/libos/include
-            ${CMAKE_SOURCE_DIR}/boot/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        ${CMAKE_SOURCE_DIR}/librt/libds/include
+        ${CMAKE_SOURCE_DIR}/librt/libddk/include
+        ${CMAKE_SOURCE_DIR}/librt/libos/include
+        ${CMAKE_SOURCE_DIR}/boot/include
     )
 
-    add_unit_test(FILE ms_allocations_test.c INCLUDES ${KMEM_INCLUDES} LIBS libds)
-    add_unit_test(FILE ms_context_test.c INCLUDES ${KMEM_INCLUDES} LIBS libds)
-    target_sources(ms_context_test PRIVATE ms_create.c ms_struct.c)
-    add_unit_test(FILE ms_map_test.c INCLUDES ${KMEM_INCLUDES} LIBS libds)
-    add_unit_test(FILE ms_shm_test.c INCLUDES ${KMEM_INCLUDES} LIBS libds)
+    add_subdirectory(space)
+    add_subdirectory(shm)
     return ()
 endif ()
 
 enable_language (C)
 
-# Configure source files
 add_kernel_library (vali-core-memory ""
-        heap.c
-        memory.c
-        ms_allocations.c
-        ms_context.c
-        ms_create.c
-        memory_region.c
-        ms_map.c
-        ms_shm.c
-        ms_shm_device.c
-        ms_struct.c
-        ms_sync.c
-        ms_unmap.c
-        ms_utils.c
+    # Kernel heap and physical memory initialization.
+    heap.c
+    memory.c
+    memory_region.c
+
+    # Virtual address spaces and tracked mappings.
+    space/allocations.c
+    space/context.c
+    space/create.c
+    space/map.c
+    space/mapping.c
+    space/struct.c
+    space/sync.c
+    space/unmap.c
+    space/utils.c
+
+    # Shared buffers, restricted views and device access.
+    shm/shm.c
+    shm/view.c
+    shm/access.c
+    shm/device.c
+    shm/device_context.c
 )

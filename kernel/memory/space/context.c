@@ -15,11 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <handle.h>
+#include <handles/grants.h>
 #include <heap.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <mutex.h>
+
 #include "private.h"
 
 static void
@@ -31,6 +32,10 @@ __CleanupMemoryAllocation(
     struct MSContext*    msContext = context;
 
     DynamicMemoryPoolFree(&msContext->Heap, allocation->Address);
+    if (allocation->SHM.View != NULL) {
+        ReleaseGlobalHandle(allocation->SHM.ReferenceID);
+    }
+    kfree(allocation->Pages.data);
     kfree(allocation);
 }
 
@@ -40,6 +45,7 @@ __MSContextDelete(
 {
     struct MSContext* context = resource;
 
+    DestroyHandleGrantsTable(context->Security.HandleTable);
     MutexDestruct(&context->SyncObject);
     MutexDestruct(&context->UserCopyLock);
     list_clear(&context->Allocations, __CleanupMemoryAllocation, context);
@@ -51,15 +57,15 @@ uuid_t
 MSContextNew(void)
 {
     struct MSContext* context;
-    uuid_t            handle;
+    uuid_t            groupGlobalHandleID;
 
     context = kmalloc(sizeof(struct MSContext));
     if (!context) {
         return UUID_INVALID;
     }
 
-    handle = CreateHandle(HandleTypeMSContext, __MSContextDelete, context);
-    if (handle == UUID_INVALID) {
+    groupGlobalHandleID = CreateGlobalHandle(HandleTypeMSContext, __MSContextDelete, context);
+    if (groupGlobalHandleID == UUID_INVALID) {
         kfree(context);
         return UUID_INVALID;
     }
@@ -74,9 +80,14 @@ MSContextNew(void)
     );
     list_construct(&context->Allocations);
     context->SignalHandler = 0;
-    context->Security.Handle = handle;
+    context->Security.GlobalHandleID = groupGlobalHandleID;
     context->Security.Capabilities = 0;
-    return handle;
+    context->Security.HandleTable = CreateHandleGrantsTable();
+    if (context->Security.HandleTable == NULL) {
+        ReleaseGlobalHandle(groupGlobalHandleID);
+        return UUID_INVALID;
+    }
+    return groupGlobalHandleID;
 }
 
 void

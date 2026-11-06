@@ -238,7 +238,7 @@ __ValidateDoorbellWindow(
     uint64_t                    bus;
     uint64_t                    physical;
     uint64_t                    length;
-    uint64_t                    displacement;
+    uint64_t                    busAddressOffset;
     unsigned int                matches = 0;
     oserr_t                     status;
 
@@ -306,15 +306,15 @@ __ValidateDoorbellWindow(
             continue;
         }
         
-        displacement = route->MessageAddress - bus;
+        busAddressOffset = route->MessageAddress - bus;
         if ((space != RPI_MSI_DT_PCI_MEMORY32 && space != RPI_MSI_DT_PCI_MEMORY64) ||
-            length - displacement < RPI_MSI_MESSAGE_BYTES) {
+            length - busAddressOffset < RPI_MSI_MESSAGE_BYTES) {
             return OS_EINVALPARAMS;
         }
 
         // The whole write must reach the beginning of this MIP's register
         // block. Merely finding the PCI address in some window is not enough.
-        if (physical + displacement != registers) {
+        if (physical + busAddressOffset != registers) {
             return OS_EINVALPARAMS;
         }
         matches++;

@@ -20,6 +20,7 @@
 #include <heap.h>
 #include <mutex.h>
 #include "private.h"
+#include "../shm/range.h"
 
 static void
 __MSAllocationDelete(
@@ -27,6 +28,10 @@ __MSAllocationDelete(
 {
     if (allocation == NULL) {
         return;
+    }
+
+    if (allocation->SHM.View != NULL) {
+        ReleaseGlobalHandle(allocation->SHM.ReferenceID);
     }
 
     kfree(allocation->Pages.data);
@@ -55,7 +60,7 @@ MSAllocationCreate(
         return OS_EINVALPARAMS;
     }
 
-    // We only support allocation tracking for spaces with context
+    // Allocation tracking requires a memory-space context.
     context = __MSContextGet(memorySpace);
     if (context == NULL) {
         return OS_ENOTSUPPORTED;
@@ -73,6 +78,7 @@ MSAllocationCreate(
     bitmap = kmalloc(BITMAP_SIZE(pageCount) * sizeof(uint32_t));
     if (allocation == NULL || bitmap == NULL) {
         kfree(allocation);
+        kfree(bitmap);
         oserr = OS_EOOM;
         goto exit;
     }
@@ -86,6 +92,7 @@ MSAllocationCreate(
     allocation->Flags       = flags;
     allocation->References  = 1;
     allocation->CloneOf     = NULL;
+    allocation->SHM = (struct MSRestrictedMapping) { 0 };
     MSContextAddAllocation(context, allocation);
 
 exit:
@@ -177,7 +184,7 @@ MSAllocationFree(
         return OS_EINVALPARAMS;
     }
 
-    // Address we are freeing *must* be on a page boundary
+    // The address must be on a page boundary.
     if (address & (pageSize - 1)) {
         return OS_EINVALPARAMS;
     }
@@ -194,23 +201,22 @@ MSAllocationFree(
         goto exit;
     }
 
-    // Disallow frees on cloned allocations
+    // The allocation cannot be freed while other references exist.
     if (allocation->References > 1) {
         oserr = OS_ELINKS;
         goto exit;
     }
 
-    // We support partial freeing, by marking a range of the memory
-    // permanently unavailable. It's important to note that we currently
-    // don't support re-allocation of that memory.
+    // A partial free marks the range permanently unavailable.
+    // The range cannot be allocated again.
     size_t block = (address - allocation->Address) / pageSize;
     size_t count = alignedLength / pageSize;
     bitmap_set(&allocation->Pages, (int)block, (int)count);
 
-    // Store the cloned from
+    // Return the source allocation for a clone.
     *clonedFrom = allocation->CloneOf;
 
-    // Are we now fully freed?
+    // Remove the allocation when all pages have been freed.
     if (bitmap_bits_clear_count(&allocation->Pages) == 0) {
         list_remove(&context->Allocations, &allocation->Header);
         __MSAllocationDelete(allocation);
@@ -246,4 +252,61 @@ MSAllocationLink(
     allocation->CloneOf = link;
     MutexUnlock(&context->SyncObject);
     return OS_EOK;
+}
+
+oserr_t
+MSAllocationFindSHM(
+    _In_  struct MSContext*     context,
+    _In_  vaddr_t               address,
+    _In_  size_t                length,
+    _In_  bool                 allowFreedPages,
+    _Out_ struct MSAllocation** allocationOut)
+{
+    struct MSAllocation* allocation;
+    struct MSAllocation* found = NULL;
+    size_t               pageSize = GetMemorySpacePageSize();
+    size_t               first;
+    size_t               last;
+    size_t               page;
+    oserr_t              status = OS_EOK;
+
+    if (length == 0 || address > UINTPTR_MAX - (length - 1)) {
+        return OS_EINVALPARAMS;
+    }
+    if (context == NULL) {
+        *allocationOut = NULL;
+        return OS_EOK;
+    }
+    MutexLock(&context->SyncObject);
+    foreach(element, &context->Allocations) {
+        allocation = element->value;
+        if (allocation->SHM.View == NULL) {
+            continue;
+        }
+        if (address > allocation->Address && address - allocation->Address >= allocation->Length) {
+            continue;
+        }
+        if (address < allocation->Address && allocation->Address - address >= length) {
+            continue;
+        }
+        if (!__SHMRangeContains(allocation->Address, allocation->Length, address, length)) {
+            status = OS_ENOTSUPPORTED;
+            break;
+        }
+        first = (address - allocation->Address) / pageSize;
+        last = (address - allocation->Address + length - 1) / pageSize;
+        for (page = first; page <= last; page++) {
+            if (!allowFreedPages && bitmap_bits_set(&allocation->Pages, (int)page, 1)) {
+                status = OS_EINVALPARAMS;
+                break;
+            }
+        }
+        found = allocation;
+        break;
+    }
+    MutexUnlock(&context->SyncObject);
+    if (status == OS_EOK) {
+        *allocationOut = found;
+    }
+    return status;
 }

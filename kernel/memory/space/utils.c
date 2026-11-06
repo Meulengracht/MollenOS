@@ -31,11 +31,11 @@ MemorySpaceInitialize(
     _In_ struct VBoot*            bootInformation,
     _In_ PlatformMemoryMapping_t* kernelMappings)
 {
-    // initialzie the data structure
+    // Initialize the memory space handles.
     memorySpace->ParentHandle        = UUID_INVALID;
     memorySpace->GroupGlobalHandleID = UUID_INVALID;
 
-    // initialize arch specific stuff
+    // Load the kernel memory mappings.
     return MmuLoadKernel(memorySpace, bootInformation, kernelMappings);
 }
 
@@ -70,16 +70,64 @@ __ChangeProtection(
     return oserr;
 }
 
+static oserr_t
+__ChangeSHMProtection(
+    _In_  MemorySpace_t* memorySpace,
+    _In_  vaddr_t        address,
+    _In_  size_t         length,
+    _In_  unsigned int   attributes,
+    _Out_ unsigned int*  previousAttributes)
+{
+    size_t       pageSize = GetMemorySpacePageSize();
+    size_t       pageCount = DIVUP(length + address % pageSize, pageSize);
+    size_t       i;
+    unsigned int previous;
+    unsigned int ignored;
+    oserr_t      status;
+
+    if (previousAttributes == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    address &= ~(pageSize - 1);
+    for (i = 0; i < pageCount; i++) {
+        status = GetMemorySpaceAttributes(memorySpace, address, pageSize, &previous);
+        if (status != OS_EOK) {
+            return i == 0 ? status : OS_EINCOMPLETE;
+        }
+
+        if (i == 0) {
+            *previousAttributes = previous;
+        }
+
+        // Keep each page's commit state when changing protection.
+        status = __ChangeProtection(
+            memorySpace,
+            address,
+            pageSize,
+            attributes | (previous & MAPPING_COMMIT),
+            &ignored
+        );
+        if (status != OS_EOK) {
+            return i == 0 ? status : OS_EINCOMPLETE;
+        }
+        address += pageSize;
+    }
+    return OS_EOK;
+}
+
 oserr_t
 MemorySpaceChangeProtection(
     _In_ MemorySpace_t* memorySpace,
-    _In_ vaddr_t address,
-    _In_ size_t length,
-    _In_ unsigned int attributes,
+    _In_ vaddr_t        address,
+    _In_ size_t         length,
+    _In_ unsigned int   attributes,
     _Out_ unsigned int* previousAttributes)
 {
-    struct MSContext* context;
-    oserr_t           status;
+    struct MSContext*    context;
+    struct MSAllocation* allocation;
+    oserr_t              status;
+    bool                 allowFreedPages;
 
     if (memorySpace == NULL) {
         return OS_EINVALPARAMS;
@@ -90,6 +138,32 @@ MemorySpaceChangeProtection(
         MutexLock(&context->UserCopyLock);
     }
     
+    allowFreedPages = false;
+    status = MSAllocationFindSHM(
+        context,
+        address,
+        length,
+        allowFreedPages,
+        &allocation
+    );
+    if (status != OS_EOK) {
+        goto exit;
+    }
+    if (allocation != NULL) {
+        status = SHMViewValidateMapping(allocation->SHM.View, allocation->SHM.Offset,
+                                        allocation->Length, attributes);
+        if (status != OS_EOK) {
+            goto exit;
+        }
+
+        // Protection changes cannot change backing lifetime or cache policy.
+        attributes &= MAPPING_READONLY;
+        attributes |= MAPPING_USERSPACE | MAPPING_PERSISTENT;
+        attributes |= allocation->Flags & MAPPING_NOCACHE;
+        status = __ChangeSHMProtection(memorySpace, address, length, attributes, previousAttributes);
+        goto exit;
+    }
+
     status = __ChangeProtection(
         memorySpace,
         address,
@@ -98,6 +172,7 @@ MemorySpaceChangeProtection(
         previousAttributes
     );
 
+exit:
     if (context != NULL) {
         MutexUnlock(&context->UserCopyLock);
     }
@@ -106,8 +181,8 @@ MemorySpaceChangeProtection(
 
 static bool
 __IsAddressFreed(
-        _In_ struct MSAllocation* allocation,
-        _In_ vaddr_t              address)
+    _In_ struct MSAllocation* allocation,
+    _In_ vaddr_t              address)
 {
     // Calculate the offset into the allocation
     vaddr_t offset = address - allocation->Address;
@@ -117,9 +192,9 @@ __IsAddressFreed(
 
 oserr_t
 MemorySpaceQuery(
-        _In_ MemorySpace_t*        memorySpace,
-        _In_ vaddr_t               address,
-        _In_ OSMemoryDescriptor_t* descriptor)
+    _In_ MemorySpace_t*        memorySpace,
+    _In_ vaddr_t               address,
+    _In_ OSMemoryDescriptor_t* descriptor)
 {
     struct MSAllocation* allocation;
     vaddr_t              aligned = address & ~(GetMemorySpacePageSize() - 1);
@@ -133,8 +208,7 @@ MemorySpaceQuery(
         return OS_ENOENT;
     }
 
-    // If guard page was set, then adjust the start address, so we don't
-    // promise the callers of this that the guard page is actually available.
+    // Exclude the stack guard page from the reported start address.
     descriptor->StartAddress = allocation->Address;
     if (allocation->Flags & MAPPING_STACK) {
         descriptor->StartAddress += GetMemorySpacePageSize();
@@ -144,9 +218,8 @@ MemorySpaceQuery(
     descriptor->AllocationSize = allocation->Length;
     descriptor->Attributes = allocation->Flags;
 
-    // To indicate whether or not the address allocated is actually valid
-    // we do return information about the allocation, but we set length to 0
-    // to indicate that this part of the mapping has been invalidated.
+    // A freed page still has allocation information. Set AllocationSize to 0
+    // to mark this page as invalid.
     if (__IsAddressFreed(allocation, aligned)) {
         descriptor->AllocationSize = 0;
     }
@@ -155,10 +228,10 @@ MemorySpaceQuery(
 
 oserr_t
 GetMemorySpaceMapping(
-        _In_  MemorySpace_t* memorySpace,
-        _In_  vaddr_t        address,
-        _In_  int            pageCount,
-        _Out_ uintptr_t*     dmaVectorOut)
+    _In_  MemorySpace_t* memorySpace,
+    _In_  vaddr_t        address,
+    _In_  int            pageCount,
+    _Out_ uintptr_t*     dmaVectorOut)
 {
     int      pagesRetrieved;
     size_t   pageSize;
@@ -175,7 +248,7 @@ GetMemorySpaceMapping(
         return oserr;
     }
 
-    // Maintain the initial offset on the page-mappings
+    // Preserve the initial page offset in the first physical address.
     pageSize = GetMemorySpacePageSize();
     if (address & (pageSize - 1)) {
         dmaVectorOut[0] |= address & (pageSize - 1);
@@ -185,10 +258,10 @@ GetMemorySpaceMapping(
 
 oserr_t
 GetMemorySpaceAttributes(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         length,
-        _In_ unsigned int*  attributesArray)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ size_t         length,
+    _In_ unsigned int*  attributesArray)
 {
     int pageCount = DIVUP(length, GetMemorySpacePageSize());
     int pagesRetrieved;
@@ -212,7 +285,7 @@ GetCurrentMemorySpace(void)
 {
     Thread_t* currentThread = ThreadCurrentForCore(ArchGetProcessorCoreId());
 
-    // if no threads are active return the kernel address space
+    // Use the kernel address space when this core has no current thread.
     if (currentThread == NULL) {
         return GetDomainMemorySpace();
     } else {

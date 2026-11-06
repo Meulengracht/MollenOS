@@ -20,6 +20,7 @@
 #include <heap.h>
 #include <machine.h>
 #include "private.h"
+#include "../shm/range.h"
 
 static oserr_t
 __ClearPhysicalPages(
@@ -35,7 +36,7 @@ __ClearPhysicalPages(
     TRACE("__ClearPhysicalPages(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
 
-    // allocate memory for the physical pages
+    // Allocate the buffer for physical page addresses.
     pageCount = DIVUP(size, GetMemorySpacePageSize());
     addresses = kmalloc(sizeof(paddr_t) * pageCount);
     if (!addresses) {
@@ -43,7 +44,7 @@ __ClearPhysicalPages(
         goto exit;
     }
 
-    // Free the underlying resources first, before freeing the upper resources
+    // Clear page table entries before freeing the physical pages.
     oserr = ArchMmuClearVirtualPages(
             memorySpace,
             address,
@@ -53,10 +54,10 @@ __ClearPhysicalPages(
             &pagesCleared
     );
     if (pagesCleared) {
-        // No CPU may retain a stale translation when these pages are reused.
+        // Flush stale translations on all CPUs before these pages are reused.
         MSSync(memorySpace, address, size);
         
-        // free the physical memory
+        // Free the physical pages.
         if (pagesFreed) {
             FreePhysicalMemory(pagesFreed, &addresses[0]);
         }
@@ -69,16 +70,64 @@ exit:
 }
 
 static oserr_t
-__Unmap(
+__ClearSHMPages(
     _In_ MemorySpace_t* memorySpace,
     _In_ vaddr_t        address,
     _In_ size_t         length)
 {
-    struct MSContext*     context;
+    size_t       pageSize = GetMemorySpacePageSize();
+    int          remaining = (int)(length / pageSize);
+    int          cleared;
+    int          freed;
+    unsigned int attributes;
+    oserr_t      status;
+    oserr_t      queryStatus;
+
+    while (remaining != 0) {
+        status = ArchMmuClearVirtualPages(memorySpace, address, remaining, NULL, &freed, &cleared);
+        assert(freed == 0);
+        if (cleared != 0) {
+            MSSync(memorySpace, address, (size_t)cleared * pageSize);
+            address += (size_t)cleared * pageSize;
+            remaining -= cleared;
+        }
+        if (status == OS_EOK) {
+            return OS_EOK;
+        }
+        if (status != OS_ENOENT && status != OS_EINCOMPLETE) {
+            return status;
+        }
+        if (remaining == 0) {
+            return status;
+        }
+        // A previous partial unmap or failed map may leave empty slots.
+        // Skip only an absent page, never a failed removal of a live mapping.
+        attributes = 0;
+        queryStatus = GetMemorySpaceAttributes(memorySpace, address, pageSize, &attributes);
+        if (queryStatus != OS_ENOENT && (queryStatus != OS_EOK || attributes != 0)) {
+            return status;
+        }
+        address += pageSize;
+        remaining--;
+    }
+    return OS_EOK;
+}
+
+oserr_t
+MSUnmap(
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ size_t         length)
+{
+    struct MSContext*    context;
     struct MSAllocation* allocation;
     vaddr_t              startAddress = address;
     oserr_t              oserr;
     bool                 incomplete = false;
+    bool                 cleared = false;
+    size_t               pageSize = GetMemorySpacePageSize();
+    struct MSAllocation* restricted;
+    bool                 allowFreedPages;
 
     TRACE("MemorySpaceUnmap(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
@@ -88,11 +137,46 @@ __Unmap(
     }
 
     context = __MSContextGet(memorySpace);
+    
+    allowFreedPages = true;
+    oserr = MSAllocationFindSHM(
+        context,
+        address,
+        length,
+        allowFreedPages,
+        &restricted
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (restricted != NULL) {
+        if (address % pageSize != 0 || length > SIZE_MAX - (pageSize - 1)) {
+            return OS_EINVALPARAMS;
+        }
+
+        length = DIVUP(length, pageSize) * pageSize;
+        if (!__SHMRangeContains(restricted->Address, restricted->Length, address, length)) {
+            return OS_EINVALPARAMS;
+        }
+
+        if (restricted->References != 1) {
+            return OS_ELINKS;
+        }
+
+        // Clear PTEs and synchronize before releasing the allocation's view.
+        oserr = __ClearSHMPages(memorySpace, address, length);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        cleared = true;
+    }
+
     allocation = MSAllocationLookup(context, address);
     if (allocation != NULL) {
         struct MSAllocation* original;
-        startAddress = allocation->Address;
 
+        startAddress = allocation->Address;
         oserr = MSAllocationFree(
             context,
             address,
@@ -100,10 +184,8 @@ __Unmap(
             &original
         );
         if (oserr != OS_EOK) {
-            // There are two reasons for this to fail, either there are links
-            // which means we *cannot* free this memory, as the physical memory
-            // is still being used, or the free was incomplete. Incomplete frees
-            // act exactly like
+            // Linked allocations still use the physical pages and cannot be freed.
+            // An incomplete free can continue with unmapping the requested range.
             if (oserr != OS_EINCOMPLETE) {
                 return oserr;
             }
@@ -111,24 +193,22 @@ __Unmap(
         }
     }
 
-    // We managed to free the allocation, now free the underlying
-    // pages
-    oserr = __ClearPhysicalPages(memorySpace, address, length);
+    // Skip physical-page cleanup when the SHM path already cleared the mapping.
+    oserr = cleared ? OS_EOK : __ClearPhysicalPages(memorySpace, address, length);
     if (oserr != OS_EOK) {
         WARNING("__FreeMapping failed to clear underlying pages!!");
         return oserr;
     }
 
     if (incomplete) {
-        // In the case of an incomplete free, we cannot free the virtual region
-        // just yet. We have to wait for a full free to occur for the region. Make sure
-        // we proxy the information that a full free did not occur
+        // Keep the virtual region until the entire allocation has been freed.
+        // Report the partial free to the caller.
         oserr = OS_EINCOMPLETE;
         goto exit;
     }
 
-    // When a full free occurs, we must always use the start address of the allocation
-    // and it's full length when freeing the virtual region.
+    // On a complete free, use the allocation's start address to release
+    // the full virtual region.
     if (context != NULL && DynamicMemoryPoolContains(&context->Heap, startAddress)) {
         DynamicMemoryPoolFree(&context->Heap, startAddress);
     } else if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, startAddress)) {
@@ -160,7 +240,7 @@ MemorySpaceUnmap(
         MutexLock(&context->UserCopyLock);
     }
     
-    status = __Unmap(memorySpace, address, length);
+    status = MSUnmap(memorySpace, address, length);
     
     if (context != NULL) {
         MutexUnlock(&context->UserCopyLock);

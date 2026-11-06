@@ -31,6 +31,8 @@
 
 DECL_STRUCT(PlatformMemoryMapping);
 DECL_STRUCT(HandleGrantsTable);
+DECL_STRUCT(SHMView);
+
 
 /**
  * MemorySpace (Type) Definitions
@@ -42,28 +44,28 @@ DECL_STRUCT(HandleGrantsTable);
 /**
  * MemorySpace (Flags) Definitions
  * Definitions, bit definitions and magic constants for memory spaces
- * Default settings for mappings are READ|WRITE is set.
+ * Mappings are readable and writable by default.
  *
  * MAPPING_TRAPPAGE:
- * Trap pages are purely (at this moment) to support memory fault handlers in userspace. These mappings
- * will be marked MAPPING_TRAPPAGE and thus be not handled in kernel, and instead be sent to the thread as a signal
- * of type SIGSEGV with the address as parameter.
+ * Trap pages currently support memory fault handlers in userspace. For MAPPING_TRAPPAGE
+ * mappings, the kernel sends the fault to the thread as SIGSEGV with the fault address
+ * as a parameter instead of handling the fault.
  */
 #define MAPPING_USERSPACE               0x00000001U  // Userspace mapping
 #define MAPPING_NOCACHE                 0x00000002U  // Disable caching for mapping
 #define MAPPING_READONLY                0x00000004U  // Memory can only be read
 #define MAPPING_EXECUTABLE              0x00000008U  // Memory can be executed
-#define MAPPING_ISDIRTY                 0x00000010U  // Memory that has been marked poluted/written to
+#define MAPPING_ISDIRTY                 0x00000010U  // Memory marked as written to
 #define MAPPING_PERSISTENT              0x00000020U  // Memory should not be freed when mapping is removed
 #define MAPPING_DOMAIN                  0x00000040U  // Memory allocated for mapping must be domain local
-#define MAPPING_COMMIT                  0x00000080U  // Memory should be comitted immediately
+#define MAPPING_COMMIT                  0x00000080U  // Memory should be committed immediately
 #define MAPPING_CLEAN                   0x00000400U  // Memory should be zeroed when underlying physical pages are allocated
 #define MAPPING_STACK                   0x00000100U  // Memory resource is a stack and needs a guard page
 #define MAPPING_TRAPPAGE                0x00000200U  // Memory pages should trigger a trap
 #define MAPPING_DEVICE                  0x00000800U  // Device registers, not ordinary uncached RAM
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
-#define MAPPING_PHYSICAL_CONTIGUOUS     0x00000002U  // (Physical) Mapping shall be physically contigious
+#define MAPPING_PHYSICAL_CONTIGUOUS     0x00000002U  // (Physical) Mapping must be physically contiguous
 #define MAPPING_PHYSICAL_MASK           0x0000000FU
 
 #define MAPPING_VIRTUAL_GLOBAL          0x00000010U  // (Virtual) Mapping is done in global access memory
@@ -87,8 +89,7 @@ typedef struct MSContextSecurity {
  * @brief Per-thread address space belonging to a shared memory-space group.
  */
 typedef struct MemorySpace {
-    // The memory space group contains shared resources
-    // for this memory space and it's relatives.
+    // The group contains resources shared by its memory spaces.
     uuid_t                GroupGlobalHandleID;
     uuid_t                ParentHandle;
     unsigned int          Flags;
@@ -97,8 +98,8 @@ typedef struct MemorySpace {
 } MemorySpace_t;
 
 /**
- * @brief Initializes the system memory space. This initializes a static version of the
- * system memory space which is the default space the cpu should use for kernel operation.
+ * @brief Initializes the static system memory space. This is the default address
+ * space the CPU should use for kernel operation.
  *
  * @param memorySpace        [In]
  * @param bootInformation    [In]
@@ -125,8 +126,7 @@ CreateMemorySpace(
     _Out_ uuid_t*      securityGroupOut);
 
 /**
- * @brief Switches the current address space out with the the address space provided
- * for the current cpu.
+ * @brief Switches the current CPU to the given address space.
  *
  * @param memorySpace [In] The memory space that should be switched to.
  */
@@ -140,7 +140,8 @@ KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
 
 /**
- * @brief Borrows the security context shared by the current memory-space group.
+ * @brief Returns the security context shared by the current memory-space group.
+ * The caller must not free the context.
  * 
  * @return Pointer valid while the current memory space is alive, or NULL if it
  * has no group.
@@ -169,34 +170,36 @@ AreMemorySpacesRelated(
     _In_ MemorySpace_t* Space1,
     _In_ MemorySpace_t* Space2);
 
+/**
+ * @brief Addresses, flags and shared memory information for a mapping.
+ */
 struct MemorySpaceMapOptions {
-    // SHMTag is the ID of the shared memory region associated
-    // with this mapping. This is only used for internal bookkeeping
-    // and should just be supplied with SHM mappings.
+    // SHMTag identifies the shared memory region for internal bookkeeping.
+    // Supply it only for SHM mappings.
     uuid_t SHMTag;
-    // VirtualStart is the start of the virtual memory mapping. When mapping
-    // specific addresses or resizing an existing mapping, this must be provided
-    // instead.
+    // VirtualStart is the start of the virtual mapping. The caller must supply
+    // it when mapping a specific address or resizing an existing mapping.
     vaddr_t VirtualStart;
-    // PhysicalStart is the start of the physical memory that should be used
-    // for the virtual mapping. This is only used when mapping contigious memory,
-    // otherwise <Pages> should be used instead.
+    // PhysicalStart is the physical address used for contiguous mappings.
+    // Use Pages for other mappings.
     paddr_t PhysicalStart;
-    // Pages is a pointer to an array of physical memory pages. If MAPPING_PHYSICAL_FIXED
-    // is set, then this array contains physical pages which will be supplied to the
-    // underlying virtual memory system as the source of physical memory pages. If the
-    // flag is not supplied, this array will be filled with the physical pages that has
-    // been allocated during the mapping.
-    // *MUST* match the length / PAGE_SIZE.
+    // Pages points to an array of physical page addresses. With MAPPING_PHYSICAL_FIXED,
+    // the array supplies the pages to map. Otherwise, the mapping fills it with
+    // the addresses of the allocated pages.
+    // The array must have Length / PAGE_SIZE entries.
     paddr_t* Pages;
     // Length is the length of the mapping to create. If updating an existing mapping
     // this is the new length of the mapping.
     size_t Length;
-    // Mask is used when allocating physical pages. If physical pages is not supplied,
-    // then the memory space system will allocate them using this mask.
+    // Mask is used to allocate physical pages when none are supplied.
     size_t Mask;
     unsigned int Flags;
     unsigned int PlacementFlags;
+    // Optional restricted shared memory view.
+    // The mapping adds a separate reference before its pages are visible.
+    SHMView_t* SHMView;
+    uuid_t     SHMViewID;
+    size_t     SHMOffset;
 };
 
 /**
@@ -225,13 +228,13 @@ MemorySpaceUnmap(
     _In_ size_t         size);
 
 /**
- * @brief Commits/finishes an already present memory mapping. If a physical address
- * is not already provided one will be allocated for the mapping.
+ * @brief Commits an existing memory mapping. Allocates physical memory if no
+ * physical address is supplied.
  *
- * @param memorySpace           [In] The memory space where the mapping should be commited.
+ * @param memorySpace           [In] The memory space where the mapping should be committed.
  * @param address               [In] The virtual address that should be committed.
  *                                   Any kind of offset into the given page address is ignored.
- * @param physicalAddressValues [In] The dma vector where the physical mappings should be provided.
+ * @param physicalAddressValues [In] The DMA vector where the physical mappings should be provided.
  * @param size                  [In] Length that should be committed.
  * @param pageMask              [In] The accepted page mask for physical pages allocated.
  * @param placementFlags        [In] Supports MAPPING_PHYSICAL_* flags.
@@ -287,8 +290,6 @@ MemorySpaceCloneMapping(
 
 /**
  * @brief Copies between kernel storage and stable, permission-checked userspace pages.
- * This can be used to safely access userspace memory from the kernel, ensuring that the
- * memory is properly checked for permissions and stability.
  * 
  * @return OS_EINVALPARAMS for inaccessible, overflowing, or non-userspace ranges.
  */
@@ -302,8 +303,8 @@ MemorySpaceCopyUser(
 /**
  * @brief Converts a virtual address range into the mapped physical range.
  *
- * @param memorySpace  [In]  The addressing space the lookup should take place in
- * @param address      [In]  The virtual address the lookup should start at
+ * @param memorySpace  [In]  The address space the lookup should take place in.
+ * @param address      [In]  The virtual address the lookup should start at.
  * @param pageCount    [In]  The length of the lookup in pages.
  * @param dmaVectorOut [Out] The array to fill with mappings.
  */
@@ -315,7 +316,7 @@ GetMemorySpaceMapping(
     _Out_ uintptr_t*     dmaVectorOut);
 
 /**
- * @brief Queries allocation information from an existing allocation by its virtual address
+ * @brief Queries allocation information by virtual address.
  *
  * @param memorySpace
  * @param address
@@ -345,11 +346,11 @@ GetMemorySpaceAttributes(
     _In_ unsigned int*  attributesArray);
 
 /**
- * @brief Sets the signal handler for the shared memory-space given
+ * @brief Sets the signal handler for the given shared memory space.
  *
- * @param memorySpace          [In] The memory space to update
+ * @param memorySpace          [In] The memory space to update.
  * @param signalHandlerAddress [In] The address of the signal handler.
- * @return                     Status of the operation
+ * @return                     Status of the operation.
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceSetSignalHandler(
@@ -357,10 +358,10 @@ MemorySpaceSetSignalHandler(
     _In_ vaddr_t        signalHandlerAddress);
 
 /**
- * @brief Retrieves the signal-handler address of the given memory-space
+ * @brief Retrieves the signal handler address of the given memory space.
  *
  * @param memorySpace [In] The memory space to retrieve the signal handler address from.
- * @return            The address of the signal-handler.
+ * @return            The address of the signal handler.
  */
 KERNELAPI vaddr_t KERNELABI
 MemorySpaceSignalHandler(

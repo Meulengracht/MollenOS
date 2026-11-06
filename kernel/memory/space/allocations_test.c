@@ -31,11 +31,11 @@ static struct __TestContext {
 } g_testContext;
 
 void*
-LookupHandleOfType(
-    _In_ uuid_t       handle,
+LookupGlobalHandle(
+    _In_ uuid_t       globalHandleID,
     _In_ HandleType_t type)
 {
-    assert_int_equal(handle, 1);
+    assert_int_equal(globalHandleID, 1);
     assert_int_equal(type, HandleTypeMSContext);
     return &g_testContext.MSContext;
 }
@@ -67,7 +67,7 @@ static void __CleanupAllocation(element_t* element, void* context) {
 void TestMSAllocationCreate_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     oserr_t oserr;
 
@@ -103,7 +103,7 @@ void TestMSAllocationCreate_Happy(void** state)
 void TestMSAllocationCreate_NonPageAlignedLengthHappy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     oserr_t oserr;
 
@@ -140,7 +140,7 @@ void TestMSAllocationCreate_MissingContext(void** state)
 {
     (void)state;
     oserr_t oserr = MSAllocationCreate(
-            &(struct MemorySpace) { .GroupHandle = UUID_INVALID },
+            &(struct MemorySpace) { .GroupGlobalHandleID = UUID_INVALID },
             UUID_INVALID,
             0x1000,
             0x1000,
@@ -172,7 +172,7 @@ void TestMSAllocationCreate_NotPageAlignedAddress(void** state)
 {
     (void)state;
     oserr_t oserr = MSAllocationCreate(
-            &(struct MemorySpace) { .GroupHandle = 1 },
+            &(struct MemorySpace) { .GroupGlobalHandleID = 1 },
             UUID_INVALID,
             0x1345,
             0x1000,
@@ -184,14 +184,14 @@ void TestMSAllocationCreate_NotPageAlignedAddress(void** state)
 void TestMSAllocationLookup_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     struct MSAllocation* allocation;
     oserr_t oserr;
 
     (void)state;
 
-    // Create the allocation we will use for testing
+    // Create the test allocation.
     oserr = MSAllocationCreate(
             &memorySpace,
             UUID_INVALID,
@@ -237,14 +237,14 @@ void TestMSAllocationLookup_InvalidContext(void** state)
 void TestMSAllocationAcquire_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     struct MSAllocation* allocation;
     oserr_t oserr;
 
     (void)state;
 
-    // Create the allocation we will use for testing
+    // Create the test allocation.
     oserr = MSAllocationCreate(
             &memorySpace,
             UUID_INVALID,
@@ -279,14 +279,14 @@ void TestMSAllocationAcquire_InvalidContext(void** state)
 void TestMSAllocationFree_Simple(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     struct MSAllocation* clonedFrom;
     oserr_t oserr;
 
     (void)state;
 
-    // Create the clonedFrom we will use for testing
+    // Create the test allocation.
     oserr = MSAllocationCreate(
             &memorySpace,
             UUID_INVALID,
@@ -296,9 +296,8 @@ void TestMSAllocationFree_Simple(void** state)
     );
     assert_int_equal(oserr, OS_EOK);
 
-    // Now let's do a simple free case where we just
-    // free the entire allocation. If the free does not occur
-    // the test will fail with leaked memory :-)
+    // Free the entire allocation. The test reports leaked memory
+    // if the allocation is not freed.
     oserr = MSAllocationFree(
             &g_testContext.MSContext,
             0x1000,
@@ -314,14 +313,14 @@ void TestMSAllocationFree_Simple(void** state)
 void TestMSAllocationFree_PartialFree(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     struct MSAllocation* clonedFrom;
     oserr_t oserr;
 
     (void)state;
 
-    // Create the allocation we will use for testing
+    // Create the test allocation.
     oserr = MSAllocationCreate(
             &memorySpace,
             UUID_INVALID,
@@ -331,8 +330,7 @@ void TestMSAllocationFree_PartialFree(void** state)
     );
     assert_int_equal(oserr, OS_EOK);
 
-    // Free a part of the allocation, since partial frees will
-    // always be rounded up by page size, actually 0x1000 will be freed.
+    // The free length is rounded up to page size, so 0x1000 bytes are freed.
     oserr = MSAllocationFree(
             &g_testContext.MSContext,
             0x2000,
@@ -344,8 +342,7 @@ void TestMSAllocationFree_PartialFree(void** state)
     assert_int_equal(g_testContext.MutexUnlockCalls, 1);
     assert_null(clonedFrom);
 
-    // Inspect the bitmap to ensure that the free call calculated the
-    // correct bits to clear
+    // Only the freed page must be marked in the bitmap.
     clonedFrom = (struct MSAllocation*)g_testContext.MSContext.Allocations.head;
     assert_int_equal(bitmap_bits_set(&clonedFrom->Pages, 1, 1), 1);
     assert_int_equal(bitmap_bits_clear(&clonedFrom->Pages, 0, 1), 1);
@@ -367,7 +364,7 @@ void TestMSAllocationFree_PartialFree(void** state)
 void TestMSAllocationFree_MultipleReferencesSimple(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     struct MSAllocation* clonedFrom;
     struct MSAllocation* allocation;
@@ -375,7 +372,7 @@ void TestMSAllocationFree_MultipleReferencesSimple(void** state)
 
     (void)state;
 
-    // Create the allocation we will use for testing
+    // Create the test allocation.
     oserr = MSAllocationCreate(
             &memorySpace,
             UUID_INVALID,
@@ -391,8 +388,7 @@ void TestMSAllocationFree_MultipleReferencesSimple(void** state)
     assert_int_equal(g_testContext.MutexLockCalls, 1);
     assert_int_equal(g_testContext.MutexUnlockCalls, 1);
 
-    // Try to reduce the mapping first, this must fail when
-    // there are multiple references
+    // Partial frees must fail while multiple references exist.
     oserr = MSAllocationFree(
             &g_testContext.MSContext,
             0x1000,
@@ -406,7 +402,7 @@ void TestMSAllocationFree_MultipleReferencesSimple(void** state)
     // reduce references
     assert_int_equal(MSAllocationRelease(&g_testContext.MSContext, allocation), OS_EOK);
 
-    // Now expect this to actually free the allocation
+    // Free the allocation after releasing the extra reference.
     oserr = MSAllocationFree(
             &g_testContext.MSContext,
             0x1000,
@@ -487,14 +483,14 @@ void TestMSAllocationFree_InvalidAddress(void** state)
 void TestMSAllocationLink_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     struct MSAllocation allocation;
     oserr_t oserr;
 
     (void)state;
 
-    // Create the allocation we will use for testing
+    // Create the test allocation.
     oserr = MSAllocationCreate(
             &memorySpace,
             UUID_INVALID,
@@ -519,7 +515,7 @@ void TestMSAllocationLink_InvalidContext(void** state)
     oserr_t oserr;
     (void)state;
 
-    // Create the allocation we will use for testing
+    // Reject a missing context.
     oserr = MSAllocationLink(NULL, 0x1000, NULL);
     assert_int_equal(oserr, OS_EINVALPARAMS);
     assert_int_equal(g_testContext.MutexLockCalls, 0);
@@ -529,12 +525,12 @@ void TestMSAllocationLink_InvalidContext(void** state)
 void TestMSAllocationLink_InvalidAddress(void** state)
 {
     MemorySpace_t memorySpace = {
-            .GroupHandle = 1
+            .GroupGlobalHandleID = 1
     };
     oserr_t oserr;
     (void)state;
 
-    // Create the allocation we will use for testing
+    // The context has no allocation at this address.
     oserr = MSAllocationLink(__MSContextGet(&memorySpace), 0x1000, NULL);
     assert_int_equal(oserr, OS_ENOENT);
     assert_int_equal(g_testContext.MutexLockCalls, 1);
@@ -565,7 +561,7 @@ int main(void)
     return cmocka_run_group_tests(tests, Setup, Teardown);
 }
 
-// Mock this, called by MSAllocationCreate
+// Allocation-list mock used by MSAllocationCreate.
 void MSContextAddAllocation(struct MSContext* context, struct MSAllocation* allocation) {
     assert_non_null(context);
     assert_non_null(allocation);
@@ -600,6 +596,17 @@ void* kmalloc(size_t size) {
 
 void kfree(void* memp) {
     return test_free(memp);
+}
+
+oserr_t
+ReleaseGlobalHandle(
+    _In_ uuid_t handle)
+{
+    // These tests cover ordinary allocations. Restricted references are tested
+    // with the real table in shm_restricted_test.c.
+    (void)handle;
+    fail_msg("Unexpected restricted mapping reference");
+    return OS_EUNKNOWN;
 }
 
 size_t GetMemorySpacePageSize(void) {

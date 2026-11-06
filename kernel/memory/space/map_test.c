@@ -147,8 +147,7 @@ int SetupTest(void** state) {
     g_testContext.MemorySpace.GroupGlobalHandleID = 1;
     g_testContext.MemorySpace.Flags   = MEMORY_SPACE_APPLICATION;
 
-    // Default to a page size of 4KB. If a test needs something else
-    // the individual test can change this.
+    // Default to 4KB pages. Tests can change this.
     g_testContext.Machine.MemoryGranularity = 0x1000;
     return 0;
 }
@@ -160,20 +159,17 @@ void TestMemorySpaceMap_USERSPACE(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_USERSPACE | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_USERSPACE. MAPPING_USERSPACE
-    // is a pass-through flag, which means we just want to verify that if
-    // it is explicitly provided, it must be passed to the Arch* calls. When
-    // testing specific flags, let's be as minimal invasive as possible, so
-    // call it with fixed values
+    // MAPPING_USERSPACE must reach ArchMmuSetVirtualPages unchanged.
+    // Use fixed addresses to isolate the flag check.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -184,8 +180,7 @@ void TestMemorySpaceMap_USERSPACE(void** state)
                 .Length = GetMemorySpacePageSize(),
                 .Mask = __MASK,
                 .Flags = MAPPING_USERSPACE | MAPPING_COMMIT,
-                // Important to use _FIXED flags here, as those will not implicitly
-                // imply USERSPACE flag
+                // Fixed placement does not implicitly add MAPPING_USERSPACE.
                 .PlacementFlags = MAPPING_VIRTUAL_FIXED | MAPPING_PHYSICAL_FIXED
             },
             &mapping
@@ -205,20 +200,17 @@ void TestMemorySpaceMap_NOCACHE(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_NOCACHE | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_NOCACHE. MAPPING_NOCACHE
-    // is a pass-through flag, which means we just want to verify that if
-    // it is explicitly provided, it must be passed to the Arch* calls. When
-    // testing specific flags, let's be as minimal invasive as possible, so
-    // call it with fixed values
+    // MAPPING_NOCACHE must reach ArchMmuSetVirtualPages unchanged.
+    // Use fixed addresses to isolate the flag check.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -248,20 +240,17 @@ void TestMemorySpaceMap_READONLY(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_READONLY | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_READONLY. MAPPING_READONLY
-    // is a pass-through flag, which means we just want to verify that if
-    // it is explicitly provided, it must be passed to the Arch* calls. When
-    // testing specific flags, let's be as minimal invasive as possible, so
-    // call it with fixed values
+    // MAPPING_READONLY must reach ArchMmuSetVirtualPages unchanged.
+    // Use fixed addresses to isolate the flag check.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -291,20 +280,17 @@ void TestMemorySpaceMap_EXECUTABLE(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_EXECUTABLE | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_EXECUTABLE. MAPPING_EXECUTABLE
-    // is a pass-through flag, which means we just want to verify that if
-    // it is explicitly provided, it must be passed to the Arch* calls. When
-    // testing specific flags, let's be as minimal invasive as possible, so
-    // call it with fixed values
+    // MAPPING_EXECUTABLE must reach ArchMmuSetVirtualPages unchanged.
+    // Use fixed addresses to isolate the flag check.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -329,28 +315,24 @@ void TestMemorySpaceMap_EXECUTABLE(void** state)
 
 void TestMemorySpaceMap_ISDIRTY(void** state)
 {
-    // Important to note for this test, is that we are just verifying behaviour of
-    // providing the flag. ISDIRTY doesn't actually do anything when mapping, but
-    // we still pass it to the underlying platform code.
+    // MAPPING_ISDIRTY has no effect when mapping. The flag is still passed
+    // to the platform code.
     oserr_t oserr;
     vaddr_t mapping;
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_ISDIRTY | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_ISDIRTY. MAPPING_ISDIRTY
-    // is a pass-through flag, which means we just want to verify that if
-    // it is explicitly provided, it must be passed to the Arch* calls. When
-    // testing specific flags, let's be as minimal invasive as possible, so
-    // call it with fixed values.
+    // MAPPING_ISDIRTY must reach ArchMmuSetVirtualPages unchanged.
+    // Use fixed addresses to isolate the flag check.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -380,20 +362,17 @@ void TestMemorySpaceMap_PERSISTANT(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_PERSISTENT | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_PERSISTENT. MAPPING_PERSISTENT
-    // is a pass-through flag, which means we just want to verify that if
-    // it is explicitly provided, it must be passed to the Arch* calls. When
-    // testing specific flags, let's be as minimal invasive as possible, so
-    // call it with fixed values.
+    // MAPPING_PERSISTENT must reach ArchMmuSetVirtualPages unchanged.
+    // Use fixed addresses to isolate the flag check.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -418,28 +397,23 @@ void TestMemorySpaceMap_PERSISTANT(void** state)
 
 void TestMemorySpaceMap_DOMAIN(void** state)
 {
-    // OK, so MAPPING_DOMAIN is actually not implemented or supported at this moment,
-    // we only provided the flag to see if we could somehow keep this in mind while designing
-    // the systems that use memory spaces. To be honest it makes no sense to test this, but we
-    // have the test for completeness.
+    // MAPPING_DOMAIN is reserved for future support.
     oserr_t oserr;
     vaddr_t mapping;
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_DOMAIN | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_DOMAIN. MAPPING_DOMAIN should have an effect
-    // on the memory that is allocated for the mapping, and is heavily influenced by the memory
-    // setup done in SystemMachine_t. Currently, do a pass-through test, but once this is implemented
-    // we will have to do a proper test setup for this.
+    // MAPPING_DOMAIN should select memory using the setup in SystemMachine_t.
+    // Until implemented, check that the flag reaches ArchMmuSetVirtualPages.
     // TODO: implement unit tests for this once support for MAPPING_DOMAIN is done.
     mapping = 0x1000000;
     page = 0x10000;
@@ -470,9 +444,9 @@ void TestMemorySpaceMap_COMMIT(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_COMMIT;
@@ -484,8 +458,8 @@ void TestMemorySpaceMap_COMMIT(void** state)
     g_testContext.ArchMmuReserveVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuReserveVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_COMMIT. When set, we expect ArchMmuSetVirtualPages
-    // to be called, and when not set, we expect ArchMmuReserveVirtualPages to be called.
+    // With MAPPING_COMMIT, MemorySpaceMap must call ArchMmuSetVirtualPages.
+    // Without the flag, it must call ArchMmuReserveVirtualPages.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -539,19 +513,18 @@ void TestMemorySpaceMap_CLEAN_COMMIT(void** state)
     void*   expected;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_CLEAN | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_CLEAN. To test this we will pre-allocate
-    // the underlying memory, fill it with a pattern, and then test that it got expected'd.
-    // MAPPING_CLEAN only triggers when actually commit memory, otherwise it will be stored
-    // and evaluated when the memory is lazily allocated. (TODO test this)
+    // Fill the allocated buffer with a pattern and check that MAPPING_CLEAN
+    // zeroes the mapped page on commit. Without MAPPING_COMMIT, the flag is
+    // stored until the memory is lazily allocated. (TODO test this)
     data = test_malloc(GetMemorySpacePageSize()*2);
     assert_non_null(data);
     expected = test_malloc(GetMemorySpacePageSize());
@@ -560,7 +533,7 @@ void TestMemorySpaceMap_CLEAN_COMMIT(void** state)
     // Align up to next multiple of GetMemorySpacePageSize()
     dataAligned = (void*)((uintptr_t)data + (GetMemorySpacePageSize() - ((uintptr_t)data & (GetMemorySpacePageSize() - 1))));
 
-    // Fill the buffers with expected data
+    // Fill the allocated buffer with a pattern and zero the comparison buffer.
     memset(data, 0xFF, GetMemorySpacePageSize());
     memset(expected, 0, GetMemorySpacePageSize());
 
@@ -580,14 +553,14 @@ void TestMemorySpaceMap_CLEAN_COMMIT(void** state)
     assert_int_equal(oserr, OS_EOK);
     assert_int_equal(mapping, (uintptr_t)dataAligned);
 
-    // Expect memory to be expected'd
+    // The mapped page must be zeroed.
     assert_memory_equal(dataAligned, expected, GetMemorySpacePageSize());
 
     // Expected function calls
     assert_int_equal(g_testContext.MSAllocationLookup.Calls, 1);
     assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 1);
 
-    // Cleanup the allocated buffers so tests are happy
+    // Free the test buffers.
     test_free(data);
     test_free(expected);
 }
@@ -599,9 +572,9 @@ void TestMemorySpaceMap_STACK(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAddress    = 0x1000000 + GetMemorySpacePageSize();
@@ -612,26 +585,20 @@ void TestMemorySpaceMap_STACK(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // 3. DynamicMemoryPoolAllocate, let it return a value for the mapping. The mapping
-    //    should be 2 pages, as we are only allocating one, but the memory system will
-    //    account for an extra due to the STACK flag
+    // 3. StaticMemoryPoolAllocate returns space for 2 pages. MAPPING_STACK
+    //    adds a guard page to the single requested page.
     g_testContext.StaticMemoryPoolAllocate.ExpectedLength = GetMemorySpacePageSize() * 2;
     g_testContext.StaticMemoryPoolAllocate.CheckLength    = true;
     g_testContext.StaticMemoryPoolAllocate.ReturnValue    = 0x1000000;
 
-    // Test the basic usage of the MAPPING_STACK. MAPPING_STACK modifies the mapping
-    // like the following.
-    // 1. When requesting a mapping of a specific length, the mapping actually made will
-    //    be one page larger (the initial page).
-    // 2. The returned mapping will point to the mapping + length, as mappings go from
-    //    top to down.
-    // Limitations: When used with MAPPING_VIRTUAL_FIXED the length is adjusted of the
-    //              resulting mapping by a memory page, to account for a guard page. That
-    //              means the mapping that is to be created *must* be at-least 2 pages long
-    //              when using MAPPING_VIRTUAL_FIXED.
+    // MAPPING_STACK changes the mapping:
+    // 1. Virtual allocation adds a guard page before the requested stack pages.
+    // 2. The returned address is the end of the range, since stacks grow downward.
+    // Limitations: With MAPPING_VIRTUAL_FIXED, the first page of the supplied range
+    //              is a guard page. The length must cover at least 2 pages.
 
-    // Test with standard allocation. This should work with just a single page. Let's use
-    // fixed physical allocation as we are not testing that here.
+    // Test a single page with virtual allocation. Use fixed physical pages
+    // to keep physical allocation out of the test.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -654,9 +621,7 @@ void TestMemorySpaceMap_STACK(void** state)
     mapping = 0x2000000;
     page = 0x10000;
 
-    // Test with MAPPING_VIRTUAL_FIXED. We need to make sure it errors when mapping is
-    // less or equal to a page size, and that it correctly returns the right values when
-    // parameters are valid.
+    // MAPPING_VIRTUAL_FIXED must reject lengths of one page or less.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -676,10 +641,8 @@ void TestMemorySpaceMap_STACK(void** state)
     assert_int_equal(g_testContext.StaticMemoryPoolAllocate.Calls, 1);
     assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 1);
 
-    // Test with MAPPING_VIRTUAL_FIXED again. But now with correct length, so we
-    // get a proper mapping. The trick here is to verify the parameters that ArchMmuSetVirtualPages
-    // is invoked with, so we can correctly verify that the mapping *starts* from beyond the
-    // guard page
+    // With a 2-page range, ArchMmuSetVirtualPages must start after the guard
+    // page and map only the stack page.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAddress   = 0x2000000 + GetMemorySpacePageSize();
     g_testContext.ArchMmuSetVirtualPages.CheckAddress      = true;
     g_testContext.ArchMmuSetVirtualPages.ExpectedPageCount = 1;
@@ -713,20 +676,17 @@ void TestMemorySpaceMap_TRAPPAGE(void** state)
     paddr_t page;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_TRAPPAGE | MAPPING_COMMIT;
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_TRAPPAGE. MAPPING_TRAPPAGE
-    // is a pass-through flag, which means we just want to verify that if
-    // it is explicitly provided, it must be passed to the Arch* calls. When
-    // testing specific flags, let's be as minimal invasive as possible, so
-    // call it with fixed values
+    // MAPPING_TRAPPAGE must reach ArchMmuSetVirtualPages unchanged.
+    // Use fixed addresses to isolate the flag check.
     mapping = 0x1000000;
     page = 0x10000;
     oserr = MemorySpaceMap(
@@ -757,9 +717,9 @@ void TestMemorySpaceMap_PhysicalSimple(void** state)
     paddr_t pageValues = 0x4000;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. AllocatePhysicalMemory.
     g_testContext.AllocatePhysicalMemory.ExpectedMask       = __MASK;
@@ -779,8 +739,7 @@ void TestMemorySpaceMap_PhysicalSimple(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test that providing no flags for physical placement, will assume default
-    // allocation of physical pages.
+    // Without physical placement flags, allocate physical pages.
     mapping = 0x1000000;
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
@@ -811,9 +770,9 @@ void TestMemorySpaceMap_PHYSICAL_FIXED(void** state)
     paddr_t page = 0x10000;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAddress    = 0x1000000;
@@ -826,9 +785,8 @@ void TestMemorySpaceMap_PHYSICAL_FIXED(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_PHYSICAL_FIXED. MAPPING_PHYSICAL_FIXED
-    // will pass the provided physical pages (.Pages) to the underlying system. This
-    // test ensures that ArchMmuSetVirtualPages is invoked with the expected values.
+    // MAPPING_PHYSICAL_FIXED passes .Pages to ArchMmuSetVirtualPages.
+    // Check the supplied physical addresses.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -855,9 +813,9 @@ void TestMemorySpaceMap_PHYSICAL_CONTIGUOUS(void** state)
     vaddr_t mapping = 0x1000000;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetContiguousVirtualPages.
     g_testContext.ArchMmuSetContiguousVirtualPages.ExpectedVirtualAddress  = 0x1000000;
@@ -870,9 +828,8 @@ void TestMemorySpaceMap_PHYSICAL_CONTIGUOUS(void** state)
     g_testContext.ArchMmuSetContiguousVirtualPages.CheckAttributes         = true;
     g_testContext.ArchMmuSetContiguousVirtualPages.ReturnValue             = OS_EOK;
 
-    // Test the basic usage of the MAPPING_PHYSICAL_CONTIGUOUS. MAPPING_PHYSICAL_CONTIGUOUS
-    // will pass the provided physical pages (.Pages) to the underlying system. This
-    // test ensures that ArchMmuSetContiguousVirtualPages is invoked with the expected values.
+    // MAPPING_PHYSICAL_CONTIGUOUS passes .PhysicalStart to
+    // ArchMmuSetContiguousVirtualPages. Check the starting physical address.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -900,7 +857,7 @@ void TestMemorySpaceMap_VIRTUAL_GLOBAL(void** state)
     paddr_t page = 0x10000;
     (void)state;
 
-    // Expected calls to happen:
+    // Expected calls:
     // 1. StaticMemoryPoolAllocate.
     g_testContext.StaticMemoryPoolAllocate.ExpectedLength = GetMemorySpacePageSize();
     g_testContext.StaticMemoryPoolAllocate.CheckLength    = true;
@@ -917,9 +874,8 @@ void TestMemorySpaceMap_VIRTUAL_GLOBAL(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_VIRTUAL_GLOBAL. MAPPING_VIRTUAL_GLOBAL
-    // will allocate memory from the global kernel memory. We use fixed physical addresses
-    // simplify the mocking process.
+    // MAPPING_VIRTUAL_GLOBAL allocates from global kernel memory.
+    // Use fixed physical addresses to keep the mocks simple.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -946,7 +902,7 @@ void TestMemorySpaceMap_VIRTUAL_PROCESS(void** state)
     paddr_t page = 0x10000;
     (void)state;
 
-    // Expected calls to happen:
+    // Expected calls:
     // 1. DynamicMemoryPoolAllocate.
     g_testContext.DynamicMemoryPoolAllocate.ExpectedLength = GetMemorySpacePageSize();
     g_testContext.DynamicMemoryPoolAllocate.CheckLength    = true;
@@ -963,9 +919,8 @@ void TestMemorySpaceMap_VIRTUAL_PROCESS(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_VIRTUAL_PROCESS. MAPPING_VIRTUAL_PROCESS
-    // will allocate memory from process-specific memory. We use fixed physical addresses
-    // simplify the mocking process.
+    // MAPPING_VIRTUAL_PROCESS allocates from process-specific memory.
+    // Use fixed physical addresses to keep the mocks simple.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -992,7 +947,7 @@ void TestMemorySpaceMap_VIRTUAL_THREAD(void** state)
     paddr_t page = 0x10000;
     (void)state;
 
-    // Expected calls to happen:
+    // Expected calls:
     // 1. DynamicMemoryPoolAllocate.
     g_testContext.DynamicMemoryPoolAllocate.ExpectedLength = GetMemorySpacePageSize();
     g_testContext.DynamicMemoryPoolAllocate.CheckLength    = true;
@@ -1009,9 +964,8 @@ void TestMemorySpaceMap_VIRTUAL_THREAD(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_VIRTUAL_THREAD. MAPPING_VIRTUAL_THREAD
-    // will allocate memory from the local thread memory. We use fixed physical addresses
-    // simplify the mocking process.
+    // MAPPING_VIRTUAL_THREAD allocates from thread-local memory.
+    // Use fixed physical addresses to keep the mocks simple.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -1038,9 +992,9 @@ void TestMemorySpaceMap_VIRTUAL_FIXED(void** state)
     paddr_t page = 0x10000;
     (void)state;
 
-    // Expected calls to happen:
-    // 1. MSAllocationLookup, let it return NULL to indicate no existing mapping,
-    //    and no parameter mocking neccessary
+    // Expected calls:
+    // 1. MSAllocationLookup returns NULL (no existing mapping).
+    //    No parameter checks are needed.
 
     // 2. ArchMmuSetVirtualPages.
     g_testContext.ArchMmuSetVirtualPages.ExpectedAddress    = 0x1000000;
@@ -1053,11 +1007,10 @@ void TestMemorySpaceMap_VIRTUAL_FIXED(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_VIRTUAL_FIXED. MAPPING_VIRTUAL_FIXED
-    // will use the provided address, assuming it is valid. We also provide fixed
-    // physical addreses to simplify mocking
+    // MAPPING_VIRTUAL_FIXED uses the supplied virtual address when valid.
+    // Use fixed physical addresses to keep the mocks simple.
 
-    // Test the zero case where the provided value is 0, we don't allow this
+    // A fixed virtual address of 0 must be rejected.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -1104,8 +1057,7 @@ void TestMemorySpaceMap_VirtualMissing(void** state)
     paddr_t page = 0x10000;
     (void)state;
 
-    // Test the case where placement flags for virtual is missing, should
-    // fail
+    // Reject mappings without virtual placement flags.
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
@@ -1129,7 +1081,7 @@ void TestMemorySpaceMap_VirtualMissing(void** state)
 // 2. Error recovery
 // 3. MemorySpaceCommit Tests
 // 4. MemorySpaceCloneMapping Tests
-// 5. MemorySpaceQuery (test that we can check we hit guard page)
+// 5. MemorySpaceQuery (check guard page detection)
 
 int main(void)
 {
@@ -1224,7 +1176,7 @@ oserr_t AllocatePhysicalMemory(
     }
     if (g_testContext.AllocatePhysicalMemory.CheckPageCount) {
         assert_int_equal(pageCount, g_testContext.AllocatePhysicalMemory.ExpectedPageCount);
-        // Only check this in combination with page count
+        // Copy page values only after checking pageCount.
         if (g_testContext.AllocatePhysicalMemory.PageValuesProvided) {
             for (int i = 0; i < pageCount; i++) {
                 pages[i] = g_testContext.AllocatePhysicalMemory.PageValues[i];
@@ -1278,7 +1230,7 @@ oserr_t ArchMmuSetVirtualPages(
     }
     if (g_testContext.ArchMmuSetVirtualPages.CheckPageCount) {
         assert_int_equal(pageCount, g_testContext.ArchMmuSetVirtualPages.ExpectedPageCount);
-        // only check this in combination with page count
+        // Check page values only after checking pageCount.
         if (g_testContext.ArchMmuSetVirtualPages.CheckPageValues) {
             assert_memory_equal(
                     physicalAddressValues,

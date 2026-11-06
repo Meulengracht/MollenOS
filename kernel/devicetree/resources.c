@@ -128,23 +128,23 @@ __TranslateAddress(
             uint64_t child = __ReadCells(tuple, childCells);
             uint64_t parent = __ReadCells(tuple + childCells * 4, parentCells);
             uint64_t extent = __ReadCells(tuple + (childCells + parentCells) * 4, sizeCells);
-            uint64_t displacement;
+            uint64_t offset;
 
             if (*address < child) {
                 continue;
             }
             
-            displacement = *address - child;
-            if (displacement >= extent || length > extent - displacement) {
+            offset = *address - child;
+            if (offset >= extent || length > extent - offset) {
                 continue;
             }
             
-            if (displacement > UINT64_MAX - parent ||
-                length > UINT64_MAX - parent - displacement) {
+            if (offset > UINT64_MAX - parent ||
+                length > UINT64_MAX - parent - offset) {
                 return OS_EOVERFLOW;
             }
             
-            *address = parent + displacement;
+            *address = parent + offset;
             matched = 1;
             break;
         }

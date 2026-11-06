@@ -35,6 +35,7 @@
 #include <string.h>
 #include <threading.h>
 #include "private.h"
+#include "../shm/private.h"
 
 #define __PMTYPE(_flags) ((_flags) & MAPPING_PHYSICAL_MASK)
 #define __VMTYPE(_flags) ((_flags) & MAPPING_VIRTUAL_MASK)
@@ -49,9 +50,7 @@ __VerifyFixedVirtualAddress(
         return OS_EINVALPARAMS;
     }
 
-    // With pre-provided virtual regions for stacks, the region size *must* be
-    // atleast two pages long. Otherwise, there is not enough room for the guard
-    // page in the mapping.
+    // Fixed stack regions must cover at least two pages, including the guard page.
     if ((options->Flags & MAPPING_STACK) && options->Length <= GetMemorySpacePageSize()) {
         return OS_EINVALPARAMS;
     }
@@ -59,45 +58,11 @@ __VerifyFixedVirtualAddress(
     // Align the provided value on a page-boundary
     *baseAddressOut = options->VirtualStart & ~(GetMemorySpacePageSize() - 1);
 
-    // Now fixup the allocated address if the allocation was a stack, but not
-    // for pre-provided
+    // Skip the guard page when returning a stack base.
     if (options->Flags & MAPPING_STACK) {
         *baseAddressOut += GetMemorySpacePageSize();
     }
     return OS_EOK;
-}
-
-static vaddr_t
-__AllocateProcessMemory(
-    _In_ MemorySpace_t* memorySpace,
-    _In_ uuid_t         shmTag,
-    _In_ size_t         size,
-    _In_ unsigned int   mapFlags)
-{
-    struct MSContext* context = __MSContextGet(memorySpace);
-    vaddr_t           address;
-    oserr_t           oserr;
-
-    if (context == NULL) {
-        ERROR("__AllocateProcessMemory: requested process memory for non-process memory space");
-        return 0;
-    }
-
-    address = DynamicMemoryPoolAllocate(&context->Heap, size);
-    if (address == 0) {
-        ERROR("__AllocateProcessMemory: cannot allocate 0x%" PRIxIN " bytes of memory", size);
-    } else {
-        // We only track user allocations, not kernel allocations. If we wanted to track ALL allocations
-        // then we would have to guard against eternal loops as-well as the __CreateAllocation actually calls
-        // kmalloc
-        oserr = MSAllocationCreate(memorySpace, shmTag, address, size, mapFlags);
-        if (oserr != OS_EOK) {
-            ERROR("__AllocateProcessMemory: cannot register allocation");
-            DynamicMemoryPoolFree(&context->Heap, size);
-            address = 0;
-        }
-    }
-    return address;
 }
 
 static oserr_t
@@ -109,9 +74,8 @@ __AllocateVirtualMemory(
     vaddr_t virtualBase;
     size_t  length = options->Length;
 
-    // Is this a stack allocation? Then we need to allocate another page
-    // for the allocation, which will be the first page in the segment of memory.
-    // this segment will be unmapped, but allocated in virtual memory.
+    // Reserve an extra virtual page at the start of a stack.
+    // This guard page stays unmapped.
     if (options->Flags & MAPPING_STACK) {
         length += GetMemorySpacePageSize();
     }
@@ -126,7 +90,7 @@ __AllocateVirtualMemory(
                 ERROR("__AllocateVirtualMemory cannot allocate process memory for non-userspace memory space");
                 return OS_ENOTSUPPORTED;
             }
-            virtualBase = __AllocateProcessMemory(memorySpace, options->SHMTag, length, options->Flags);
+            virtualBase = MSMappingAllocate(memorySpace, options, length);
         } break;
 
         case MAPPING_VIRTUAL_THREAD: {
@@ -152,8 +116,7 @@ __AllocateVirtualMemory(
         return OS_EOOM;
     }
 
-    // Now fixup the allocated address if the allocation was a stack, but not
-    // for pre-provided
+    // Skip the guard page for stack mappings.
     if (options->Flags & MAPPING_STACK) {
         virtualBase += GetMemorySpacePageSize();
     }
@@ -170,9 +133,7 @@ __FreeVirtualMemory(
     _In_ unsigned int   memoryFlags,
     _In_ unsigned int   placementFlags)
 {
-    // Is this a stack allocation? Then we need to allocate another page
-    // for the allocation, which will be the first page in the segment of memory.
-    // this segment will be unmapped, but allocated in virtual memory.
+    // Include the guard page when freeing a stack's virtual region.
     if (memoryFlags & MAPPING_STACK) {
         address -= GetMemorySpacePageSize();
         size += GetMemorySpacePageSize();
@@ -305,8 +266,51 @@ __ContiguousMapping(
     return oserr;
 }
 
+static oserr_t
+__MapSHMPages(
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ paddr_t*       pages,
+    _In_ int            pageCount,
+    _In_ unsigned int   flags)
+{
+    int          first = 0;
+    int          end;
+    int          updated;
+    bool         committed;
+    unsigned int attributes;
+    oserr_t      status;
+
+    // Missing backing pages remain reservations until SHM commits them.
+    // Group adjacent pages by commit state so fully populated buffers use one MMU call.
+    while (first < pageCount) {
+        committed = pages[first] != 0;
+        end = first + 1;
+        while (end < pageCount && (pages[end] != 0) == committed) {
+            end++;
+        }
+        attributes = flags & ~MAPPING_COMMIT;
+        if (committed) {
+            attributes |= MAPPING_COMMIT;
+        }
+        status = ArchMmuSetVirtualPages(
+            memorySpace,
+            address + (size_t)first * GetMemorySpacePageSize(),
+            &pages[first],
+            end - first,
+            attributes,
+            &updated
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+        first = end;
+    }
+    return OS_EOK;
+}
+
 oserr_t
-MemorySpaceMap(
+MSMap(
         _In_  MemorySpace_t*                memorySpace,
         _In_  struct MemorySpaceMapOptions* options,
         _Out_ vaddr_t*                      mappingOut)
@@ -315,6 +319,8 @@ MemorySpaceMap(
     int                  pageCount;
     vaddr_t              virtualBase;
     oserr_t              oserr;
+    oserr_t              cleanupStatus;
+    bool                 allowFreedPages;
 
     if (memorySpace == NULL || options == NULL) {
         return OS_EINVALPARAMS;
@@ -322,16 +328,44 @@ MemorySpaceMap(
     TRACE("MemorySpaceMap(len=%" PRIuIN ", attribs=0x%x, placement=0x%x)",
           length, memoryFlags, placementFlags);
 
-    // Calculate the number of pages we want to affect.
+    if (options->SHMView != NULL) {
+        if (__VMTYPE(options->PlacementFlags) != MAPPING_VIRTUAL_PROCESS ||
+            __PMTYPE(options->PlacementFlags) != MAPPING_PHYSICAL_FIXED) {
+            return OS_ENOTSUPPORTED;
+        }
+        oserr = SHMViewValidateMapping(options->SHMView, options->SHMOffset,
+                                      options->Length, options->Flags);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        options->Flags |= MAPPING_PERSISTENT;
+    }
+    if (__VMTYPE(options->PlacementFlags) == MAPPING_VIRTUAL_FIXED) {
+        allowFreedPages = false;
+        oserr = MSAllocationFindSHM(
+            __MSContextGet(memorySpace),
+            options->VirtualStart,
+            options->Length,
+            allowFreedPages,
+            &allocation
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        if (allocation != NULL) {
+            return OS_EPERMISSIONS;
+        }
+    }
+
+    // Calculate the number of pages in the mapping.
     pageCount = DIVUP(options->Length, GetMemorySpacePageSize());
 
-    // Existing allocation we are touching?
+    // Check for an existing allocation at the fixed address.
     if (__VMTYPE(options->PlacementFlags) == MAPPING_VIRTUAL_FIXED) {
         allocation = MSAllocationLookup(__MSContextGet(memorySpace), options->VirtualStart);
         if (allocation) {
-            // OK existing allocation, there is a good chance we want to commit a part (or all) of it,
-            // if MAPPING_COMMIT is set. To change protection flags of a mapping, MemorySpaceChangeProtection
-            // must be used.
+            // Use MAPPING_COMMIT to commit part or all of an existing allocation.
+            // Protection changes must use MemorySpaceChangeProtection.
             if (options->Flags & MAPPING_COMMIT) {
                 virtualBase = allocation->Address;
                 goto getPhysicalPages;
@@ -339,32 +373,27 @@ MemorySpaceMap(
             return OS_ENOTSUPPORTED;
         }
 
-        // Reserve one of the pages for the STACK mappings if the mappings
-        // are pre-provided.
+        // Fixed stack regions include a guard page. Exclude it from pageCount.
         if (options->Flags & MAPPING_STACK) {
             pageCount--;
         }
     }
 
-    // We must allocate a virtual region first, because once we start filling in
-    // physical pages it becomes impossible to properly track what we filled in our
-    // self and what was provided. It is a lot easier to clean up a single virtual
-    // mapping.
+    // Allocate virtual memory first so cleanup can release a single mapping
+    // without distinguishing supplied pages from pages allocated here.
     oserr = __AllocateVirtualMemory(memorySpace, options, &virtualBase);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    // Update the mapping pointer supplied before continuing, so we don't do this
-    // multiple places. No corrections will be done to virtualBase from here.
+    // Set mappingOut before mapping pages. virtualBase will not change after this point.
     if (options->Flags & MAPPING_STACK) {
         *mappingOut = (virtualBase + (pageCount * GetMemorySpacePageSize()));
     } else {
         *mappingOut = virtualBase;
     }
 
-    // If we are trying to reserve memory through this call, redirect it to the
-    // dedicated reservation method. 
+    // Use the reservation path when MAPPING_COMMIT is clear.
     if (!(options->Flags & MAPPING_COMMIT)) {
         oserr = __ReserveMapping(memorySpace, virtualBase, options->Flags, pageCount);
         if (oserr != OS_EOK) {
@@ -373,7 +402,7 @@ MemorySpaceMap(
         return oserr;
     }
 
-    // If we are doing a contigious physical mapping, then we should use another underlying call
+    // Contiguous physical mappings use a separate MMU call.
     if (__PMTYPE(options->PlacementFlags) == MAPPING_PHYSICAL_CONTIGUOUS) {
         oserr = __ContiguousMapping(
                 memorySpace,
@@ -388,7 +417,7 @@ MemorySpaceMap(
         return oserr;
     }
 
-    // If physical mappings are not provided in options->Pages, then fill it with mappings.
+    // Allocate physical pages in options->Pages unless MAPPING_PHYSICAL_FIXED is set.
     // TODO: should we support partially filled pages?
 getPhysicalPages:
     if (__PMTYPE(options->PlacementFlags) != MAPPING_PHYSICAL_FIXED) {
@@ -399,13 +428,11 @@ getPhysicalPages:
         }
     }
 
-    oserr = __CommitMapping(
-            memorySpace,
-            virtualBase,
-            options->Pages,
-            pageCount,
-            options->Flags
-    );
+    if (options->SHMView != NULL) {
+        oserr = __MapSHMPages(memorySpace, virtualBase, options->Pages, pageCount, options->Flags);
+    } else {
+        oserr = __CommitMapping(memorySpace, virtualBase, options->Pages, pageCount, options->Flags);
+    }
     if (oserr != OS_EOK) {
         ERROR("MemorySpaceMap: cannot commit allocated mappings");
         goto cleanup;
@@ -413,6 +440,16 @@ getPhysicalPages:
     return oserr;
 
 cleanup:
+    if (options->SHMView != NULL) {
+        cleanupStatus = MSMappingRollback(memorySpace, virtualBase, options->Length);
+        if (cleanupStatus != OS_EOK) {
+            oserr = cleanupStatus;
+        }
+        if (mappingOut != NULL) {
+            *mappingOut = 0;
+        }
+        return oserr;
+    }
     __FreeVirtualMemory(
             memorySpace,
             virtualBase,
@@ -427,7 +464,30 @@ cleanup:
 }
 
 oserr_t
-MemorySpaceCommit(
+MemorySpaceMap(
+    _In_  MemorySpace_t*                memorySpace,
+    _In_  struct MemorySpaceMapOptions* options,
+    _Out_ vaddr_t*                      mappingOut)
+{
+    struct MSContext* context;
+    oserr_t           status;
+
+    if (memorySpace == NULL || options == NULL || mappingOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    context = (options->Flags & MAPPING_USERSPACE) ? __MSContextGet(memorySpace) : NULL;
+    if (context != NULL) {
+        MutexLock(&context->UserCopyLock);
+    }
+    status = MSMap(memorySpace, options, mappingOut);
+    if (context != NULL) {
+        MutexUnlock(&context->UserCopyLock);
+    }
+    return status;
+}
+
+static oserr_t
+__Commit(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
         _In_ uintptr_t*     physicalAddressValues,
@@ -465,6 +525,67 @@ MemorySpaceCommit(
     return oserr;
 }
 
+oserr_t
+MemorySpaceCommit(
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ uintptr_t*     physicalAddressValues,
+    _In_ size_t         size,
+    _In_ size_t         pageMask,
+    _In_ unsigned int   placementFlags)
+{
+    struct MSContext*    context;
+    struct MSAllocation* allocation;
+    struct SHMBuffer*    buffer;
+    size_t               pageSize = GetMemorySpacePageSize();
+    size_t               index;
+    size_t               count;
+    size_t               i;
+    oserr_t              status;
+    bool                 allowFreedPages;
+
+    if (memorySpace == NULL || physicalAddressValues == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    context = __MSContextGet(memorySpace);
+    if (context != NULL) {
+        MutexLock(&context->UserCopyLock);
+    }
+    allowFreedPages = false;
+    status = MSAllocationFindSHM(
+        context,
+        address,
+        size,
+        allowFreedPages,
+        &allocation
+    );
+    if (status != OS_EOK) {
+        goto exit;
+    }
+    if (allocation != NULL) {
+        if (address % pageSize != 0 || size > SIZE_MAX - (pageSize - 1) ||
+            __PMTYPE(placementFlags) != MAPPING_PHYSICAL_FIXED) {
+            status = OS_EINVALPARAMS;
+            goto exit;
+        }
+        buffer = allocation->SHM.View->Buffer;
+        index = (buffer->Offset + allocation->SHM.Offset + address - allocation->Address) / pageSize;
+        count = DIVUP(size, pageSize);
+        for (i = 0; i < count; i++) {
+            if (physicalAddressValues[i] != buffer->Pages[index + i]) {
+                status = OS_EPERMISSIONS;
+                goto exit;
+            }
+        }
+    }
+    status = __Commit(memorySpace, address, physicalAddressValues, size, pageMask, placementFlags);
+exit:
+    if (context != NULL) {
+        MutexUnlock(&context->UserCopyLock);
+    }
+    return status;
+}
+
 static oserr_t
 __GetAndVerifyPhysicalMapping(
         _In_  MemorySpace_t* sourceSpace,
@@ -480,22 +601,21 @@ __GetAndVerifyPhysicalMapping(
     TRACE("__GetAndVerifyPhysicalMapping(address=0x%" PRIxIN ", pageCount=%i",
           address, pageCount);
 
-    // Get the physical mappings first and verify them. They _MUST_ be committed in order for us to clone
-    // the mapping, otherwise the mapping can get out of sync. And we do not want that.
+    // The source mapping must be fully committed before cloning, otherwise the
+    // cloned mapping can get out of sync.
     physicalAddresses = (uintptr_t*)kmalloc(pageCount * sizeof(uintptr_t));
     if (!physicalAddresses) {
         return OS_EOOM;
     }
 
-    // Allocate a temporary array to store physical mappings
+    // Read the physical addresses into the array.
     oserr = ArchMmuVirtualToPhysical(sourceSpace, address, pageCount, &physicalAddresses[0], &pagesRetrieved);
     if (oserr != OS_EOK) {
         kfree(physicalAddresses);
         return oserr;
     }
 
-    // Verify mappings, we don't support partial clones. When cloning a mapping the
-    // entire mapping must be comitted.
+    // Partial clones are not supported. Every source page must be committed.
     TRACE("__GetAndVerifyPhysicalMapping pagesRetrieved=%i", pagesRetrieved);
     for (i = 0; i < pagesRetrieved; i++) {
         if (!physicalAddresses[i]) {
@@ -510,8 +630,8 @@ __GetAndVerifyPhysicalMapping(
     return oserr;
 }
 
-oserr_t
-MemorySpaceCloneMapping(
+static oserr_t
+__CloneMapping(
     _In_        MemorySpace_t* sourceSpace,
     _In_        MemorySpace_t* destinationSpace,
     _In_        vaddr_t        sourceAddress,
@@ -526,6 +646,11 @@ MemorySpaceCloneMapping(
     int                  pagesRetrieved;
     uintptr_t*           pages = NULL;
     oserr_t              oserr;
+    size_t               pageSize = GetMemorySpacePageSize();
+    size_t               pageOffset = sourceAddress % pageSize;
+    struct MSAllocation* restricted;
+    struct MemorySpaceMapOptions options;
+    bool                 allowFreedPages;
 
     TRACE("MemorySpaceCloneMapping(sourceSpace=0x%" PRIxIN ", destinationSpace=0x%" PRIxIN
           ", sourceAddress=0x%" PRIxIN ", length=0x%" PRIxIN ", memoryFlags=0x%x)",
@@ -535,9 +660,52 @@ MemorySpaceCloneMapping(
         return OS_EINVALPARAMS;
     }
 
-    // Increase reference of the source allocation first, to "acquire" it. We are not sure
-    // that an allocation exists, especially if the allocation is made in non process-memory, so
-    // take into account that sourceAllocation may be NULL
+    allowFreedPages = false;
+    oserr = MSAllocationFindSHM(
+        __MSContextGet(sourceSpace),
+        sourceAddress,
+        length,
+        allowFreedPages,
+        &restricted
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    
+    if (restricted != NULL) {
+        oserr = MSMappingCloneOptions(
+            restricted,
+            sourceAddress,
+            length,
+            memoryFlags,
+            placementFlags,
+            &options
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        pageCount = (int)(options.Length / pageSize);
+        oserr = __GetAndVerifyPhysicalMapping(sourceSpace, sourceAddress - pageOffset,
+                                              pageCount, &pages, &pagesRetrieved);
+        if (oserr != OS_EOK) {
+            kfree(pages);
+            return oserr;
+        }
+        if (pagesRetrieved != pageCount) {
+            kfree(pages);
+            return OS_ENOTSUPPORTED;
+        }
+        options.Pages = pages;
+        oserr = MSMap(destinationSpace, &options, &virtualBase);
+        kfree(pages);
+        if (oserr == OS_EOK) {
+            *destinationAddress = virtualBase + pageOffset;
+        }
+        return oserr;
+    }
+
+    // Increase the source allocation's reference count before cloning. Allocations
+    // outside process memory may be untracked, so sourceAllocation can be NULL.
     sourceAllocation = MSAllocationAcquire(__MSContextGet(sourceSpace), sourceAddress);
     oserr = __GetAndVerifyPhysicalMapping(
             sourceSpace,
@@ -566,7 +734,7 @@ MemorySpaceCloneMapping(
 
     *destinationAddress = virtualBase;
 
-    // bind the source and destination allocation together
+    // Link the source and destination allocations.
     if (sourceAllocation) {
         MSAllocationLink(__MSContextGet(destinationSpace), virtualBase, sourceAllocation);
     }
@@ -600,14 +768,69 @@ exit:
     return oserr;
 }
 
+oserr_t
+MemorySpaceCloneMapping(
+    _In_        MemorySpace_t* sourceSpace,
+    _In_        MemorySpace_t* destinationSpace,
+    _In_        vaddr_t        sourceAddress,
+    _InOut_Opt_ vaddr_t*       destinationAddress,
+    _In_        size_t         length,
+    _In_        unsigned int   memoryFlags,
+    _In_        unsigned int   placementFlags)
+{
+    struct MSContext* first;
+    struct MSContext* second;
+    struct MSContext* temporary;
+    oserr_t           status;
+
+    if (sourceSpace == NULL || destinationSpace == NULL || destinationAddress == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    first = __MSContextGet(sourceSpace);
+    second = __MSContextGet(destinationSpace);
+    if (first == second) {
+        second = NULL;
+    } else if ((uintptr_t)first > (uintptr_t)second) {
+        temporary = first;
+        first = second;
+        second = temporary;
+    }
+    
+    // Lock contexts in address order when a kernel caller clones across two groups.
+    if (first != NULL) {
+        MutexLock(&first->UserCopyLock);
+    }
+    if (second != NULL) {
+        MutexLock(&second->UserCopyLock);
+    }
+    
+    status = __CloneMapping(
+        sourceSpace,
+        destinationSpace,
+        sourceAddress,
+        destinationAddress,
+        length,
+        memoryFlags,
+        placementFlags
+    );
+    if (second != NULL) {
+        MutexUnlock(&second->UserCopyLock);
+    }
+    if (first != NULL) {
+        MutexUnlock(&first->UserCopyLock);
+    }
+    return status;
+}
+
 static oserr_t
 __ValidateUserCopyPages(
-        _In_ MemorySpace_t*       space,
-        _In_ struct MSAllocation* allocation,
-        _In_ uintptr_t            pageAddress,
-        _In_ size_t               firstPageIndex,
-        _In_ size_t               pageCount,
-        _In_ bool                 toUser)
+    _In_ MemorySpace_t*       space,
+    _In_ struct MSAllocation* allocation,
+    _In_ uintptr_t            pageAddress,
+    _In_ size_t               firstPageIndex,
+    _In_ size_t               pageCount,
+    _In_ bool                 toUser)
 {
     size_t       pageSize = GetMemorySpacePageSize();
     size_t       index;
@@ -630,19 +853,19 @@ __ValidateUserCopyPages(
         );
         if (status != OS_EOK) {
             if (status == OS_ENOENT) {
-                // Override the case of a missing page with invalid parameters.
+                // Report missing pages as invalid parameters.
                 return OS_EINVALPARAMS;
             }
             return status;
         }
 
-        // Require committed userspace memory; trap pages are guards, not copyable data.
+        // Require committed userspace memory. Trap pages are guards and cannot be copied.
         if ((attributes & (MAPPING_USERSPACE | MAPPING_COMMIT)) != (MAPPING_USERSPACE | MAPPING_COMMIT) ||
             (attributes & MAPPING_TRAPPAGE)) {
             return OS_EINVALPARAMS;
         }
 
-        // Copying to the user buffer writes to it, so reject read-only mappings in that direction.
+        // Reject read-only mappings when writing to the user buffer.
         if (toUser && (attributes & MAPPING_READONLY)) {
             return OS_EINVALPARAMS;
         }
@@ -652,10 +875,10 @@ __ValidateUserCopyPages(
 
 oserr_t
 MemorySpaceCopyUser(
-        _In_ void*  userBuffer,
-        _In_ void*  kernelBuffer,
-        _In_ size_t length,
-        _In_ bool   toUser)
+    _In_ void*  userBuffer,
+    _In_ void*  kernelBuffer,
+    _In_ size_t length,
+    _In_ bool   toUser)
 {
     MemorySpace_t*       space = GetCurrentMemorySpace();
     MemorySpace_t*       kernelSpace = GetDomainMemorySpace();

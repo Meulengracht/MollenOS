@@ -41,9 +41,8 @@ CreateMemorySpace(
         return OS_EOOM;
     }
 
-    // We must handle two cases here, either we inherit the kernels address-space, or we are
-    // inheritting/creating a new userspace address-space. If we are inheritting the kernel
-    // address-space, we clone it as we still need TLS data-areas in each kernel thread.
+    // Clone the kernel address space so each thread has its own TLS area.
+    // User address spaces can be created or inherited.
     if (flags == MEMORY_SPACE_INHERIT) {
         // Kernel clones own their page tables and TLS. They need their own
         // handle too: an AP has no current thread and therefore no parent handle.
@@ -52,8 +51,8 @@ CreateMemorySpace(
             goto error;
         }
     } else if (flags & MEMORY_SPACE_APPLICATION) {
-        // Parent must be the uppermost instance of the address-space
-        // of the process. Only to the point of not having kernel as parent
+        // Use the process's root address space as the parent.
+        // The kernel address space cannot be a parent here.
         if (flags & MEMORY_SPACE_INHERIT) {
             parent = GetCurrentMemorySpace();
             if (parent != GetDomainMemorySpace()) {
@@ -101,7 +100,7 @@ CreateMemorySpace(
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", flags);
     }
 
-    // Capture the identity before the handle makes the space visible.
+    // Creating the handle makes the memory space visible.
     *msHandleOut = CreateHandle(
         HandleTypeMemorySpace,
         NULL,
@@ -117,7 +116,7 @@ CreateMemorySpace(
     return OS_EOK;
 
 error:
-    // A failed clone unwinds its own page tables; only our references remain.
+    // A failed clone frees its page tables. Release the references held by this space.
     if (memorySpace->GroupGlobalHandleID != UUID_INVALID) {
         ReleaseGlobalHandle(memorySpace->GroupGlobalHandleID);
     }

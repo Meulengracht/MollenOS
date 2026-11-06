@@ -23,11 +23,12 @@
 #include <interrupts/interrupts.h>
 #include <machine.h>
 #include <spinlock.h>
-#include "../components/cpu_private.h"
+
+#include "../../components/cpu_private.h"
 #include "private.h"
 
-// This is a last-resort progress limit, not a clock timeout: an RTC
-// reference cannot advance while the BSP is waiting with interrupts disabled.
+// Limit polling iterations. The RTC reference cannot advance while the BSP
+// waits with interrupts disabled.
 #define __MSSYNC_SPIN_LIMIT 100000000U
 
 typedef struct MemorySynchronizationObject {
@@ -47,7 +48,7 @@ MemorySpaceSyncProcessPending(void)
     irqstate_t                          irqState;
     
     if (!atomic_load(&g_syncActive)) {
-        // also avoids accessing core-local state during early boot
+        // Avoid accessing core-local state during early boot.
         return;
     }
     
@@ -70,7 +71,7 @@ __MemorySyncInterrupt(
     _CRT_UNUSED(functions);
     _CRT_UNUSED(context);
 
-    // Process any pending memory synchronization requests
+    // Process any pending memory synchronization requests.
     MemorySpaceSyncProcessPending();
     return IRQSTATUS_HANDLED;
 }
@@ -100,8 +101,8 @@ MSSync(
     _In_ uintptr_t      address,
     _In_ size_t         size)
 {
-    // The request remains alive until every target has acknowledged. Delayed
-    // IPIs only poll the mailbox, so they never retain a pointer to this stack.
+    // Keep syncObject valid until every target has acknowledged. Delayed IPIs
+    // check MemorySync, so they cannot access the request after it completes.
     MemorySynchronizationObject_t syncObject = {
             .Address        = address,
             .Length         = size,
@@ -118,7 +119,7 @@ MSSync(
     irqState = InterruptDisable();
     CpuInvalidateMemoryCache((void*)address, size);
 
-    // Skip this entire step if there is no multiple cores active
+    // Skip remote synchronization when only one core is active.
     if (atomic_load(&GetMachine()->NumberOfActiveCores) <= 1) {
         InterruptRestoreState(irqState);
         return;
@@ -132,7 +133,7 @@ MSSync(
     self = CpuCoreCurrent();
     atomic_store(&g_syncActive, 1);
     
-    // enumerate the cores and send memory synchronization interrupts
+    // Send synchronization interrupts to the other running cores.
     for (core = GetMachine()->Processor.Cores; core != NULL; core = CpuCoreNext(core)) {
         if (core == self || !(CpuCoreState(core) & CpuStateRunning)) {
             continue;
@@ -146,7 +147,7 @@ MSSync(
         }
     }
 
-    // Wait for all cores to acknowledge the memory synchronization request
+    // Wait for every target core to acknowledge the request.
     while (atomic_load(&syncObject.Remaining) != 0) {
         MemorySpaceSyncProcessPending();
         if (++attempts == __MSSYNC_SPIN_LIMIT) {
