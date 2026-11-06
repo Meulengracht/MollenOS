@@ -115,7 +115,10 @@ typedef struct UsbTransferWork {
     list_t*   Queue;
 } UsbTransferWork_t;
 
-/** Bounded tracing for a selected enumeration request and its DMA handoff. */
+/**
+ * @brief Trace counters for a selected enumeration request and its DMA calls.
+ * The counters limit how many events are logged for that request.
+ */
 struct UsbTransferDmaDiagnostics {
     bool         Enabled;
     bool         EndpointSampled;
@@ -171,7 +174,7 @@ typedef struct UsbManagerTransfer {
         } Periodic;
     } TData;
 
-    // The client attachment allows CPU access for setup and packet bounce.
+    // The client attachment allows CPU access to SETUP data and packet copies.
     // The DMA mapping keeps the storage allocated until the mapping is released.
     OSHandle_t SHMHandle;
 
@@ -198,10 +201,10 @@ typedef struct UsbManagerTransfer {
         bool                             DeviceOwned;
         bool                             HardwareActive;
         usb_packet_t                     Setup;
-        struct UsbTransferDmaBounce     Bounce;
-        struct UsbTransferBouncePool*   PacketPool;
-        struct UsbTransferPacketBounce* Packets;
-        struct UsbTransferDmaLayout      Layout;
+        UsbTransferDmaBounce_t           Bounce;
+        UsbTransferBouncePool_t*         PacketPool;
+        UsbTransferPacketBounce_t*       Packets;
+        UsbTransferDmaLayout_t           Layout;
         struct UsbTransferDmaDiagnostics Diagnostics;
     } Dma;
 
@@ -210,14 +213,14 @@ typedef struct UsbManagerTransfer {
 } UsbManagerTransfer_t;
 
 /**
- * @brief Prepare the mapping for device access before publishing descriptors.
+ * @brief Prepare the DMA mapping before making descriptors visible to hardware.
  * Partial asynchronous submissions continue using the current DMA transfer.
  *
  * @param transfer Transfer with a prepared mapping and descriptors.
  * @return OS_EOK on success, otherwise the DMA start error.
  */
 extern oserr_t
-USBTransferDmaBegin(
+UsbTransferDmaBegin(
     _InOut_ UsbManagerTransfer_t* transfer);
 
 /**
@@ -230,7 +233,7 @@ USBTransferDmaBegin(
  * @return OS_EOK on success, OS_EINVALPARAMS when the byte is outside the mapping.
  */
 static inline oserr_t
-USBTransferDmaOffset(
+UsbTransferDmaOffset(
     _In_ const UsbManagerTransfer_t* transfer,
     _In_ size_t                      offset,
     _Out_ int*                       indexOut,
@@ -319,7 +322,7 @@ static inline enum USBTransferDirection __Transfer_Direction(UsbManagerTransfer_
  * @param transfer Transfer to destroy.
  */
 extern oserr_t
-USBTransferDestroy(
+UsbTransferDestroy(
     _In_ UsbManagerTransfer_t* transfer);
 
 /**
@@ -329,17 +332,17 @@ USBTransferDestroy(
  * @param transfer Completed transfer to report.
  */
 extern void
-USBTransferNotify(
+UsbTransferNotify(
     _In_ UsbManagerTransfer_t* transfer);
 
 /**
  * @brief Select or create the current packet's mapping and reuse element storage.
  *
  * @param transfer Transfer available for CPU access, with unchanged buffer bounds.
- * @return OS_EOK, or a mapping/allocation error with resources kept for cleanup.
+ * @return OS_EOK or a mapping or allocation error. On failure, keep resources for cleanup.
  */
 extern oserr_t
-USBTransferDmaPrepare(
+UsbTransferDmaPrepare(
     _InOut_ UsbManagerTransfer_t* transfer);
 
 /**
@@ -350,7 +353,7 @@ USBTransferDmaPrepare(
  * @return OS_EOK on success, OS_EBUSY while DMA is active, or a release error.
  */
 extern oserr_t
-USBTransferDmaDestroy(
+UsbTransferDmaDestroy(
     _InOut_ UsbManagerTransfer_t* transfer);
 
 /**
@@ -362,8 +365,8 @@ USBTransferDmaDestroy(
  * @return OS_EOK on success, otherwise a length or DMA completion error.
  */
 extern oserr_t
-USBTransferDmaComplete(
+UsbTransferDmaComplete(
     _InOut_ UsbManagerTransfer_t* transfer,
-    _In_ size_t bytes);
+    _In_    size_t                bytes);
 
 #endif //!__USB_COMMON_TRANSFER__

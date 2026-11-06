@@ -217,8 +217,8 @@ void
 UsbManagerDeferControllerDestroy(
     _In_ UsbManagerController_t* controller)
 {
-    // Only controller cleanup uses this queue. Keep the same controller between
-    // attempts so its cleared fields show which resources have been released.
+    // Keep the controller on the cleanup queue until destruction succeeds.
+    // Fields cleared by earlier attempts show which resources are already freed.
     if (controller->State.Phase < USB_CONTROLLER_DESTROY_PENDING) {
         ELEMENT_INIT(&controller->DestroyElement, 0, controller);
         list_append(&g_destroyPending, &controller->DestroyElement);
@@ -320,7 +320,7 @@ UsbManagerIterateTransfers(
         int                   status = itemCallback(controller, transfer, context);
         if (status & ITERATOR_REMOVE) {
             element_t* next = node->next;
-            if (USBTransferDestroy(transfer) != OS_EOK) {
+            if (UsbTransferDestroy(transfer) != OS_EOK) {
                 // Finalization may already have released the descriptor chain.
                 // Retry destruction without scanning that chain again.
                 transfer->State = USBTRANSFER_STATE_CLEANUP;
@@ -450,7 +450,7 @@ __QueueWaitingTransfers(
         UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)node->value;
 
         if (!transfer->Submitting && transfer->State == USBTRANSFER_STATE_WAITING &&
-            USBTransferBounceCanRetry(transfer)) {
+            UsbTransferBounceCanRetry(transfer)) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
                 status = HCITransferQueueIsochronous(transfer);
             } else {
@@ -458,8 +458,8 @@ __QueueWaitingTransfers(
             }
             
             if (status != OS_EOK && transfer->State != USBTRANSFER_STATE_CLEANUP) {
-                // Allocation failures enter the usual cleanup path. A queue
-                // call may yield to cancellation, whose result must stay intact.
+                // On allocation failure, mark the transfer for cleanup. Queueing can
+                // yield, so check for cancellation before changing the result.
                 transfer->ResultCode = USBTRANSFERCODE_INVALID;
                 transfer->State = USBTRANSFER_STATE_CLEANUP;
             }
@@ -489,7 +489,7 @@ __FinalizeTransfer(
         return OS_EINCOMPLETE;
     }
 
-    USBTransferNotify(transfer);
+    UsbTransferNotify(transfer);
     return OS_EOK;
 }
 
@@ -512,12 +512,12 @@ UsbManagerClearTransfers(
             return;
         }
 
-        if (USBTransferDmaComplete(transfer, transfer->Dma.Completed) != OS_EOK) {
+        if (UsbTransferDmaComplete(transfer, transfer->Dma.Completed) != OS_EOK) {
             return;
         }
         
-        USBTransferNotify(transfer);
-        if (USBTransferDestroy(transfer) != OS_EOK) {
+        UsbTransferNotify(transfer);
+        if (UsbTransferDestroy(transfer) != OS_EOK) {
             return;
         }
     }
@@ -659,7 +659,7 @@ __RestartLegacyTransfer(
 {
     oserr_t status;
 
-    status = USBTransferDmaPrepare(transfer);
+    status = UsbTransferDmaPrepare(transfer);
     if (transfer->State == USBTRANSFER_STATE_CLEANUP) {
         return ITERATOR_CONTINUE;
     }
@@ -693,15 +693,16 @@ __FinishLegacyTransfer(
 
     if (!periodic && success && !__Transfer_IsPartial(transfer) &&
         !(transfer->Flags & __USBTRANSFER_FLAG_SHORT)) {
-        status = USBTransferDmaComplete(transfer, transfer->Dma.Completed);
+        status = UsbTransferDmaComplete(transfer, transfer->Dma.Completed);
         if (status != OS_EOK) {
             return ITERATOR_CONTINUE;
         }
-        USBTransferNotify(transfer);
+        UsbTransferNotify(transfer);
     }
 
-    // Successful periodic packets leave inactive descriptors linked for reuse.
-    // Async chains and cancellation must pass the HCI's unlink/stop checks first.
+    // After a successful periodic packet, leave inactive descriptors linked
+    // for the next packet. For asynchronous or cancelled transfers, the HCI
+    // must unlink the chain or stop the controller before cleanup.
     if (!periodic || !success ||
         ((transfer->Flags & __USBTRANSFER_FLAG_SHORT) && transfer->ChainLength > 1)) {
         status = HCITransferFinalize(controller, transfer, false);
@@ -721,14 +722,14 @@ __FinishLegacyTransfer(
         return ITERATOR_CONTINUE;
     }
 
-    status = USBTransferDmaComplete(transfer, transfer->Dma.Completed);
+    status = UsbTransferDmaComplete(transfer, transfer->Dma.Completed);
     if (status != OS_EOK) {
         return ITERATOR_CONTINUE;
     }
 
     if (!(transfer->Flags & __USBTRANSFER_FLAG_NOTIFIED)) {
         if (transfer->ResultCode != USBTRANSFERCODE_NAK) {
-            USBTransferNotify(transfer);
+            UsbTransferNotify(transfer);
         }
         transfer->Flags |= __USBTRANSFER_FLAG_NOTIFIED;
     }
@@ -831,7 +832,7 @@ __CheckTransfer(
     TRACE("__ProcessTransfer: finished scan status=%u", context.Result);
 
     if (__TransferCompleted(transfer, &context)) {
-        if (USBTransferDmaComplete(transfer, context.BytesTransferred) != OS_EOK) {
+        if (UsbTransferDmaComplete(transfer, context.BytesTransferred) != OS_EOK) {
             return ITERATOR_CONTINUE;
         }
     }
@@ -869,7 +870,7 @@ __CheckTransfer(
 
     if (__Transfer_IsPeriodic(transfer)) {
         if (context.Result != USBTRANSFERCODE_NAK) {
-            USBTransferNotify(transfer);
+            UsbTransferNotify(transfer);
         }
 
         if (HCITransferFinalize(controller, transfer, false) != OS_EOK) {
@@ -880,13 +881,13 @@ __CheckTransfer(
             transfer->State = USBTRANSFER_STATE_STALLED;
         } else {
             __Transfer_Reset(transfer);
-            if (USBTransferDmaPrepare(transfer) == OS_EOK && HCITransferQueue(transfer) == OS_EOK) {
+            if (UsbTransferDmaPrepare(transfer) == OS_EOK && HCITransferQueue(transfer) == OS_EOK) {
                 return ITERATOR_CONTINUE;
             }
             
             transfer->State = USBTRANSFER_STATE_COMPLETED;
             transfer->ResultCode = USBTRANSFERCODE_BUFFERERROR;
-            USBTransferNotify(transfer);
+            UsbTransferNotify(transfer);
         }
         return ITERATOR_CONTINUE;
     }
@@ -970,7 +971,7 @@ __ProcessReadyTransfers(
         
         result = __ProcessTransfer(controller, transfer, NULL);
         if (result & ITERATOR_REMOVE) {
-            if (USBTransferDestroy(transfer) == OS_EOK) {
+            if (UsbTransferDestroy(transfer) == OS_EOK) {
                 continue;
             }
             transfer->State = USBTRANSFER_STATE_CLEANUP;
@@ -1222,8 +1223,8 @@ UsbManagerConfigureInterrupt(
 
     DeviceInterruptInitialize(interrupt, controller->Device);
     
-    // One vector serves the controller's existing event path. The allocator
-    // prefers MSI-X, then MSI, and keeps INTx for controllers without either.
+    // Use one interrupt vector for controller events. Try MSI-X first, then MSI,
+    // and fall back to INTx if the controller supports neither.
     status = DeviceInterruptAllocate(interrupt, 1, 1, &count);
     if (status != OS_EOK) {
         return status;

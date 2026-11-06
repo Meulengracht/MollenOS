@@ -203,7 +203,7 @@ __SelectMapping(
 }
 
 oserr_t
-USBTransferDmaPrepare(
+UsbTransferDmaPrepare(
     _InOut_ UsbManagerTransfer_t* transfer)
 {
     struct TransferElement* elements;
@@ -255,7 +255,7 @@ USBTransferDmaPrepare(
         transfer->Dma.Length,
         transfer->Direction
     );
-    status = USBTransferBouncePlan(transfer);
+    status = UsbTransferBounceInitialize(transfer);
     if (status != OS_EOK) {
         return status;
     }
@@ -268,7 +268,7 @@ USBTransferDmaPrepare(
 }
 
 oserr_t
-USBTransferDmaBegin(
+UsbTransferDmaBegin(
     _InOut_ UsbManagerTransfer_t* transfer)
 {
     oserr_t status;
@@ -280,9 +280,9 @@ USBTransferDmaBegin(
         return OS_EOK;
     }
 
-    status = USBTransferBouncePrepare(transfer);
+    status = UsbTransferBouncePrepare(transfer);
     if (status != OS_EOK) {
-        (void)USBTransferBounceAbort(transfer);
+        (void)UsbTransferBounceAbort(transfer);
         return status;
     }
     status = DMABeginTransfer(
@@ -298,13 +298,13 @@ USBTransferDmaBegin(
     } else {
         // No hardware can reference these slots yet. The next attempt must
         // copy OUT bytes again after CPU access becomes available.
-        (void)USBTransferBounceAbort(transfer);
+        (void)UsbTransferBounceAbort(transfer);
     }
     return status;
 }
 
 oserr_t
-USBTransferDmaDestroy(
+UsbTransferDmaDestroy(
     _InOut_ UsbManagerTransfer_t* transfer)
 {
     struct DMAMapping* mapping;
@@ -314,7 +314,7 @@ USBTransferDmaDestroy(
     if (transfer->Dma.DeviceOwned || transfer->Dma.HardwareActive) {
         return OS_EBUSY;
     }
-    status = USBTransferBounceDestroy(transfer);
+    status = UsbTransferBounceDestroy(transfer);
     if (status != OS_EOK) {
         return status;
     }
@@ -359,7 +359,7 @@ USBTransferDmaDestroy(
 }
 
 oserr_t
-USBTransferDmaComplete(
+UsbTransferDmaComplete(
     _InOut_ UsbManagerTransfer_t* transfer,
     _In_    size_t                bytes)
 {
@@ -369,7 +369,7 @@ USBTransferDmaComplete(
         transfer->Dma.HardwareActive = false;
         // DMA end may have succeeded while packet copy-back was blocked. Retry
         // only the CPU copy/end step, before the manager notifies the client.
-        return USBTransferBounceComplete(transfer, bytes);
+        return UsbTransferBounceComplete(transfer, bytes);
     }
     if (bytes > transfer->Dma.Length) {
         return OS_EINVALPARAMS;
@@ -383,7 +383,7 @@ USBTransferDmaComplete(
     if (status == OS_EOK) {
         transfer->Dma.DeviceOwned = false;
         transfer->Dma.HardwareActive = false;
-        status = USBTransferBounceComplete(transfer, bytes);
+        status = UsbTransferBounceComplete(transfer, bytes);
         if (status != OS_EOK) {
             return status;
         }

@@ -266,8 +266,8 @@ __DevicePrepareDma(
     oserr_t                        status;
     TRACE("__DevicePrepareDma(device=%u)", deviceId);
 
-    // Require an empty output slot so preparing twice cannot lose an earlier
-    // lease and permanently prevent the device from being removed.
+    // Requires an empty output slot. Overwriting an existing lease would lose
+    // the pointer needed to release it and prevent device removal.
     if (leaseOut == NULL) {
         WARNING("__DevicePrepareDma: missing lease output for device %u", deviceId);
         return OS_EINVALPARAMS;
@@ -297,9 +297,9 @@ __DevicePrepareDma(
         return OS_EOOM;
     }
 
-    // The request count keeps the entry and its callback context alive.
-    // Bus callbacks may take their own locks or fail. Run them without the
-    // registry lock and keep their result private until the lease is counted.
+    // The active request prevents the entry and callback context from being freed.
+    // Release the registry lock before calling the bus code, which may take other
+    // locks. Set the output only after adding the lease to the device count.
     status = operations->PrepareDma(
         device->Bus.Context,
         principal,
@@ -413,10 +413,10 @@ DmHandleIoctl(
     _In_ void*               buffer,
     _In_ size_t              length)
 {
-    struct __DmDevice*                       device;
+    struct __DmDevice*             device;
     const DmDeviceBusOperations_t* operations;
-    uuid_t                                   driverId;
-    oserr_t                                  status;
+    oserr_t                        status;
+    
     TRACE("DmHandleIoctl(principal=%u, device=%u, request=0x%x, length=%zu)",
           principal, deviceId, request, length);
 
@@ -432,21 +432,10 @@ DmHandleIoctl(
     }
     operations = device->Bus.Operations;
 
-    // Driver selection may change independently of an active request.
-    usched_mtx_lock(&g_devicesLock);
-    driverId = device->DriverId;
-    usched_mtx_unlock(&g_devicesLock);
-
     if (request == OSIOCTLREQUEST_BUS_CONTROL &&
         (buffer == NULL || length < sizeof(struct OSIOCtlBusControl))) {
         WARNING("DmHandleIoctl: invalid bus-control buffer for device %u, length %zu", deviceId, length);
         status = OS_EINVALPARAMS;
-    } else if (request == OSIOCTLREQUEST_IO_REQUIREMENTS && driverId != UUID_INVALID) {
-        status = OSDeviceIOCtl2(deviceId, driverId, request, buffer, length);
-        if (status != OS_EOK) {
-            WARNING("DmHandleIoctl: driver %u failed request 0x%x for device %u: %u",
-                    driverId, request, deviceId, status);
-        }
     } else if (operations != NULL && operations->Control != NULL) {
         status = operations->Control(
             device->Bus.Context,
@@ -829,7 +818,8 @@ DmDeviceCreateWithBus(
 
     description->Id = g_nextDeviceId++;
     deviceNode->Header.key = (void*)(uintptr_t)description->Id;
-    // Once listed, the registry owns the description and its allocated strings.
+    // Once added to the list, the registry is responsible for freeing the
+    // description and its allocated strings.
     list_append(&g_devices, &deviceNode->Header);
 
     *idOut = description->Id;

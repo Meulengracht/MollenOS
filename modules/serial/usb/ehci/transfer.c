@@ -257,7 +257,7 @@ __CalculateTransferElementMetrics(
     // Periodic requests use a page-aligned bounce packet. Async qTDs have
     // five page pointers, so split contiguous DMA segments at page boundaries.
     for (i = 0; i < __XACTION_COUNT(transfer) && bytesLeft != 0; i++) {
-        USBTransferDmaOffset(dmaTransfer, position, &index, &offset);
+        UsbTransferDmaOffset(dmaTransfer, position, &index, &offset);
         address = __GetAddress(dmaTransfer, index, offset);
         
         span = MIN(bytesLeft, __GetBytesLeft(dmaTransfer, index, offset));
@@ -276,9 +276,9 @@ __CalculateTransferElementMetrics(
     }
 
     if (bytesLeft != 0 && transfer->Type != USBTRANSFER_TYPE_ISOC) {
-        // If the request continues in another qTD, end this descriptor on a
-        // packet boundary to avoid sending a short packet. The next qTD
-        // starts at the first byte removed here.
+        // If another qTD follows, round this length down to a whole number of
+        // packets so the device does not see a short packet. The next qTD
+        // starts at the adjusted offset.
         span = length % transfer->MaxPacketSize;
         length -= span;
         
@@ -638,9 +638,9 @@ __AllocateDescriptors(
         tdsAllocated++;
     }
 
-    // Allocate the complete chain before preparing the transfer. Free a
-    // partial chain so the next retry starts with ChainLength and the
-    // completed element count in agreement.
+    // Allocate the whole chain before preparing the transfer. If allocation
+    // fails partway, free the chain so the next attempt rebuilds it from the
+    // completed element count.
     if (tdsAllocated != tdsRemaining) {
         __DestroyDescriptors(controller, transfer);
         transfer->RootElement = NULL;
@@ -920,7 +920,7 @@ HCITransferQueue(
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
         
-        oserr = USBTransferDmaBegin(transfer);
+        oserr = UsbTransferDmaBegin(transfer);
         if (oserr != OS_EOK) {
             return oserr;
         }
@@ -954,7 +954,7 @@ HCITransferQueue(
         return OS_EOK;
     }
 
-    oserr = USBTransferDmaBegin(transfer);
+    oserr = UsbTransferDmaBegin(transfer);
     if (oserr != OS_EOK) {
         __DestroyDescriptors(controller, transfer);
         transfer->RootElement = NULL;
@@ -1002,7 +1002,7 @@ HCITransferQueueIsochronous(
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
         
-        oserr = USBTransferDmaBegin(transfer);
+        oserr = UsbTransferDmaBegin(transfer);
         if (oserr != OS_EOK) {
             return oserr;
         }
@@ -1032,7 +1032,7 @@ HCITransferQueueIsochronous(
         return OS_EOK;
     }
 
-    oserr = USBTransferDmaBegin(transfer);
+    oserr = UsbTransferDmaBegin(transfer);
     if (oserr != OS_EOK) {
         __DestroyDescriptors(controller, transfer);
         transfer->RootElement = NULL;

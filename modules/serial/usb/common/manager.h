@@ -43,7 +43,7 @@ enum UsbManagerControllerPhase {
 };
 
 /**
- * @brief Controller setup and cleanup state, active operations and DMA status.
+ * @brief Tracks controller setup, pending removal, active operations and DMA state.
  */
 typedef struct UsbManagerControllerState {
     enum UsbManagerControllerPhase Phase;
@@ -57,12 +57,12 @@ typedef struct UsbManagerControllerState {
  * @brief Common controller resources, endpoint toggles and transfer queues.
  */
 typedef struct UsbManagerController {
-    uuid_t                           Id;
-    enum USBControllerKind           Kind;
-    Device_t*                        Device;
-    struct DMAContext*               DmaContext;
-    struct UsbTransferBouncePool*    BouncePool;
-    struct UsbManagerControllerState State;
+    uuid_t                      Id;
+    enum USBControllerKind      Kind;
+    Device_t*                   Device;
+    struct DMAContext*          DmaContext;
+    UsbTransferBouncePool_t*    BouncePool;
+    UsbManagerControllerState_t State;
 
     int                 event_descriptor;
     DeviceInterrupt_t   Interrupt;
@@ -138,7 +138,7 @@ UsbManagerCompleteControllerInitialization(
 
 /**
  * @brief Remove common controller state after the HCI resources are released.
- * Requires DESTROYING with no operations in flight. New operations remain blocked.
+ * Requires DESTROYING with no active operations. New operations remain blocked.
  * The HCI caller must free the controller storage after this call.
  *
  * @param controller Controller whose hardware and DMA resources are released.
@@ -160,8 +160,8 @@ UsbManagerDeferControllerDestroy(
 
 /**
  * @brief Block new operations and begin cleanup when active operations finish.
- * Requires controller service jobs to run serially. The controller stays on the
- * retry list if cleanup fails. Recursive calls cannot begin a second cleanup.
+ * Requires controller service jobs to run serially. If cleanup fails, leave the
+ * controller queued for retry. Calls made during cleanup return false.
  *
  * @param controller Controller to clean up. Setup may still be incomplete.
  * @return true if cleanup may proceed, false if an operation or cleanup is active.
@@ -302,8 +302,8 @@ UsbManagerSetToggle(
 
 /**
  * @brief Process queued work for xHCI, or scan transfers for legacy controllers.
- * Each queued work item gets one attempt per dispatch. Failed cleanup or
- * synchronization stays queued for retry. The xHCI path does not scan active transfers.
+ * Try each queued item once per dispatch. If cleanup or synchronization fails,
+ * leave it queued for the next dispatch. For xHCI, process only queued work.
  *
  * @param controller Controller whose service event loop is dispatching work.
  */

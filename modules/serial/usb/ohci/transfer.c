@@ -123,8 +123,8 @@ __UnlinkAsync(
         count = &controller->TransactionsWaitingBulk;
     }
 
-    // The pool mapping must be contiguous. Convert device links using its
-    // cached base addresses to avoid SHM lookups or kernel translation here.
+    // Requires a contiguous pool mapping. Convert device links with the cached
+    // base addresses so we can look up descriptors without calling the kernel.
     address = READ_VOLATILE(*head);
     while (address != 0) {
         current = (OhciQueueHead_t*)(pool->ElementPool + address - pool->ElementPoolDeviceAddress);
@@ -216,8 +216,8 @@ HCITransferFinalize(
         transfer->Dma.Unlinked = true;
         transfer->Dma.ReleaseEpoch = (uint16_t)(READ_VOLATILE(legacy->Registers->HcFmNumber) + 2);
         
-        // If the controller has finished the list, start any waiting batch
-        // while the removed ED waits for its descriptors to be safe to reuse.
+        // If the controller has finished the list, start the next waiting batch.
+        // The removed ED still needs to wait before its descriptors can be reused.
         if (legacy->TransactionsWaitingControl != 0 &&
             !(READ_VOLATILE(legacy->Registers->HcCommandStatus) & OHCI_COMMAND_CONTROL_FILLED)) {
             OHCIReloadAsynchronous(legacy, USBTRANSFER_TYPE_CONTROL);
@@ -324,11 +324,11 @@ __CalculateTransferElementMetrics(
     oserr_t   status;
     _CRT_UNUSED(transferType);
 
-    // Each descriptor describes one packet, which also fits the periodic
-    // bounce mapping. An OHCI TD can cross one device-page boundary.
+    // Each descriptor holds one packet, which fits in the periodic bounce
+    // mapping. An OHCI TD can cross one page boundary in device memory.
     memset(element, 0, sizeof(*element));
     
-    status = USBTransferDmaOffset(dmaTransfer, position, &index, &offset);
+    status = UsbTransferDmaOffset(dmaTransfer, position, &index, &offset);
     if (status != OS_EOK) {
         return status;
     }
@@ -337,7 +337,7 @@ __CalculateTransferElementMetrics(
     element->Data.OHCI.Page0 = address & ~(uintptr_t)0xFFF;
     element->Data.OHCI.Offsets[0] = address & 0xFFF;
     
-    status = USBTransferDmaOffset(dmaTransfer, position + length - 1, &index, &offset);
+    status = UsbTransferDmaOffset(dmaTransfer, position + length - 1, &index, &offset);
     if (status != OS_EOK) {
         return status;
     }
@@ -801,7 +801,7 @@ HCITransferQueue(
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
         
-            oserr = USBTransferDmaBegin(transfer);
+            oserr = UsbTransferDmaBegin(transfer);
         if (oserr != OS_EOK) {
             return oserr;
         }
@@ -830,7 +830,7 @@ HCITransferQueue(
         return OS_EOK;
     }
 
-    oserr = USBTransferDmaBegin(transfer);
+    oserr = UsbTransferDmaBegin(transfer);
     if (oserr != OS_EOK) {
         __DestroyDescriptors(controller, transfer);
         transfer->RootElement = NULL;
@@ -872,7 +872,7 @@ HCITransferQueueIsochronous(
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
         
-        oserr = USBTransferDmaBegin(transfer);
+        oserr = UsbTransferDmaBegin(transfer);
         if (oserr != OS_EOK) {
             return oserr;
         }
@@ -901,7 +901,7 @@ HCITransferQueueIsochronous(
         return OS_EOK;
     }
 
-    oserr = USBTransferDmaBegin(transfer);
+    oserr = UsbTransferDmaBegin(transfer);
     if (oserr != OS_EOK) {
         __DestroyDescriptors(controller, transfer);
         transfer->RootElement = NULL;

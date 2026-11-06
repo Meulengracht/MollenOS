@@ -38,7 +38,7 @@ __DiscardTransfer(
     UsbManagerController_t* controller;
 
     transfer->Submitting = true;
-    if (USBTransferDestroy(transfer) == OS_EOK) {
+    if (UsbTransferDestroy(transfer) == OS_EOK) {
         return;
     }
 
@@ -137,7 +137,7 @@ USBTransferCreate(
         return oserr;
     }
     
-    oserr = USBTransferDmaPrepare(usbTransfer);
+    oserr = UsbTransferDmaPrepare(usbTransfer);
     if (oserr != OS_EOK) {
         WARNING("USB DMA: transfer %u dma preparation failed (%u)", transferId, oserr);
         __DiscardTransfer(usbTransfer);
@@ -151,7 +151,7 @@ USBTransferCreate(
 }
 
 oserr_t
-USBTransferDestroy(
+UsbTransferDestroy(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UsbManagerController_t* controller;
@@ -165,8 +165,8 @@ USBTransferDestroy(
         return OS_EBUSY;
     }
 
-    // Unmapping must succeed before freeing storage, even if the controller failed to stop.
-    status = USBTransferDmaDestroy(transfer);
+    // If unmapping fails, keep the transfer and its storage for another cleanup attempt.
+    status = UsbTransferDmaDestroy(transfer);
     if (status != OS_EOK) {
         return status;
     }
@@ -190,7 +190,7 @@ USBTransferDestroy(
 }
 
 void
-USBTransferNotify(
+UsbTransferNotify(
     _In_ UsbManagerTransfer_t* transfer)
 {
     uint32_t offset = transfer->TData.Periodic.CurrentDataIndex;
@@ -199,8 +199,8 @@ USBTransferNotify(
         return;
     }
 
-    // IPC can yield to cancellation, so mark the transfer notified before sending.
-    // Advance the client slot while the length still describes this packet.
+    // Mark the transfer notified before sending, as IPC can yield to cancellation.
+    // For periodic transfers, advance the client offset using this packet's length.
     transfer->Flags |= __USBTRANSFER_FLAG_NOTIFIED;
     if (__Transfer_IsAsync(transfer)) {
         ctt_usbhost_queue_response(&transfer->DeferredMessage[0], OS_EOK,
@@ -328,7 +328,7 @@ void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const
             controller->State.OperationsInFlight++;
             transfer->Submitting = true;
             
-            status = USBTransferDmaPrepare(transfer);
+            status = UsbTransferDmaPrepare(transfer);
             if (transfer->State == USBTRANSFER_STATE_CLEANUP ||
                 controller->State.Phase >= USB_CONTROLLER_DESTROY_PENDING) {
                 status = OS_EBUSY;
