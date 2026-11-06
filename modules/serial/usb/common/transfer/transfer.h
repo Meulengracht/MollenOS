@@ -27,7 +27,7 @@
 #include <ddk/dma.h>
 #include <ds/list.h>
 
-#include "transfer_bounce.h"
+#include "bounce.h"
 
 #define __XPAGE(_a) ((_a) & ~((uintptr_t)0xFFF))
 #define __XPAGEOFFSET(_a) ((_a) & 0xFFF)

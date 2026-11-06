@@ -9,14 +9,15 @@ add_library(usb-common STATIC
     ${ADDITONAL_SOURCES}
 
     manager.c
-    scheduler.c
-    scheduler_arena.c
-    scheduler_chain.c
-    scheduler_periodic.c
-    scheduler_settings.c
     service.c
-    transfer.c
-    transfer_dma.c
+    scheduler/scheduler.c
+    scheduler/arena.c
+    scheduler/chain.c
+    scheduler/periodic.c
+    scheduler/settings.c
+    transfer/transfer.c
+    transfer/dma.c
+    transfer/bounce.c
 )
 add_dependencies(usb-common contract_servers)
 target_link_libraries(usb-common PUBLIC gracht libds libddk c librt)
