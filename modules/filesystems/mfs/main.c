@@ -279,7 +279,7 @@ FsMove(
         goto cleanup;
     }
 
-    // Allocate a new chain, and dublicate the data
+    // Allocate a new chain and copy the data.
     newEntry->AllocatedSize = 0;
     newEntry->ActualSize = 0;
     newEntry->StartBucket = MFS_ENDOFCHAIN;
@@ -382,9 +382,7 @@ __FileSystemMFSNew(
     }
     memset(mfs, 0, sizeof(FileSystemMFS_t));
 
-    // Store various parameters from the storage medium, we need those
-    // during read/write operations and misc operations to calculate
-    // offsets and sizes
+    // Store the disk geometry used to calculate transfer offsets and sizes.
     memcpy(&mfs->Storage, storageParameters, sizeof(struct VFSStorageParameters));
     mfs->SectorSize = storageStats->SectorSize;
 
@@ -442,12 +440,10 @@ __ResizeTransferBuffer(
 {
     OSHandleDestroy(&mfs->TransferBuffer);
 
-    // Create a new transfer buffer that is more persistant and attached to the fs
-    // and will provide the primary intermediate buffer for general usage.
+    // Create the transfer buffer used for subsequent filesystem operations.
     return SHMCreate(
             &(SHM_t) {
-                    .Flags = SHM_CONFORM | SHM_COMMIT,
-                    .Conformity = mfs->BaseContext.IOConformity,
+                    .Flags = SHM_COMMIT,
                     .Size = mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -577,8 +573,7 @@ __ParseAndProcessMasterRecord(
 static void __InitializeRootEntry(
         _In_ FileSystemMFS_t* mfs)
 {
-    // Only initiate member values that should not be 0, __FileSystemMFSNew takes
-    // care of memset'ing the structure.
+    // __FileSystemMFSNew clears the structure. Set the nonzero defaults here.
     mfs->RootEntry.Name = mstr_new_u8(RootEntryName);
     mfs->RootEntry.Owner = UUID_INVALID;
     mfs->RootEntry.Permissions = FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE;
@@ -611,13 +606,6 @@ FsInitialize(
     if (mfs == NULL) {
         ERROR("FsInitialize Failed to allocate memory for the fileystem");
         return OS_EOOM;
-    }
-
-    // Initialize the base context before any operations
-    oserr = FSBaseContextInitialize(&mfs->BaseContext, storageParameters);
-    if (oserr != OS_EOK) {
-        ERROR("FsInitialize failed to initialize base context");
-        return oserr;
     }
 
     // Read the boot-sector
@@ -657,8 +645,7 @@ FsInitialize(
         goto error_exit;
     }
 
-    // Validate and store the master record immediately, so we can resize the
-    // transfer buffer. The moment we do, the data is lost.
+    // Validate and save the master record before resizing the buffer that contains it.
     oserr = __ValidateMasterRecord((MasterRecord_t*)SHMBuffer(&mfs->TransferBuffer));
     if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to read the master record");

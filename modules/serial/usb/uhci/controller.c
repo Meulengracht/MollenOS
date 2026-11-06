@@ -219,9 +219,9 @@ HCIControllerDestroy(
         base->State.DmaStopped = true;
     }
 
-    // The controller must be stopped and the handler disconnected before freeing
-    // memory they can access. If cleanup fails, keep the controller in the
-    // manager's list so the next attempt can release the remaining resources.
+    // Stop the controller and disconnect the handler before freeing their memory.
+    // Leave the controller in the manager's list if cleanup fails, so the next
+    // attempt can release the remaining resources.
     status = DeviceInterruptDestroy(&base->Interrupt);
     if (status != OS_EOK) {
         goto retry;
@@ -381,14 +381,6 @@ UhciSetup(
         ERROR("UhciSetup: failed to initialize memory for queues");
         return oserr;
     }
-
-    // Set up the i/o requirements, UHCI controllers sometimes have problems
-    // with addresses above >2gb. Also buffer alignment must be used for UHCI as
-    // we cannot deal with cross-page boundary buffers. Thus buffers must be aligned
-    // for the highest possible packet-size supported by USB 1.1.
-    // Maximum data payload size for full-speed devices is 64 bytes.
-    controller->Base.IORequirements.BufferAlignment = 64;
-    controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_NONE;
 
     oserr = UhciReset(controller);
     if (oserr != OS_EOK) {

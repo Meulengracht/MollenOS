@@ -32,20 +32,6 @@ DECL_STRUCT(SystemCpu);
 DECL_STRUCT(SystemCpuCore);
 
 /**
- * @brief Converts a dma type into a page mask used for physical page allocation. This call
- * is specific to the dma interface and provides a way for platforms to identify which pages
- * can be used for each dma type.
- *
- * @param conformity [In]
- * @param pageMaskOut [Out]
- * @return
- */
-KERNELAPI oserr_t KERNELABI
-ArchSHMTypeToPageMask(
-        _In_  enum OSMemoryConformity conformity,
-        _Out_ size_t*                 pageMaskOut);
-
-/**
  * @brief Returns the current processor core id.
  *
  * @return

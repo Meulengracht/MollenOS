@@ -149,31 +149,16 @@ void ctt_driver_ioctl_invocation(
         _In_ const uint8_t*         out,
         _In_ const uint32_t         out_count)
 {
-    enum OSIOCtlRequest     req = (enum OSIOCtlRequest)request;
     UsbManagerController_t* device = UsbManagerGetController(deviceId);
     if (device == NULL) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
         return;
     }
 
-    switch (req) {
-        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
-            ctt_driver_ioctl_response(
-                    message,
-                    (uint8_t*)&device->IORequirements,
-                    sizeof(struct OSIOCtlRequestRequirements),
-                    OS_EOK
-            );
-            return;
-        }
-
-        default:
-            break;
-    }
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
-// again lazyness in libddk causing this
+// libddk requires these device event handlers.
 void sys_device_event_protocol_device_invocation(void) {
 
 }

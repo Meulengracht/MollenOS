@@ -84,7 +84,12 @@ list_clear(
         cleanup(i, context);
         i = j;
     }
-    list_construct_cmp(list, list->cmp);
+    
+    // make sure we don't reset the lock
+    list->head = NULL;
+    list->tail = NULL;
+    list->count = 0;
+
     LIST_UNLOCK;
 }
 

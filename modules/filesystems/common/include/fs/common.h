@@ -20,39 +20,17 @@
 #define __FS_COMMON_H__
 
 #include <ddk/filesystem.h>
-#include <os/types/memory.h>
 
 /**
- * @brief Base context for all filesystem contexts. This must be the start
- * of all filesystem context structures.
- */
-struct FSBaseContext {
-    uint32_t                IOBufferAlignment;
-    enum OSMemoryConformity IOConformity;
-};
-
-/**
- * @brief Initializes the base context. The base-context is required to handle
- * read and write requests, as the base-context describes how user buffers should
- * be handled.
- * @param fsBaseContext
- * @param storageParameters
- * @return
- */
-extern oserr_t
-FSBaseContextInitialize(
-        _In_ struct FSBaseContext*        fsBaseContext,
-        _In_ struct VFSStorageParameters* storageParameters);
-
-/**
- * @brief
- * @param storageParameters
- * @param buffer
- * @param offset
- * @param sector
- * @param count
- * @param read
- * @return
+ * @brief Reads sectors from the filesystem's storage into a shared buffer.
+ *
+ * @param storageParameters Device or file used for storage.
+ * @param buffer Shared buffer ID for the read data.
+ * @param offset Byte offset into the shared buffer.
+ * @param sector First sector to read.
+ * @param count Number of sectors to read.
+ * @param read Number of sectors read.
+ * @return OS_EOK on success, or an error from the storage request.
  */
 extern oserr_t
 FSStorageRead(
@@ -64,14 +42,15 @@ FSStorageRead(
         _Out_ size_t*                      read);
 
 /**
- * @brief
- * @param storageParameters
- * @param buffer
- * @param offset
- * @param sector
- * @param count
- * @param written
- * @return
+ * @brief Writes sectors from a shared buffer to the filesystem's storage.
+ *
+ * @param storageParameters Device or file used for storage.
+ * @param buffer Shared buffer ID containing the data to write.
+ * @param offset Byte offset into the shared buffer.
+ * @param sector First sector to write.
+ * @param count Number of sectors to write.
+ * @param written Number of sectors written.
+ * @return OS_EOK on success, or an error from the storage request.
  */
 extern oserr_t
 FSStorageWrite(
@@ -83,10 +62,11 @@ FSStorageWrite(
         _Out_ size_t*                      written);
 
 /**
- * @brief
- * @param storageParameters
- * @param stat
- * @return
+ * @brief Gets the storage geometry and identification details.
+ *
+ * @param storageParameters Device or file used for storage.
+ * @param stat Receives the storage descriptor on success.
+ * @return OS_EOK on success, or an error from the storage request.
  */
 extern oserr_t
 FSStorageStat(

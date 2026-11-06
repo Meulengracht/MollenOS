@@ -91,9 +91,7 @@ PACKED_TYPESTRUCT(BootRecord, {
 typedef uint32_t bucket_t;
 
 /**
- * The master-record structure
- * Exists two places on disk to have a backup
- * and it contains extended information related to the mfs-partition
+ * @brief Partition metadata stored in two locations on disk for recovery.
  */
 PACKED_TYPESTRUCT(MasterRecord, {
     uint32_t Magic;
@@ -116,11 +114,12 @@ PACKED_TYPESTRUCT(MasterRecord, {
 #define MFS_MASTERRECORD_HIDDEN       0x8  // Partition is marked as hidden
 #define MFS_MASTERRECORD_DIRTY        0x10 // Journal must be checked on startup
 
-/* The bucket-map record
- * A map entry consists of the length of the bucket, and it's link
- * To get the length of the link, you must lookup it's length by accessing Map[Link]
- * Length of bucket 0 is HIDWORD(Map[0]), Link of bucket 0 is LODWORD(Map[0])
- * If the link equals 0xFFFFFFFF there is no link */
+/**
+ * @brief Bucket length and link to the next bucket in the chain.
+ *
+ * Read Map[Link] to get the next bucket's length. For bucket 0, the length is
+ * HIDWORD(Map[0]) and the link is LODWORD(Map[0]). A link of 0xFFFFFFFF ends the chain.
+ */
 PACKED_TYPESTRUCT(MapRecord, {
     bucket_t Link;
     uint32_t Length;
@@ -202,21 +201,13 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_INUSE            0x80000000  // Record is in use
 
 typedef struct MFSBucketMap {
-    // Keep a copy of the master-record, so we can flush
-    // it faster. It's the responsibility of the bucket map
-    // as the only value that we expect to change in the master
-    // record often is the free bucket pointer.
+    // Cache the master record for updates to the free bucket pointer.
     MasterRecord_t MasterRecord;
 
-    // The number of buckets present in the map. The map
-    // is always large enough to have room for each bucket,
-    // as if they were not chained. Though in theory it should
-    // ever only be count/2 as after that it will always be possible
-    // to concenate.
+    // The map has room for every bucket, including buckets joined into chains.
     uint32_t BucketCount;
 
-    // Records is the pointer to the cached bucket map. When loading
-    // the FS we cache the entire bucket-map to speedup lookups.
+    // Cache the entire bucket map at mount time to speed up lookups.
     MapRecord_t* Records;
 } MFSBucketMap_t;
 
@@ -229,8 +220,7 @@ typedef struct MFSEntry {
     uint32_t   NativeFlags;
     int        ActionOnClose;
 
-    // How many bytes are actually allocated, not the number of
-    // valid bytes for the file
+    // Allocated bytes on disk. ActualSize is the file length.
     uint64_t AllocatedSize;
     uint64_t ActualSize;
 
@@ -253,8 +243,10 @@ typedef struct MFSEntry {
     uint64_t BucketByteBoundary;  // Support variadic bucket sizes
 } MFSEntry_t;
 
+/**
+ * @brief Mounted filesystem geometry, transfer buffer and cached disk records.
+ */
 typedef struct FileSystemMFS {
-    struct FSBaseContext        BaseContext;
     mstring_t*                  Label;
     unsigned int                Flags;
     int                         Version;

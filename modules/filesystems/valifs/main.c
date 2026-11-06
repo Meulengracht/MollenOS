@@ -36,7 +36,6 @@
 #include <sys_file_service_client.h>
 
 struct __ValiFSContext {
-    struct FSBaseContext        BaseContext;
     struct VFSStorageParameters Storage;
     OSHandle_t                  Buffer;
     mtx_t                       BufferLock;
@@ -69,7 +68,7 @@ static mstring_t g_label = mstr_const("valifs");
 static struct VaFsReaderBackendOps g_vafsOperations = {
     .readAt = __ValiFS_ReadAt,
     .getSize = __ValiFS_GetSize,
-    .close = NULL, // The filesystem context owns the storage resources.
+    .close = NULL, // Storage is released with the filesystem context.
 };
 
 static oserr_t __ValiFSError(int error)
@@ -158,14 +157,6 @@ FsInitialize(
         return OS_EOOM;
     }
 
-    // Initialize the base context before any operations
-    oserr = FSBaseContextInitialize(&context->BaseContext, storageParameters);
-    if (oserr != OS_EOK) {
-        ERROR("FsInitialize failed to initialize base context");
-        __ValiFSContextDelete(context);
-        return oserr;
-    }
-
     __ValiFSConfigureReader(&configuration, codecs);
     status = vafs_reader_open_ops(
         &g_vafsOperations,
@@ -230,7 +221,7 @@ FsOpen(
         return OS_EOOM;
     }
 
-    // Object readers also open directories; inspect the type explicitly.
+    // Object readers can open directories, so check the type before using the handle.
     status = vafs_object_reader_open(context->ValiFS, cpath, VaFsLookup_None, &fileHandle);
     if (status) {
         free(cpath);
@@ -285,8 +276,7 @@ FsCreate(
     _In_  uint32_t   permissions,
     _Out_ void**     dataOut)
 {
-    // File creation is not supported when reading ValiFS's. The only case this
-    // is supported is during image creation.
+    // Files can only be created while building the ValiFS image.
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(data);
     _CRT_UNUSED(name);
@@ -347,8 +337,7 @@ FsLink(
     _In_ mstring_t* linkTarget,
     _In_ int        symbolic)
 {
-    // File creation is not supported when reading ValiFS's. The only case this
-    // is supported is during image creation.
+    // Files can only be created while building the ValiFS image.
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(data);
     _CRT_UNUSED(linkName);
@@ -362,9 +351,7 @@ FsUnlink(
     _In_ void*      instanceData,
     _In_ mstring_t* path)
 {
-    // File-removal is not supported on ValiFS's. The images are read-only
-    // and the only supported operation is reading. During image creation
-    // removal is still not supported.
+    // ValiFS does not support file removal, including during image creation.
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(path);
     return OS_ENOTSUPPORTED;
@@ -430,8 +417,7 @@ FsMove(
     _In_ mstring_t* to,
     _In_ int        copy)
 {
-    // File creation is not supported when reading ValiFS's. The only case this
-    // is supported is during image creation.
+    // Files can only be created while building the ValiFS image.
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(from);
     _CRT_UNUSED(to);
@@ -456,23 +442,25 @@ __WriteDirectoryEntry(
     _In_ size_t            bufferSize,
     _In_ struct VaFsEntry* in)
 {
-    struct VFSDirectoryEntry* entry = (struct VFSDirectoryEntry*)buffer;
-    char*                     data  = (char*)(buffer + sizeof(struct VFSDirectoryEntry));
+    struct VFSDirectoryEntry entry = { 0 };
+    char*                    data = (char*)(buffer + sizeof(struct VFSDirectoryEntry));
 
-    memset(entry, 0, sizeof(struct VFSDirectoryEntry));
-    entry->NameLength = strlen(in->Name) + 1;
-    entry->Flags = __ConvertTypeToFlags(in->Type);
+    entry.NameLength = strlen(in->Name) + 1;
+    entry.Flags = __ConvertTypeToFlags(in->Type);
 
     // guard against not enough space
-    if (sizeof(struct VFSDirectoryEntry) + entry->NameLength > bufferSize) {
+    if (sizeof(struct VFSDirectoryEntry) + entry.NameLength > bufferSize) {
         return 0;
     }
 
-    if (entry->NameLength) {
-        memcpy(data, in->Name, entry->NameLength);
-        data += entry->NameLength;
+    // A preceding name can leave the next header unaligned. The full entry
+    // must fit before we copy the local header into the buffer.
+    memcpy(buffer, &entry, sizeof(entry));
+    if (entry.NameLength) {
+        memcpy(data, in->Name, entry.NameLength);
+        data += entry.NameLength;
     }
-    return sizeof(struct VFSDirectoryEntry) + entry->NameLength;
+    return sizeof(struct VFSDirectoryEntry) + entry.NameLength;
 }
 
 oserr_t
@@ -504,7 +492,8 @@ FsRead(
             return OS_EOK;
         case VALIFS_HANDLE_TYPE_DIR:
             size_t   bytesToRead = unitCount;
-            uint8_t* bufferPointer = buffer;
+            uint8_t* bufferPointer = (uint8_t*)buffer + bufferOffset;
+
             while (bytesToRead > sizeof(struct VFSDirectoryEntry)) {
                 struct VaFsEntry entry;
                 size_t           bytesWritten;
@@ -523,7 +512,8 @@ FsRead(
                 bufferPointer += bytesWritten;
                 bytesToRead   -= bytesWritten;
             }
-            *unitsRead = (size_t)(bufferPointer - (uint8_t*)buffer);
+            
+            *unitsRead = unitCount - bytesToRead;
             return OS_EOK;
     }
     return OS_ENOTSUPPORTED;
@@ -539,9 +529,7 @@ FsWrite(
     _In_  size_t  unitCount,
     _Out_ size_t* unitsWritten)
 {
-    // Writing to files are not supported, in this driver we only support read-only
-    // images of ValiFS. The write operation is not implemented as it's not possible
-    // to either create images or in general to modify them.
+    // This driver opens ValiFS images read-only.
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(data);
     _CRT_UNUSED(bufferHandle);
@@ -558,8 +546,7 @@ FsTruncate(
     _In_ void*    data,
     _In_ uint64_t size)
 {
-    // File modifications are not supported when reading ValiFS's. The only case this
-    // is supported is during image creation.
+    // Files can only be modified while building the ValiFS image.
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(data);
     _CRT_UNUSED(size);

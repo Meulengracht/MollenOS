@@ -22,7 +22,6 @@
 #include <component/cpu.h>
 #include <ddk/ddkdefs.h>
 #include <machine.h>
-#include <os/types/shm.h>
 #include <os/types/query.h>
 #include <string.h>
 
@@ -172,30 +171,6 @@ ArchProcessorHalt(void)
     __asm__ volatile("msr daifset, %0" :: "i"(ARM64_DAIF_ALL) : "memory");
     for (;;) {
         __asm__ volatile("wfe" ::: "memory");
-    }
-}
-
-oserr_t
-ArchSHMTypeToPageMask(
-    _In_ enum OSMemoryConformity conformity,
-    _Out_ size_t*                maskOut)
-{
-    switch (conformity) {
-        case OSMEMORYCONFORMITY_NONE:
-        case OSMEMORYCONFORMITY_BITS64:
-            *maskOut = UINT64_MAX;
-            return OS_EOK;
-        case OSMEMORYCONFORMITY_LEGACY:
-            *maskOut = ARM64_MEMORY_MASK_LEGACY;
-            return OS_EOK;
-        case OSMEMORYCONFORMITY_LOW:
-            *maskOut = ARM64_MEMORY_MASK_LOW;
-            return OS_EOK;
-        case OSMEMORYCONFORMITY_BITS32:
-            *maskOut = ARM64_MEMORY_MASK_32;
-            return OS_EOK;
-        default:
-            return OS_ENOTSUPPORTED;
     }
 }
 

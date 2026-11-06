@@ -131,9 +131,8 @@ __CleanupMonitor(
     VirtioBlkDevice_t* device;
     _CRT_UNUSED(argument);
 
-    // Once the interrupt has been handled, a deferred response may have no
-    // further event to trigger cleanup. Use one service job to retry pending
-    // cleanup, leaving active requests in the queue.
+    // Cleanup may need a retry after the last interrupt. Use one service job
+    // for pending cleanup and leave active requests in the queue.
     while (!usched_is_cancelled(cancellationToken)) {
         timespec_get(&wakeUp, TIME_UTC);
         wakeUp.tv_sec++;
@@ -329,7 +328,7 @@ __ctt_driver_ioctl_invocation(
     _In_ const uint8_t*         out,
     _In_ const uint32_t         outCount)
 {
-    // I/O requirements, transfer and stat requests use the logical storage ID.
+    // Driver requests use the logical storage ID.
     // The device list is indexed by PCI ID, so use the storage ID lookup.
     VirtioBlkDevice_t* device = __FindStorageDevice(deviceId);
 
@@ -337,21 +336,6 @@ __ctt_driver_ioctl_invocation(
     (void)outCount;
     if (device == NULL) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
-        return;
-    }
-    if ((enum OSIOCtlRequest)request == OSIOCTLREQUEST_IO_REQUIREMENTS) {
-        // The device DMA domain handles mapping and staging. Filesystems can
-        // supply committed SHM without restricting its physical addresses.
-        struct OSIOCtlRequestRequirements requirements = {
-            .BufferAlignment = 0,
-            .Conformity = OSMEMORYCONFORMITY_NONE
-        };
-        ctt_driver_ioctl_response(
-            message,
-            (uint8_t*)&requirements,
-            sizeof(requirements),
-            OS_EOK
-        );
         return;
     }
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);

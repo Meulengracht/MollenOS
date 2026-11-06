@@ -151,6 +151,9 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_TD_POOL                        1
 #define UHCI_TD_COUNT                       400
 
+/** 64 KiB pool for control and bulk packets that cross DMA segments. */
+#define UHCI_STAGING_SLOTS                  1024
+
 /* Fixed pool indices and the first index available for transfers. */
 #define UHCI_POOL_QH_NULL                   0
 #define UHCI_POOL_QH_ISOCHRONOUS            1
@@ -276,7 +279,10 @@ UhciQueueReset(
     _In_ UhciController_t*          Controller);
 
 /**
- * @brief Releases queue resources after the controller has stopped.
+ * @brief Releases the descriptor pools and DMA resources.
+ *
+ * The controller must be stopped. If transfers remain, finish their cleanup
+ * before calling again.
  *
  * @param controller The stopped controller to clean up.
  * @return OS_EOK on success, OS_EBUSY if transfers remain, or a scheduler cleanup error.

@@ -16,8 +16,9 @@ define time_t from "time.h"
 struct grant_token {
     uint32 version;
     uint32 export_id;
-    uint32 buffer_offset;
-    uint32 buffer_length;
+    uint32 resource_type;
+    uint32 data0;
+    uint32 data1;
     uint32 target_id;
     uint32 scope;
     uint32 target_type;
@@ -27,9 +28,10 @@ struct grant_token {
     uint32 secret3;
 }
 
-// Grant token and requested range for one SHM operation. In full-range mode,
-// relative_offset and requested_length must be zero. A subrange starts at
-// relative_offset within the token range and must fit within buffer_length.
+// Grant token and byte range for one SHM operation.
+// Full-range mode requires relative_offset and requested_length to be zero.
+// For a subrange, relative_offset is measured from the start of the token's
+// SHM range. The offset and requested length must fit within data1.
 struct shm_transfer {
     grant_token token;
     uint32 range_mode;

@@ -29,8 +29,7 @@
 #include <ddk/devices/usb.h>
 #include <ddk/storage.h>
 
-/* MSD Subclass Definitions 
- * Contains generic magic constants and definitions */
+/* USB mass storage subclass codes. */
 #define MSD_SUBCLASS_RBC			    0x01    // Reduced Block Command Set
 #define MSD_SUBCLASS_ATAPI			    0x02
 #define MSD_SUBCLASS_FLOPPY			    0x04
@@ -38,15 +37,13 @@
 #define MSD_SUBCLASS_LSD_FS			    0x07	// This means we have to negotiate access before using SCSI
 #define MSD_SUBCLASS_IEEE_1667		    0x08
 
-/* MSD Protocol Definitions 
- * Contains generic magic constants and definitions */
+/* USB mass storage transport protocols. */
 #define MSD_PROTOCOL_CBI			    0x00	// Control/Bulk/Interrupt Transport (With Command Completion Interrupt)
 #define MSD_PROTOCOL_CB		            0x01	// Control/Bulk/Interrupt Transport (With NO Command Completion Interrupt)
 #define MSD_PROTOCOL_BULK_ONLY		    0x50	// Bulk Only Transfers
 #define MSD_PROTOCOL_UAS			    0x62	// UAS
 
-/* MSD bRequest Definitions 
- * Contains generic magic constants and definitions */
+/* USB mass storage bRequest values. */
 #define MSD_REQUEST_ADSC			    0x00    // Accept Device-Specific Command
 #define MSD_REQUEST_GET_REQUESTS	    0xFC
 #define MSD_REQUEST_PUT_REQUESTS	    0xFD
@@ -65,20 +62,16 @@ PACKED_TYPESTRUCT(MsdCommandBlock, {
 	uint8_t  CommandBytes[16];
 });
 
-/* MsdCommandBlock::Signature
- * Contains definitions and bitfield definitions for MsdCommandBlock::Signature */
+/* Command block signature. */
 #define MSD_CBW_SIGNATURE		        0x43425355
 
-/* MsdCommandBlock::Lun
- * Contains definitions and bitfield definitions for MsdCommandBlock::Lun */
+/* Logical unit number in the low four bits. */
 #define MSD_CBW_LUN(Lun)		        (Lun & 0xF)
 
-/* MsdCommandBlock::Length
- * Contains definitions and bitfield definitions for MsdCommandBlock::Length */
+/* Command length in the low five bits. */
 #define MSD_CBW_LEN(Length)		        (Length & 0x1F)
 
-/* MsdCommandBlock::Flags
- * Contains definitions and bitfield definitions for MsdCommandBlock::Flags */
+/* Command data direction. */
 #define MSD_CBW_OUT				        0x0
 #define MSD_CBW_IN				        0x80
 
@@ -93,12 +86,10 @@ PACKED_TYPESTRUCT(MsdCommandStatus, {
 	uint8_t  Status;
 });
 
-/* MsdCommandStatus::Signature
- * Contains definitions and bitfield definitions for MsdCommandStatus::Signature */
+/* Command status signature. */
 #define MSD_CSW_OK_SIGNATURE	        0x53425355
 
-/* MsdCommandStatus::Status
- * Contains definitions and bitfield definitions for MsdCommandStatus::Status */
+/* Command completion status. */
 #define MSD_CSW_OK				        0x0
 #define MSD_CSW_FAIL			        0x1
 #define MSD_CSW_PHASE_ERROR		        0x2
@@ -136,10 +127,6 @@ typedef struct MSDDevice {
     MsdProtocolType_t       Protocol;
     const MSDOperations_t*  Operations;
 
-    // To avoid retrieving it from the underlying controller
-    // all the time. Cache it here for convenience.
-    struct OSIOCtlRequestRequirements IORequirements;
-
 	int IsReady;
 	int IsExtended;
     int AlignedAccess;
@@ -154,29 +141,42 @@ typedef struct MSDDevice {
 	usb_endpoint_descriptor_t* Interrupt;
 } MSDDevice_t;
 
-/* MSDDeviceCreate
- * Initializes a new msd-device from the given usb-device */
+/**
+ * @brief Creates and initializes a USB mass storage device.
+ *
+ * @param usbDevice USB device with its interface and endpoint descriptors.
+ * @return The initialized device, or NULL on failure.
+ */
 extern MSDDevice_t*
 MSDDeviceCreate(
     _In_ UsbDevice_t *usbDevice);
 
-/* MSDDeviceDestroy
- * Destroys an existing msd device instance and cleans up
- * any resources related to it */
+/**
+ * @brief Unregisters the storage device and frees its buffers and device data.
+ *
+ * @param msdDevice Device to destroy.
+ * @return OS_EOK on success.
+ */
 extern oserr_t
 MSDDeviceDestroy(
         _In_ MSDDevice_t *msdDevice);
 
-/* MSDDeviceInitialize
- * Initializes and validates that the protocol has all neccessary
- * resources/endpoints/prerequisites for operation. */
+/**
+ * @brief Selects the transport operations and checks the required endpoints.
+ *
+ * @param device Device with its USB interface configuration loaded.
+ * @return OS_EOK on success, or an error if the protocol cannot be used.
+ */
 extern oserr_t
 MSDDeviceInitialize(
         _In_ MSDDevice_t *device);
 
-/* MSDDeviceStart
- * Initializes the device by performing one-time setup and reading device
- * capabilities and features. */
+/**
+ * @brief Waits for the disk to become ready and reads its capabilities.
+ *
+ * @param device Device with its transport operations and command buffers ready.
+ * @return OS_EOK on success, or an error from device setup.
+ */
 extern oserr_t
 MSDDeviceStart(
         _In_ MSDDevice_t *device);

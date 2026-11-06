@@ -161,7 +161,6 @@
 #define ARM64_ADDRESS_HIGH_BIT     63U
 
 // Physical allocation limits for legacy 24-bit, low 31-bit, and 32-bit DMA.
-#define ARM64_MEMORY_MASK_LEGACY 0xffffffULL
 #define ARM64_MEMORY_MASK_LOW    0x7fffffffULL
 #define ARM64_MEMORY_MASK_32     0xffffffffULL
 

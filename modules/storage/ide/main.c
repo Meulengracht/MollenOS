@@ -100,8 +100,7 @@ ctt_driver_ioctl_invocation(
     _In_ const uint8_t*         out,
     _In_ const uint32_t         out_count)
 {
-    enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
-    IdeDevice_t*         device = IdeDeviceGet(deviceId);
+    IdeDevice_t* device = IdeDeviceGet(deviceId);
 
     (void)message;
     (void)out;
@@ -110,20 +109,6 @@ ctt_driver_ioctl_invocation(
     if (!device) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
         return;
-    }
-
-    switch (req) {
-        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
-            struct OSIOCtlRequestRequirements ioRequirements;
-            ioRequirements.BufferAlignment = 0;
-            ioRequirements.Conformity = OSMEMORYCONFORMITY_NONE;
-            ctt_driver_ioctl_response(message, (uint8_t*)&ioRequirements,
-                                      sizeof(struct OSIOCtlRequestRequirements), OS_EOK);
-            return;
-        }
-
-        default:
-            break;
     }
 
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);

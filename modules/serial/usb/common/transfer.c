@@ -110,8 +110,8 @@ USBTransferCreate(
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
 
     if (__Transfer_IsPeriodic(usbTransfer)) {
-        // The endpoint value counts all transactions, but the descriptor stores
-        // the number after the first. Zero requests the default of one transaction.
+        // The endpoint value includes the first transaction. The descriptor counts
+        // only additional transactions. Use one transaction when the value is zero.
         usbTransfer->TData.Periodic.Bandwith = transfer->PeriodicBandwith != 0 ?
             transfer->PeriodicBandwith - 1 : 0;
         usbTransfer->TData.Periodic.Interval = transfer->PeriodicInterval;
@@ -123,6 +123,7 @@ USBTransferCreate(
     }
 
     usbTransfer->Dma.Context = controller->DmaContext;
+    usbTransfer->Dma.PacketPool = controller->StagingPool;
     usbTransfer->Dma.BufferOffset = transfer->BufferOffset;
     usbTransfer->Dma.BufferLength = transfer->Length;
     if (__Transfer_IsPeriodic(usbTransfer)) {
@@ -198,8 +199,8 @@ USBTransferNotify(
         return;
     }
 
-    // Set the notification flag before IPC can yield to cancellation. Advance the
-    // client slot before sending, while the length still describes this packet.
+    // IPC can yield to cancellation, so mark the transfer notified before sending.
+    // Advance the client slot while the length still describes this packet.
     transfer->Flags |= __USBTRANSFER_FLAG_NOTIFIED;
     if (__Transfer_IsAsync(transfer)) {
         ctt_usbhost_queue_response(&transfer->DeferredMessage[0], OS_EOK,

@@ -181,9 +181,9 @@ HCIControllerDestroy(
         base->State.DmaStopped = true;
     }
     
-    // Hardware must be stopped and the handler disconnected before freeing
-    // memory they can access. If cleanup fails, keep the controller registered
-    // for another attempt. Completed cleanup steps have cleared their pointers.
+    // Stop the controller and disconnect the handler before freeing their memory.
+    // If cleanup fails, leave the controller registered so we can retry.
+    // Cleared pointers mark the resources already released.
     status = DeviceInterruptDestroy(&base->Interrupt);
     if (status != OS_EOK) {
         goto retry;
@@ -440,10 +440,6 @@ OHCISetup(
     if (OHCIQueueInitialize(controller) != OS_EOK) {
         return OS_EOOM;
     }
-
-    // Setup the i/o requirements
-    controller->Base.IORequirements.BufferAlignment = 0;
-    controller->Base.IORequirements.Conformity      = OSMEMORYCONFORMITY_NONE;
 
     // All resources must be allocated before taking control from firmware
     // and resetting the controller.

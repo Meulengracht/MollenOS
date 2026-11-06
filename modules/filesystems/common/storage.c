@@ -24,40 +24,10 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/services/process.h>
-#include <os/device.h>
 #include <stdio.h>
 
 #include <ctt_storage_service_client.h>
 #include <sys_file_service_client.h>
-
-extern oserr_t
-FSBaseContextInitialize(
-        _In_ struct FSBaseContext*        fsBaseContext,
-        _In_ struct VFSStorageParameters* storageParameters)
-{
-    switch (storageParameters->StorageType) {
-        case VFSSTORAGE_TYPE_DEVICE: {
-            struct OSIOCtlRequestRequirements ioRequirements;
-            oserr_t oserr = OSDeviceIOCtl2(
-                    storageParameters->Storage.Device.DeviceID,
-                    storageParameters->Storage.Device.DriverID,
-                    OSIOCTLREQUEST_IO_REQUIREMENTS,
-                    &ioRequirements,
-                    sizeof(struct OSIOCtlRequestRequirements)
-            );
-            if (oserr != OS_EOK) {
-                return oserr;
-            }
-            fsBaseContext->IOBufferAlignment = ioRequirements.BufferAlignment;
-            fsBaseContext->IOConformity = ioRequirements.Conformity;
-        } break;
-        case VFSSTORAGE_TYPE_FILE: {
-            fsBaseContext->IOBufferAlignment = 0;
-            fsBaseContext->IOConformity = OSMEMORYCONFORMITY_NONE;
-        } break;
-    }
-    return OS_EOK;
-}
 
 static oserr_t
 __ReadDevice(
@@ -144,7 +114,7 @@ __ReadFile(
     UInteger64_t             seek = { .QuadPart = sector->QuadPart };
     size_t                   transferred;
 
-    // With files so far we assume 512 byte sectors
+    // File storage uses 512-byte sectors.
     seek.QuadPart *= 512;
     sys_file_transfer_absolute(
             GetGrachtClient(),
@@ -181,7 +151,7 @@ __WriteFile(
     UInteger64_t             seek = { .QuadPart = sector->QuadPart };
     size_t                   transferred;
 
-    // With files so far we assume 512 byte sectors
+    // File storage uses 512-byte sectors.
     seek.QuadPart *= 512;
     sys_file_transfer_absolute(
             GetGrachtClient(),
@@ -225,7 +195,7 @@ __StatFile(
         return osStatus;
     }
 
-    // fill in the most details we can about the storage medium
+    // Use the file size and handle to describe the storage.
     stats->DriverID = GetFileService();
     stats->DeviceID = handleID;
     stats->SectorCount = fstats.size / 512;
@@ -339,7 +309,7 @@ FSStorageStat(
     return OS_ENOTSUPPORTED;
 }
 
-// Because we had to include a client file which defines events
+// The file client requires this event handler even though we do not use it.
 void sys_file_event_storage_ready_invocation(gracht_client_t* client, const char* path) {
     _CRT_UNUSED(client);
     _CRT_UNUSED(path);

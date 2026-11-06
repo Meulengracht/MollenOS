@@ -194,9 +194,9 @@ __PreparePool(
         goto error;
     }
 
-    // Use physical addresses to check whether SHM handles share memory. DMA
-    // addresses may be translated or point to staging buffers, which would hide
-    // an overlap. This table is only used for that check, never for descriptors.
+    // Check physical addresses for overlapping SHM buffers. DMA addresses can
+    // be translated or refer to staging buffers and hide the overlap.
+    // Use this table only for the check. Descriptors need DMA addresses.
     status = SHMGetSGTable(&pool->Memory, &pool->AliasGeometry, -1);
     if (status != OS_EOK) {
         goto error;
@@ -216,6 +216,7 @@ __PreparePool(
             description->region_offset + (size_t)i * description->slot_size,
             description->slot_size,
             description->direction == CTT_NETADAPTER_DIRECTION_RX ? DMAFromDevice : DMAToDevice,
+            NULL,
             &pool->Slots[i].Mapping
         );
         if (status != OS_EOK) {

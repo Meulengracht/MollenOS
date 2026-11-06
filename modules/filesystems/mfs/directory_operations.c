@@ -29,42 +29,45 @@ __WriteDirectoryEntry(
         _In_ uint8_t*      buffer,
         _In_ size_t        maxBytesToWrite)
 {
-    struct VFSDirectoryEntry* entry = (struct VFSDirectoryEntry*)buffer;
-    char*                     stringData = (char*)buffer + sizeof(struct VFSDirectoryEntry);
-    size_t                    bytesWritten = sizeof(struct VFSDirectoryEntry);
+    struct VFSDirectoryEntry entry = { 0 };
+    char*                    stringData = (char*)buffer + sizeof(struct VFSDirectoryEntry);
+    size_t                   bytesWritten = sizeof(struct VFSDirectoryEntry);
 
-    // fill out the entry itself, then write string data, string data is always
-    // zero-terminated
-    entry->NameLength = strlen((const char*)&record->Name[0]) + 1;
-    entry->LinkLength = 0; // TODO: add this
+    // Include the terminating zero in each string length.
+    entry.NameLength = strlen((const char*)&record->Name[0]) + 1;
+    entry.LinkLength = 0; // TODO: add this
 
-    // If we can't safely write all data, then abort
-    if ((bytesWritten + entry->NameLength + entry->LinkLength) > maxBytesToWrite) {
+    // The header and strings must fit before we write any part of the entry.
+    if ((bytesWritten + entry.NameLength + entry.LinkLength) > maxBytesToWrite) {
         TRACE("skipping entry %s, not enough buffer room", &record->Name[0]);
         return 0;
     }
 
-    entry->UserID = 0; // TODO: add this
-    entry->GroupID = 0; // TODO: add this
-    entry->Size = record->Size;
-    entry->SizeOnDisk = record->AllocatedSize;
+    entry.UserID = 0; // TODO: add this
+    entry.GroupID = 0; // TODO: add this
+    entry.Size = record->Size;
+    entry.SizeOnDisk = record->AllocatedSize;
     MFSFromNativeFlags(
             record,
-            &entry->Flags,
-            &entry->Permissions
+            &entry.Flags,
+            &entry.Permissions
     );
 
     // TODO write timestamps
 
+    // The buffer offset or a preceding name can leave the header unaligned.
+    // Copy from the local entry so we do not write through an unaligned pointer.
+    memcpy(buffer, &entry, sizeof(entry));
+
     // write out the string data
-    if (entry->NameLength) {
-        memcpy(stringData, (const void*)&record->Name[0], entry->NameLength);
-        stringData += entry->NameLength;
+    if (entry.NameLength) {
+        memcpy(stringData, (const void*)&record->Name[0], entry.NameLength);
+        stringData += entry.NameLength;
     }
-    if (entry->LinkLength) {
-        memcpy(stringData, (const void*)&record->Integrated[0], entry->LinkLength);
+    if (entry.LinkLength) {
+        memcpy(stringData, (const void*)&record->Integrated[0], entry.LinkLength);
     }
-    return bytesWritten + entry->NameLength + entry->LinkLength;
+    return bytesWritten + entry.NameLength + entry.LinkLength;
 }
 
 oserr_t

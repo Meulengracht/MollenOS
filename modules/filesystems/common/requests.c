@@ -247,26 +247,38 @@ FsRead(
         _In_  size_t  unitCount,
         _Out_ size_t* unitsRead);
 
-static inline oserr_t
-__MapUserBufferRead(
-        _In_ struct FSBaseContext* fsBaseContext,
-        _In_ uuid_t                handle,
-        _In_ size_t                offset,
-        _In_ size_t                length,
-        _In_ OSHandle_t*           shm)
+static oserr_t
+__MapUserBuffer(
+    _In_  uuid_t       handle,
+    _In_  size_t       offset,
+    _In_  uint64_t     length,
+    _In_  unsigned int access,
+    _Out_ OSHandle_t*  shm)
 {
-    return SHMConform(
-            handle,
-            &(SHMConformityOptions_t) {
-                .BufferAlignment = fsBaseContext->IOBufferAlignment,
-                .Conformity = fsBaseContext->IOConformity
-            },
-            SHM_CONFORM_BACKFILL_ON_UNMAP,
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-            offset,
-            length,
-            shm
-    );
+    size_t  capacity;
+    oserr_t status;
+
+    status = SHMAttach(handle, shm);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // The IPC length must fit in the buffer before we convert it to size_t.
+    // Compare against the remaining capacity to avoid offset + length overflow.
+    capacity = SHMBufferCapacity(shm);
+    if (offset > capacity || length > capacity - offset) {
+        OSHandleDestroy(shm);
+        return OS_EINVALPARAMS;
+    }
+
+    // Map from zero. Filesystem helpers add the offset when copying data,
+    // and storage requests use the same offset with the caller's buffer ID.
+    // The storage driver handles device address limits and alignment through DMA.
+    status = SHMMap(shm, 0, offset + (size_t)length, access);
+    if (status != OS_EOK) {
+        OSHandleDestroy(shm);
+    }
+    return status;
 }
 
 void ctt_filesystem_read_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx,
@@ -274,14 +286,20 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
 {
     oserr_t    oserr;
     OSHandle_t shm;
-    size_t     read;
+    size_t     read = 0;
     TRACE("ctt_filesystem_read_invocation()");
 
-    oserr = __MapUserBufferRead(
-            (void*)fsctx,
+    // Return before mapping or changing the file position for an empty request.
+    if (params->count == 0) {
+        ctt_filesystem_read_response(message, OS_EOK, 0);
+        return;
+    }
+
+    oserr = __MapUserBuffer(
             params->buffer_id,
             (size_t)params->offset,
-            (size_t)params->count,
+            params->count,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE,
             &shm
     );
     if (oserr != OS_EOK) {
@@ -292,13 +310,10 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
     oserr = FsRead(
             (void*)fsctx,
             (void*)fctx,
-            // Important (!) to note here that we are reading the effective buffer values which may
-            // have changed after calling SHMConform. We don't know anymore whether we have
-            // the original buffer anymore.
             shm.ID,
             SHMBuffer(&shm),
-            SHMBufferOffset(&shm),
-            (size_t)params->count, // TODO: be consistent with size units
+            (size_t)params->offset,
+            (size_t)params->count,
             &read
     );
     ctt_filesystem_read_response(message, oserr, read);
@@ -315,40 +330,24 @@ FsWrite(
         _In_  size_t  unitCount,
         _Out_ size_t* unitsWritten);
 
-static inline oserr_t
-__MapUserBufferWrite(
-        _In_ struct FSBaseContext* fsBaseContext,
-        _In_ uuid_t                handle,
-        _In_ size_t                offset,
-        _In_ size_t                length,
-        _In_ OSHandle_t*           shm)
-{
-    return SHMConform(
-            handle,
-            &(SHMConformityOptions_t) {
-                    .BufferAlignment = fsBaseContext->IOBufferAlignment,
-                    .Conformity = fsBaseContext->IOConformity
-            },
-            SHM_CONFORM_FILL_ON_CREATION,
-            SHM_ACCESS_READ,
-            offset,
-            length,
-            shm
-    );
-}
-
 void ctt_filesystem_write_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const struct ctt_fs_transfer_params* params)
 {
     oserr_t    oserr;
     OSHandle_t shm;
-    size_t     written;
+    size_t     written = 0;
     TRACE("ctt_filesystem_write_invocation()");
 
-    oserr = __MapUserBufferWrite(
-            (void*)fsctx,
+    // Return before mapping or changing the file position for an empty request.
+    if (params->count == 0) {
+        ctt_filesystem_write_response(message, OS_EOK, 0);
+        return;
+    }
+
+    oserr = __MapUserBuffer(
             params->buffer_id,
             (size_t)params->offset,
-            (size_t)params->count,
+            params->count,
+            SHM_ACCESS_READ,
             &shm
     );
     if (oserr != OS_EOK) {
@@ -359,13 +358,10 @@ void ctt_filesystem_write_invocation(struct gracht_message* message, const uintp
     oserr = FsWrite(
             (void*)fsctx,
             (void*)fctx,
-            // Important (!) to note here that we are reading the effective buffer values which may
-            // have changed after calling SHMConform. We don't know anymore whether we have
-            // the original buffer anymore.
             shm.ID,
             SHMBuffer(&shm),
-            SHMBufferOffset(&shm),
-            (size_t)params->count, // TODO: be consistent with size units
+            (size_t)params->offset,
+            (size_t)params->count,
             &written
     );
     ctt_filesystem_write_response(message, oserr, written);

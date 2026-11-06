@@ -20,6 +20,7 @@
 #define __need_minmax
 #include <ddk/utils.h>
 #include <ddk/barrier.h>
+#include <limits.h>
 #include "uhci.h"
 
 static void
@@ -138,174 +139,117 @@ HCITransferDequeue(
     return OS_EOK;
 }
 
-static inline uintptr_t
-__GetAddress(
-        _In_ UsbManagerTransfer_t* dmaTransfer,
-        _In_ int           index,
-        _In_ size_t        offset)
+static bool
+__PacketAddress(
+    _In_  UsbManagerTransfer_t* transfer,
+    _In_  size_t                offset,
+    _In_  size_t                length,
+    _Out_ uintptr_t*            addressOut)
 {
-    return dmaTransfer->Dma.Segments[index].Address + offset;
-}
+    int index;
+    size_t segmentOffset;
 
-static inline size_t
-__GetBytesLeft(
-        _In_ UsbManagerTransfer_t* dmaTransfer,
-        _In_ int           index,
-        _In_ size_t        offset)
-{
-    return dmaTransfer->Dma.Segments[index].Length - offset;
-}
-
-static inline void
-__CalculateTransferElementMetrics(
-        _In_  size_t        maxPacketSize,
-        _In_  UsbManagerTransfer_t* dmaTransfer,
-        _In_  uint32_t      sgTableOffset,
-        _In_  uint32_t      transferLength,
-        _In_  size_t        bytesLeft,
-        _Out_ uintptr_t*    dataAddressOut,
-        _Out_ uint32_t*     lengthOut)
-{
-    int       index;
-    size_t    offset;
-
-    USBTransferDmaOffset(
-            dmaTransfer,
-            sgTableOffset + (transferLength - bytesLeft),
-            &index,
-            &offset
-    );
-    uintptr_t address = __GetAddress(dmaTransfer, index, offset);
-    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(dmaTransfer, index, offset));
-    size_t    leftInTD = MIN(UHCI_TD_MAXLENGTH, 0x1000 - (address % 0x1000));
-    size_t    maxAllowed = MIN(leftInTD, leftInSG);
-
-    // A TD must fit within the current DMA segment and physical page.
-    // The packet size and UHCI TD length limit also restrict the byte count.
-
-    *dataAddressOut = address;
-    *lengthOut = MIN(maxPacketSize, maxAllowed);
+    USBTransferDmaOffset(transfer, offset, &index, &segmentOffset);
+    
+    // A TD has one buffer pointer, so the packet needs consecutive device
+    // addresses. A page boundary within the same DMA segment is valid.
+    *addressOut = (uintptr_t)(transfer->Dma.Segments[index].Address + segmentOffset);
+    return length <= transfer->Dma.Segments[index].Length - segmentOffset;
 }
 
 oserr_t
 HCITransferElementsNeeded(
-        _In_  UsbManagerTransfer_t*     transfer,
-        _In_  uint32_t                  transferLength,
-        _In_  enum USBTransferDirection direction,
-        _Out_ int*                      elementCountOut)
+    _In_  UsbManagerTransfer_t*     transfer,
+    _In_  uint32_t                  transferLength,
+    _In_  enum USBTransferDirection direction,
+    _Out_ int*                      elementCountOut)
 {
-    uintptr_t waste;
-    uint32_t  count;
-    uint32_t  bytesLeft = transferLength;
-    int       tdsNeeded = 0;
-    TRACE("UHCITransferElementsNeeded(transfer=%u, length=%u)", transfer->ID, transferLength);
+    uint32_t dataLength = transferLength;
+    uint64_t count;
 
-    // A control transfer must start with a complete SETUP packet in one TD.
+    if (transfer->MaxPacketSize == 0 || transfer->MaxPacketSize > UHCI_TD_MAXLENGTH) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (__Transfer_IsAsync(transfer) && transfer->MaxPacketSize > USB_STAGING_SLOT_SIZE) {
+        return OS_EINVALPARAMS;
+    }
+
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         if (transferLength < sizeof(usb_packet_t)) {
             return OS_EINVALPARAMS;
         }
-
-        __CalculateTransferElementMetrics(sizeof(usb_packet_t), transfer, 0,
-            sizeof(usb_packet_t), sizeof(usb_packet_t), &waste, &count);
-        if (count != sizeof(usb_packet_t)) {
-            return OS_EBUFFER;
-        }
-        bytesLeft -= sizeof(usb_packet_t);
-
-        // Add one TD for SETUP and one for ACK.
-        tdsNeeded += 2;
+        dataLength -= sizeof(usb_packet_t);
     }
 
-    while (bytesLeft) {
-        __CalculateTransferElementMetrics(
-                transfer->MaxPacketSize,
-                transfer,
-                0,
-                transferLength,
-                bytesLeft,
-                &waste,
-                &count
-        );
-        bytesLeft -= count;
-        tdsNeeded++;
-
-        if (count < transfer->MaxPacketSize && bytesLeft > 0) {
-            return OS_EBUFFER;
-        }
-
-        // Bulk OUT transfers need a ZLP when the last packet fills MaxPacketSize.
-        if (transfer->Type == USBTRANSFER_TYPE_BULK &&
-            bytesLeft == 0 && count == transfer->MaxPacketSize) {
-            if (direction == USBTRANSFER_DIRECTION_OUT) {
-                tdsNeeded++;
-            }
-        }
+    // Keep each USB packet intact. Splitting at an SG boundary would create
+    // a short packet and change the transfer seen by the device.
+    count = dataLength / transfer->MaxPacketSize;
+    if (dataLength % transfer->MaxPacketSize != 0) {
+        count++;
     }
-    TRACE("UHCITransferElementsNeeded: %i", tdsNeeded);
-    *elementCountOut = tdsNeeded;
-    return tdsNeeded == 0 ? OS_EINVALPARAMS : OS_EOK;
+
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        count += 2;
+    } else if (transfer->Type == USBTRANSFER_TYPE_BULK &&
+        direction == USBTRANSFER_DIRECTION_OUT && dataLength != 0 &&
+        dataLength % transfer->MaxPacketSize == 0) {
+        count++;
+    }
+
+    if (count == 0 || count > INT_MAX) {
+        return OS_EINVALPARAMS;
+    }
+
+    *elementCountOut = (int)count;
+    return OS_EOK;
 }
 
 void
 HCITransferElementFill(
-        _In_ UsbManagerTransfer_t*     transfer,
-        _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction)
+    _In_ UsbManagerTransfer_t*     transfer,
+    _In_ uint32_t                  transferLength,
+    _In_ enum USBTransferDirection direction)
 {
-    enum TransferElementType ackType   = TRANSFERELEMENT_TYPE_IN;
-    uint32_t                 bytesLeft = transferLength;
-    int                      ei = 0;
-    TRACE("UHCITransferElementFill(transfer=%u, length=%u)", transfer->ID, transferLength);
+    struct TransferElement*  element;
+    enum TransferElementType ackType = TRANSFERELEMENT_TYPE_IN;
+    size_t                   offset = 0;
+    uint32_t                 remaining = transferLength;
+    uint32_t                 length = 0;
+    int                      index = 0;
 
-    // Control transfers start with SETUP and end with ACK.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
-        __CalculateTransferElementMetrics(
-                transfer->MaxPacketSize,
-                transfer,
-                0,
-                transferLength,
-                bytesLeft,
-                &transfer->Elements[ei].Data.Address,
-                &transfer->Elements[ei].Length
-        );
-
-        // SETUP has a fixed type and packet length.
-        transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
-        transfer->Elements[ei].Length = sizeof(usb_packet_t);
-        ei++;
-        bytesLeft -= sizeof(usb_packet_t);
-
-        // An IN data stage requires an OUT ACK.
-        if (bytesLeft && direction == USBTRANSFER_DIRECTION_IN) {
+        element = &transfer->Elements[index++];
+        element->Type = TRANSFERELEMENT_TYPE_SETUP;
+        element->Length = sizeof(usb_packet_t);
+        element->NeedsStaging = !__PacketAddress(transfer, 0, element->Length, &element->Data.Address);
+        
+        offset += element->Length;
+        remaining -= element->Length;
+        if (remaining != 0 && direction == USBTRANSFER_DIRECTION_IN) {
             ackType = TRANSFERELEMENT_TYPE_OUT;
         }
     }
 
-    while (bytesLeft) {
-        __CalculateTransferElementMetrics(
-                transfer->MaxPacketSize,
-                transfer,
-                0,
-                transferLength,
-                bytesLeft,
-                &transfer->Elements[ei].Data.Address,
-                &transfer->Elements[ei].Length
-        );
-        transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
-        bytesLeft -= transfer->Elements[ei].Length;
-        ei++;
-
-        if (bytesLeft == 0 && transfer->Type == USBTRANSFER_TYPE_BULK &&
-            direction == USBTRANSFER_DIRECTION_OUT &&
-            transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
-            transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
-        }
+    while (remaining != 0) {
+        length = MIN(remaining, transfer->MaxPacketSize);
+        element = &transfer->Elements[index++];
+        
+        element->Type = __TransferElement_DirectionToType(direction);
+        element->Length = length;
+        element->NeedsStaging = !__PacketAddress(transfer, offset, length, &element->Data.Address);
+        
+        offset += length;
+        remaining -= length;
     }
 
-    // Add the ACK stage for control transfers.
+    // Zero-length status and bulk packets have no payload or staging slot.
+    // The element array was cleared before filling, including their lengths.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
-        transfer->Elements[ei].Type = ackType;
+        transfer->Elements[index].Type = ackType;
+    } else if (transfer->Type == USBTRANSFER_TYPE_BULK &&
+        direction == USBTRANSFER_DIRECTION_OUT && length == transfer->MaxPacketSize) {
+        transfer->Elements[index].Type = TRANSFERELEMENT_TYPE_OUT;
     }
 }
 
@@ -598,8 +542,8 @@ HCITransferQueue(
         return OS_ENOENT;
     }
 
-    // If periodic descriptors are still linked, reuse their mapping and staging
-    // page. Prepare the payload for DMA and update the descriptors for the next transfer.
+    // Linked periodic descriptors keep their mapping and staging page.
+    // Begin DMA again before preparing them for the next transfer.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
 
@@ -621,6 +565,18 @@ HCITransferQueue(
         return OS_EOK;
     }
 
+    // Reserve all staging slots needed by this transfer before allocating descriptors.
+    // While waiting, leave the slots and TDs free so other transfers can finish
+    // and release enough resources for this request.
+    oserr = USBTransferStagingReserve(transfer);
+    if (oserr == OS_EBUSY) {
+        transfer->State = USBTRANSFER_STATE_WAITING;
+        return OS_EOK;
+    }
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
     oserr = __EnsureQueueHead(controller, transfer);
     if (oserr != OS_EOK) {
         return oserr;
@@ -637,6 +593,11 @@ HCITransferQueue(
         __DestroyDescriptors(controller, transfer);
         transfer->RootElement = NULL;
         transfer->ChainLength = 0;
+        
+        if (oserr == OS_EBUSY && transfer->Dma.Packets != NULL) {
+            transfer->State = USBTRANSFER_STATE_WAITING;
+            return OS_EOK;
+        }
         return oserr;
     }
 
@@ -667,8 +628,8 @@ HCITransferQueueIsochronous(
         return OS_ENOENT;
     }
 
-    // If periodic descriptors are still linked, reuse their mapping and staging
-    // page. Prepare the payload for DMA and update the descriptors for the next transfer.
+    // Linked periodic descriptors keep their mapping and staging page.
+    // Begin DMA again before preparing them for the next transfer.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
 

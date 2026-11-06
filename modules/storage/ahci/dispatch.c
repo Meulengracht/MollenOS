@@ -89,8 +89,8 @@ __BuildPRDTTable(
     uint64_t                 address;
     int                      count = 0;
 
-    // Segments describe this mapping's device addresses. Consume at most one
-    // command table and leave the mapping intact for subsequent ATA commands.
+    // Fill one command table from the mapping's device addresses.
+    // Keep the mapping for any remaining ATA commands.
     while (count < AHCI_COMMAND_TABLE_PRDT_COUNT && queued < transaction->BytesLeft) {
         if (index >= transaction->Dma.SegmentCount || offset >= segments[index].Length) {
             return OS_EINVALPARAMS;
@@ -266,10 +266,16 @@ __DispatchCommand(
     TRACE("__DispatchCommand transaction->Slot=%u, commandHeader->Flags=0x%x",
           commandSlot, commandHeader->Flags);
     
-    // One handoff covers the complete request, including all command splits.
-    // Only the persistent command tables are touched by the CPU in between.
+    // Begin DMA once for the entire request, including split commands.
+    // Between commands, the CPU only updates the persistent command tables.
     if (transaction->Dma.Mapping != NULL && !transaction->Dma.DeviceOwned) {
-        status = DMABeginTransfer(transaction->Dma.Mapping, 0, transaction->Dma.Length);
+        status = DMABeginTransfer(
+            transaction->Dma.Mapping,
+            0,
+            transaction->Dma.Length,
+            SHMWaitNonBlocking,
+            NULL
+        );
         if (status != OS_EOK) {
             return status;
         }

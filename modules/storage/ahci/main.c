@@ -76,8 +76,8 @@ __CleanupWorker(
                 continue;
             }
             
-            // Request completion may send IPC. Prevent teardown from freeing
-            // the port table while this pass is using it.
+            // Completion can yield during IPC. Keep the port table allocated
+            // until this pass finishes.
             controller->Cleaning++;
             
             for (int i = 0; i < AHCI_MAX_PORTS; i++) {
@@ -292,39 +292,18 @@ void ctt_driver_ioctl_invocation(
         _In_ const uint8_t*         out,
         _In_ const uint32_t         out_count)
 {
-    enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
     // Filesystems address the registered disk, whose ID differs from the PCI
     // controller ID used by device registration and DMAOpen.
-    AhciDevice_t*      device = AhciManagerGetDevice(deviceId);
+    AhciDevice_t* device = AhciManagerGetDevice(deviceId);
     if (device == NULL) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
         return;
     }
 
-    switch (req) {
-        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
-            struct OSIOCtlRequestRequirements ioRequirements;
-
-            // PRDs require word alignment. Address limits and cache handling
-            // belong to the DMA context, so callers can use ordinary SHM.
-            ioRequirements.BufferAlignment = 2;
-            ioRequirements.Conformity = OSMEMORYCONFORMITY_NONE;
-            ctt_driver_ioctl_response(
-                    message,
-                    (uint8_t*)&ioRequirements,
-                    sizeof(struct OSIOCtlRequestRequirements),
-                    OS_EOK
-            );
-            return;
-        }
-
-        default:
-            break;
-    }
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
-// Lazyness in ddk that unfortuantely draws in more context than neccessary.
+// libddk requires these handlers even though AHCI does not use them.
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId) { }
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }

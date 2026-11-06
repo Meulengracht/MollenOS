@@ -70,10 +70,9 @@ __DestroyRequest(
 {
     oserr_t status;
 
-    // The device must have finished using this request, either by completion
-    // or reset. The DMA transfer covers all queue iterations. On error, only
-    // completed sectors are copied back. If cleanup fails, keep the request
-    // so we can retry the remaining steps.
+    // The request must have completed or the device must be reset before cleanup.
+    // DMA covers all queue iterations. On error, copy back only completed sectors.
+    // Keep the request if cleanup fails so we can retry.
     if (request->DeviceOwned) {
         status = DMAEndTransfer(request->Mapping,
             request->SectorsTransferred * request->Device->Descriptor.SectorSize);
@@ -222,6 +221,7 @@ __CreateRequest(
         bufferOffset,
         byteCount,
         direction == __STORAGE_OPERATION_READ ? DMAFromDevice : DMAToDevice,
+        NULL,
         &request->Mapping
     );
     if (oserr != OS_EOK) {
@@ -376,8 +376,8 @@ __BuildIteration(
             VIRTIO_BLK_T_IN : VIRTIO_BLK_T_OUT;
     header->Reserved = 0;
     
-    // The initial request range was checked against capacity and uint64_t
-    // conversion limits, so advancing within it remains safe here.
+    // The full request already fits within capacity and uint64_t.
+    // Advancing by completed sectors stays within those bounds.
     header->Sector = (request->Sector + request->SectorsTransferred) *
             (device->Descriptor.SectorSize / VIRTIO_BLK_SECTOR_SIZE);
     *((uint8_t*)header + VIRTIO_BLK_STATUS_OFFSET) = UINT8_MAX;
@@ -421,7 +421,9 @@ __SubmitIteration(
         oserr = DMABeginTransfer(
             request->Mapping,
             0,
-            request->SectorCount * request->Device->Descriptor.SectorSize
+            request->SectorCount * request->Device->Descriptor.SectorSize,
+            SHMWaitNonBlocking,
+            NULL
         );
         if (oserr != OS_EOK) {
             free(buffers);

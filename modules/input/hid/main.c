@@ -173,43 +173,16 @@ void ctt_driver_ioctl_invocation(
         _In_ const uint8_t*         out,
         _In_ const uint32_t         out_count)
 {
-    enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
-    HidDevice_t*        device = HidDeviceGet(deviceId);
-    oserr_t             oserr;
+    HidDevice_t* device = HidDeviceGet(deviceId);
     if (device == NULL) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
         return;
     }
 
-    switch (req) {
-        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
-            // HID driver does not pose any memory conformity requirements
-            // on its I/O requests. So we need to query the controller itself
-            // for this.
-            struct OSIOCtlRequestRequirements ioRequirements;
-            oserr = OSDeviceIOCtl2(
-                    device->Base->DeviceContext.controller_device_id,
-                    device->Base->DeviceContext.controller_driver_id,
-                    req,
-                    &ioRequirements,
-                    sizeof(struct OSIOCtlRequestRequirements)
-            );
-            ctt_driver_ioctl_response(
-                    message,
-                    (uint8_t*)&ioRequirements,
-                    sizeof(struct OSIOCtlRequestRequirements),
-                    oserr
-            );
-            return;
-        }
-
-        default:
-            break;
-    }
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
-// lazyness by libddk
+// libddk links these event handlers even though HID does not use them.
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }
 void ctt_usbhub_event_port_status_invocation(void) { }

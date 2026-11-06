@@ -23,7 +23,6 @@
 
 #include "msd.h"
 #include <ddk/utils.h>
-#include <os/device.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
@@ -99,7 +98,7 @@ __GetDeviceProtocol(
         _In_ MSDDevice_t*                    device,
         _In_ usb_device_interface_setting_t* interface)
 {
-    // Set initial shared stuff
+    // Set the device IDs, interface number and default disk geometry.
     device->Protocol                      = ProtocolUnknown;
     device->AlignedAccess                 = 0;
     device->Descriptor.DeviceID           = device->Device->Base.Id;
@@ -169,25 +168,11 @@ __GetDeviceConfiguration(
     UsbFreeConfigDescriptor(&configuration);
 }
 
-static oserr_t
-__GetConformity(
-        _In_ MSDDevice_t* msdDevice)
-{
-    return OSDeviceIOCtl2(
-            msdDevice->Device->DeviceContext.controller_device_id,
-            msdDevice->Device->DeviceContext.controller_driver_id,
-            OSIOCTLREQUEST_IO_REQUIREMENTS,
-            &msdDevice->IORequirements,
-            sizeof(struct OSIOCtlRequestRequirements)
-    );
-}
-
 MSDDevice_t*
 MSDDeviceCreate(
         _In_ UsbDevice_t* usbDevice)
 {
     MSDDevice_t* msdDevice;
-    oserr_t      oserr;
 
     // Debug
     TRACE("MSDDeviceCreate(DeviceId %u)", usbDevice->Base.Id);
@@ -217,11 +202,6 @@ MSDDeviceCreate(
         );
     }
 
-    oserr = __GetConformity(msdDevice);
-    if (oserr != OS_EOK) {
-        ERROR("MSDDeviceCreate: failed to query conformity requirements");
-    }
-    
     __GetDeviceConfiguration(msdDevice);
     
     // Debug
@@ -229,7 +209,7 @@ MSDDeviceCreate(
           g_deviceTypeNames[msdDevice->Type],
           g_deviceProtocolNames[msdDevice->Protocol]);
 
-    // Initialize the kind of profile we discovered
+    // Initialize the protocol selected from the USB interface.
     if (MSDDeviceInitialize(msdDevice) != OS_EOK) {
         ERROR("Failed to initialize the msd-device, missing support.");
         goto Error;

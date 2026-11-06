@@ -122,35 +122,16 @@ void ctt_driver_ioctl_invocation(
         _In_ const uint8_t*         out,
         _In_ const uint32_t         out_count)
 {
-    enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
-    MSDDevice_t*        device = MsdDeviceGet(deviceId);
-    oserr_t             oserr;
+    MSDDevice_t* device = MsdDeviceGet(deviceId);
     if (device == NULL) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
         return;
     }
 
-    switch (req) {
-        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
-            // MSD driver does not pose any memory conformity requirements
-            // on its I/O requests. So we report the controller requirements
-            // instead
-            ctt_driver_ioctl_response(
-                    message,
-                    (uint8_t*)&device->IORequirements,
-                    sizeof(struct OSIOCtlRequestRequirements),
-                    OS_EOK
-            );
-            return;
-        }
-
-        default:
-            break;
-    }
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
-// lazyness
+// libddk requires these protocol handlers even though MSD does not use them.
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId) { }
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }

@@ -336,7 +336,9 @@ VirtioNetQueuePacket(
     status = DMABeginTransfer(
         slot->Mapping,
         slot->Packet.data_offset,
-        receive ? VIRTIO_NET_FRAME_SIZE : slot->Packet.length
+        receive ? VIRTIO_NET_FRAME_SIZE : slot->Packet.length,
+        SHMWaitNonBlocking,
+        NULL
     );
     if (status != OS_EOK) {
         return status;
@@ -422,12 +424,11 @@ VirtioNetFault(
 }
 
 /**
- * @brief Check whether a received frame uses only supported header settings.
+ * @brief Checks the received frame length and VirtIO header.
  *
  * Frames must contain a complete Ethernet header and fit the receive buffer.
- * Only plain frames in one receive buffer are supported. Extra processing
- * requests are rejected. A buffer count of zero is accepted because some
- * devices use it for a single buffer.
+ * Each frame must use one receive buffer and require no extra processing.
+ * Some devices report zero buffers for a single frame, so accept that value too.
  *
  * @param header Header reported with the received frame.
  * @param length Total received length, including the VirtIO header.

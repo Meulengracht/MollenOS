@@ -100,32 +100,6 @@ MmuGetMemoryConfiguration(
 }
 
 
-oserr_t
-ArchSHMTypeToPageMask(
-        _In_  enum OSMemoryConformity conformity,
-        _Out_ size_t*                 pageMaskOut)
-{
-    switch (conformity) {
-#if defined(__amd64__)
-        case OSMEMORYCONFORMITY_NONE: *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
-#else
-        case OSMEMORYCONFORMITY_NONE: *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
-#endif
-        case OSMEMORYCONFORMITY_LEGACY: *pageMaskOut = MEMORY_MASK_ISA;   return OS_EOK;
-        case OSMEMORYCONFORMITY_LOW:    *pageMaskOut = MEMORY_MASK_2GB;   return OS_EOK;
-        case OSMEMORYCONFORMITY_BITS32: *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
-
-#if defined(__amd64__)
-        case OSMEMORYCONFORMITY_BITS64: *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
-#else
-        case OSMEMORYCONFORMITY_BITS64: *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
-#endif
-
-        default:
-            return OS_ENOTSUPPORTED;
-    }
-}
-
 static unsigned int
 ConvertGenericAttributesToX86(
     _In_ unsigned int flags)

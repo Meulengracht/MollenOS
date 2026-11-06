@@ -204,6 +204,17 @@ UhciQueueInitialize(
     if (status != OS_EOK) {
         return status;
     }
+    
+    // A packet must have consecutive device addresses. Use the staging pool
+    // when a packet crosses a DMA segment boundary.
+    status = UsbTransferStagingPoolCreate(
+        Controller->Base.DmaContext,
+        UHCI_STAGING_SLOTS,
+        &Controller->Base.StagingPool
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
     return UhciQueueResetInternalData(Controller);
 }
 
@@ -229,11 +240,18 @@ oserr_t
 UHCIQueueDestroy(
     _In_ UhciController_t* controller)
 {
+    oserr_t status;
+
     // The controller must be stopped before cleanup. If any transfer remains,
     // keep the descriptor pool and DMA context until cleanup can be retried.
     UsbManagerClearTransfers(&controller->Base);
     if (controller->Base.TransactionList.head != NULL) {
         return OS_EBUSY;
+    }
+    
+    status = UsbTransferStagingPoolDestroy(&controller->Base.StagingPool);
+    if (status != OS_EOK) {
+        return status;
     }
     return UsbSchedulerDestroy(&controller->Base.Scheduler);
 }

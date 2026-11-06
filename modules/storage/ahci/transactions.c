@@ -80,8 +80,8 @@ __DestroyTransaction(
     oserr_t status;
     int     slot = __GetTransferKey(transaction);
 
-    // The mapping must be CPU-owned before this call. Do not remove the request
-    // from the port until unmap succeeds; teardown uses that list to find it.
+    // DMA must have ended before this call. Keep the request in the port's
+    // list until unmap succeeds, so teardown can find it on failure.
     status = DMAUnmap(&transaction->Dma.Mapping);
     if (status != OS_EOK) {
         return status;
@@ -107,8 +107,8 @@ __FinishTransaction(
 {
     oserr_t status;
 
-    // Hardware completion or a confirmed port stop is required before ending
-    // the transfer. A failed end leaves device ownership unchanged for retry.
+    // The command must have completed or the port must be stopped before
+    // ending DMA. If DMAEndTransfer fails, leave DeviceOwned set for retry.
     if (transaction->Dma.DeviceOwned) {
         status = DMAEndTransfer(transaction->Dma.Mapping, transaction->Dma.Completed);
         if (status != OS_EOK) {
@@ -296,9 +296,13 @@ AhciTransactionStorageCreate(
 {
     struct __AhciCommandTableEntry* command;
     AhciTransaction_t*              transaction;
-    OSHandle_t                     buffer = { .ID = bufferHandle, .Type = OSHANDLE_SHM };
-    size_t                         length;
-    oserr_t                        status;
+    OSHandle_t                      buffer = { .ID = bufferHandle, .Type = OSHANDLE_SHM };
+    struct DMAMapRequirements       requirements = {
+        .AddressAlignment = 2,
+        .LengthAlignment = 2
+    };
+    size_t                          length;
+    oserr_t                         status;
 
     if (device == NULL || device->SectorSize == 0 || sector >= device->SectorCount) {
         return OS_EINVALPARAMS;
@@ -307,7 +311,7 @@ AhciTransactionStorageCreate(
         return OS_EBUSY;
     }
     command = __GetCommand(device, direction);
-    if (command == NULL || sectorCount == 0 || (bufferOffset & 1) != 0) {
+    if (command == NULL || sectorCount == 0) {
         return OS_EINVALPARAMS;
     }
 
@@ -328,14 +332,15 @@ AhciTransactionStorageCreate(
     transaction->BytesLeft = length;
     transaction->Dma.Length = length;
 
-    // IPC supplies the SHM ID. The DMA mapping owns the kernel reference, so
-    // AHCI needs no additional CPU attachment or physical-address query.
+    // Map the SHM ID supplied over IPC. DMA keeps the kernel reference for
+    // this mapping, so AHCI needs no separate SHM attachment or physical lookup.
     status = DMAMapSHM(
         device->Controller->DmaContext,
         &buffer,
         bufferOffset,
         length,
         direction == __STORAGE_OPERATION_READ ? DMAFromDevice : DMAToDevice,
+        &requirements,
         &transaction->Dma.Mapping
     );
     if (status != OS_EOK) {
@@ -451,8 +456,8 @@ AhciTransactionsCancel(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
-    // Both port engines must be stopped before cancellation. Only already
-    // completed command prefixes are valid; the current command may be partial.
+    // Both port engines must be stopped before cancellation. Count only data
+    // from completed commands, since the current command may be incomplete.
     while (port->Transactions.head != NULL) {
         oserr_t            status;
         AhciTransaction_t* transaction = port->Transactions.head->value;

@@ -538,19 +538,15 @@ EhciSetup(
     Controller->CParameters    = Controller->CapRegisters->CParams;
     Controller->Base.PortCount = EHCI_SPARAM_PORTCOUNT(Controller->SParameters);
 
-    // Setup the i/o requirements
-    Controller->Base.IORequirements.BufferAlignment = 0;
-    Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_NONE;
-
     // Schedule links share CTRLDSSEGMENT. Keep descriptors and payloads within
     // the existing INT32_MAX address limit, including on 32-bit hosts.
     if (DMAOpen(Controller->Base.Device->Id, INT32_MAX, &Controller->Base.DmaContext) != OS_EOK) {
         return OS_EUNKNOWN;
     }
 
-    // Scheduler setup and controller restart must succeed before registration
-    // or port power. Otherwise the controller could use invalid DMA addresses
-    // and cleanup could free memory still in use.
+    // Scheduler setup and restart must succeed before registration or port power.
+    // Otherwise the controller could use invalid DMA addresses, or cleanup could
+    // free memory while the controller is still using it.
     if (EhciQueueInitialize(Controller) != OS_EOK) {
         ERROR("Failed to initialize EHCI scheduler");
         return OS_EUNKNOWN;
