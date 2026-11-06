@@ -30,9 +30,10 @@
 #include <os/spinlock.h>
 #include <os/types/device.h>
 #include <usb/usb.h>
+
 #include "types.h"
-#include "scheduler.h"
-#include "transfer.h"
+#include "scheduler/scheduler.h"
+#include "transfer/transfer.h"
 
 enum UsbManagerControllerPhase {
     USB_CONTROLLER_INITIALIZING,
@@ -60,10 +61,8 @@ typedef struct UsbManagerController {
     enum USBControllerKind           Kind;
     Device_t*                        Device;
     struct DMAContext*               DmaContext;
+    struct UsbTransferBouncePool*    BouncePool;
     struct UsbManagerControllerState State;
-
-    // I/O buffers must meet the controller's address width and alignment requirements.
-    struct OSIOCtlRequestRequirements IORequirements;
 
     int                 event_descriptor;
     DeviceInterrupt_t   Interrupt;

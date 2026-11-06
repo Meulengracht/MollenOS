@@ -444,14 +444,24 @@ static void
 __QueueWaitingTransfers(
     _In_ UsbManagerController_t* controller)
 {
+    oserr_t status;
+
     foreach(node, &controller->TransactionList) {
         UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)node->value;
 
-        if (!transfer->Submitting && transfer->State == USBTRANSFER_STATE_WAITING) {
+        if (!transfer->Submitting && transfer->State == USBTRANSFER_STATE_WAITING &&
+            USBTransferBounceCanRetry(transfer)) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                HCITransferQueueIsochronous(transfer);
+                status = HCITransferQueueIsochronous(transfer);
             } else {
-                HCITransferQueue(transfer);
+                status = HCITransferQueue(transfer);
+            }
+            
+            if (status != OS_EOK && transfer->State != USBTRANSFER_STATE_CLEANUP) {
+                // Allocation failures enter the usual cleanup path. A queue
+                // call may yield to cancellation, whose result must stay intact.
+                transfer->ResultCode = USBTRANSFERCODE_INVALID;
+                transfer->State = USBTRANSFER_STATE_CLEANUP;
             }
             break;
         }

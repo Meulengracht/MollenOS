@@ -205,12 +205,12 @@ UhciQueueInitialize(
         return status;
     }
     
-    // A packet must have consecutive device addresses. Use the staging pool
+    // A packet must have consecutive device addresses. Use the bounce pool
     // when a packet crosses a DMA segment boundary.
-    status = UsbTransferStagingPoolCreate(
+    status = UsbTransferBouncePoolCreate(
         Controller->Base.DmaContext,
-        UHCI_STAGING_SLOTS,
-        &Controller->Base.StagingPool
+        UHCI_BOUNCE_SLOTS,
+        &Controller->Base.BouncePool
     );
     if (status != OS_EOK) {
         return status;
@@ -249,7 +249,7 @@ UHCIQueueDestroy(
         return OS_EBUSY;
     }
     
-    status = UsbTransferStagingPoolDestroy(&controller->Base.StagingPool);
+    status = UsbTransferBouncePoolDestroy(&controller->Base.BouncePool);
     if (status != OS_EOK) {
         return status;
     }

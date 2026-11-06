@@ -22,7 +22,7 @@
 #include <limits.h>
 
 #include "../common/manager.h"
-#include "../common/scheduler.h"
+#include "../common/scheduler/scheduler.h"
 #include "../common/hci.h"
 
 // forward declarations

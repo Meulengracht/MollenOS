@@ -16,6 +16,7 @@
  *
  */
 
+#define __TRACE
 #include <os/handle.h>
 #include <os/memory.h>
 #include <os/shm.h>
@@ -23,17 +24,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "hci.h"
+#include "../hci.h"
 #include "transfer.h"
 
 static oserr_t
-__SelectStaging(
+__SelectBounce(
     _InOut_ UsbManagerTransfer_t* transfer,
     _In_    size_t                offset,
     _In_    size_t                pageSize,
     _In_    enum DMADirection     direction)
 {
-    struct UsbTransferDmaStaging* staging = &transfer->Dma.Staging;
+    struct UsbTransferDmaBounce* bounce = &transfer->Dma.Bounce;
     SHM_t                         options = {
         .Flags = SHM_COMMIT | SHM_CLEAN | SHM_PRIVATE,
         .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
@@ -43,7 +44,7 @@ __SelectStaging(
     unsigned int access = direction == DMAFromDevice ? SHM_ACCESS_WRITE : SHM_ACCESS_READ;
     oserr_t      status;
 
-    if (staging->Buffer.ID == UUID_INVALID) {
+    if (bounce->Buffer.ID == UUID_INVALID) {
         // Map the client ring from its start once. Packet copies use byte
         // offsets into this mapping, so moving to another slot needs no remap.
         status = SHMMap(
@@ -56,7 +57,7 @@ __SelectStaging(
             return status;
         }
 
-        status = SHMCreate(&options, &staging->Buffer);
+        status = SHMCreate(&options, &bounce->Buffer);
         if (status != OS_EOK) {
             return status;
         }
@@ -68,10 +69,11 @@ __SelectStaging(
         // for this transfer.
         status = DMAMapSHM(
             transfer->Dma.Context,
-            &staging->Buffer,
+            &bounce->Buffer,
             0,
             pageSize,
             direction,
+            NULL,
             &transfer->Dma.Mapping
         );
         if (status != OS_EOK) {
@@ -79,10 +81,10 @@ __SelectStaging(
         }
     }
     
-    staging->ClientOffset = offset;
+    bounce->ClientOffset = offset;
     if (direction == DMAToDevice) {
         memcpy(
-            SHMBuffer(&staging->Buffer),
+            SHMBuffer(&bounce->Buffer),
             (const uint8_t*)SHMBuffer(&transfer->SHMHandle) + offset,
             transfer->Dma.Length
         );
@@ -141,7 +143,7 @@ __SelectMapping(
         }
         pageSize = MemoryPageSize();
         if (packet <= pageSize) {
-            return __SelectStaging(transfer, offset, pageSize, direction);
+            return __SelectBounce(transfer, offset, pageSize, direction);
         }
 
         // Reserve one entry per packet slot in the submitted buffer. Create
@@ -184,6 +186,7 @@ __SelectMapping(
             offset,
             transfer->Dma.Length,
             direction,
+            NULL,
             mapping
         );
         if (status != OS_EOK) {
@@ -213,7 +216,7 @@ USBTransferDmaPrepare(
         return status;
     }
 
-    // Select the mapping first to copy OUT data into staging and update the
+    // Select the mapping first to copy OUT data into bounce and update the
     // client's slot offset. Reusing the layout still requires a DMA begin call.
     if (__Transfer_IsPeriodic(transfer) && layout->Mapping == transfer->Dma.Mapping &&
         layout->Length == transfer->Dma.Length) {
@@ -252,6 +255,10 @@ USBTransferDmaPrepare(
         transfer->Dma.Length,
         transfer->Direction
     );
+    status = USBTransferBouncePlan(transfer);
+    if (status != OS_EOK) {
+        return status;
+    }
     layout->Mapping = transfer->Dma.Mapping;
     layout->Length = transfer->Dma.Length;
     layout->MaxPacketSize = transfer->MaxPacketSize;
@@ -273,10 +280,25 @@ USBTransferDmaBegin(
         return OS_EOK;
     }
 
-    status = DMABeginTransfer(transfer->Dma.Mapping, 0, transfer->Dma.Length);
+    status = USBTransferBouncePrepare(transfer);
+    if (status != OS_EOK) {
+        (void)USBTransferBounceAbort(transfer);
+        return status;
+    }
+    status = DMABeginTransfer(
+        transfer->Dma.Mapping,
+        0,
+        transfer->Dma.Length,
+        SHMWaitNonBlocking,
+        NULL
+    );
     if (status == OS_EOK) {
         transfer->Dma.DeviceOwned = true;
         transfer->Dma.Completed = 0;
+    } else {
+        // No hardware can reference these slots yet. The next attempt must
+        // copy OUT bytes again after CPU access becomes available.
+        (void)USBTransferBounceAbort(transfer);
     }
     return status;
 }
@@ -291,6 +313,10 @@ USBTransferDmaDestroy(
 
     if (transfer->Dma.DeviceOwned || transfer->Dma.HardwareActive) {
         return OS_EBUSY;
+    }
+    status = USBTransferBounceDestroy(transfer);
+    if (status != OS_EOK) {
+        return status;
     }
     // Clear the layout before freeing mappings, as a new mapping may get the
     // same address.
@@ -319,13 +345,13 @@ USBTransferDmaDestroy(
     }
     // Unmap DMA before releasing the SHM buffer. If unmapping fails, leave
     // the mapping and buffer in place so destruction can be retried.
-    if (transfer->Dma.Staging.Buffer.ID != UUID_INVALID) {
-        status = SHMRelease(&transfer->Dma.Staging.Buffer);
+    if (transfer->Dma.Bounce.Buffer.ID != UUID_INVALID) {
+        status = SHMRelease(&transfer->Dma.Bounce.Buffer);
         if (status != OS_EOK) {
-            WARNING("USB DMA staging release failed (%u); keeping transfer", status);
+            WARNING("USB DMA bounce release failed (%u); keeping transfer", status);
             return status;
         }
-        memset(&transfer->Dma.Staging, 0, sizeof(transfer->Dma.Staging));
+        memset(&transfer->Dma.Bounce, 0, sizeof(transfer->Dma.Bounce));
     }
     transfer->Dma.Segments = NULL;
     transfer->Dma.SegmentCount = 0;
@@ -341,22 +367,33 @@ USBTransferDmaComplete(
 
     if (!transfer->Dma.DeviceOwned) {
         transfer->Dma.HardwareActive = false;
-        return OS_EOK;
+        // DMA end may have succeeded while packet copy-back was blocked. Retry
+        // only the CPU copy/end step, before the manager notifies the client.
+        return USBTransferBounceComplete(transfer, bytes);
     }
     if (bytes > transfer->Dma.Length) {
         return OS_EINVALPARAMS;
     }
     status = DMAEndTransfer(transfer->Dma.Mapping, bytes);
+    if (transfer->Dma.Diagnostics.Enabled && transfer->Dma.Diagnostics.Completions < 3) {
+        transfer->Dma.Diagnostics.Completions++;
+        TRACE("USB EP0 DMA end: transfer=%u status=%u bytes=%u length=%u",
+            transfer->ID, status, (unsigned int)bytes, transfer->Dma.Length);
+    }
     if (status == OS_EOK) {
         transfer->Dma.DeviceOwned = false;
         transfer->Dma.HardwareActive = false;
-        if (transfer->Dma.Staging.Buffer.ID != UUID_INVALID &&
+        status = USBTransferBounceComplete(transfer, bytes);
+        if (status != OS_EOK) {
+            return status;
+        }
+        if (transfer->Dma.Bounce.Buffer.ID != UUID_INVALID &&
             transfer->Direction == USBTRANSFER_DIRECTION_IN && bytes != 0) {
             // Copy only completed bytes. Cancellation (zero bytes) and a
             // short receive must leave the rest of the client's slot intact.
             memcpy(
-                (uint8_t*)SHMBuffer(&transfer->SHMHandle) + transfer->Dma.Staging.ClientOffset,
-                SHMBuffer(&transfer->Dma.Staging.Buffer),
+                (uint8_t*)SHMBuffer(&transfer->SHMHandle) + transfer->Dma.Bounce.ClientOffset,
+                SHMBuffer(&transfer->Dma.Bounce.Buffer),
                 bytes
             );
         }

@@ -171,7 +171,7 @@ HCITransferElementsNeeded(
         return OS_EINVALPARAMS;
     }
 
-    if (__Transfer_IsAsync(transfer) && transfer->MaxPacketSize > USB_STAGING_SLOT_SIZE) {
+    if (__Transfer_IsAsync(transfer) && transfer->MaxPacketSize > USB_BOUNCE_SLOT_SIZE) {
         return OS_EINVALPARAMS;
     }
 
@@ -222,7 +222,7 @@ HCITransferElementFill(
         element = &transfer->Elements[index++];
         element->Type = TRANSFERELEMENT_TYPE_SETUP;
         element->Length = sizeof(usb_packet_t);
-        element->NeedsStaging = !__PacketAddress(transfer, 0, element->Length, &element->Data.Address);
+        element->NeedsBounce = !__PacketAddress(transfer, 0, element->Length, &element->Data.Address);
         
         offset += element->Length;
         remaining -= element->Length;
@@ -237,13 +237,13 @@ HCITransferElementFill(
         
         element->Type = __TransferElement_DirectionToType(direction);
         element->Length = length;
-        element->NeedsStaging = !__PacketAddress(transfer, offset, length, &element->Data.Address);
+        element->NeedsBounce = !__PacketAddress(transfer, offset, length, &element->Data.Address);
         
         offset += length;
         remaining -= length;
     }
 
-    // Zero-length status and bulk packets have no payload or staging slot.
+    // Zero-length status and bulk packets have no payload or bounce slot.
     // The element array was cleared before filling, including their lengths.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         transfer->Elements[index].Type = ackType;
@@ -542,7 +542,7 @@ HCITransferQueue(
         return OS_ENOENT;
     }
 
-    // Linked periodic descriptors keep their mapping and staging page.
+    // Linked periodic descriptors keep their mapping and bounce page.
     // Begin DMA again before preparing them for the next transfer.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
@@ -565,10 +565,10 @@ HCITransferQueue(
         return OS_EOK;
     }
 
-    // Reserve all staging slots needed by this transfer before allocating descriptors.
+    // Reserve all bounce slots needed by this transfer before allocating descriptors.
     // While waiting, leave the slots and TDs free so other transfers can finish
     // and release enough resources for this request.
-    oserr = USBTransferStagingReserve(transfer);
+    oserr = USBTransferBounceReserve(transfer);
     if (oserr == OS_EBUSY) {
         transfer->State = USBTRANSFER_STATE_WAITING;
         return OS_EOK;
@@ -628,7 +628,7 @@ HCITransferQueueIsochronous(
         return OS_ENOENT;
     }
 
-    // Linked periodic descriptors keep their mapping and staging page.
+    // Linked periodic descriptors keep their mapping and bounce page.
     // Begin DMA again before preparing them for the next transfer.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {

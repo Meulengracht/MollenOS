@@ -27,6 +27,8 @@
 #include <ddk/dma.h>
 #include <ds/list.h>
 
+#include "transfer_bounce.h"
+
 #define __XPAGE(_a) ((_a) & ~((uintptr_t)0xFFF))
 #define __XPAGEOFFSET(_a) ((_a) & 0xFFF)
 #define __XUPPAGE(_a) (__XPAGE(_a) + 0x1000)
@@ -61,6 +63,8 @@ enum TransferElementType {
 struct TransferElement {
     enum TransferElementType Type;
     uint32_t                 Length;
+    // The packet crosses device segments and needs one contiguous bounce slot.
+    bool                     NeedsBounce;
     union {
         // Physical buffer address for UHCI and OHCI descriptors without SG support.
         uintptr_t Address;
@@ -90,10 +94,10 @@ static inline enum TransferElementType __TransferElement_DirectionToType(enum US
 /**
  * @brief Private packet buffer and its offset in the client buffer.
  */
-typedef struct UsbTransferDmaStaging {
+typedef struct UsbTransferDmaBounce {
     OSHandle_t Buffer;
     size_t     ClientOffset;
-} UsbTransferDmaStaging_t;
+} UsbTransferDmaBounce_t;
 
 /**
  * @brief Mapping and packet settings used to build the current transfer elements.
@@ -110,6 +114,16 @@ typedef struct UsbTransferWork {
     element_t Header;
     list_t*   Queue;
 } UsbTransferWork_t;
+
+/** Bounded tracing for a selected enumeration request and its DMA handoff. */
+struct UsbTransferDmaDiagnostics {
+    bool         Enabled;
+    bool         EndpointSampled;
+    unsigned int Preparations;
+    unsigned int Submissions;
+    unsigned int Completions;
+    unsigned int Events;
+};
 
 /**
  * @brief Transfer state, HCI descriptors, DMA mappings and client completion data.
@@ -157,35 +171,38 @@ typedef struct UsbManagerTransfer {
         } Periodic;
     } TData;
 
-    // The client attachment allows CPU access for setup and packet staging.
+    // The client attachment allows CPU access for setup and packet bounce.
     // The DMA mapping keeps the storage allocated until the mapping is released.
     OSHandle_t SHMHandle;
 
     // Device addresses and DMA transfer state.
-    // Small periodic packets reuse one private staging page. Larger periodic
+    // Small periodic packets reuse one private bounce page. Larger periodic
     // packets get a mapping for each client slot when that slot is first used.
     // If Mappings is present, Mapping points to the current slot in that array.
     // Otherwise, Mapping is released separately. The CPU can access completed
     // client slots while the next packet is in flight.
     struct {
-        struct DMAContext*           Context;
-        struct DMAMapping*           Mapping;
-        struct DMAMapping**          Mappings;
-        uint32_t                     MappingCount;
-        const struct DMASegment*     Segments;
-        uint32_t                     SegmentCount;
-        size_t                       BufferOffset;
-        uint32_t                     BufferLength;
-        uint32_t                     Length;
-        size_t                       Completed;
-        uint32_t                     ReleaseEpoch;
-        bool                         Unlinked;
-        bool                         Linked; // Hardware schedule contains this descriptor chain.
-        bool                         DeviceOwned;
-        bool                         HardwareActive;
-        usb_packet_t                 Setup;
-        struct UsbTransferDmaStaging Staging;
-        struct UsbTransferDmaLayout  Layout;
+        struct DMAContext*               Context;
+        struct DMAMapping*               Mapping;
+        struct DMAMapping**              Mappings;
+        uint32_t                         MappingCount;
+        const struct DMASegment*         Segments;
+        uint32_t                         SegmentCount;
+        size_t                           BufferOffset;
+        uint32_t                         BufferLength;
+        uint32_t                         Length;
+        size_t                           Completed;
+        uint32_t                         ReleaseEpoch;
+        bool                             Unlinked;
+        bool                             Linked; // Hardware schedule contains this descriptor chain.
+        bool                             DeviceOwned;
+        bool                             HardwareActive;
+        usb_packet_t                     Setup;
+        struct UsbTransferDmaBounce     Bounce;
+        struct UsbTransferBouncePool*   PacketPool;
+        struct UsbTransferPacketBounce* Packets;
+        struct UsbTransferDmaLayout      Layout;
+        struct UsbTransferDmaDiagnostics Diagnostics;
     } Dma;
 
     // Saved message for the asynchronous response.

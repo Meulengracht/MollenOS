@@ -325,7 +325,7 @@ __CalculateTransferElementMetrics(
     _CRT_UNUSED(transferType);
 
     // Each descriptor describes one packet, which also fits the periodic
-    // staging mapping. An OHCI TD can cross one device-page boundary.
+    // bounce mapping. An OHCI TD can cross one device-page boundary.
     memset(element, 0, sizeof(*element));
     
     status = USBTransferDmaOffset(dmaTransfer, position, &index, &offset);
@@ -796,7 +796,7 @@ HCITransferQueue(
     }
 
     // If a periodic transfer already has a descriptor chain, reuse it with
-    // the existing DMA mapping and staging page. Prepare the buffer and
+    // the existing DMA mapping and bounce page. Prepare the buffer and
     // descriptor fields for the next transfer.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
@@ -867,7 +867,7 @@ HCITransferQueueIsochronous(
     }
 
     // If a periodic transfer already has a descriptor chain, reuse it with
-    // the existing DMA mapping and staging page. Prepare the buffer and
+    // the existing DMA mapping and bounce page. Prepare the buffer and
     // descriptor fields for the next transfer.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {

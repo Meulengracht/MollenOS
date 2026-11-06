@@ -23,7 +23,7 @@
 #include <ddk/utils.h>
 #include <os/handle.h>
 #include <os/shm.h>
-#include "hci.h"
+#include "../hci.h"
 #include "transfer.h"
 
 #include "ctt_driver_service_server.h"
@@ -123,7 +123,7 @@ USBTransferCreate(
     }
 
     usbTransfer->Dma.Context = controller->DmaContext;
-    usbTransfer->Dma.PacketPool = controller->StagingPool;
+    usbTransfer->Dma.PacketPool = controller->BouncePool;
     usbTransfer->Dma.BufferOffset = transfer->BufferOffset;
     usbTransfer->Dma.BufferLength = transfer->Length;
     if (__Transfer_IsPeriodic(usbTransfer)) {

@@ -152,7 +152,7 @@ PACKED_TYPESTRUCT(UhciQueueHead, {
 #define UHCI_TD_COUNT                       400
 
 /** 64 KiB pool for control and bulk packets that cross DMA segments. */
-#define UHCI_STAGING_SLOTS                  1024
+#define UHCI_BOUNCE_SLOTS                   1024
 
 /* Fixed pool indices and the first index available for transfers. */
 #define UHCI_POOL_QH_NULL                   0

@@ -254,7 +254,7 @@ __CalculateTransferElementMetrics(
 
     memset(element, 0, sizeof(struct TransferElement));
     
-    // Periodic requests use a page-aligned staging packet. Async qTDs have
+    // Periodic requests use a page-aligned bounce packet. Async qTDs have
     // five page pointers, so split contiguous DMA segments at page boundaries.
     for (i = 0; i < __XACTION_COUNT(transfer) && bytesLeft != 0; i++) {
         USBTransferDmaOffset(dmaTransfer, position, &index, &offset);
@@ -915,7 +915,7 @@ HCITransferQueue(
         return OS_ENOENT;
     }
 
-    // If the periodic chain is still linked, reuse its DMA mapping and staging
+    // If the periodic chain is still linked, reuse its DMA mapping and bounce
     // page. Prepare the next payload and update the existing descriptors.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
@@ -997,7 +997,7 @@ HCITransferQueueIsochronous(
         return OS_ENOENT;
     }
 
-    // If the periodic chain is still linked, reuse its DMA mapping and staging
+    // If the periodic chain is still linked, reuse its DMA mapping and bounce
     // page. Prepare the next payload and update the existing descriptors.
     if (__Transfer_IsPeriodic(transfer) && transfer->RootElement != NULL &&
         transfer->ChainLength != 0) {
