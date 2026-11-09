@@ -16,7 +16,8 @@
  */
 
 #include <ddk/utils.h>
-#include <internal/_syscalls.h>
+#include <os/shm.h>
+#include <internal/_shm.h>
 #include <os/types/syscall.h>
 #include <stdlib.h>
 
@@ -29,12 +30,12 @@ struct DMABuffer {
 
 struct DMAMapping {
     struct __DmaResource Resource;
+    unsigned int         Flags;
     size_t               Length;
-    size_t               ActiveOffset;
-    // Zero means managed by CPU. 
-    // Begin requires nonzero length, including for receives.
-    size_t               ActiveLength;
 };
+
+_Static_assert(offsetof(struct DMAMapping, Resource) == 0, "Resource release frees the mapping");
+_Static_assert(offsetof(struct DMABuffer, Resource) == 0, "Resource release frees the buffer");
 
 static oserr_t
 __DmaRelease(
@@ -46,7 +47,7 @@ __DmaRelease(
     // A successful stage is recorded before the next fallible operation; retries
     // neither double-unmap nor discard the SHM attachment when detach fails.
     if (resource->Handle != UUID_INVALID) {
-        status = Syscall_DmaUnmap(resource->Handle);
+        status = Syscall_ResourceRelease(resource->Handle);
         if (status != OS_EOK) {
             WARNING("DMA: mapping %u release failed (%u); retaining owner", resource->Handle, status);
             return status;
@@ -125,9 +126,9 @@ __DmaPrepareResource(
         goto rollback;
     }
 
-    // Fetch the immutable fragmented list exactly once. Publishing only after
-    // this succeeds makes accessors infallible and removes setup failures from
-    // descriptor construction and periodic transfer rearm.
+    // Fetch the segment list once, here. The resource is only given to the
+    // driver after this succeeds, so the segment accessors cannot fail. Building
+    // descriptors and resubmitting periodic transfers never hit a setup error.
     status = Syscall_DmaGetSegments(
         resource->Handle,
         resource->Segments,
@@ -144,8 +145,8 @@ __DmaPrepareResource(
     }
 
 rollback:
-    // No driver has seen this mapping and hardware cannot own it. Even if its
-    // cleanup fails, keep the resource under the context for close to retry.
+    // No driver has seen this mapping yet, so hardware cannot be using it. If
+    // cleanup fails, keep the resource on the context so DMAClose can retry it.
     WARNING("DMA: segment setup failed (%u); rolling back mapping %u", status, resource->Handle);
     if (__DmaRelease(resource) != OS_EOK) {
         __DmaDeferCleanup(resource);
@@ -158,8 +159,9 @@ __DmaSegments(
     _In_  const struct __DmaResource* resource,
     _Out_ uint32_t*                   countOut)
 {
-    // Both representations are ready before publication and never change.
-    // Returning a borrowed pointer avoids copying or allocating per descriptor.
+    // Both the inline segment and the segment array are set up before the
+    // resource is handed out, and never change after that. Returning a pointer
+    // into the resource avoids a copy or allocation per descriptor.
     *countOut = resource->SegmentCount;
     return resource->SegmentCount == 1 ? &resource->InlineSegment : resource->Segments;
 }
@@ -182,9 +184,10 @@ DMAAllocate(
         return OS_EBUSY;
     }
 
-    // Reserve the only local owner before entering the kernel. Embed the raw
-    // SHM attachment: wrapping it in OSHandle would add another heap allocation
-    // and registry entry for memory which is never independently shared.
+    // Allocate the local buffer object before entering the kernel. The SHM
+    // attachment is embedded directly because this memory is never shared on
+    // its own. Wrapping it in an OSHandle would cost another heap allocation
+    // and registry entry.
     buffer = calloc(1, sizeof(struct DMABuffer));
     if (buffer == NULL) {
         return OS_EOOM;
@@ -254,13 +257,14 @@ DMAFree(
 
 static oserr_t
 __DmaMapSHM(
-    _In_    struct DMAContext*  context,
-    _In_    const OSHandle_t*   buffer,
-    _In_    size_t              offset,
-    _In_    size_t              length,
-    _In_    enum DMADirection   direction,
-    _In_    unsigned int        flags,
-    _InOut_ struct DMAMapping** mappingOut)
+    _In_    struct DMAContext*               context,
+    _In_    const OSHandle_t*                buffer,
+    _In_    size_t                           offset,
+    _In_    size_t                           length,
+    _In_    enum DMADirection                direction,
+    _In_    unsigned int                     flags,
+    _In_    const struct DMAMapRequirements* requirements,
+    _InOut_ struct DMAMapping**              mappingOut)
 {
     struct OSDmaMapParameters parameters = {
         .Offset = offset,
@@ -288,8 +292,12 @@ __DmaMapSHM(
         return OS_EBUSY;
     }
 
-    // The kernel retains the original storage. No extra userspace attachment,
-    // CPU mapping or RPC is needed to map an existing SHM transfer range.
+    if (requirements != NULL) {
+        parameters.Requirements = *requirements;
+    }
+
+    // The kernel keeps its own reference to the original storage, so mapping an
+    // existing SHM range needs no extra userspace attachment, CPU mapping or RPC.
     mapping = calloc(1, sizeof(struct DMAMapping));
     if (mapping == NULL) {
         return OS_EOOM;
@@ -303,39 +311,59 @@ __DmaMapSHM(
         return status;
     }
     
-    mapping->Length = length;
-
     status = __DmaPrepareResource(&mapping->Resource, context, &result);
     if (status != OS_EOK) {
         return status;
     }
 
+    mapping->Flags = flags;
+    mapping->Length = length;
     *mappingOut = mapping;
     return OS_EOK;
 }
 
 oserr_t
 DMAMapSHM(
-    _In_    struct DMAContext*  context,
-    _In_    const OSHandle_t*   buffer,
-    _In_    size_t              offset,
-    _In_    size_t              length,
-    _In_    enum DMADirection   direction,
-    _InOut_ struct DMAMapping** mappingOut)
+    _In_    struct DMAContext*               context,
+    _In_    const OSHandle_t*                buffer,
+    _In_    size_t                           offset,
+    _In_    size_t                           length,
+    _In_    enum DMADirection                direction,
+    _In_    const struct DMAMapRequirements* requirements,
+    _InOut_ struct DMAMapping**              mappingOut)
 {
-    return __DmaMapSHM(context, buffer, offset, length, direction, 0, mappingOut);
+    return __DmaMapSHM(
+        context,
+        buffer,
+        offset,
+        length,
+        direction,
+        0,
+        requirements,
+        mappingOut
+    );
 }
 
 oserr_t
 DMAMapSHMDirect(
-    _In_    struct DMAContext*  context,
-    _In_    const OSHandle_t*   buffer,
-    _In_    size_t              offset,
-    _In_    size_t              length,
-    _In_    enum DMADirection   direction,
-    _InOut_ struct DMAMapping** mappingOut)
+    _In_    struct DMAContext*               context,
+    _In_    const OSHandle_t*                buffer,
+    _In_    size_t                           offset,
+    _In_    size_t                           length,
+    _In_    enum DMADirection                direction,
+    _In_    const struct DMAMapRequirements* requirements,
+    _InOut_ struct DMAMapping**              mappingOut)
 {
-    return __DmaMapSHM(context, buffer, offset, length, direction, DMA_MAP_REQUIRE_DIRECT, mappingOut);
+    return __DmaMapSHM(
+        context,
+        buffer,
+        offset,
+        length,
+        direction,
+        DMA_MAP_REQUIRE_DIRECT,
+        requirements,
+        mappingOut
+    );
 }
 
 const struct DMASegment*
@@ -346,34 +374,56 @@ DMAMappingSegments(
     return __DmaSegments(&mapping->Resource, countOut);
 }
 
+static oserr_t
+__DmaWait(
+    _In_ struct DMAMapping*   mapping,
+    _In_ enum SHMAccessKind   kind,
+    _In_ size_t               offset,
+    _In_ size_t               length,
+    _In_ enum SHMWaitMode     mode,
+    _In_ const OSTimestamp_t* deadline)
+{
+    struct SHMAccessBeginParameters parameters = {
+        .Kind = kind,
+        .Offset = offset,
+        .Length = length
+    };
+
+    return __SHMAccessWait(mapping->Resource.Handle, &parameters, mode, deadline);
+}
+
+static bool
+__RangeValid(
+    _In_ const struct DMAMapping* mapping,
+    _In_ size_t                   offset,
+    _In_ size_t                   length)
+{
+    return length != 0 && offset <= mapping->Length && length <= mapping->Length - offset;
+}
+
 oserr_t
 DMABeginTransfer(
-    _In_ struct DMAMapping* mapping,
-    _In_ size_t             offset,
-    _In_ size_t             length)
+    _In_ struct DMAMapping*   mapping,
+    _In_ size_t               offset,
+    _In_ size_t               length,
+    _In_ enum SHMWaitMode     mode,
+    _In_ const OSTimestamp_t* deadline)
 {
     oserr_t status;
 
-    if (mapping == NULL || length == 0) {
+    if (mapping == NULL || (mapping->Flags & DMA_MAP_PERSISTENT) != 0) {
         return OS_EINVALPARAMS;
     }
 
-    if (offset > mapping->Length || length > mapping->Length - offset) {
+    if (!__RangeValid(mapping, offset, length)) {
         return OS_EINVALPARAMS;
     }
 
-    if (mapping->ActiveLength != 0) {
-        return OS_EBUSY;
-    }
+    // Coherent devices go through the same call. The kernel still checks access
+    // conflicts and ordering, even when no cache work or bounce copy is needed.
+    status = __DmaWait(mapping, DMAAccessTransfer, offset, length, mode, deadline);
 
-    // Keep the coherent path on this same interface: the kernel still enforces
-    // ownership and ordering even when no cache work or bounce copy is needed.
-    // Commit the range only on success so failed publication can be retried.
-    status = Syscall_DmaSyncForDevice(mapping->Resource.Handle, offset, length);
-    if (status == OS_EOK) {
-        mapping->ActiveOffset = offset;
-        mapping->ActiveLength = length;
-    } else {
+    if (status != OS_EOK) {
         WARNING("DMABeginTransfer: mapping %u failed (%u)", mapping->Resource.Handle, status);
     }
     return status;
@@ -386,21 +436,20 @@ DMAEndTransfer(
 {
     oserr_t status;
 
-    if (mapping == NULL || mapping->ActiveLength == 0) {
+    if (mapping == NULL || (mapping->Flags & DMA_MAP_PERSISTENT) != 0) {
         return OS_EINVALPARAMS;
     }
 
-    if (completedLength > mapping->ActiveLength) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Completion always refers to the prefix of the exact range handed over.
-    // Zero reclaims cancellation without copying stale bounce bytes; a short
-    // receive leaves the uncompleted tail untouched. Failed end keeps the range.
-    status = Syscall_DmaSyncForCpu(mapping->Resource.Handle, mapping->ActiveOffset, completedLength);
-    if (status == OS_EOK) {
-        mapping->ActiveLength = 0;
-    } else {
+    // The completed length is always counted from the start of the range given
+    // to begin. Zero ends a cancelled transfer without copying stale bounce
+    // bytes, and a short receive leaves the rest of the range untouched. If end
+    // fails, the transfer stays active with the same range.
+    status = Syscall_ShmAccessEnd(
+        mapping->Resource.Handle,
+        DMAAccessTransfer,
+        completedLength
+    );
+    if (status != OS_EOK) {
         WARNING("DMAEndTransfer: mapping %u failed (%u)", mapping->Resource.Handle, status);
     }
     return status;
@@ -416,15 +465,77 @@ DMAUnmap(
         return OS_EOK;
     }
 
-    // Refuse locally before making a syscall, while the kernel also checks
-    // ownership independently. Unmap never hides a missing completion handoff.
-    if ((*mapping)->ActiveLength != 0) {
-        return OS_EBUSY;
-    }
-    
     status = __DmaRelease(&(*mapping)->Resource);
     if (status == OS_EOK) {
         *mapping = NULL;
+    }
+    return status;
+}
+
+oserr_t
+DMAMapSHMPersistent(
+    _In_    struct DMAContext*               context,
+    _In_    const OSHandle_t*                buffer,
+    _In_    size_t                           offset,
+    _In_    size_t                           length,
+    _In_    enum DMADirection                direction,
+    _In_    const struct DMAMapRequirements* requirements,
+    _InOut_ struct DMAMapping**              mappingOut)
+{
+    return __DmaMapSHM(
+        context,
+        buffer,
+        offset,
+        length,
+        direction,
+        DMA_MAP_REQUIRE_DIRECT | DMA_MAP_PERSISTENT,
+        requirements,
+        mappingOut
+    );
+}
+
+oserr_t
+DMABeginUse(
+    _In_    struct DMAMapping*   mapping,
+    _InOut_ struct DMAUse*       use,
+    _In_    enum SHMWaitMode     mode,
+    _In_    const OSTimestamp_t* deadline)
+{
+    oserr_t status;
+
+    if (mapping == NULL || use == NULL || (mapping->Flags & DMA_MAP_PERSISTENT) == 0) {
+        return OS_EINVALPARAMS;
+    }
+    if (use->Mapping != NULL) {
+        return OS_EBUSY;
+    }
+
+    status = __DmaWait(mapping, DMAAccessUse, 0, 0, mode, deadline);
+
+    if (status == OS_EOK) {
+        use->Mapping = mapping;
+    }
+    return status;
+}
+
+oserr_t
+DMAEndUse(
+    _InOut_ struct DMAUse* use)
+{
+    struct DMAMapping* mapping;
+    oserr_t            status;
+
+    if (use == NULL || use->Mapping == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    mapping = use->Mapping;
+
+    // Leave the token active on failure. The caller can then retry, and unmap
+    // keeps refusing while hardware may still be using the storage.
+    status = Syscall_ShmAccessEnd(mapping->Resource.Handle, DMAAccessUse, 0);
+    if (status == OS_EOK) {
+        use->Mapping = NULL;
     }
     return status;
 }

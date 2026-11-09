@@ -19,19 +19,98 @@
 #define __OS_SHM_H__
 
 #include <os/types/shm.h>
+#include <os/types/grants.h>
 #include <os/types/handle.h>
 
 _CODE_BEGIN
 
 /**
- * @brief Release a SHM attachment, preserving its owner when cleanup fails.
- * The last local reference unmaps the CPU view and drops the kernel attachment.
- * DMA mappings retain storage independently and must be reclaimed separately.
- * Failure may leave partial cleanup; only retry release on that attachment.
- * Successful release clears the slot. Serialize release against all other use.
+ * @brief A CPU access session for an SHM range. The session can be reused, and it
+ * does not depend on any device mapping. Must be zeroed before first use. Calls on
+ * a session must be serialized, and it must be closed once access has ended.
+ * Concurrent calls return OS_EBUSY, also while a begin is waiting in an async child.
+ * Sessions use kernel handles that only work in the security context that created
+ * them. To access the buffer from another process, share the buffer and open a new
+ * session there. The kernel keeps the storage allocated until the session is closed
+ * or the process exits.
+ * All CPU users of SHM storage that is also used for DMA must wrap their accesses
+ * in SHMAccessBeginCpu and SHMAccessEndCpu, also users in other processes. Direct
+ * pointer accesses are not trapped.
+ */
+struct SHMAccessSession {
+    // Handle is the kernel access session handle. UUID_INVALID when the session
+    // is not open.
+    uuid_t Handle;
+};
+
+/**
+ * @brief Opens a CPU access session for a nonempty range of an ordinary SHM buffer.
+ *
+ * @param buffer Existing SHM attachment of the buffer.
+ * @param offset First byte relative to the whole buffer.
+ * @param length Number of bytes within the buffer. Must be nonzero.
+ * @param session Zeroed session. Calls on it must be serialized.
+ * @return OS_EOK, OS_EBUSY if the session is already open, or an argument,
+ *         buffer lookup or allocation error.
+ */
+CRTDECL(oserr_t,
+SHMAccessOpen(
+    _In_    const OSHandle_t*        buffer,
+    _In_    size_t                   offset,
+    _In_    size_t                   length,
+    _InOut_ struct SHMAccessSession* session));
+
+/**
+ * @brief Begins CPU access to a shared range.
+ * Wait behavior is described by SHMWaitMode.
+ *
+ * @param session Open CPU access session. Calls on it must be serialized.
+ * @param access SHMCpuAccessRead, or SHMCpuAccessWrite for read/write access.
+ * @param mode How to handle conflicts, see SHMWaitMode.
+ * @param deadline Absolute timeout, or NULL to wait forever. Ignored for SHMWaitNonBlocking.
+ * @return OS_EOK, an error from the shared wait, or an argument or kernel error.
+ */
+CRTDECL(oserr_t,
+SHMAccessBeginCpu(
+    _In_ struct SHMAccessSession* session,
+    _In_ enum SHMCpuAccess        access,
+    _In_ enum SHMWaitMode         mode,
+    _In_ const OSTimestamp_t*     deadline));
+
+/**
+ * @brief Ends CPU access. Must be called before device work or conflicting CPU
+ * access can start.
+ *
+ * @param session Open session with active CPU access. All memory accesses must be
+ *                done before this call, and calls on the session must be serialized.
+ * @return OS_EOK, OS_EINVALPARAMS if no CPU access is active, or a kernel error.
+ */
+CRTDECL(oserr_t,
+SHMAccessEndCpu(
+    _In_ struct SHMAccessSession* session));
+
+/**
+ * @brief Closes an idle CPU access session.
+ *
+ * @param session Session to close. Calls on it must be serialized. NULL or an empty
+ *                session is a no-op. On success its handle is cleared.
+ * @return OS_EOK, OS_EBUSY while access is active or queued, or a kernel error.
+ *         On failure the session stays open, so the call can be retried.
+ */
+CRTDECL(oserr_t,
+SHMAccessClose(
+    _InOut_ struct SHMAccessSession* session));
+
+/**
+ * @brief Releases an SHM attachment. If cleanup fails, the handle is kept.
+ * The last local reference unmaps the CPU view and detaches from the kernel.
+ * DMA mappings keep their own reference to the storage, and must be unmapped
+ * separately. A failure may leave the cleanup partly done. In that case, only
+ * call SHMRelease again on the same attachment. A successful release clears the
+ * handle. Release must be serialized against all other use of the handle.
  * 
- * @param handle Owning SHM slot. NULL/empty slots are harmless.
- * @return OS_EOK or cleanup error. A failed release retains the slot and payload.
+ * @param handle SHM handle to release. NULL or empty handles are a no-op.
+ * @return OS_EOK or a cleanup error. On failure the handle and its payload are kept.
  */
 CRTDECL(oserr_t,
 SHMRelease(
@@ -51,49 +130,6 @@ SHMCreate(
         _Out_ OSHandle_t* handleOut));
 
 /**
- * Exports the memory buffer provided. The structure must be prefilled with most
- * of the information before being passed.
- * 
- * @param buffer [In] The buffer that should be wrapped in a SHM instance. The buffer
- *                    must be page-aligned, otherwise the exporting will fail.
- * @param shm    [In] Options related to the export of the buffer.
- * @param handle [In] The structure to fill with the attachment information.
- * @return Status of the operation.
- */
-CRTDECL(oserr_t,
-SHMExport(
-        _In_  void*       buffer,
-        _In_  SHM_t*      shm,
-        _Out_ OSHandle_t* handleOut));
-
-/**
- * @brief Creates a conformed buffer clone from a source buffer. The buffer will automatically
- * be filled on creation, or the source will be filled on conformed buffer destruction. Doing this
- * will automatically map the two (worst-case) buffers into the callers memory space.
- * OBS: This operation combines the functionality of an Attach/Map and because of it's memory
- * requirements should only be used scarcely, preferably by driver stacks that need to do this.
- *
- *  @param handle     The source SHM handle ID.
- * @param conformity The memory conformity requirements of the buffer.
- * @param flags      How the behaviour of the conformed buffer should be.
- * @param access     What kind of access the mapping should be created with, see SHM_ACCESS_*
- * @param offset     The offset into the SHM buffer the mapping should start.
- * @param length     The length of the mapping.
- * @param handleOut  The new handle of the conformed (or original) buffer.
- * @return OS_EOK on successful creation or import of the buffer.
- *         OS_EOOM if a buffer could not be allocated due to memory constraints.
- */
-CRTDECL(oserr_t,
-SHMConform(
-        _In_ uuid_t                  shmID,
-        _In_ SHMConformityOptions_t* conformity,
-        _In_ unsigned int            flags,
-        _In_ unsigned int            access,
-        _In_ size_t                  offset,
-        _In_ size_t                  length,
-        _In_ OSHandle_t*             handleOut));
-
-/**
  * Attach to a memory buffer handle, but does not perform further actions.
  * 
  * @param shmID  [In] The memory buffer handle to attach to.
@@ -106,18 +142,36 @@ SHMAttach(
         _Out_ OSHandle_t* handleOut));
 
 /**
- * Map into or update an existing memory buffer in the current memory space. When re-mapping an already
- * existing SHMHandle object, the buffer pointer may change and thus invalidating the current mapping that
- * SHMHandle_t.Buffer is pointing to. Only when extending or shrinking a mapping does SHMHandle_t.Buffer
- * not change. When moving (when offset != initial offset) a mapping, the existing buffer will be destroyed
- * and a new one will be provided.
- * If the access flags change from the original mapping, the entire mapping will get the new flags applied.
+ * @brief Attaches to the full range and scope of a grant token, without mapping it.
+ * The kernel creates a separate restricted handle. Later SHM offsets are relative
+ * to the token range. Existing mappings stay valid if the token is revoked.
+ *
+ * @param token Token to verify for the current security group.
+ * @param handleOut Receives the attachment on success. Unchanged on failure.
+ * @return OS_EOK, or a token validation, permission, copy or allocation error.
+ */
+CRTDECL(oserr_t,
+SHMAttachToken(
+    _In_  const GrantToken_t* token,
+    _Out_ OSHandle_t*         handleOut));
+
+/**
+ * @brief Maps an SHM buffer or updates its current CPU mapping.
+ * For ordinary attachments, changing only the length keeps the buffer address.
+ * Changing the offset replaces the mapping and invalidates the old pointer.
+ * New access flags apply to the entire mapping.
+ *
+ * Restricted token attachments may get a new address on every successful call, also
+ * for remaps at the same offset and for resizes. Call SHMBuffer again after success.
+ * Their offsets are relative to the token, and every CPU page that gets mapped must
+ * fit inside the token range. CPU read/write access requires both scope bits.
+ * Executable access is denied.
  * 
- * @param handle [In] The memory buffer attachment to map.
- * @param offset [In] The offset into the buffer the mapping should start.
- * @param length [In] The length of the buffer that should be mapped.
- * @param flags  [In] The memory access flags the mapping should be created with. A buffer originally created
- *                    with read access, cannot be mapped with any other access than read.
+ * @param handle SHM attachment to map.
+ * @param offset First byte of the mapping, relative to the attachment.
+ * @param length Number of bytes to map.
+ * @param flags Memory access flags. Must not exceed the access allowed when the
+ *              buffer was created.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
@@ -184,26 +238,26 @@ SHMBufferCapacity(
         _In_ OSHandle_t* handle));
 
 /**
- * @brief Returns the current offset in use for the shared memory buffer handle.
- * The value returned is only valid for buffers that have been mapped, or exported.
- * That means either SHMMap, SHMConform or SHMExport must have been called on this
- * handle.
+ * @brief Returns the offset of the current mapping within the SHM buffer.
+ * SHMCreate or SHMMap must have succeeded on this handle before the offset is read.
  * 
- * @param handle The OS handle that represents a SHM buffer.
- * @return The current offset into the underlying buffer region this mapping represents.
+ * @param handle Handle of the mapped SHM buffer.
+ * @return Byte offset of the mapping within the buffer.
  */
 CRTDECL(size_t,
 SHMBufferOffset(
         _In_ OSHandle_t* handle));
 
 /**
- * Call this once with the count parameter to get the number of
- * scatter-gather entries, then the second time with the memory_sg parameter
- * to retrieve a list of all the entries
+ * @brief Returns the physical segments of a local SHM handle.
+ * Restricted handles only return their allowed byte range, with the first and last
+ * page clipped to that range. These are CPU physical addresses, which can differ
+ * from device addresses. Use DMAMapSHM to get device addresses.
+ * A maxCount of 0 or below returns all segments. The caller must free the entries.
  * 
- * @param handle [In]  Attachment to the memory buffer to query the list of memory entries
- * @param sg_table   [Out] Pointer to storage for the sg_table. This must be manually freed.
- * @param max_count  [In]  Max number of entries, if 0 or below it will get all number of entries.
+ * @param handle SHM attachment to query.
+ * @param sgTable Receives the segment table. The caller must free its Entries.
+ * @param maxCount Maximum number of entries. Use 0 or a negative value for all entries.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,

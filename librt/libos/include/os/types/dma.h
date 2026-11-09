@@ -49,6 +49,20 @@ struct DMASegment {
 };
 
 /**
+ * @brief Constraints on every device segment returned by a DMA mapping.
+ * Zero means no constraint. Nonzero values must be powers of two.
+ * The total mapped length must also be a multiple of LengthAlignment. It is never
+ * padded to fit. Drivers must keep these constraints when they split segments or
+ * add offsets to them.
+ */
+struct DMAMapRequirements {
+    // The device address of each segment must be a multiple of this value.
+    uint64_t AddressAlignment;
+    // The length of each segment must be a multiple of this value.
+    uint64_t LengthAlignment;
+};
+
+/**
  * What a device needs from memory it keeps using, such as a controller's rings.
  * Zero for Alignment or Boundary means no requirement.
  */

@@ -45,8 +45,8 @@ SHMRelease(
         return OS_EINVALPARAMS;
     }
     
-    // Local aliases share one attachment. Only the last reference may detach
-    // it, and the registry must retain that reference if detach needs a retry.
+    // Local copies of the handle share one attachment. Only the last reference may
+    // detach it, and the registry must keep that reference if detach has to be retried.
     return OSHandleRelease(handle);
 }
 
@@ -63,11 +63,6 @@ __ValidateNewBuffer(
         return OS_ENOTSUPPORTED;
     }
 
-    if (shm->Conformity != OSMEMORYCONFORMITY_NONE) {
-        if (!(shm->Flags & SHM_CONFORM)) {
-            return OS_ENOTSUPPORTED;
-        }
-    }
     return OS_EOK;
 }
 
@@ -122,115 +117,6 @@ SHMCreate(
     return OS_EOK;
 }
 
-static oserr_t
-__ValidateExistingBuffer(
-    _In_ void*  buffer,
-    _In_ SHM_t* shm)
-{
-    if (shm == NULL || buffer == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    // For export buffers, type must always be 0
-    if (shm->Conformity != OSMEMORYCONFORMITY_NONE) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    return OS_EOK;
-}
-
-oserr_t
-SHMExport(
-    _In_  void*       buffer,
-    _In_  SHM_t*      shm,
-    _Out_ OSHandle_t* handleOut)
-{
-    SHMHandle_t* shmHandle;
-    oserr_t      oserr;
-
-    oserr = __ValidateExistingBuffer(buffer, shm);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    shmHandle = __shm_handle_new();
-    if (shmHandle == NULL) {
-        return OS_EOOM;
-    }
-
-    oserr = Syscall_SHMExport(buffer, shm, shmHandle);
-    if (oserr != OS_EOK) {
-        free(shmHandle);
-        return oserr;
-    }
-
-    oserr = OSHandleWrap(
-            shmHandle->ID,
-            OSHANDLE_SHM,
-            shmHandle,
-            true,
-            handleOut
-    );
-    if (oserr != OS_EOK) {
-        (void)Syscall_SHMDetach(shmHandle);
-        free(shmHandle);
-        return oserr;
-    }
-    return OS_EOK;
-}
-
-oserr_t
-SHMConform(
-    _In_ uuid_t                  shmID,
-    _In_ SHMConformityOptions_t* conformity,
-    _In_ unsigned int            flags,
-    _In_ unsigned int            access,
-    _In_ size_t                  offset,
-    _In_ size_t                  length,
-    _In_ OSHandle_t*             handleOut)
-{
-    SHMHandle_t*             shmHandle;
-    oserr_t                  oserr;
-    OSSHMConformParameters_t params;
-
-    if (handleOut == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Allocate a new shared memory handle the resulting buffer can be stored
-    // in. Should two buffers be mapped, the original is managed by the SHM system.
-    shmHandle = __shm_handle_new();
-    if (shmHandle == NULL) {
-        return OS_EOOM;
-    }
-
-    params.Conformity = conformity;
-    params.Flags = flags;
-    params.Access = access;
-    params.Offset = offset;
-    params.Length = length;
-
-    oserr = Syscall_SHMConform(shmID, &params, shmHandle);
-    if (oserr != OS_EOK) {
-        free(shmHandle);
-        return oserr;
-    }
-
-    oserr = OSHandleWrap(
-            shmHandle->ID,
-            OSHANDLE_SHM,
-            shmHandle,
-            true,
-            handleOut
-    );
-    if (oserr != OS_EOK) {
-        (void)Syscall_SHMDetach(shmHandle);
-        free(shmHandle);
-        return oserr;
-    }
-    return OS_EOK;
-}
-
 oserr_t
 SHMAttach(
     _In_  uuid_t      shmID,
@@ -266,6 +152,41 @@ SHMAttach(
         free(shmHandle);
         return oserr;
     }
+    return OS_EOK;
+}
+
+oserr_t
+SHMAttachToken(
+    _In_  const GrantToken_t* token,
+    _Out_ OSHandle_t*         handleOut)
+{
+    SHMHandle_t* shmHandle;
+    OSHandle_t   result;
+    oserr_t      status;
+
+    if (token == NULL || handleOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    shmHandle = __shm_handle_new();
+    if (shmHandle == NULL) {
+        return OS_EOOM;
+    }
+
+    status = Syscall_SHMAttachToken(token, shmHandle);
+    if (status != OS_EOK) {
+        free(shmHandle);
+        return status;
+    }
+
+    status = OSHandleWrap(shmHandle->ID, OSHANDLE_SHM, shmHandle, true, &result);
+    if (status != OS_EOK) {
+        (void)Syscall_SHMDetach(shmHandle);
+        free(shmHandle);
+        return status;
+    }
+    
+    *handleOut = result;
     return OS_EOK;
 }
 
@@ -334,17 +255,7 @@ SHMBufferOffset(
     if (handle == NULL || handle->Payload == NULL) {
         return 0;
     }
-    // The offset in the handle can mean two different things, either
-    // it means the actual offset the buffer was mapped with, or it means
-    // the offset into the source buffer. (Conforming buffers use this).
-    // This means that conformed buffers always have an effective offset of
-    // 0, so handle this correctly on a userspace level.
     shm = handle->Payload;
-    if (shm->SourceID != UUID_INVALID) {
-        // The buffer is a conformed buffer, they *always* have effective
-        // offsets of 0.
-        return 0;
-    }
     return shm->Offset;
 }
 
@@ -413,9 +324,8 @@ static oserr_t
 __SHMRelease(
     _In_ struct OSHandle* handle)
 {
-    // The kernel records completed stages in this payload. Do not discard it
-    // after a failed detach: a retry must neither repeat an unmap nor drop an
-    // already released source reference from a conformed attachment.
+    // The kernel records which cleanup steps are done in this payload. Keep it after
+    // a failed detach, so a retry does not repeat an unmap that already succeeded.
     return Syscall_SHMDetach(handle->Payload);
 }
 

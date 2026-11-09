@@ -20,7 +20,15 @@
 
 #include <os/osdefs.h>
 
-#define GRANT_TOKEN_VERSION 1
+#define GRANT_TOKEN_VERSION 2
+
+// Public resource types for grant tokens. The values must not change, and they are
+// separate from the kernel handle types.
+typedef enum GrantTokenResourceType {
+    GrantTokenResourceTypeInvalid = 0,
+    // SHM: used for both ordinary buffers and restricted SHM views.
+    GrantTokenResourceTypeSHM = 1
+} GrantTokenResourceType_t;
 
 typedef enum GrantTokenTargetType {
     // Any process with the token may access the resource.
@@ -29,35 +37,48 @@ typedef enum GrantTokenTargetType {
     GrantTokenTargetTypeSpecific
 } GrantTokenTargetType_t;
 
-// Access allowed by the token. Combine both flags for read/write access.
+// Access allowed by the token. Each resource type defines which flags it supports.
 typedef enum GrantTokenScope {
-    // Allow reading the permitted buffer range.
+    // SHM: allows reading the buffer range of the token.
     GrantTokenScopeRead = 0x1,
-    // Allow writing the permitted buffer range.
+    // SHM: allows writing the buffer range of the token.
     GrantTokenScopeWrite = 0x2
 } GrantTokenScope_t;
 
 /**
- * @brief Specifies the allowed receiver, access and buffer range for a grant token.
+ * @brief Export limits for the resource, selected by ResourceType.
+ * SHM uses a byte offset and a nonzero length. If a resource type does not use a
+ * word, that word must be zero.
+ */
+typedef union GrantTokenData {
+    struct {
+        uint32_t Offset;
+        uint32_t Length;
+    } SHM;
+
+    uint32_t Words[2];
+} GrantTokenData_t;
+
+/**
+ * @brief Resource type, allowed receiver and export limits of a token.
  * With GrantTokenTargetTypeAny, TargetGlobalHandleID must be UUID_INVALID.
- * With GrantTokenTargetTypeSpecific, it must identify the receiver's security group.
- * Scope must contain GrantTokenScopeRead, GrantTokenScopeWrite or both.
- * Other bits are invalid.
+ * With GrantTokenTargetTypeSpecific, it must be the security group of the receiver.
+ * ResourceType decides the meaning of Scope and Data. Only SHM is supported right
+ * now, with Read, Write or both, and a nonempty byte range.
  */
 typedef struct GrantTokenOptions {
-    GrantTokenTargetType_t TargetType;
-    uuid_t                 TargetGlobalHandleID;
-    GrantTokenScope_t      Scope;
+    GrantTokenResourceType_t ResourceType;
+    GrantTokenTargetType_t   TargetType;
+    uuid_t                   TargetGlobalHandleID;
+    GrantTokenScope_t        Scope;
 
-    // Byte offset and length within the SHM buffer. Length must be nonzero.
-    uint32_t               Offset;
-    uint32_t               Length;
+    GrantTokenData_t         Data;
 } GrantTokenOptions_t;
 
 /**
- * @brief Stores the export ID, options and secret used to verify buffer access.
- * The creator uses ControlHandleID to revoke the export. ExportGlobalHandleID
- * identifies the kernel record used during verification.
+ * @brief Holds the export ID, the token options and the secret used to verify
+ * access to the resource. The creator uses ControlHandleID to revoke the export.
+ * ExportGlobalHandleID identifies the kernel record checked during verification.
  */
 typedef struct GrantToken {
     uuid_t              ControlHandleID;
@@ -75,11 +96,12 @@ typedef enum SHMTransferRangeMode {
 } SHMTransferRangeMode_t;
 
 /**
- * @brief Describes a token and the range requested for one SHM operation.
- * In subrange mode, RequestedLength must be nonzero and the range starting at
- * RelativeOffset must fit within Token.Options.Length. The token's permitted
- * range and access flags stay unchanged. Convert this structure to the Gracht
- * contract type before sending it over IPC.
+ * @brief A token and the range requested for one SHM operation.
+ * ResourceType must be GrantTokenResourceTypeSHM. In subrange mode, RequestedLength
+ * must be nonzero, and the range starting at RelativeOffset must fit within
+ * Token.Options.Data.SHM.Length. The requested range does not change the range or
+ * access flags of the token. Convert this structure to the Gracht contract type
+ * before sending it over IPC.
  */
 typedef struct SHMTransfer {
     GrantToken_t           Token;

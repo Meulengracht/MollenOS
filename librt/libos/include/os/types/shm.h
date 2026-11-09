@@ -20,24 +20,98 @@
 
 #include <os/osdefs.h>
 #include <os/types/memory.h>
+#include <os/types/time.h>
 
 /**
- * Configuration flags for creation of a new SHM region
- * SHM_UNCACHEABLE is used to mark the underlying memory as uncachable.
- * SHM_CLEAN       will zero out any allocated memory for the dma buffer
- * SHM_COMMIT      will pre-allocate memory for the region, instead of lazily allocate
- *                 pages on page-faults.
- * SHM_TRAP        will mark the region a trap region. Only in use for OS services.
- * SHM_IPC         will mark region for IPC and needs a kernel accessible copy.
- * SHM_CONFORM     applies the physical memory constraint in Conformity.
- * SHM_PRIVATE     region is intended for private use (private to the process memory space).
+ * @brief CPU access requested by userspace. Zero is not a valid request.
+ */
+enum SHMCpuAccess {
+    // Reads may overlap other CPU or device reads of the same cache lines.
+    SHMCpuAccessRead = 1,
+    // Read/write access. No other CPU or device access may overlap.
+    SHMCpuAccessWrite = 2
+};
+
+/**
+ * @brief Access kind used by both begin and end. All access kinds must be defined
+ * here with unique values, also kinds that are implemented by device-specific
+ * records. Existing values are part of the syscall ABI and must not be renumbered.
+ */
+enum SHMAccessKind {
+    // CPU access to the whole session range. Write selects read/write access.
+    SHMAccessCpu = 0,
+    // Begin submits a DMA range, and end reports how much of that range completed.
+    DMAAccessTransfer = 1,
+    // Begin and end count the uses of a persistent DMA mapping.
+    DMAAccessUse = 2
+};
+
+/**
+ * @brief How begin calls on a shared range handle conflicts.
+ * Waiting requests are served after the earlier requests they conflict with.
+ * Requests on separate cache lines can run at the same time. A failed request
+ * reserves nothing, and does not end any access that was active before the call.
+ *
+ * SHMWaitUntilAvailable uses an absolute deadline while blocked. NULL or
+ * OS_DEADLINE_INFINITE means wait forever. A zero timestamp has already expired,
+ * and does not mean nonblocking. SHMWaitNonBlocking ignores the deadline.
+ *
+ * Errors:
+ * - OS_EBUSY on a conflict with SHMWaitNonBlocking.
+ * - OS_ETIMEOUT when a blocked wait reaches its deadline.
+ * - OS_EINTERRUPTED when a wait is interrupted while the conflict is still there.
+ * - OS_EDEVFAULT when the range overlaps a quarantined range.
+ */
+enum SHMWaitMode {
+    // Return OS_EBUSY on conflict without waiting. The deadline is ignored.
+    SHMWaitNonBlocking,
+    // Wait for conflicts to finish, limited by an optional absolute deadline.
+    SHMWaitUntilAvailable
+};
+
+/**
+ * @brief Parameters for a begin request. What is required depends on Kind:
+ * - SHMAccessCpu: Offset and Length must be zero. Write selects read/write access.
+ * - DMAAccessTransfer: Offset and Length select a range within the mapping.
+ * - DMAAccessUse: Offset and Length must be zero.
+ * For both DMA kinds, Write must be false, as the direction of the mapping decides
+ * the device access. Deadline is only used by SHMWaitUntilAvailable.
+ */
+struct SHMAccessBeginParameters {
+    enum SHMAccessKind Kind;
+    bool               Write;
+    size_t             Offset;
+    size_t             Length;
+    enum SHMWaitMode   Mode;
+    OSTimestamp_t      Deadline;
+};
+
+/**
+ * @brief Parameters for an end request. What is required depends on Kind:
+ * - SHMAccessCpu and DMAAccessUse: Length must be zero.
+ * - DMAAccessTransfer: Length is the number of completed bytes, counted from the
+ *   start of the submitted range. A Length of zero completes a cancellation without
+ *   copying received data.
+ */
+struct SHMAccessEndParameters {
+    enum SHMAccessKind Kind;
+    size_t             Length;
+};
+
+/**
+ * @brief Flags used when creating an SHM region.
+ * SHM_CLEAN       zeroes memory allocated for the buffer.
+ * SHM_COMMIT      allocates pages when the region is created, instead of waiting
+ *                 for page faults.
+ * SHM_TRAP        marks a trap region. Used only by OS services.
+ * SHM_IPC         marks an IPC region, which needs a kernel-accessible copy.
+ * SHM_PRIVATE     makes the region private to the process memory space.
  */
 #define SHM_COMMIT       0x00000001U
 #define SHM_CLEAN        0x00000002U
 #define SHM_PRIVATE      0x00000004U
 #define SHM_BIGPAGES_2MB 0x00000010U
 #define SHM_BIGPAGES_1GB 0x00000020U
-#define SHM_CONFORM      0x00000040U
 #define SHM_TRAP         0x00000100U
 #define SHM_IPC          0x00000200U
 // Kind 0x00000300U is reserved for the retired SHM_DEVICE mode. Use DMAAllocate
@@ -55,15 +129,6 @@
 // These are only available when calling SHMMap
 #define SHM_ACCESS_COMMIT  0x00000008U
 
-/**
- * @brief Flags available when conforming a SHM buffer. These flags only
- * do something if the buffer got cloned as a part of the conform operation.
- * If the underlying buffer already conformed to requirements, these flags
- * are no-ops as they are unneccesary.
- */
-#define SHM_CONFORM_FILL_ON_CREATION  0x1 // Fill the conformed buffer when created.
-#define SHM_CONFORM_BACKFILL_ON_UNMAP 0x2 // Fill the source buffer when detached.
-
 typedef struct SHM {
     // Key is the global identifier for this buffer. When listing
     // active shared memory buffers on the system, this is the name
@@ -76,10 +141,6 @@ typedef struct SHM {
     // a buffer with another process, this describes the allowed mapping
     // access.
     unsigned int Access;
-    // Conformity is the memory type that should be allocated. For most uses this
-    // should always be NONE, and is only supported for mapping device-accessible
-    // memory.
-    enum OSMemoryConformity Conformity;
     // Size is the size of the memory region. This size will not be backed,
     // but initially only be reserved in memory, unless SHM_COMMIT is specified
     // when creating the buffer. Only when memory is accessed
@@ -91,18 +152,10 @@ typedef struct SHMHandle {
     // ID is the global memory region key that identifies the memory
     // buffer. This is set on the first call to SHMAttach.
     uuid_t ID;
-    // SourceID is set if the buffer handle was created and then
-    // cloned by the conform subsystem.
-    uuid_t SourceID;
-    // SourceFlags is a set of flags related to the behaviour of the
-    // source buffer when conforming.
-    unsigned int SourceFlags;
     // Capacity is the maximum size of the buffer region. This is set
     // on the first call to SHMAttach.
     size_t Capacity;
-    // Buffer is the raw data pointer to a mapped region of memory
-    // representing the buffer. This member is set when calling either of
-    // SHMCreate/SHMExport/SHMMap.
+    // Buffer is the mapped buffer address. This is set by SHMCreate or SHMMap.
     void* Buffer;
     // Offset is the offset into the underlying storage, where the mapping
     // of the buffer starts. This is updated with each call to SHMMap
@@ -122,15 +175,5 @@ typedef struct SHMSGTable {
     int      Count;
 } SHMSGTable_t;
 
-typedef struct SHMConformityOptions {
-    // The alignment the buffer must have to be conformed. An alignment of 0
-    // means no alignment is required. The alignment must *always* be a power
-    // of two.
-    uint32_t BufferAlignment;
-    // The memory conformity is the location in physical memory that the memory
-    // range should reside. This is useful for drivers to specify requirements
-    // in terms of backwards compatability.
-    enum OSMemoryConformity Conformity;
-} SHMConformityOptions_t;
 
 #endif //!__OS_TYPES_SHM_H__

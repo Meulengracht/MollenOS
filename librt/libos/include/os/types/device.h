@@ -24,24 +24,23 @@
 
 enum OSIOCtlRequest {
     OSIOCTLREQUEST_BUS_CONTROL         = 0,
-    OSIOCTLREQUEST_IO_REQUIREMENTS     = 1 | __IOCTL_IN,
-    OSIOCTLREQUEST_PCI_INTERRUPT_QUERY = 2 | __IOCTL_IN,
-    OSIOCTLREQUEST_PCI_INTERRUPT       = 3,
+    OSIOCTLREQUEST_PCI_INTERRUPT_QUERY = 1 | __IOCTL_IN,
+    OSIOCTLREQUEST_PCI_INTERRUPT       = 2,
     // Controls a platform interrupt source with DeviceInterruptSourceRequest.
-    OSIOCTLREQUEST_INTERRUPT_CONTROL   = 4,
+    OSIOCTLREQUEST_INTERRUPT_CONTROL   = 3,
     // Queries one source by firmware index using DeviceInterruptSourceQuery.
-    OSIOCTLREQUEST_INTERRUPT_QUERY     = 5 | __IOCTL_IN,
+    OSIOCTLREQUEST_INTERRUPT_QUERY     = 4 | __IOCTL_IN,
     // Copies registered IO resources without mapping them into the driver.
-    OSIOCTLREQUEST_DEVICE_RESOURCES    = 6 | __IOCTL_IN,
+    OSIOCTLREQUEST_DEVICE_RESOURCES    = 5 | __IOCTL_IN,
     // Prepares register access. Enabling and stopping DMA are separate steps.
-    OSIOCTLREQUEST_DEVICE_ACTIVATE     = 7,
+    OSIOCTLREQUEST_DEVICE_ACTIVATE     = 6,
     // Keeps the configured DMA path until the caller closes DMA and releases it.
-    OSIOCTLREQUEST_DMA_QUERY           = 8 | __IOCTL_IN,
-    OSIOCTLREQUEST_DMA_RELEASE         = 9,
+    OSIOCTLREQUEST_DMA_QUERY           = 7 | __IOCTL_IN,
+    OSIOCTLREQUEST_DMA_RELEASE         = 8,
     // Copies MAC/PHY wiring and reset timings without changing hardware.
-    OSIOCTLREQUEST_ETHERNET_CONFIG     = 10 | __IOCTL_IN,
+    OSIOCTLREQUEST_ETHERNET_CONFIG     = 9 | __IOCTL_IN,
     // Requires a prepared device and a zero uint32_t. Pulses the firmware reset line.
-    OSIOCTLREQUEST_ETHERNET_PHY_RESET  = 11
+    OSIOCTLREQUEST_ETHERNET_PHY_RESET  = 10
 };
 
 /**
@@ -51,13 +50,5 @@ struct OSIOCtlBusControl {
     unsigned int Flags;
 };
 
-/**
- * @brief Buffer requirements for a device's IO requests.
- * The IO manager uses these requirements when submitting requests to the device.
- */
-struct OSIOCtlRequestRequirements {
-    uint32_t                BufferAlignment;
-    enum OSMemoryConformity Conformity;
-};
 
 #endif //!__OS_TYPES_DEVICE_H__

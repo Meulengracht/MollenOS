@@ -19,6 +19,7 @@
 #define __OS_SERVICES_FILE_H__
 
 #include <os/types/file.h>
+#include <os/types/grants.h>
 #include <os/types/storage.h>
 #include <os/types/handle.h>
 
@@ -374,6 +375,68 @@ CRTDECL(oserr_t,
 OSFileViewUnmap(
         _In_ void*  mapping,
         _In_ size_t length));
+
+/**
+ * @brief Transfers the selected SHM bytes at the current file position.
+ * The token must stay active until this call returns. This call does not revoke it.
+ * File reads require Read|Write scope, and file writes require Read scope.
+ *
+ * @param handle File handle.
+ * @param transfer Token and the selected bytes of the payload. The selection must not be empty.
+ * @param write True to write to the file, false to read from it.
+ * @param bytesTransferred Receives the number of bytes transferred. Zero if the transport failed.
+ * @return File status, an error in the token description, or a transport or protocol error.
+ */
+CRTDECL(oserr_t,
+OSTransferFileBuffer(
+    _In_  uuid_t               handle,
+    _In_  const SHMTransfer_t* transfer,
+    _In_  bool                 write,
+    _Out_ size_t*              bytesTransferred));
+
+/**
+ * @brief Transfers the selected SHM bytes at a given file position.
+ * The token and completion rules are the same as for OSTransferFileBuffer.
+ *
+ * @param handle File handle.
+ * @param position Byte position in the file. Not related to the SHM selection.
+ * @param transfer Token and the selected bytes of the payload. The selection must not be empty.
+ * @param write True to write to the file, false to read from it.
+ * @param bytesTransferred Receives the number of bytes transferred. Zero if the transport failed.
+ * @return File status, an error in the token description, or a transport or protocol error.
+ */
+CRTDECL(oserr_t,
+OSTransferFileBufferAt(
+    _In_  uuid_t               handle,
+    _In_  const UInteger64_t*   position,
+    _In_  const SHMTransfer_t* transfer,
+    _In_  bool                 write,
+    _Out_ size_t*              bytesTransferred));
+
+/**
+ * @brief Transfers a range of the caller's SHM buffer at a given file position.
+ * A temporary token is created that covers the whole pages of the range, so the
+ * caller's SHM buffer must include those pages. A length of zero returns success
+ * without an RPC.
+ *
+ * @param handle File handle.
+ * @param position Byte position in the file.
+ * @param bufferID SHM handle in the caller's grant table.
+ * @param bufferOffset First byte within that SHM buffer.
+ * @param write True to write to the file, false to read from it.
+ * @param length Number of bytes to transfer.
+ * @param bytesTransferred Receives the number of bytes transferred.
+ * @return File status, or an export, transport or protocol error.
+ */
+CRTDECL(oserr_t,
+OSTransferFileAt(
+    _In_  uuid_t              handle,
+    _In_  const UInteger64_t* position,
+    _In_  uuid_t              bufferID,
+    _In_  size_t              bufferOffset,
+    _In_  bool                write,
+    _In_  size_t              length,
+    _Out_ size_t*             bytesTransferred));
 
 _CODE_END
 #endif //!__OS_SERVICES_FILE_H__

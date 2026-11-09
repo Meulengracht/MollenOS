@@ -21,17 +21,18 @@
 #include <os/types/grants.h>
 
 /**
- * @brief Creates a grant token for an SHM buffer in the caller's grant table.
- * The buffer must not have SHM_PRIVATE set. If it was created with SHMExport,
- * its original memory must stay valid until the export and all imported
- * references have been released. Only share the token after this call succeeds.
+ * @brief Creates a grant token for a resource handle in the caller's grant table.
+ * Only the SHM resource type is supported, and the buffer must not have
+ * SHM_PRIVATE set. Do not share the token before this call has succeeded.
  * The fixed secret must be replaced before production use.
  *
- * @param handleID SHM handle in the caller's grant table.
- * @param options Requested access, buffer range and allowed receiver.
- * @param tokenOut Receives the token on success. Ignore its contents on failure,
- *                 even if some bytes were written. The failed export cannot be used.
- * @return OS_EOK, a validation or resource error, or a user-memory copy error.
+ * @param handleID Handle of the resource in the caller's grant table.
+ * @param options Resource type, scope, limits for that resource type and the
+ *                receiver that may use the token.
+ * @param tokenOut Receives the token on success. Do not use its contents on failure,
+ *                 even if some bytes were written. A failed export cannot be used.
+ * @return OS_EOK, OS_ENOTSUPPORTED for an unsupported resource type, or a
+ *         validation, resource or user-memory copy error.
  */
 CRTDECL(oserr_t,
 OSGrantTokenCreate(

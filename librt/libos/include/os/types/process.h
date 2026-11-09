@@ -31,6 +31,10 @@
 // This limit should always be a multiple of 8, to account for the bitmap allocator.
 #define PROCESS_MAXMODULES 64
 
+// Maximum size of the startup payload, for both input and output. For output,
+// this includes the output header.
+#define PROCESS_STARTUP_MAX_SIZE (64U * 1024U)
+
 // PROCESS_INHERIT_* flags denote which kind of file-descriptor inheritation that
 // should be done when spawning processes. None simply means nothing will be inheritted,
 // and even std{in,out,err} should be NULL file-descriptors.
@@ -47,10 +51,10 @@ typedef struct OSProcessOptions OSProcessOptions_t;
 // to transfer certain configuration data between the process manager and the
 // new process itself.
 typedef struct ProcessStartupInformation {
-    size_t ArgumentsLength;
-    size_t InheritationLength;
-    size_t LibraryEntriesLength;
-    size_t EnvironmentBlockLength;
+    uint32_t ArgumentsLength;
+    uint32_t InheritationLength;
+    uint32_t LibraryEntriesLength;
+    uint32_t EnvironmentBlockLength;
 } ProcessStartupInformation_t;
 
 #endif //!__TYPES_PROCESS_H__

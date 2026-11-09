@@ -51,19 +51,12 @@ typedef struct OSFutexParameters {
     OSTimestamp_t* Deadline;
 } OSFutexParameters_t;
 
-typedef struct OSSHMConformParameters {
-    SHMConformityOptions_t* Conformity;
-    unsigned int            Flags;
-    unsigned int            Access;
-    size_t                  Offset;
-    size_t                  Length;
-} OSSHMConformParameters_t;
-
 struct OSDmaMapParameters {
-    size_t            Offset;
-    size_t            Length;
-    enum DMADirection Direction;
-    unsigned int      Flags;
+    size_t                    Offset;
+    size_t                    Length;
+    enum DMADirection         Direction;
+    unsigned int              Flags;
+    struct DMAMapRequirements Requirements;
 };
 
 struct OSDmaMappingResult {
@@ -76,5 +69,10 @@ struct OSDmaAllocationResult {
     SHMHandle_t               Buffer;
     struct OSDmaMappingResult Mapping;
 };
+
+typedef struct MemorySpaceCreateResult {
+    uuid_t Handle;
+    uuid_t SecurityGroupID;
+} MemorySpaceCreateResult_t;
 
 #endif //!__TYPES_SYSCALL_H__

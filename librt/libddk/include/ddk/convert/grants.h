@@ -50,23 +50,35 @@ __GrantSecretBytes(
 }
 
 static inline bool
-__GrantTokenFieldsValid(
-    _In_ const GrantToken_t* token)
+__GrantTokenPolicyValid(
+    _In_ const GrantTokenOptions_t* options)
 {
     unsigned int knownFlags = GrantTokenScopeRead | GrantTokenScopeWrite;
 
+    switch (options->ResourceType) {
+        case GrantTokenResourceTypeSHM:
+            return options->Scope != 0 &&
+                   ((unsigned int)options->Scope & ~knownFlags) == 0 &&
+                   options->Data.SHM.Length != 0;
+        default:
+            return false;
+    }
+}
+
+static inline bool
+__GrantTokenFieldsValid(
+    _In_ const GrantToken_t* token)
+{
     if (token->Version != GRANT_TOKEN_VERSION) {
         return false;
     }
+
     if (token->ExportGlobalHandleID == UUID_INVALID ||
         token->ControlHandleID != token->ExportGlobalHandleID) {
         return false;
     }
-    if (token->Options.Scope == 0 ||
-        ((unsigned int)token->Options.Scope & ~knownFlags) != 0) {
-        return false;
-    }
-    if (token->Options.Length == 0) {
+
+    if (!__GrantTokenPolicyValid(&token->Options)) {
         return false;
     }
 
@@ -83,20 +95,26 @@ static inline bool
 __SHMTransferSelectorValid(
     _In_ const SHMTransfer_t* transfer)
 {
+    if (transfer->Token.Options.ResourceType != GrantTokenResourceTypeSHM) {
+        return false;
+    }
+
     if (transfer->RangeMode == SHMTransferRangeFull) {
         return transfer->RelativeOffset == 0 && transfer->RequestedLength == 0;
     }
+
     if (transfer->RangeMode != SHMTransferRangeSubrange) {
         return false;
     }
+
     if (transfer->RequestedLength == 0 ||
-        transfer->RelativeOffset > transfer->Token.Options.Length) {
+        transfer->RelativeOffset > transfer->Token.Options.Data.SHM.Length) {
         return false;
     }
 
     // Subtract before comparing so that offset + length cannot wrap.
     return transfer->RequestedLength <=
-           transfer->Token.Options.Length - transfer->RelativeOffset;
+           transfer->Token.Options.Data.SHM.Length - transfer->RelativeOffset;
 }
 
 /**
@@ -119,14 +137,16 @@ __ToSysGrantToken(
     if (in == NULL || out == NULL) {
         return OS_EINVALPARAMS;
     }
+
     if (!__GrantTokenFieldsValid(in)) {
         return OS_EINVALPARAMS;
     }
 
     token.version = in->Version;
     token.export_id = in->ExportGlobalHandleID;
-    token.buffer_offset = in->Options.Offset;
-    token.buffer_length = in->Options.Length;
+    token.resource_type = (uint32_t)in->Options.ResourceType;
+    token.data0 = in->Options.Data.Words[0];
+    token.data1 = in->Options.Data.Words[1];
     token.target_id = in->Options.TargetGlobalHandleID;
     token.scope = (uint32_t)in->Options.Scope;
     token.target_type = (uint32_t)in->Options.TargetType;
@@ -134,19 +154,21 @@ __ToSysGrantToken(
     token.secret1 = __GrantSecretWord(in->Secret + 4);
     token.secret2 = __GrantSecretWord(in->Secret + 8);
     token.secret3 = __GrantSecretWord(in->Secret + 12);
+
     *out = token;
     return OS_EOK;
 }
 
 /**
  * @brief Converts a decoded Gracht token to the native type and checks its fields.
- * Gracht decoding must have succeeded before this call. The kernel must verify
- * the converted token before allowing buffer access. ControlHandleID is copied
- * from export_id. Revoking the export still requires a grant for that handle.
+ * Gracht decoding must have succeeded before this is called. The kernel must still
+ * verify the converted token before any resource access is allowed.
+ * ControlHandleID is set from export_id. Revoking the export still requires a grant
+ * for that handle.
  *
  * @param in Decoded contract token.
  * @param out Receives the native token on success. Unchanged on failure.
- * @return OS_EOK or OS_EINVALPARAMS for invalid arguments or token fields.
+ * @return OS_EOK, or OS_EINVALPARAMS for invalid arguments or token fields.
  */
 static inline oserr_t
 __FromSysGrantToken(
@@ -162,8 +184,9 @@ __FromSysGrantToken(
     token.Version = in->version;
     token.ExportGlobalHandleID = in->export_id;
     token.ControlHandleID = in->export_id;
-    token.Options.Offset = in->buffer_offset;
-    token.Options.Length = in->buffer_length;
+    token.Options.ResourceType = (GrantTokenResourceType_t)in->resource_type;
+    token.Options.Data.Words[0] = in->data0;
+    token.Options.Data.Words[1] = in->data1;
     token.Options.TargetGlobalHandleID = in->target_id;
     token.Options.Scope = (GrantTokenScope_t)in->scope;
     token.Options.TargetType = (GrantTokenTargetType_t)in->target_type;
@@ -171,9 +194,11 @@ __FromSysGrantToken(
     __GrantSecretBytes(in->secret1, token.Secret + 4);
     __GrantSecretBytes(in->secret2, token.Secret + 8);
     __GrantSecretBytes(in->secret3, token.Secret + 12);
+
     if (!__GrantTokenFieldsValid(&token)) {
         return OS_EINVALPARAMS;
     }
+
     *out = token;
     return OS_EOK;
 }
@@ -181,12 +206,13 @@ __FromSysGrantToken(
 /**
  * @brief Converts an SHM transfer to the Gracht contract type.
  * In full-range mode, RelativeOffset and RequestedLength must both be zero.
- * A subrange must have a nonzero length and fit within Token.Options.Length.
- * The requested range leaves the token's range and access flags unchanged.
+ * In subrange mode, the length must be nonzero and the range must fit within
+ * Token.Options.Data.SHM.Length.
+ * The requested range does not change the range or access flags of the token.
  *
  * @param in Native transfer description.
  * @param out Receives the contract description on success. Unchanged on failure.
- * @return OS_EOK or OS_EINVALPARAMS for invalid arguments, token fields or range.
+ * @return OS_EOK, or OS_EINVALPARAMS for invalid arguments, token fields or range.
  */
 static inline oserr_t
 __ToSysSHMTransfer(
@@ -199,6 +225,7 @@ __ToSysSHMTransfer(
     if (in == NULL || out == NULL) {
         return OS_EINVALPARAMS;
     }
+
     if (!__SHMTransferSelectorValid(in)) {
         return OS_EINVALPARAMS;
     }
@@ -207,28 +234,30 @@ __ToSysSHMTransfer(
     if (oserr != OS_EOK) {
         return oserr;
     }
+
     transfer.range_mode = (uint32_t)in->RangeMode;
     transfer.relative_offset = in->RelativeOffset;
     transfer.requested_length = in->RequestedLength;
+
     *out = transfer;
     return OS_EOK;
 }
 
 /**
  * @brief Converts a decoded SHM transfer and checks its token fields and range.
- * Gracht decoding must have succeeded before this call. The kernel must still
- * verify the token. In full-range mode, RelativeOffset and RequestedLength stay
- * zero. Use offset zero and Token.Options.Length within the attachment when
- * executing the transfer.
+ * Gracht decoding must have succeeded before this is called. The kernel must still
+ * verify the token. In full-range mode, RelativeOffset and RequestedLength stay zero.
+ * When the transfer is executed, use offset zero and a length of
+ * Token.Options.Data.SHM.Length within the attachment.
  *
  * @param in Decoded contract description.
  * @param out Receives the native description on success. Unchanged on failure.
- * @return OS_EOK or OS_EINVALPARAMS for invalid arguments, token fields or range.
+ * @return OS_EOK, or OS_EINVALPARAMS for invalid arguments, token fields or range.
  */
 static inline oserr_t
 __FromSysSHMTransfer(
     _In_  const struct sys_shm_transfer* in,
-    _Out_ SHMTransfer_t*                out)
+    _Out_ SHMTransfer_t*                 out)
 {
     SHMTransfer_t transfer = { 0 };
     oserr_t       oserr;
@@ -241,14 +270,48 @@ __FromSysSHMTransfer(
     if (oserr != OS_EOK) {
         return oserr;
     }
+
     transfer.RangeMode = (SHMTransferRangeMode_t)in->range_mode;
     transfer.RelativeOffset = in->relative_offset;
     transfer.RequestedLength = in->requested_length;
+
     if (!__SHMTransferSelectorValid(&transfer)) {
         return OS_EINVALPARAMS;
     }
+    
     *out = transfer;
     return OS_EOK;
+}
+
+/**
+ * @brief Checks whether two transfer descriptions are equal. Used to detect a
+ * registration that is retried with the same request.
+ * Only the contract fields are compared. The kernel still verifies the token.
+ *
+ * @param left First transfer description.
+ * @param right Second transfer description.
+ * @return true if the token, range mode, offset and length all match.
+ */
+static inline bool
+__SameSysSHMTransfer(
+    _In_ const struct sys_shm_transfer* left,
+    _In_ const struct sys_shm_transfer* right)
+{
+    return left->token.version == right->token.version &&
+           left->token.export_id == right->token.export_id &&
+           left->token.resource_type == right->token.resource_type &&
+           left->token.data0 == right->token.data0 &&
+           left->token.data1 == right->token.data1 &&
+           left->token.target_id == right->token.target_id &&
+           left->token.scope == right->token.scope &&
+           left->token.target_type == right->token.target_type &&
+           left->token.secret0 == right->token.secret0 &&
+           left->token.secret1 == right->token.secret1 &&
+           left->token.secret2 == right->token.secret2 &&
+           left->token.secret3 == right->token.secret3 &&
+           left->range_mode == right->range_mode &&
+           left->relative_offset == right->relative_offset &&
+           left->requested_length == right->requested_length;
 }
 
 #endif //!__DDK_CONVERT_GRANTS_H__
