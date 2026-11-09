@@ -528,22 +528,31 @@ PciPublishDevice(
     // description fails, remove the partial group. Hardware preparation failures
     // leave the descriptions registered so a retry can use the same IDs.
     if (group->State == DmPublicationCollecting) {
+        status = PciAssignHostBars(device);
+        if (status != OS_EOK) {
+            __DmStartupFromStatus(status, result);
+            return;
+        }
+
         // Finish attaching children before adding their descriptions to the group.
         status = __PciRetryAttachments(device);
         if (status != OS_EOK) {
             __DmStartupFromStatus(status, result);
             return;
         }
+
         status = __PciStagePublication(device);
         if (status != OS_EOK) {
             // Removal preparation may fail before DmPublicationRemove runs.
             // Mark cleanup pending so a retry removes the partial tree first.
             publication->CleanupPending = 1;
+
             cleanup = PciUnpublishDevice(device);
             if (cleanup != OS_EOK) {
                 __DmStartupRetryResult(cleanup, result);
                 return;
             }
+
             __DmStartupFromStatus(status, result);
             return;
         }

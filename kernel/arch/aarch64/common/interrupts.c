@@ -25,153 +25,52 @@
 #include <string.h>
 
 #include "private.h"
-#include "device.h"
+#include "gic.h"
 #include "platform.h"
 
-static volatile uint32_t* g_distributor;
-static volatile uint32_t* g_cpuInterface;
-static unsigned int       g_interruptCount;
-static Spinlock_t         g_gicLock;
+static const struct Arm64GicOperations* g_gic;
+static unsigned int                     g_interruptCount;
+static Spinlock_t                       g_gicLock;
 
-static void
-__WriteDistributor(
-    unsigned int offset,
-    uint32_t value)
-{
-    g_distributor[offset / ARM64_GIC_REGISTER_SIZE] = value;
-    __asm__ volatile("dsb sy" ::: "memory");
-}
-
-static uint32_t
-__GetCoreTarget(void)
-{
-    uint32_t target = g_distributor[ARM64_GICD_ITARGETSR / ARM64_GIC_REGISTER_SIZE];
-
-    // Each byte names this CPU for one banked interrupt. Some implementations
-    // leave individual bytes zero, so combine all four before selecting a byte.
-    target |= target >> 16;
-    target |= target >> 8;
-    return target & ARM64_GIC_BYTE_MASK;
-}
-
-static uint32_t
-__GetInterruptGroup(void)
-{
-    uint32_t capabilities = g_distributor[ARM64_GICD_TYPER / ARM64_GIC_REGISTER_SIZE];
-
-    // The nonsecure view uses firmware-owned Group 1 when security is present;
-    // otherwise all interrupts belong to Group 0.
-    return (capabilities & ARM64_GIC_TYPER_SECURITY) ? ARM64_GIC_ALL_BITS : 0;
-}
-
-void
+oserr_t
 Arm64GicInitializeCore(void)
 {
     PlatformCpuCoreBlock_t* core = CpuCorePlatformBlock(CpuCoreCurrent());
-    unsigned int            offset;
+    oserr_t                 status = g_gic->InitializeCore();
 
-    // ITARGETSR0 describes this interface's target bit; MPIDR affinity is not
-    // a GIC target number (notably on BCM2712).
-    core->GicTarget = __GetCoreTarget();
-    __WriteDistributor(ARM64_GICD_ICENABLER, ARM64_GIC_PPI_MASK);
-    __WriteDistributor(ARM64_GICD_ICPENDR, ARM64_GIC_ALL_BITS);
-    
-    // Without security extensions, use Group 0 with EnableGrp0. With
-    // security extensions, the nonsecure view enables firmware-owned Group 1.
-    __WriteDistributor(ARM64_GICD_IGROUPR, __GetInterruptGroup());
-    for (offset = ARM64_GICD_IPRIORITYR;
-         offset < ARM64_GICD_IPRIORITYR + ARM64_GIC_SPI_BASE;
-         offset += ARM64_GIC_REGISTER_SIZE) {
-        __WriteDistributor(offset, ARM64_GIC_DEFAULT_PRIORITIES);
+    // Only mark the CPU ready for IPIs once its GIC interface works. The release
+    // store pairs with the acquire load done by the sender.
+    if (status == OS_EOK) {
+        __atomic_store_n(&core->Gic.Ready, 1, __ATOMIC_RELEASE);
     }
-    __WriteDistributor(ARM64_GICD_ISENABLER, ARM64_GIC_SGI_MASK);
-   
-    // Accept every priority and use no subpriority split. IRQ nesting remains
-    // disabled by DAIF.I rather than by changing this threshold in handlers.
-    g_cpuInterface[ARM64_GICC_PMR / ARM64_GIC_REGISTER_SIZE] = ARM64_GIC_BYTE_MASK;
-    g_cpuInterface[ARM64_GICC_BPR / ARM64_GIC_REGISTER_SIZE] = 0;
-    g_cpuInterface[ARM64_GICC_CTLR / ARM64_GIC_REGISTER_SIZE] = ARM64_GIC_ENABLE;
-
-    __asm__ volatile("dsb sy\nisb" ::: "memory");
-}
-
-static void
-__InitializeSharedInterrupts(
-    _In_ uint32_t target)
-{
-    unsigned int line;
-    unsigned int offset;
-    uint32_t     group = __GetInterruptGroup();
-
-    for (line = ARM64_GIC_SPI_BASE; line < g_interruptCount; line += ARM64_GIC_BITS_PER_REGISTER) {
-        offset = (line / ARM64_GIC_BITS_PER_REGISTER) * ARM64_GIC_REGISTER_SIZE;
-        __WriteDistributor(ARM64_GICD_ICENABLER + offset, ARM64_GIC_ALL_BITS);
-        __WriteDistributor(ARM64_GICD_ICPENDR + offset, ARM64_GIC_ALL_BITS);
-        __WriteDistributor(ARM64_GICD_IGROUPR + offset, group);
-    }
-    
-    for (line = ARM64_GIC_SPI_BASE; line < g_interruptCount; line += ARM64_GIC_BYTES_PER_REGISTER) {
-        __WriteDistributor(ARM64_GICD_IPRIORITYR + line, ARM64_GIC_DEFAULT_PRIORITIES);
-        __WriteDistributor(ARM64_GICD_ITARGETSR + line, target);
-    }
-    
-    // Clearing both configuration bits selects level triggering for each SPI.
-    for (line = ARM64_GIC_SPI_BASE; line < g_interruptCount; line += ARM64_GIC_CONFIG_PER_REGISTER) {
-        offset = (line / ARM64_GIC_CONFIG_PER_REGISTER) * ARM64_GIC_REGISTER_SIZE;
-        __WriteDistributor(ARM64_GICD_ICFGR + offset, 0);
-    }
+    return status;
 }
 
 oserr_t
 PlatformInterruptInitialize(void)
 {
-    uint32_t target;
-    uint32_t capabilities;
+    oserr_t status;
 
-    // The distributor controls interrupt routing and shared device lines;
-    // the CPU interface lets this core receive and acknowledge interrupts.
-    // Map both register regions before attempting to access the controller.
-    g_distributor = (void*)Arm64MapDevice(g_arm64Platform.Distributor, g_arm64Platform.DistributorLength);
-    g_cpuInterface = (void*)Arm64MapDevice(g_arm64Platform.CpuInterface, g_arm64Platform.CpuInterfaceLength);
-    // Without either mapping, we cannot safely configure or use the controller.
-    if (!g_distributor || !g_cpuInterface) {
-        return OS_EOOM;
+    if (g_arm64Platform.Gic.Version == 2) {
+        g_gic = &g_arm64GicV2;
+    } else if (g_arm64Platform.Gic.Version == 3) {
+        g_gic = &g_arm64GicV3;
+    } else {
+        return OS_ENOTSUPPORTED;
     }
-    
-    // Later configuration can come from multiple CPUs. Prepare its lock, then
-    // stop distributor delivery so interrupts cannot use half-configured state.
+
     SpinlockConstruct(&g_gicLock);
-    __WriteDistributor(ARM64_GICD_CTLR, 0);
-
-    // TYPER reports the number of 32-interrupt groups minus one, not a direct
-    // interrupt count. Convert it to the number of IDs exposed by the hardware.
-    capabilities = g_distributor[ARM64_GICD_TYPER / ARM64_GIC_REGISTER_SIZE];
-    g_interruptCount = ((capabilities & ARM64_GIC_TYPER_LINES_MASK) + 1) * ARM64_GIC_BITS_PER_REGISTER;
-    // Stay within the kernel's interrupt tables. In particular, GIC IDs
-    // 1020-1023 are special responses, not device interrupts we can register.
-    if (g_interruptCount > ARM64_GIC_SPECIAL_ID_BASE) {
-        g_interruptCount = ARM64_GIC_SPECIAL_ID_BASE;
+    status = g_gic->Initialize(&g_interruptCount);
+    if (status != OS_EOK) {
+        return status;
     }
-
-    // Initially route shared device interrupts to this boot CPU. Each target
-    // register holds four one-byte CPU masks; multiplication repeats this
-    // core's hardware target mask in all four bytes, without assuming its ID.
-    target = __GetCoreTarget() * ARM64_GIC_REPEAT_BYTE;
-
-    // Start shared lines disabled, clear old pending requests, and assign
-    // their group, default priority, CPU target, and level-triggered mode.
-    // Drivers can later choose their required trigger mode and enable a line.
-    __InitializeSharedInterrupts(target);
-
-    // Prepare this CPU's private interrupts and receiving interface before
-    // allowing the distributor to deliver interrupts again. Other CPUs perform
-    // their own local initialization when they start.
-    Arm64GicInitializeCore();
-    __WriteDistributor(ARM64_GICD_CTLR, ARM64_GIC_ENABLE);
-
-    DEBUG("GIC distributor=%llx cpu=%llx type=%x control=%x target=%x",
-        g_arm64Platform.Distributor, g_arm64Platform.CpuInterface,
-        capabilities, g_distributor[ARM64_GICD_CTLR / ARM64_GIC_REGISTER_SIZE], target);
+    __atomic_store_n(
+        &CpuCorePlatformBlock(
+            CpuCoreCurrent()
+        )->Gic.Ready,
+        1,
+        __ATOMIC_RELEASE
+    );
     return Arm64PlatformInterruptInitialize(g_interruptCount);
 }
 
@@ -236,94 +135,28 @@ InterruptConfigure(
     _In_ const InterruptControllerResource_t* interrupt,
     _In_ int                                  enable)
 {
-    unsigned int line = interrupt->Line;
-    unsigned int shift;
-    unsigned int offset;
-    uint32_t     configuration;
+    oserr_t status;
 
-    // Software interrupts use the CPU-to-CPU interrupt mechanism, not a device
-    // trigger setting. Their enable state is established during CPU startup,
-    // so there is no device line to reconfigure here.
     if (interrupt->Flags & INTERRUPT_SOFT) {
         return OS_EOK;
     }
-
-    // IDs below the private-device range are reserved for software interrupts.
-    // IDs at or above the discovered count have no usable hardware line.
-    // Reject both before calculating offsets into the distributor registers.
-    if (line < ARM64_GIC_PPI_BASE || line >= g_interruptCount) {
+    if (interrupt->Line < ARM64_GIC_PPI_BASE || interrupt->Line >= g_interruptCount) {
         return OS_EINVALPARAMS;
     }
 
-    // Different CPUs can configure interrupts stored in the same register.
-    // Hold the lock across the whole update so they cannot overwrite each
-    // other's settings. Mask local IRQs while holding it so an interrupt on
-    // this CPU cannot interrupt the owner and then wait for the same lock.
+    // A trigger register is shared by several interrupts, so the read/modify/write
+    // is done under a lock. IRQs are disabled while we hold it, so a local IRQ
+    // never ends up waiting on the lock.
     SpinlockAcquireIrq(&g_gicLock);
-
-    // ICENABLER has one bit per interrupt, with 32 interrupts in each word.
-    // Division selects the word; multiplication converts its index to a byte
-    // offset; the remainder selects this interrupt's bit within that word.
-    // Writing a one disables that line; zero bits leave all other lines alone.
-    // This is a clear command, not an ordinary register value to read/modify.
-    // Disable delivery before changing the trigger mode. It does not clear a
-    // pending request or finish an already-active interrupt. The write helper's
-    // barrier completes the disable write before we change the configuration.
-    offset = (line / ARM64_GIC_BITS_PER_REGISTER) * ARM64_GIC_REGISTER_SIZE;
-    __WriteDistributor(ARM64_GICD_ICENABLER + offset, 1U << (line % ARM64_GIC_BITS_PER_REGISTER));
-
-    // Only shared peripheral interrupts get their trigger mode changed here.
-    // Private peripheral interrupts belong to the current CPU; leave their
-    // firmware/platform-established trigger settings unchanged in this path.
-    if (line >= ARM64_GIC_SPI_BASE) {
-        // ICFGR stores sixteen two-bit interrupt settings in each 32-bit word.
-        // Select the word and the position of this line's two-bit field.
-        offset = ARM64_GICD_ICFGR + (line / ARM64_GIC_CONFIG_PER_REGISTER) * ARM64_GIC_REGISTER_SIZE;
-        shift = (line % ARM64_GIC_CONFIG_PER_REGISTER) * ARM64_GIC_CONFIG_BITS;
-
-        // Unlike the enable/disable commands, ICFGR stores a complete register
-        // value. Preserve the other fifteen lines and clear only this field.
-        // Its low bit is reserved and stays zero; its high bit selects edge
-        // triggering when set, or level triggering when clear.
-        configuration = g_distributor[offset / ARM64_GIC_REGISTER_SIZE] & ~(ARM64_GIC_CONFIG_MASK << shift);
-
-        // The kernel's trigger-mode flag means level-triggered: the device
-        // keeps its request asserted until serviced. With no such flag, select
-        // edge-triggered delivery, which records a change in the input signal.
-        if (!(interrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE)) {
-            configuration |= ARM64_GIC_CONFIG_EDGE << shift;
-        }
-
-        // Write the preserved word with this line's new setting. The helper's
-        // barrier completes the configuration write before the line is enabled.
-        __WriteDistributor(offset, configuration);
-    }
-
-    // ISENABLER is the matching set command: writing one enables this line;
-    // zero bits do not disable or otherwise change neighboring lines. Recompute
-    // the enable-word offset because the trigger update used a different bank.
-    // If enable is false, leave the line disabled by the earlier clear command.
-    if (enable) {
-        offset = (line / ARM64_GIC_BITS_PER_REGISTER) * ARM64_GIC_REGISTER_SIZE;
-        __WriteDistributor(ARM64_GICD_ISENABLER + offset, 1U << (line % ARM64_GIC_BITS_PER_REGISTER));
-    }
-
-    // Make the controller available to other CPUs, then restore this CPU's
-    // previous IRQ mask rather than unconditionally enabling interrupts.
+    status = g_gic->Configure(interrupt, enable);
     SpinlockReleaseIrq(&g_gicLock);
-    return OS_EOK;
+    return status;
 }
 
 void
 Arm64EnableTimerInterrupt(void)
 {
-    __WriteDistributor(ARM64_GICD_ISENABLER, 1U << g_arm64Platform.TimerInterrupt);
-    
-    DEBUG("GIC core=%u timer=%u enabled=%x cpu-control=%x priority-mask=%x",
-        ArchGetProcessorCoreId(), g_arm64Platform.TimerInterrupt,
-        g_distributor[ARM64_GICD_ISENABLER / ARM64_GIC_REGISTER_SIZE],
-        g_cpuInterface[ARM64_GICC_CTLR / ARM64_GIC_REGISTER_SIZE],
-        g_cpuInterface[ARM64_GICC_PMR / ARM64_GIC_REGISTER_SIZE]);
+    g_gic->EnablePrivate(g_arm64Platform.TimerInterrupt);
 }
 
 Context_t*
@@ -334,22 +167,26 @@ Arm64HandleInterrupt(
     uint32_t              token;
     uint32_t              line;
 
-    // Reading the Interrupt Acknowledge Register (IAR) is not just a status
-    // check: it claims the highest-priority eligible pending interrupt for
-    // this CPU and marks it active. Read once and keep the returned value for
-    // the matching end-of-interrupt write after its handler has finished.
-    token = g_cpuInterface[ARM64_GICC_IAR / ARM64_GIC_REGISTER_SIZE];
+    // Reading IAR marks the highest-priority eligible interrupt active on this
+    // CPU. Read it once and save the token, as we must return that same token
+    // when the handler finishes.
+    token = g_gic->Acknowledge();
 
-    // Bits 9:0 identify the interrupt to dispatch. For a software-generated
-    // interrupt, the token also identifies its sending CPU; those extra bits
-    // are not part of the interrupt-table index and must not be discarded.
-    line = token & ARM64_GIC_INTERRUPT_ID_MASK;
-
-    // IDs 1020-1023 are special controller responses, not interrupt handlers.
-    // For example, 1023 means there is no eligible interrupt to claim. Such a
-    // response does not need an end-of-interrupt write; resume the same context
-    // without saving this token or looking up a device handler.
-    if (line >= ARM64_GIC_SPECIAL_ID_BASE) {
+    // Only GICv2 has sender bits in the token. GICv3 returns the full interrupt
+    // ID, and masking that to 10 bits would make an LPI look like some other
+    // device interrupt.
+    line = g_gic->Decode(token);
+    if (line >= ARM64_GIC_SPECIAL_ID_BASE && line <= 1023) {
+        return context;
+    }
+    
+    if (line >= g_interruptCount) {
+        // The interrupt became active when IAR was read, even though we cannot
+        // handle the ID. Complete it before reporting the error, and never use
+        // the ID as an index into the handler table.
+        __asm__ volatile("dsb sy" ::: "memory");
+        g_gic->Complete(token);
+        FATAL(FATAL_SCOPE_KERNEL, "Unsupported GIC interrupt %u", line);
         return context;
     }
 
@@ -359,10 +196,9 @@ Arm64HandleInterrupt(
     // cannot replace this CPU's token before the current one is completed.
     local->InterruptToken = token;
 
-    // INTERRUPT_LAPIC is the shared kernel's scheduler-interrupt name. Here
-    // it denotes a software-generated request to reconsider which thread runs,
-    // not an x86 controller or the physical timer's interrupt line. Handle it
-    // directly because it does not use the registered device-handler list.
+    // The shared kernel calls the scheduler interrupt INTERRUPT_LAPIC. On ARM
+    // this is an SGI, handled here without going through the device-handler list.
+    // The physical timer has its own registered handler.
     if (line == INTERRUPT_LAPIC) {
         // Register the interrupted context before scheduling, so the scheduler
         // can save the outgoing thread and choose a different context to resume.
@@ -372,7 +208,7 @@ Arm64HandleInterrupt(
         // Zero selects request-driven scheduling rather than timer preemption.
         Arm64TimerAdvance(0);
 
-        // Complete the claimed GIC interrupt even if scheduling selected another
+        // Complete the GIC interrupt even if scheduling selected another
         // thread. EOIR must receive the saved token before that thread resumes.
         InterruptsAcknowledge(INTERRUPT_LAPIC, INTERRUPT_LAPIC);
 
@@ -381,10 +217,9 @@ Arm64HandleInterrupt(
         return CpuCoreExitInterrupt(context, 0);
     }
 
-    // Other IDs use the shared interrupt-table dispatcher, including the
-    // physical timer's registered handler. It performs context bookkeeping,
-    // calls the registered handlers, and completes the GIC interrupt through
-    // InterruptsAcknowledge; doing those steps here as well would duplicate them.
+    // The shared dispatcher handles the remaining IDs, including the physical
+    // timer. It records the context, runs the handlers and calls
+    // InterruptsAcknowledge, so we must not repeat those steps here.
     return InterruptHandle(context, line);
 }
 
@@ -395,31 +230,24 @@ InterruptsAcknowledge(
 {
     struct Arm64CpuLocal* local = &g_arm64CpuLocals[ArchGetProcessorCoreId()];
 
-    // These arguments belong to the shared interrupt API. source identifies
-    // the registered handler's source and can be INTERRUPT_NONE if no handler
-    // claims the request; tableIndex identifies the software dispatch entry.
-    // Neither tells the GIC exactly what this CPU claimed. GICv2 requires the
-    // token read from IAR, including the sending CPU for a software interrupt.
-    // The table index lacks those sender bits, and completing a claimed GIC
-    // interrupt is required even when no registered handler handled it.
-    // Use the receiving CPU's saved token instead of reconstructing it from
-    // these arguments. IRQ nesting is disabled, so that token is still current.
+    // source identifies the registered handler's source, or INTERRUPT_NONE if
+    // no handler handled the request. tableIndex is the software table entry.
+    // We need the saved IAR token instead, including the sending CPU for GICv2
+    // SGIs. IRQs cannot nest here, so the token is still current. Complete it
+    // even if no registered handler handled the interrupt.
     (void)source;
     (void)tableIndex;
 
     // Finish the handler's earlier memory and device-register writes before
-    // telling the interrupt controller that handling is complete. For a
-    // level-triggered device, its handler must clear the device's request;
-    // writing EOIR does not clear the device's own interrupt-status register.
+    // telling the interrupt controller that handling is complete. A level-
+    // triggered device must have its request cleared by the handler, as writing
+    // EOIR does not clear the device's interrupt-status register.
     __asm__ volatile("dsb sy" ::: "memory");
 
-    // EOIR is the CPU interface's end-of-interrupt register. Return the full
-    // saved IAR token unchanged so the GIC completes the correct interrupt,
-    // including the correct sender for a software-generated request. In this
-    // port's combined EOI mode, the write releases its running priority and
-    // clears its active state; a request still pending can then be delivered
-    // again when priority and CPU interrupt masking allow it.
-    g_cpuInterface[ARM64_GICC_EOIR / ARM64_GIC_REGISTER_SIZE] = local->InterruptToken;
+    // Return the full token to EOIR. With the combined EOI mode used here, this
+    // drops the running priority and clears the active state. A pending request
+    // can then be delivered again once priority and CPU IRQ masking allow it.
+    g_gic->Complete(local->InterruptToken);
 
     // Complete the EOIR write before returning to exception exit, which may
     // resume the interrupted thread or a different thread chosen by scheduling.
@@ -499,15 +327,11 @@ ArchProcessorSendInterrupt(
     }
     
     core = GetProcessorCore(coreId);
-    if (!core || !CpuCorePlatformBlock(core)->GicTarget) {
+    if (!core || !__atomic_load_n(&CpuCorePlatformBlock(core)->Gic.Ready, __ATOMIC_ACQUIRE)) {
         return OS_ENOENT;
     }
     
     // Publish shared stores before the SGI makes the target CPU observe them.
     __asm__ volatile("dsb ishst" ::: "memory");
-    __WriteDistributor(
-        ARM64_GICD_SGIR,
-        (CpuCorePlatformBlock(core)->GicTarget << ARM64_GIC_SGI_TARGET_SHIFT) | line
-    );
-    return OS_EOK;
+    return g_gic->Send(CpuCorePlatformBlock(core), line);
 }

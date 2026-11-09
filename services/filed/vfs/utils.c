@@ -20,6 +20,7 @@
 
 #include <ddk/utils.h>
 #include <os/handle.h>
+#include <os/grants.h>
 #include <os/shm.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>
@@ -135,6 +136,8 @@ static oserr_t __LoadNode(struct VFSNode* node)
     oserr_t               osStatus, osStatus2;
     mstring_t*            nodePath;
     void*                 data;
+    SHMTransfer_t         transfer = { .RangeMode = SHMTransferRangeFull };
+    size_t                read;
 
     TRACE("__LoadNode(node=%ms)", node ? node->Name : NULL);
     if (node == NULL) {
@@ -155,20 +158,39 @@ static oserr_t __LoadNode(struct VFSNode* node)
         goto cleanup;
     }
 
+    osStatus = OSGrantTokenCreate(
+        vfs->Buffer.ID,
+        &(GrantTokenOptions_t) {
+            .ResourceType = GrantTokenResourceTypeSHM,
+            .TargetType = GrantTokenTargetTypeAny,
+            .TargetGlobalHandleID = UUID_INVALID,
+            .Scope = GrantTokenScopeRead | GrantTokenScopeWrite,
+            .Data.SHM = { .Offset = 0, .Length = (uint32_t)SHMBufferCapacity(&vfs->Buffer) }
+        },
+        &transfer.Token
+    );
+    if (osStatus != OS_EOK) {
+        goto close;
+    }
+
     while (1) {
-        size_t read;
+        read = 0;
+        
+        memset(SHMBuffer(&vfs->Buffer), 0, SHMBufferLength(&vfs->Buffer));
 
         osStatus = ops->Read(
                 vfs->Interface,
                 vfs->Data, data,
-                vfs->Buffer.ID,
-                SHMBuffer(&vfs->Buffer),
-                0,
-                SHMBufferLength(&vfs->Buffer),
+                &transfer,
                 &read
         );
         if (osStatus != OS_EOK || read == 0) {
             TRACE("__LoadNode done reading entries");
+            break;
+        }
+
+        if (read > SHMBufferLength(&vfs->Buffer)) {
+            osStatus = OS_EPROTOCOL;
             break;
         }
 
@@ -178,6 +200,8 @@ static oserr_t __LoadNode(struct VFSNode* node)
         }
     }
 
+    OSGrantTokenRevoke(transfer.Token.ControlHandleID);
+close:
     osStatus2 = ops->Close(vfs->Interface, vfs->Data, data);
     if (osStatus2 != OS_EOK) {
         WARNING("__LoadNode failed to cleanup handle with code %u", osStatus2);

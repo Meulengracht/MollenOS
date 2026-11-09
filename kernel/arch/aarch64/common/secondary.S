@@ -19,14 +19,14 @@
 #include "abi.h"
 
 // Both spin-table and PSCI secondaries enter with translation disabled.
-// Match the complete MPIDR affinity; firmware arguments are not a logical ID.
+// Match the complete MPIDR affinity. Firmware arguments are not a logical ID.
 .text
 .p2align 6
 .globl Arm64SecondaryEntry
 
 // Firmware's x0 argument is not trusted as a core ID. x0 becomes the masked
 // MPIDR affinity, x1 is the affinity mask, x2 is the search count, and x3 is
-// scratch. x19 retains the selected Arm64SecondaryState across setup stages.
+// scratch. x19 keeps the selected Arm64SecondaryState throughout setup.
 // There is no usable stack until the selected state's Stack field is loaded.
 Arm64SecondaryEntry:
     // DAIFSet immediate 0b1111 masks Debug, SError, IRQ and FIQ (DAIF[9:6])
@@ -36,7 +36,7 @@ Arm64SecondaryEntry:
     
     // MPIDR Aff0[7:0], Aff1[15:8], Aff2[23:16], Aff3[39:32] identify the
     // physical core. Mask 0xff00ffffff removes flags such as MT[24] and U[30]
-    // and reserved bits, so comparison uses the full affinity, not just Aff0.
+    // and reserved bits, so we compare all four affinity fields.
     mov x1, #ARM64_AFFINITY_LOW
     movk x1, #ARM64_AFFINITY_HIGH, lsl #ARM64_AFFINITY_HIGH_SHIFT
     and x0, x0, x1
@@ -44,14 +44,14 @@ Arm64SecondaryEntry:
     add x19, x19, :lo12:g_arm64SecondaryState
     
     // ADRP + :lo12: forms the state-array address without an absolute pointer.
-    // There are ARM64_CPU_COUNT=256 slots, each exactly 64 bytes:
+    // There are ARM64_CPU_COUNT=256 slots of 128 bytes each:
     // +0 Affinity, +8 Stack, +16 Table0, +24 Table1, +32 Tcr, +40 Mair,
-    // +48 logical Id, +56 Ready. These offsets match Arm64SecondaryState in
-    // smp.c and must remain synchronized with that structure's layout.
+    // +48 logical Id, +56 Ready, +64 GicVersion (the rest is reserved).
+    // These offsets must match Arm64SecondaryState in smp.c.
     mov x2, #ARM64_SECONDARY_SLOTS
 
 .Lfind_secondary:
-    // Ignore unpublished slots (Ready=0); compare only complete descriptors.
+    // Skip slots with Ready=0, as their descriptors are not ready to use.
     ldr x3, [x19, #ARM64_SECONDARY_READY]
     cbz x3, .Lnext_secondary
     ldr x3, [x19]
@@ -66,7 +66,7 @@ Arm64SecondaryEntry:
 
 .Lsecondary_found:
     // CurrentEL[3:2] encodes the exception level: EL2=8, EL1=4. Only touch
-    // EL2-only controls on the EL2 path; halt on unsupported entry levels.
+    // EL2-only controls on the EL2 path. Halt on unsupported entry levels.
     mrs x0, CurrentEL
     cmp x0, #ARM64_CURRENT_EL2
     b.eq .Lsecondary_el2
@@ -75,13 +75,36 @@ Arm64SecondaryEntry:
     b .Lsecondary_el1
 
 .Lsecondary_el2:
-    // HCR_EL2.RW[31]=1 selects AArch64 EL1. All other fields are zero,
-    // disabling stage-2 translation, VHE aliasing and EL2 trap/routing policy.
-    mov x0, #ARM64_HCR_AARCH64
+    // Keep E2H as is, since some VHE CPUs do not allow it to be cleared. Clear
+    // TGE and the stage-2/trap controls before we use the EL12 aliases to set
+    // up the EL1 state.
+    mrs x20, hcr_el2
+    and x20, x20, #(1 << 34)
+    orr x0, x20, #ARM64_HCR_AARCH64
     msr hcr_el2, x0
-    
+    isb
+
+    ldr x0, [x19, #ARM64_SECONDARY_GIC]
+    cmp x0, #3
+    b.ne .Lsecondary_gic_ready
+    mrs x0, id_aa64pfr0_el1
+    ubfx x0, x0, #24, #4
+    cbz x0, .Lsecondary_stop
+    // Each secondary CPU must set up its own SRE and traps, as the writes done
+    // by the boot CPU only apply to the boot CPU. EL3 must allow this access
+    // from non-secure EL2.
+    mrs x0, icc_sre_el2
+    orr x0, x0, #15
+    msr icc_sre_el2, x0
+    isb
+    mrs x0, icc_sre_el2
+    tbz x0, #0, .Lsecondary_stop
+    msr ich_hcr_el2, xzr
+    isb
+
+.Lsecondary_gic_ready:
     // ID_AA64ISAR2_EL1.MOPS[19:16]=1 supplies CPY*/SET*, 0 means absent.
-    // x0 is disposable setup scratch; UBFX puts the four-bit field in [3:0].
+    // x0 can be used as scratch here. UBFX puts the four-bit field in [3:0].
     mrs x0, id_aa64isar2_el1
     ubfx x0, x0, #ARM64_ISAR2_MOPS_SHIFT, #ARM64_FEATURE_FIELD_BITS
     cmp x0, #ARM64_ISAR2_MOPS_SUPPORTED
@@ -95,39 +118,44 @@ Arm64SecondaryEntry:
     
     // S3_4_C1_C2_2 names HCRX_EL2 (op0=3, op1=4, CRn=1, CRm=2, op2=2)
     // without requiring the assembler to target a newer instruction set.
-    // MSCEn[11]=1 (0x800) permits MOPS at EL1/EL0; retain other controls and
-    // ISB-synchronize before ERET. EL3 must permit HCRX via SCR_EL3.HXEn[38].
+    // MSCEn[11]=1 (0x800) permits MOPS at EL1/EL0. Keep the other controls and
+    // issue ISB before ERET. EL3 must allow HCRX through SCR_EL3.HXEn[38].
     // Each secondary needs this independently of the boot core. Its EL1
-    // MSCEn[33] is set later in Arm64InitializeLocal before feature publication.
+    // MSCEn[33] is set later in Arm64InitializeLocal before reporting CPU features.
     mrs x0, S3_4_C1_C2_2
     orr x0, x0, #ARM64_HCRX_MOPS_ENABLE
     msr S3_4_C1_C2_2, x0
     isb
 
 .Lmops_el2_ready:
-    // CPTR_EL2.TFP[10]/TCPAC[31]=0 removes EL2 FP/SIMD/CPACR access traps.
-    // HSTR_EL2=0 clears AArch32 system-register traps; execution is AArch64.
-    msr cptr_el2, xzr
+    // With VHE, the CPTR/CNTHCTL fields have different meanings and the EL1
+    // register names point to EL2 instead. Use the controls that match the
+    // mode, and go through SCTLR_EL12 to set up EL1.
     msr hstr_el2, xzr
-    
-    // With HCR.E2H=0, CNTHCTL_EL2.EL1PCTEN[0]/EL1PCEN[1]=1 allow EL1's
-    // physical counter/timer. CNTVOFF=0 gives the virtual counter no offset;
-    // VTTBR=0 removes stale stage-2 table/VMID association while HCR.VM=0.
-    mov x0, #ARM64_CNTHCTL_PHYSICAL
-    msr cnthctl_el2, x0
     msr cntvoff_el2, xzr
     msr vttbr_el2, xzr
-    
-    // SCTLR_EL1=0x30d00800 supplies the baseline RES1/control bits
-    // [29,28,23,22,20,11], with MMU M[0], data cache C[2] and instruction
-    // cache I[12] still disabled until this core installs the shared tables.
-    mov x0, #ARM64_SCTLR_BASE_LOW
-    movk x0, #ARM64_SCTLR_BASE_HIGH, lsl #16
-    msr sctlr_el1, x0
-    
-    // SPSR_EL2=0x3c5: DAIF[9:6]=0b1111 masks asynchronous exceptions;
+    mov x1, #ARM64_SCTLR_BASE_LOW
+    movk x1, #ARM64_SCTLR_BASE_HIGH, lsl #16
+    cbnz x20, .Lsecondary_vhe
+    mov x0, #0x33ff
+    msr cptr_el2, x0
+    mov x0, #ARM64_CNTHCTL_PHYSICAL
+    msr cnthctl_el2, x0
+    msr sctlr_el1, x1
+    b .Lsecondary_el1_prepared
+
+.Lsecondary_vhe:
+    mov x0, #0x300000
+    msr cptr_el2, x0
+    mov x0, #0xc00
+    msr cnthctl_el2, x0
+    msr S3_5_C1_C0_0, x1 // SCTLR_EL12
+
+.Lsecondary_el1_prepared:
+    isb
+    // SPSR_EL2=0x3c5: DAIF[9:6]=0b1111 masks asynchronous exceptions.
     // M[3:0]=0b0101 selects AArch64 EL1h using SP_EL1. ELR_EL2 receives the
-    // EL1 landing address; ERET restores that PC and the prepared PSTATE.
+    // EL1 entry address. ERET restores that PC and the prepared PSTATE.
     mov x0, #ARM64_SPSR_MASKED_EL1H
     msr spsr_el2, x0
     adr x0, .Lsecondary_el1
@@ -144,8 +172,8 @@ Arm64SecondaryEntry:
     msr vbar_el1, x0
     
     // VBAR_EL1 installs the EL1 exception-vector base before enabling memory.
-    // CPACR_EL1.FPEN[21:20]=0b11 (0x300000) permits FP/NEON at EL0 and EL1;
-    // the kernel remains general-register-only and saves userspace SIMD state.
+    // CPACR_EL1.FPEN[21:20]=0b11 (0x300000) permits FP/NEON at EL0 and EL1.
+    // The kernel uses only general registers and saves userspace SIMD state.
     mov x0, #ARM64_CPACR_FP_ENABLE
     msr cpacr_el1, x0
     
@@ -155,9 +183,9 @@ Arm64SecondaryEntry:
     msr cntv_ctl_el0, xzr
     msr cntkctl_el1, xzr
     
-    // Table0/Table1 are TTBR0_EL1/TTBR1_EL1 roots; TCR_EL1 supplies address
-    // sizes, granules and walk policy; MAIR_EL1 maps attribute indices to
-    // Normal/Device memory types. Use the boot core's prepared configuration.
+    // Table0/Table1 are the TTBR0_EL1/TTBR1_EL1 roots. TCR_EL1 supplies address
+    // sizes, granules and table-walk settings. MAIR_EL1 maps attribute indices
+    // to Normal/Device memory types. Use the boot CPU's configuration.
     ldp x0, x1, [x19, #ARM64_SECONDARY_TABLES]
     msr ttbr0_el1, x0
     msr ttbr1_el1, x1
@@ -166,7 +194,7 @@ Arm64SecondaryEntry:
     msr mair_el1, x1
     
     // ISB applies the new translation controls. TLBI VMALLE1 discards this
-    // core's EL1 stage-1 cached translations; IC IALLU invalidates its local
+    // core's EL1 stage-1 cached translations. IC IALLU invalidates its local
     // instruction cache. DSB SY completes maintenance and ISB refetches under
     // the new execution context before translation/caches are enabled.
     isb
@@ -185,8 +213,8 @@ Arm64SecondaryEntry:
     isb
     
     // x0 now becomes Arm64SecondaryStart's logical-ID argument (+48).
-    // x18 is the platform/TLS register; clear it until TLS is initialized.
-    // x29=0 terminates the frame chain. BL sets x30/LR; the C entry never
+    // x18 is the platform/TLS register. Clear it until TLS is initialized.
+    // x29=0 terminates the frame chain. BL sets x30/LR. The C entry never
     // returns normally, and the stop loop is a fail-safe with no stack use.
     ldr x0, [x19, #ARM64_SECONDARY_ID]
     mov x18, xzr

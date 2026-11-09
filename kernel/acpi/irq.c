@@ -25,10 +25,13 @@
 
 #include <arch/utils.h>
 #include <acpiinterface.h>
+#include <stddef.h>
 #include <assert.h>
 #include <debug.h>
 #include <heap.h>
 #include <interrupts/interrupts.h>
+
+#include "pci.h"
 
 struct IrqParseContext {
     list_t* AvailableIrqs;
@@ -349,41 +352,6 @@ exit:
     return acpiStatus;
 }
 
-static ACPI_STATUS __CreateFixedInterruptSource(
-        _In_ ACPI_PCI_ROUTING_TABLE* pciRoutingTable,
-        _In_ AcpiRoutingEntry_t*     routeEntry)
-{
-    AcpiInterruptResource_t* routingEntry;
-    TRACE("__CreateFixedInterruptSource(routeEntry=0x%" PRIxIN ")", routeEntry);
-
-    if (!routeEntry->InterruptSource) {
-        routeEntry->InterruptSource = kmalloc(sizeof(AcpiInterruptSource_t));
-        if (!routeEntry->InterruptSource) {
-            return AE_NO_MEMORY;
-        }
-
-        // initialize the interrupt source, set HANDLE=NULL
-        ELEMENT_INIT(&routeEntry->InterruptSource->Header, 0, routeEntry->InterruptSource);
-        list_construct(&routeEntry->InterruptSource->PossibleInterrupts);
-        routeEntry->InterruptSource->Handle = NULL;
-        routeEntry->InterruptSource->CurrentInterrupt = NULL;
-    }
-
-    // Allocate a new entry and store information
-    routingEntry = __CreateRoutingEntry(ACPI_RESOURCE_TYPE_IRQ, ACPI_ACTIVE_LOW,
-                                        ACPI_LEVEL_SENSITIVE, 0,
-                                        pciRoutingTable->SourceIndex);
-    if (!routingEntry) {
-        return AE_NO_MEMORY;
-    }
-
-    // set as active and add to list
-    InterruptIncreasePenalty((int)pciRoutingTable->SourceIndex);
-    routeEntry->InterruptSource->CurrentInterrupt = routingEntry;
-    list_append(&routeEntry->InterruptSource->PossibleInterrupts, &routingEntry->Header);
-    return AE_OK;
-}
-
 static ACPI_STATUS __CreateInterruptSource(
         _In_  ACPI_HANDLE             deviceHandle,
         _In_  ACPI_PCI_ROUTING_TABLE* pciRoutingTable,
@@ -400,12 +368,16 @@ static ACPI_STATUS __CreateInterruptSource(
         return acpiStatus;
     }
 
-    interruptSource = (AcpiInterruptSource_t*)kmalloc(sizeof(AcpiInterruptSource_t));
+    interruptSource = kmalloc(sizeof(*interruptSource) + strlen(pciRoutingTable->Source) + 1);
     if (!interruptSource) {
         return AE_NO_MEMORY;
     }
 
-    ELEMENT_INIT(&interruptSource->Header, &pciRoutingTable->Source[0], interruptSource);
+    // The _PRT buffer is freed after parsing, so copy the source name into this
+    // allocation. Later lookups by function then never read freed memory.
+    strcpy((char*)(interruptSource + 1), pciRoutingTable->Source);
+    ELEMENT_INIT(&interruptSource->Header, (char*)(interruptSource + 1), interruptSource);
+    interruptSource->CurrentInterrupt = NULL;
     list_construct(&interruptSource->PossibleInterrupts);
     interruptSource->Handle = handle;
 
@@ -420,8 +392,6 @@ static ACPI_STATUS __ParsePRTTable(
 {
     ACPI_STATUS            acpiStatus = AE_OK;
     AcpiInterruptSource_t* interruptSource;
-    AcpiRoutingEntry_t*    routeEntry;
-    unsigned int           interruptIndex;
     unsigned int           deviceIndex;
     TRACE("__ParsePRTTable(deviceHandle=0x%" PRIxIN ")", deviceHandle);
 
@@ -436,16 +406,21 @@ static ACPI_STATUS __ParsePRTTable(
         return AE_BAD_PARAMETER;
     }
 
-    interruptIndex = (deviceIndex * ACPI_PRT_PIN_COUNT) + pciRoutingTable->Pin;
-    routeEntry     = &routings->InterruptEntries[interruptIndex];
-
-    TRACE("__ParsePRTTable deviceIndex=%u, interruptIndex=%u, pciRoutingTable->sourceIndex=%u",
-          deviceIndex, interruptIndex, pciRoutingTable->SourceIndex);
-    // Check if the first byte is 0, then there is no irq-resource
-    // Then the SourceIndex is the actual IRQ
+    // Direct GSIs are read from the matching _PRT entry when queried. Only link
+    // devices need to be cached, as selecting an IRQ for them may run _SRS.
     if (pciRoutingTable->Source[0] == '\0') {
-        acpiStatus = __CreateFixedInterruptSource(pciRoutingTable, routeEntry);
-        goto exit;
+        if (pciRoutingTable->SourceIndex > INT32_MAX) {
+            return AE_BAD_DATA;
+        }
+
+        // Count fixed routes in the x86 IRQ penalty before IRQs are selected
+        // for link devices. Queries must never change the penalty.
+        InterruptIncreasePenalty((int)pciRoutingTable->SourceIndex);
+        return AE_OK;
+    }
+
+    if (pciRoutingTable->SourceIndex != 0) {
+        return AE_SUPPORT;
     }
 
     // Ok, so we have a valid handle, lets see if we already have the handle cached in memory
@@ -476,13 +451,14 @@ static ACPI_STATUS __ParsePRTTable(
         }
     }
 
-    routeEntry->InterruptSource = interruptSource;
     TRACE("__ParsePRTTable source=%s", &pciRoutingTable->Source[0]);
 
 exit:
     TRACE("__ParsePRTTable returns=%u", acpiStatus);
     return acpiStatus;
 }
+
+static ACPI_STATUS __ValidatePrt(const ACPI_BUFFER* buffer);
 
 static ACPI_STATUS __ParsePRTBuffer(
         _In_ ACPI_HANDLE        deviceHandle,
@@ -518,105 +494,215 @@ static AcpiBusRoutings_t* __CreateAcpiRoutings(void)
     return routings;
 }
 
+static void
+__DestroyRoutings(
+    _In_ AcpiBusRoutings_t* routings)
+{
+    element_t*             entry;
+    AcpiInterruptSource_t* source;
+
+    while (routings->Sources.head != NULL) {
+        entry = routings->Sources.head;
+        source = entry->value;
+        list_remove(&routings->Sources, entry);
+        while (source->PossibleInterrupts.head != NULL) {
+            entry = source->PossibleInterrupts.head;
+            list_remove(&source->PossibleInterrupts, entry);
+            kfree(entry->value);
+        }
+        kfree(source);
+    }
+    kfree(routings);
+}
+
 ACPI_STATUS
 AcpiDeviceGetIrqRoutings(
-        _In_ AcpiDevice_t* device)
+    _In_ AcpiDevice_t* device)
 {
     AcpiBusRoutings_t* routings;
-    ACPI_STATUS    acpiStatus;
-    ACPI_BUFFER    acpiBuffer;
+    ACPI_STATUS        status;
+    ACPI_BUFFER        buffer = { ACPI_ALLOCATE_BUFFER, NULL };
 
-    TRACE("AcpiDeviceGetIrqRoutings(device=0x%" PRIxIN ")", device);
-
-    acpiBuffer.Length  = 0x2000;
-    acpiBuffer.Pointer = (char*)kmalloc(0x2000);
-    if (!acpiBuffer.Pointer) {
-        acpiStatus = AE_NO_MEMORY;
-        goto exit;
+    status = AcpiGetIrqRoutingTable(device->Handle, &buffer);
+    if (ACPI_FAILURE(status)) {
+        return status;
     }
 
-    memset(acpiBuffer.Pointer, 0, 0x2000);
+    status = __ValidatePrt(&buffer);
+    if (ACPI_FAILURE(status)) {
+        AcpiOsFree(buffer.Pointer);
+        return status;
+    }
 
     routings = __CreateAcpiRoutings();
     if (!routings) {
-        acpiStatus = AE_NO_MEMORY;
-        goto exit;
+        AcpiOsFree(buffer.Pointer);
+        return AE_NO_MEMORY;
     }
 
-    // Execute the _PRT method
-    acpiStatus = AcpiGetIrqRoutingTable(device->Handle, &acpiBuffer);
-    if (ACPI_FAILURE(acpiStatus)) {
-        ERROR("AcpiDeviceGetIrqRoutings failed to extract irq routings");
-        goto exit;
-    }
-
-    acpiStatus = __ParsePRTBuffer(device->Handle, routings, acpiBuffer.Pointer);
-    if (ACPI_FAILURE(acpiStatus)) {
-        ERROR("AcpiDeviceGetIrqRoutings failed to parse irq routings");
-        goto exit;
+    status = __ParsePRTBuffer(device->Handle, routings, buffer.Pointer);
+    AcpiOsFree(buffer.Pointer);
+    if (ACPI_FAILURE(status)) {
+        __DestroyRoutings(routings);
+        return status;
     }
 
     device->Routings = routings;
-exit:
-    if (acpiBuffer.Pointer) {
-        kfree(acpiBuffer.Pointer);
-    }
+    return AE_OK;
+}
 
-    TRACE("AcpiDeviceGetIrqRoutings returns=%u", acpiStatus);
-    return acpiStatus;
+static ACPI_STATUS
+__ValidatePrt(
+    _In_ const ACPI_BUFFER* buffer)
+{
+    ACPI_PCI_ROUTING_TABLE* entry;
+    size_t                  offset = 0;
+    size_t                  sourceOffset = offsetof(ACPI_PCI_ROUTING_TABLE, Source);
+    uint32_t                length;
+    uint32_t                function;
+
+    while (buffer->Length - offset >= sizeof(length)) {
+        memcpy(&length, (const char*)buffer->Pointer + offset, sizeof(length));
+        if (!length) {
+            return AE_OK;
+        }
+
+        if (length > buffer->Length - offset || length <= sourceOffset ||
+            (length & (sizeof(UINT64) - 1))) {
+            return AE_BAD_DATA;
+        }
+
+        entry = (void*)((char*)buffer->Pointer + offset);
+        function = entry->Address & 0xffff;
+        if (entry->Address >> 32 || (entry->Address >> 16) > 31 || entry->Pin > 3) {
+            return AE_BAD_DATA;
+        }
+
+        if (function > 7 && function != 0xffff) {
+            return AE_BAD_DATA;
+        }
+
+        if (!memchr(entry->Source, 0, length - sourceOffset)) {
+            return AE_BAD_DATA;
+        }
+
+        offset += length;
+    }
+    return AE_BAD_DATA;
 }
 
 oserr_t
-AcpiDeviceGetInterrupt(
-        _In_  int           bus,
-        _In_  int           device,
-        _In_  int           pciPin,
-        _Out_ int*          interruptOut,
-        _Out_ unsigned int* acpiConformOut)
+AcpiPciRoute(
+    _In_  ACPI_HANDLE                bus,
+    _In_  const struct AcpiPciQuery* query,
+    _Out_ struct AcpiPciInterrupt*   result)
 {
-    AcpiInterruptSource_t* interruptSource;
-    AcpiDevice_t*          acpiDevice;
-    int                    index;
-    unsigned int           flags = INTERRUPT_ACPICONFORM_PRESENT;
+    ACPI_BUFFER             buffer = { ACPI_ALLOCATE_BUFFER, NULL };
+    ACPI_PCI_ROUTING_TABLE* entry;
+    ACPI_PCI_ROUTING_TABLE* match = NULL;
+    ACPI_STATUS             acpiStatus;
+    oserr_t                 status = OS_ENOENT;
+    size_t                  offset;
+    uint32_t                function;
+    int                     exact;
+    int                     matchedExact = 0;
 
-    TRACE("AcpiDeviceGetInterrupt(bus=%i, device=%i, pciPin=%i)",
-          bus, device, pciPin);
+#if defined(__i386__) || defined(__amd64__)
+    AcpiDevice_t*            device;
+    AcpiInterruptSource_t*   source;
+    AcpiInterruptResource_t* interrupt;
+#endif
 
-    // Validate both caller-supplied fields before calculating the array index.
-    if (device < 0 || device >= ACPI_PRT_DEVICE_COUNT ||
-        pciPin < 1 || pciPin > ACPI_PRT_PIN_COUNT) {
-        return OS_EINVALPARAMS;
+    acpiStatus = AcpiGetIrqRoutingTable(bus, &buffer);
+    if (ACPI_FAILURE(acpiStatus)) {
+        return acpiStatus == AE_NOT_FOUND ? OS_ENOENT : OS_EUNKNOWN;
     }
 
-    index = (device * ACPI_PRT_PIN_COUNT) + (pciPin - 1);
-
-    // Start by checking if we can find the
-    // routings by checking the given device
-    acpiDevice = AcpiDeviceLookupBusRoutings(bus);
-    if (!acpiDevice || !acpiDevice->Routings) {
-        return OS_ENOENT;
+    if (ACPI_FAILURE(__ValidatePrt(&buffer))) {
+        status = OS_EINVALPARAMS;
+        goto exit;
     }
 
-    TRACE("AcpiDeviceGetInterrupt found bus-device <%s>, accessing index %i",
-          &acpiDevice->HId[0], index);
-    interruptSource = acpiDevice->Routings->InterruptEntries[index].InterruptSource;
-    if (!interruptSource || !interruptSource->CurrentInterrupt) {
-        return OS_ENOENT;
+    // Match the device/function from _ADR, including the ACPI function wildcard.
+    // A route for the exact function wins over a wildcard route, and two routes
+    // that match equally well are ambiguous. Swizzling is only done by deviced,
+    // never here.
+    for (offset = 0; ; offset += entry->Length) {
+        entry = (void*)((char*)buffer.Pointer + offset);
+        if (!entry->Length) {
+            break;
+        }
+        function = entry->Address & 0xffff;
+        if ((entry->Address >> 16) != query->Address.Device || entry->Pin != query->Pin - 1U) {
+            continue;
+        }
+        exact = function == query->Address.Function;
+        if (!exact && function != 0xffff) {
+            continue;
+        }
+        if (match && matchedExact == exact) {
+            status = OS_EINVALPARAMS;
+            goto exit;
+        }
+        if (!match || exact) {
+            match = entry;
+            matchedExact = exact;
+        }
     }
 
-    // convert flags
-    if (interruptSource->CurrentInterrupt->Trigger == ACPI_LEVEL_SENSITIVE) { flags |= INTERRUPT_ACPICONFORM_TRIGGERMODE; }
-    if (interruptSource->CurrentInterrupt->Polarity == ACPI_ACTIVE_LOW)     { flags |= INTERRUPT_ACPICONFORM_POLARITY; }
-    if (interruptSource->CurrentInterrupt->Shareable)                       { flags |= INTERRUPT_ACPICONFORM_SHAREABLE; }
-    if (!interruptSource->Handle)                                           { flags |= INTERRUPT_ACPICONFORM_FIXED; }
+    if (!match) {
+        goto exit;
+    }
 
-    // Update IRQ Information
-    *acpiConformOut = flags;
-    *interruptOut = (int)interruptSource->CurrentInterrupt->Irq;
+    if (!match->Source[0]) {
+        if (match->SourceIndex > INT32_MAX) {
+            status = OS_EINVALPARAMS;
+            goto exit;
+        }
+        result->Line = (int32_t)match->SourceIndex;
+        result->Conform = INTERRUPT_ACPICONFORM_PRESENT | INTERRUPT_ACPICONFORM_FIXED |
+            INTERRUPT_ACPICONFORM_TRIGGERMODE | INTERRUPT_ACPICONFORM_POLARITY |
+            INTERRUPT_ACPICONFORM_SHAREABLE;
+        status = OS_EOK;
+        goto exit;
+    }
 
-    TRACE("AcpiDeriveInterrupt found irq=%u, flags=0x%x",
-          interruptSource->CurrentInterrupt->Irq, flags);
-    return OS_EOK;
+    status = OS_ENOTSUPPORTED;
+
+#if defined(__i386__) || defined(__amd64__)
+    // On x86 we keep the existing link device setup and the IRQ it selected.
+    // Match on the _PRT source of the route we found, instead of the old
+    // device/pin cache index, so a route for one function cannot pick up the
+    // link of another function.
+    device = AcpiDeviceLookupHandle(bus);
+    if (!device || !device->Routings || match->SourceIndex != 0) {
+        goto exit;
+    }
+
+    source = list_find_value(&device->Routings->Sources, match->Source);
+    if (!source || !source->CurrentInterrupt) {
+        goto exit;
+    }
+
+    interrupt = source->CurrentInterrupt;
+    result->Line = interrupt->Irq;
+    result->Conform = INTERRUPT_ACPICONFORM_PRESENT;
+    if (interrupt->Trigger == ACPI_LEVEL_SENSITIVE) {
+        result->Conform |= INTERRUPT_ACPICONFORM_TRIGGERMODE;
+    }
+    if (interrupt->Polarity == ACPI_ACTIVE_LOW) {
+        result->Conform |= INTERRUPT_ACPICONFORM_POLARITY;
+    }
+    if (interrupt->Shareable) {
+        result->Conform |= INTERRUPT_ACPICONFORM_SHAREABLE;
+    }
+
+    status = OS_EOK;
+#endif
+
+exit:
+    AcpiOsFree(buffer.Pointer);
+    return status;
 }
 
 int

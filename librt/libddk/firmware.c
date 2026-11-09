@@ -143,15 +143,13 @@ AcpiQueryTable(
     return OS_EOK;
 }
 
-oserr_t AcpiQueryInterrupt(
-    _In_  unsigned int Bus,
-    _In_  unsigned int Device,
-    _In_  int       Pin,
-    _Out_ int*      Interrupt,
-    _Out_ unsigned int*  AcpiConform)
+oserr_t
+AcpiQueryPci(
+    _In_  const struct AcpiPciQuery* query,
+    _Out_ union AcpiPciResult*      result)
 {
-    if (Interrupt == NULL || AcpiConform == NULL) {
-        return OS_EUNKNOWN;
+    if (query == NULL || result == NULL) {
+        return OS_EINVALPARAMS;
     }
-    return Syscall_AcpiQueryInterrupt(Bus, Device, Pin, Interrupt, AcpiConform);
+    return Syscall_AcpiQueryPci(query, result);
 }

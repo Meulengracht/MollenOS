@@ -110,24 +110,16 @@ typedef struct AcpiInterruptSource {
     AcpiInterruptResource_t* CurrentInterrupt;
 } AcpiInterruptSource_t;
 
-typedef struct AcpiRoutingEntry {
-    AcpiInterruptSource_t* InterruptSource;
-} AcpiRoutingEntry_t;
+#define ACPI_PRT_PIN_COUNT    4
+#define ACPI_PRT_DEVICE_COUNT 32
 
-// Maximum number of entries stored in an ACPI PCI routing table.
-#define ACPI_PRT_ENTRY_COUNT 128
-
-// Number of interrupt pins represented for each PCI device in a _PRT.
-#define ACPI_PRT_PIN_COUNT   4
-
-// Maximum PCI device number representable by the fixed-size routing table.
-#define ACPI_PRT_DEVICE_COUNT (ACPI_PRT_ENTRY_COUNT / ACPI_PRT_PIN_COUNT)
-
+/**
+ * @brief The interrupt link devices (x86) and their selected IRQs for a single
+ * namespace bus. Direct GSI routes and function matching are handled by reading
+ * the _PRT of the bus when queried.
+ */
 typedef struct AcpiBusRoutings {
-    list_t             Sources; // list of AcpiInterruptSource_t
-    // Entries are indexed as (device * ACPI_PRT_PIN_COUNT) + pin. _PRT pins
-    // are zero-based, while AcpiDeviceGetInterrupt pins are one-based.
-    AcpiRoutingEntry_t InterruptEntries[ACPI_PRT_ENTRY_COUNT];
+    list_t Sources; // List of AcpiInterruptSource_t, each with its own copy of the source name.
 } AcpiBusRoutings_t;
 
 /**
@@ -158,7 +150,6 @@ typedef struct AcpiDevice {
     ACPI_PNP_DEVICE_ID_LIST*    CId;
     
     ACPI_PCI_ID                 PciLocation;
-    int                         GlobalBus;
     
     unsigned int                Features;   // Supported namespace functions
     unsigned int                FeaturesEx; // Type features
@@ -174,7 +165,7 @@ typedef struct AcpiDevice {
  * @brief Initializes shared ACPICA table access and discovers the platform.
  *
  * Call once after kernel allocation and mapping are ready. Static table setup
- * precedes ArchAcpiInitialize; AML namespace and event initialization run later.
+ * precedes ArchAcpiInitialize. AML namespace and event initialization run later.
  * AcpiAvailable reports table availability independently of the hook's result.
  *
  * @return OS_EOK on success, or an ACPICA setup/platform-discovery error.
@@ -205,11 +196,16 @@ AcpiDeviceLookup(
         _In_ int bus,
         _In_ int slot);
 
-/* AcpiDeviceLookupBusRoutings
- * lookup a bridge device for the given bus that contains pci routings */
-KERNELAPI AcpiDevice_t* KERNELABI
-AcpiDeviceLookupBusRoutings(
-    _In_ int                bus);
+/**
+ * @brief Looks up the kernel device data for a namespace handle. Must only be
+ * called after the device scan has completed.
+ *
+ * @param handle The ACPICA namespace handle. This is never an identifier from userspace.
+ * @return The matching device, or NULL if no device data was created for the handle.
+ */
+__EXTERN AcpiDevice_t*
+AcpiDeviceLookupHandle(
+    _In_ ACPI_HANDLE handle);
 
 /* AcpiDeviceAttachData
  * Stores custom context data for an individual acpi-device handle */
@@ -234,8 +230,7 @@ __EXTERN ACPI_STATUS AcpiDeviceGetBusId(AcpiDevice_t *Device, uint32_t Type);
 __EXTERN ACPI_STATUS AcpiDeviceGetFeatures(AcpiDevice_t *Device);
 
 /* AcpiDeviceGetIrqRoutings
- * Utilizies ACPICA to retrieve all the irq-routings from
- * the ssdt information. */
+ * Reads the device's interrupt routes through ACPICA. */
 KERNELAPI ACPI_STATUS KERNELABI
 AcpiDeviceGetIrqRoutings(
     _In_ AcpiDevice_t *device);

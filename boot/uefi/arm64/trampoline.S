@@ -12,6 +12,12 @@
 .balign 4096
 .globl Arm64Enter
 Arm64Enter:
+    // Load the GIC version (checked by __DiscoverGic) before we clean caches.
+    // x18 is used as scratch in the whole trampoline, and is cleared before
+    // we enter the kernel.
+    adrp x18, gArm64GicVersion
+    ldr w18, [x18, :lo12:gArm64GicVersion]
+
     // Mask asynchronous exceptions during the handoff.
     msr daifset, #15
 
@@ -134,6 +140,22 @@ Arm64Enter:
     msr hcr_el2, x3
     isb
 
+    // GICv3 needs the ICC system registers to be usable from EL1. We only do
+    // this after boot services have exited, and only when the MADT described a
+    // GICv3. EL3 must allow access to ICC_SRE_EL2, as nothing at EL2 can change that.
+    cmp w18, #3
+    b.ne .Lgic_el2_ready
+    mrs x3, icc_sre_el2
+    orr x3, x3, #15 // SRE, DFB, DIB and Enable (lets EL1 access ICC_SRE_EL1).
+    msr icc_sre_el2, x3
+    isb
+    mrs x3, icc_sre_el2
+    tbz x3, #0, Arm64Vectors
+    // Turn off virtual interrupts and any ICC traps the firmware left enabled.
+    msr ich_hcr_el2, xzr
+    isb
+
+.Lgic_el2_ready:
     // Preserve x0-x2, which hold the boot descriptor, entry, and stack.
     // Skip HCRX access unless ID_AA64ISAR2_EL1 advertises MOPS.
     mrs x3, id_aa64isar2_el1
@@ -163,7 +185,7 @@ Arm64Enter:
     adr x16, Arm64Vectors
     cbnz x8, .Lvhe_el1_state
 
-    mov x3, #0x33ff // Non-VHE CPTR_EL2 RES1; FP traps to EL2 disabled.
+    mov x3, #0x33ff     // Non-VHE CPTR_EL2 RES1, with FP traps to EL2 disabled.
     msr cptr_el2, x3
     mov x3, #3 // Non-VHE EL1PCEN[1] and EL1PCTEN[0].
     msr cnthctl_el2, x3
@@ -177,7 +199,7 @@ Arm64Enter:
 
 .Lvhe_el1_state:
     // With E2H, CPTR_EL2 uses FPEN instead of TFP. Keep EL2 FP traps disabled
-    // so EL1 can enable FP/SIMD later. EL1 starts with access disabled; SVE/SME stay off.
+    // so EL1 can enable FP/SIMD later. EL1 starts with access disabled, and SVE/SME stay off.
     mov x3, #0x300000
     msr cptr_el2, x3
     mov x3, #0xc00 // VHE EL1PTEN[11] and EL1PCTEN[10].

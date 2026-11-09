@@ -31,7 +31,7 @@
 #define ARM64_CONTEXT_FAULT       288
 #define ARM64_CONTEXT_SYNDROME    296
 
-// TPIDR_EL1 addresses Arm64CpuLocal; this field supplies the IRQ dispatch stack.
+// TPIDR_EL1 points to Arm64CpuLocal. This field supplies the IRQ dispatch stack.
 #define ARM64_LOCAL_INTERRUPT_STACK 152
 
 // FP storage holds 32 128-bit SIMD registers, then 64-bit FPCR/FPSR slots.
@@ -39,14 +39,16 @@
 #define ARM64_FP_STATUS           520
 #define ARM64_FP_STATE_SIZE       528
 
-// The secondary descriptor carries affinity, stack, translation controls, ID,
-// and a publication flag. C assertions check the layout consumed at startup.
-#define ARM64_SECONDARY_STATE_SIZE 64
+// The secondary descriptor carries the CPU affinity, stack, translation controls,
+// logical ID and GIC version. Assembly checks Ready before using it, and C
+// assertions check that both use the same layout.
+#define ARM64_SECONDARY_STATE_SIZE 128
 #define ARM64_SECONDARY_STACK      8
 #define ARM64_SECONDARY_TABLES     16
 #define ARM64_SECONDARY_CONTROLS   32
 #define ARM64_SECONDARY_ID         48
 #define ARM64_SECONDARY_READY      56
+#define ARM64_SECONDARY_GIC        64
 #define ARM64_SECONDARY_SLOTS      256
 
 // MPIDR affinity is assembled from Aff0-2 in bits 23:0 and Aff3 in bits 39:32.
@@ -54,17 +56,17 @@
 #define ARM64_AFFINITY_HIGH        0xff
 #define ARM64_AFFINITY_HIGH_SHIFT  32
 
-// VBAR_EL1 needs 2 KiB alignment; each 128-byte vector slot starts with a branch.
+// VBAR_EL1 needs 2 KiB alignment. Each 128-byte vector slot starts with a branch.
 #define ARM64_VECTOR_ALIGN         11
 #define ARM64_VECTOR_PADDING       124
 
-// DAIFSet immediate 1111 masks debug, SError, IRQ and FIQ; immediate 0010
+// DAIFSet immediate 1111 masks debug, SError, IRQ and FIQ. Immediate 0010
 // changes only IRQ masking. CPACR.FPEN=11 permits FP/SIMD at EL0 and EL1.
 #define ARM64_DAIF_ALL             15
 #define ARM64_DAIF_IRQ             2
 #define ARM64_CPACR_FP_ENABLE      0x300000
 
-// ESR.EC identifies SVC; PSTATE.M selects EL0t (0) or EL1h (5).
+// ESR.EC identifies SVC. PSTATE.M selects EL0t (0) or EL1h (5).
 #define ARM64_ESR_CLASS_SHIFT      26
 #define ARM64_EC_SVC               0x15
 #define ARM64_SVC_YIELD            1
@@ -73,7 +75,7 @@
 #define ARM64_PSTATE_EL1H          5
 
 // CurrentEL encodes the exception level in bits [3:2]. HCR.RW selects AArch64
-// EL1; CNTHCTL bits 0/1 grant EL1 physical counter/timer access when E2H=0.
+// EL1. CNTHCTL bits 0/1 grant EL1 physical counter/timer access when E2H=0.
 #define ARM64_CURRENT_EL1          4
 #define ARM64_CURRENT_EL2          8
 #define ARM64_HCR_AARCH64          0x80000000
@@ -91,7 +93,7 @@
 #define ARM64_SCTLR_INSTRUCTION_CACHE (1 << 12)
 
 // ID_AA64ISAR2.MOPS=1 supplies memory operations. ID_AA64MMFR1.HCX describes
-// HCRX availability; HCRX.MSCEn permits MOPS below EL2.
+// HCRX availability. HCRX.MSCEn permits MOPS below EL2.
 #define ARM64_ISAR2_MOPS_SHIFT     16
 #define ARM64_ISAR2_MOPS_SUPPORTED 1
 #define ARM64_FEATURE_FIELD_BITS   4

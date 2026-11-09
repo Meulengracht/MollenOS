@@ -21,6 +21,7 @@
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
+#include <internal/_storage.h>
 #include <vfs/storage.h>
 #include <ctt_storage_service_client.h>
 
@@ -42,11 +43,25 @@ static oserr_t __DeviceQueryStats(
     struct sys_disk_descriptor gdescriptor;
     TRACE("__DeviceQueryStats()");
 
-    ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
+    if (ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID) != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
+        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
+        gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+
+    if (ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor) != 0) {
+        return OS_EPROTOCOL;
+    }
+
     if (osStatus == OS_EOK) {
         from_sys_disk_descriptor_dkk(&gdescriptor, stats);
+        if (stats->SectorSize == 0) {
+            return OS_EINVALPARAMS;
+        }
     }
     return osStatus;
 }
@@ -86,19 +101,16 @@ static oserr_t __ReadDevice(
         _In_ size_t             count,
         _In_ size_t*            read)
 {
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Protocol.Storage.Device.DriverID);
-    oserr_t                  status;
-
-    ctt_storage_transfer(
-            GetGrachtClient(), &msg.base,
-            storage->Protocol.Storage.Device.DeviceID,
-            SYS_TRANSFER_DIRECTION_READ,
-            sector->u.LowPart, sector->u.HighPart,
-            buffer, offset, count
-    );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, read);
-    return status;
+    return __StorageTransfer(
+        storage->Protocol.Storage.Device.DriverID,
+        storage->Protocol.Storage.Device.DeviceID,
+        buffer,
+        offset,
+        sector,
+        storage->Stats.SectorSize,
+        count,
+        false,
+        read);
 }
 
 static oserr_t __WriteDevice(
@@ -109,17 +121,14 @@ static oserr_t __WriteDevice(
         _In_ size_t             count,
         _In_ size_t*            written)
 {
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Protocol.Storage.Device.DriverID);
-    oserr_t                  status;
-
-    ctt_storage_transfer(
-            GetGrachtClient(), &msg.base,
-            storage->Protocol.Storage.Device.DeviceID,
-            SYS_TRANSFER_DIRECTION_WRITE,
-            sector->u.LowPart, sector->u.HighPart,
-            buffer, offset, count
-    );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, written);
-    return status;
+    return __StorageTransfer(
+        storage->Protocol.Storage.Device.DriverID,
+        storage->Protocol.Storage.Device.DeviceID,
+        buffer,
+        offset,
+        sector,
+        storage->Stats.SectorSize,
+        count,
+        true,
+        written);
 }

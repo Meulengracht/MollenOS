@@ -26,6 +26,10 @@
 // This header must appear before the DDK's standalone ACPI subset to
 // avoid conflicting platform macros.
 #include <acpiinterface.h>
+#include <ddk/pci/acpi.h>
+#ifdef __OSCONFIG_ACPI_SUPPORT
+#include "../acpi/pci.h"
+#endif
 
 #include <ddk/types/interrupt-controller.h>
 #include <ddk/types/interrupt-group.h>
@@ -298,28 +302,42 @@ ScFirmwareTableMap(
 }
 
 oserr_t
-ScAcpiQueryInterrupt(
-    _In_  int           bus,
-    _In_  int           device,
-    _In_  int           pin,
-    _Out_ int*          interruptOut,
-    _Out_ unsigned int* acpiConformOut)
+ScAcpiQueryPci(
+    _In_  const struct AcpiPciQuery* query,
+    _Out_ union AcpiPciResult*       result)
 {
-    oserr_t oserr;
+    struct AcpiPciQuery request;
+    union AcpiPciResult response = { 0 };
+    oserr_t             status;
 
-    oserr = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
-    if (oserr != OS_EOK) {
-        return oserr;
+    status = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Copy the request once before running any AML. Userspace can change the
+    // memory at any time, and the validation and namespace lookups must all see
+    // the same request.
+    status = MemorySpaceCopyUser(&request, (void*)query, sizeof(request), false);
+    if (status != OS_EOK) {
+        return status;
     }
 
 #ifdef __OSCONFIG_ACPI_SUPPORT
-    return AcpiDeviceGetInterrupt(bus, device, pin, interruptOut, acpiConformOut);
+    status = AcpiPciQuery(&request, &response);
+    if (status == OS_EOK) {
+        // The union was zeroed, so unused bytes never leak kernel stack data.
+        status = MemorySpaceCopyUser(
+            result,
+            &response,
+            sizeof(union AcpiPciResult),
+            true
+        );
+    }
+    return status;
 #else
-    (void)bus;
-    (void)device;
-    (void)pin;
-    (void)interruptOut;
-    (void)acpiConformOut;
+    (void)result;
+    (void)response;
     return OS_ENOTSUPPORTED;
 #endif
 }

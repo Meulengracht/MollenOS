@@ -35,7 +35,7 @@ _CODE_END
 #define Syscall_FirmwareTableLocate(Key, TableOut)                                    (oserr_t)syscall2(9, SCPARAM(Key), SCPARAM(TableOut))
 #define Syscall_FirmwareTableRead(Key, Buffer, Size, LengthOut)                       (oserr_t)syscall4(10, SCPARAM(Key), SCPARAM(Buffer), SCPARAM(Size), SCPARAM(LengthOut))
 #define Syscall_FirmwareTableMap(Key, MappingOut, LengthOut)                          (oserr_t)syscall3(11, SCPARAM(Key), SCPARAM(MappingOut), SCPARAM(LengthOut))
-#define Syscall_AcpiQueryInterrupt(Bus, Slot, Pin, Interrupt, Conform)                (oserr_t)syscall5(12, SCPARAM(Bus), SCPARAM(Slot), SCPARAM(Pin), SCPARAM(Interrupt), SCPARAM(Conform))
+#define Syscall_AcpiQueryPci(Query, Result) (oserr_t)syscall2(12, SCPARAM(Query), SCPARAM(Result))
 
 #define Syscall_IoSpaceRegister(IoSpace)                                              (oserr_t)syscall1(13, SCPARAM(IoSpace))
 #define Syscall_IoSpaceAcquire(IoSpace)                                               (oserr_t)syscall1(14, SCPARAM(IoSpace))

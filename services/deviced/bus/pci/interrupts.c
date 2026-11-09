@@ -28,27 +28,6 @@
 #include <ddk/interrupts/interrupt.h>
 #include <ddk/utils.h>
 
-static inline void
-__UpdateInterruptLine(
-    _In_ PciDevice_t* parent,
-    _In_ int          bus,
-    _In_ int          slot,
-    _In_ int          function,
-    _In_ int          interruptLine,
-    _In_ PciDevice_t* pciDevice)
-{
-    PciWrite8(
-        parent->Host,
-        (unsigned int)bus,
-        (unsigned int)slot,
-        (unsigned int)function,
-        0x3C,
-        (uint8_t)interruptLine
-    );
-    pciDevice->Header->InterruptLine = (uint8_t)interruptLine;
-    pciDevice->InterruptLine = interruptLine;
-}
-
 static inline int
 __SwizzleInterruptPin(
     _In_ int device,
@@ -56,6 +35,51 @@ __SwizzleInterruptPin(
 {
     // The pin must be in the range 1 (INTA) through 4 (INTD).
     return (((pin - 1) + device) % 4) + 1;
+}
+
+static oserr_t
+__QueryAcpiInterrupt(
+    _In_  PciDevice_t*             device,
+    _In_  unsigned int             pin,
+    _Out_ struct AcpiPciInterrupt* result)
+{
+    struct AcpiPciQuery query = { .Type = AcpiPciQueryInterrupt };
+    union AcpiPciResult response;
+    PciDevice_t*        bridge;
+    unsigned int        count = 0;
+    unsigned int        index;
+    oserr_t             status;
+
+    query.RootId = device->Host->AcpiRootId;
+    query.Address.Device = device->Slot;
+    query.Address.Function = device->Function;
+    query.Pin = pin;
+
+    // The query holds the device address and, separately, the bridges on the path
+    // from the root down to it. This is how the kernel finds the namespace bus the
+    // device sits on. Bus numbers cannot be used for this, as they do not point to
+    // AML nodes and are not unique across segments.
+    for (bridge = device->Parent; bridge != device->Host->RootDevice; bridge = bridge->Parent) {
+        if (!bridge || count == ACPI_PCI_MAX_BRIDGES) {
+            return OS_EINVALPARAMS;
+        }
+        count++;
+    }
+    
+    query.BridgeCount = count;
+    
+    index = count;
+    for (bridge = device->Parent; index > 0; bridge = bridge->Parent) {
+        index--;
+        query.Bridges[index].Device = bridge->Slot;
+        query.Bridges[index].Function = bridge->Function;
+    }
+    
+    status = AcpiQueryPci(&query, &response);
+    if (status == OS_EOK) {
+        *result = response.Interrupt;
+    }
+    return status;
 }
 
 void
@@ -66,16 +90,22 @@ PciResolveInterruptLineAndPin(
     _In_ int          function,
     _In_ PciDevice_t* pciDevice)
 {
-    PciDevice_t* iterator;
-    unsigned int pin;
-    unsigned int flags;
-    int          line;
-    oserr_t      status;
+    PciDevice_t*            iterator;
+    unsigned int            pin;
+    unsigned int            flags;
+    int                     line;
+    oserr_t                 status;
+    struct AcpiPciInterrupt route;
 
     TRACE("PciResolveInterruptLineAndPin(bus=%i, slot=%i, function=%i)",
           bus, slot, function);
 
+#if defined(__i386__) || defined(__amd64__)
     pciDevice->InterruptLine = pciDevice->Header->InterruptLine;
+#else
+    pciDevice->InterruptLine = INTERRUPT_NONE;
+#endif
+
     if (parent->Host->Operations->ResolveInterrupt != NULL) {
         pciDevice->InterruptLine = INTERRUPT_NONE;
         pin = pciDevice->Header->InterruptPin;
@@ -113,63 +143,35 @@ PciResolveInterruptLineAndPin(
         return;
     }
 
-    // ACPI routing is used when the host has no interrupt resolver.
-    if (PciIsAcpiAvailable()) {
-        unsigned int acpiConform   = 0;
-        int          interruptLine = pciDevice->Header->InterruptLine;
-        int          interruptPin  = pciDevice->Header->InterruptPin;
-        oserr_t      hasRouting    = OS_ENOENT;
-        TRACE("PciResolveInterruptLineAndPin initial line=%i, pin=%i", interruptLine, interruptPin);
-
-        iterator = pciDevice;
-        
-        // Pin values above INTD are invalid. Use INTA for the routing query.
-        if (interruptPin > 4) {
-            WARNING("PciResolveInterruptLineAndPin invalid INTx pin %i, using INTA", interruptPin);
-            interruptPin = 1;
+    if (parent->Host->AcpiRootId != 0) {
+        // InterruptLine is an 8 bit hint from firmware and cannot hold an ARM
+        // GSI. Reset it, so a device without a route never looks like it has
+        // an interrupt we can use.
+        pciDevice->InterruptLine = INTERRUPT_NONE;
+        pin = pciDevice->Header->InterruptPin;
+        if (pin == 0 || pin > 4) {
+            return;
         }
 
-        // A zero pin means the device does not use INTx interrupts.
-        if (interruptPin != 0) {
-            // Query the device first. If no route is found, convert the pin
-            // for the parent bridge and query again until the root is reached.
-            while (iterator && iterator != parent->Host->RootDevice) {
-                hasRouting = AcpiQueryInterrupt(
-                    iterator->Bus,
-                    iterator->Slot,
-                    interruptPin,
-                    &interruptLine,
-                    &acpiConform
-                );
-                if (hasRouting == OS_EOK) {
-                    TRACE("PciResolveInterruptLineAndPin ACPI route found at %u:%u pin %i: line=%i, flags=0x%x",
-                        iterator->Bus, iterator->Slot, interruptPin, interruptLine, acpiConform);
-                    break;
-                }
-
-                TRACE("PciResolveInterruptLineAndPin ACPI route absent at %u:%u pin %i: %u",
-                    iterator->Bus, iterator->Slot, interruptPin, hasRouting);
-
-                interruptPin = __SwizzleInterruptPin((int) iterator->Slot, interruptPin);
-                iterator     = iterator->Parent;
-                TRACE("PciResolveInterruptLineAndPin derived pin %i", interruptPin);
+        for (iterator = pciDevice; iterator != parent->Host->RootDevice; iterator = iterator->Parent) {
+            status = __QueryAcpiInterrupt(iterator, pin, &route);
+            if (status == OS_EOK) {
+                pciDevice->InterruptLine = route.Line;
+                pciDevice->AcpiConform = route.Conform;
+                // The GSI is not written to configuration register 0x3c, as it
+                // would be cut off. Drivers get the full line from the device
+                // description.
+                return;
             }
 
-            // Keep the firmware line unless ACPI supplies a route.
-            if (hasRouting == OS_EOK) {
-                TRACE("PciResolveInterruptLineAndPin updating device, line=%i, pin=%i", interruptLine, interruptPin);
-                __UpdateInterruptLine(
-                    parent,
-                    bus,
-                    slot,
-                    function,
-                    interruptLine,
-                    pciDevice
-                );
-                pciDevice->AcpiConform = acpiConform;
-            } else {
-                TRACE("PciResolveInterruptLineAndPin retaining firmware line %i", interruptLine);
+            if (status != OS_ENOENT) {
+                WARNING("PCI INTx: root %u device %u:%u.%u route rejected (%u)",
+                    parent->Host->AcpiRootId, iterator->Bus, iterator->Slot,
+                    iterator->Function, status);
+                return;
             }
+            
+            pin = __SwizzleInterruptPin(iterator->Slot, pin);
         }
     }
 }

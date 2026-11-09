@@ -27,15 +27,15 @@
  *
  * Arm64SecondaryEntry searches this array using the CPU's MPIDR affinity.
  * The descriptor, entry code, and startup stack must be accessible before
- * translation is enabled. Field order and size are shared with assembly;
- * the assertions below check that its fixed offsets remain correct.
+ * translation is enabled. Assembly uses fixed offsets into the descriptor,
+ * so the assertions below must match its field order and size.
  */
 struct Arm64SecondaryState {
     // Full hardware affinity identifying the CPU, not its kernel-assigned ID.
     uint64_t Affinity;
-    // Top of the reserved startup stack; the stack grows toward lower addresses.
+    // Top of the reserved startup stack, which grows toward lower addresses.
     uint64_t Stack;
-    // Physical root for TTBR0, retaining the boot identity window.
+    // Physical root for TTBR0, keeping the boot identity mapping.
     uint64_t Table0;
     // Physical root for TTBR1, providing the shared kernel mappings.
     uint64_t Table1;
@@ -48,6 +48,11 @@ struct Arm64SecondaryState {
     // Nonzero marks a prepared descriptor for the assembly search, not a CPU
     // that has finished startup. CpuStateRunning supplies that later indication.
     uint64_t Ready;
+    // The GIC version, so the assembly knows whether the ICC registers exist
+    // before it leaves EL2.
+    uint64_t GicVersion;
+    // Padding to match the 128-byte descriptor used by assembly.
+    uint64_t Reserved[7];
 };
 
 // Keep descriptors and stacks in the reserved kernel image so startup never
@@ -65,13 +70,14 @@ _Static_assert(offsetof(struct Arm64SecondaryState, Stack) == ARM64_SECONDARY_ST
 _Static_assert(offsetof(struct Arm64SecondaryState, Table0) == ARM64_SECONDARY_TABLES, "ARM64 secondary table offset");
 _Static_assert(offsetof(struct Arm64SecondaryState, Tcr) == ARM64_SECONDARY_CONTROLS, "ARM64 secondary control offset");
 _Static_assert(offsetof(struct Arm64SecondaryState, Id) == ARM64_SECONDARY_ID, "ARM64 secondary ID offset");
+_Static_assert(offsetof(struct Arm64SecondaryState, GicVersion) == ARM64_SECONDARY_GIC, "ARM64 secondary GIC offset");
 _Static_assert(offsetof(struct Arm64SecondaryState, Ready) == ARM64_SECONDARY_READY, "ARM64 secondary ready offset");
 
 /**
  * @brief Provides the physical startup entry used by spin-table and PSCI firmware.
  *
  * Assembly establishes the stack, exception vectors, EL1 controls, and memory
- * translation before calling Arm64SecondaryStart. Pass its address to firmware;
+ * translation before calling Arm64SecondaryStart. Pass its address to firmware.
  * it is not a normal C function to call on the requesting CPU.
  */
 extern void Arm64SecondaryEntry(void);
@@ -79,9 +85,9 @@ extern void Arm64SecondaryEntry(void);
 /**
  * @brief Makes both boot translation-table trees visible to a starting CPU.
  *
- * Cleans table cache lines and waits for completion before the secondary is
- * released with its caches disabled. The tables must remain stable during this
- * publication; this operation does not release or start a CPU by itself.
+ * The tables must not change while this runs. Cleans their cache lines and
+ * waits for completion before the secondary starts reading with caches disabled.
+ * Starting the CPU is a separate step.
  */
 extern void Arm64PrepareSecondaryMemory(void);
 
@@ -107,9 +113,9 @@ __ReadCounter(void)
 /**
  * @brief Writes a prepared memory range out of the cache before firmware uses it.
  *
- * Cleans every overlapping data-cache line and waits for those cleans to
- * complete. Needed when the reader is firmware or a CPU with caches disabled.
- * Does not make simultaneous edits safe; the caller finishes writes first.
+ * The caller must finish writing the range before this runs. Cleans every
+ * overlapping data-cache line and waits for completion, so firmware or a CPU
+ * with caches disabled can read the updated contents.
  *
  * @param address Kernel-accessible beginning of the range to publish.
  * @param size Range length in bytes. The complete range must be mapped and not wrap.
@@ -129,8 +135,8 @@ __PublishRange(
     line = ARM64_CACHE_WORD_SIZE << ((ctr >> ARM64_CTR_DATA_SHIFT) & ARM64_FEATURE_FIELD_MASK);
     
     // Round down to include the cache line containing the first byte. DC CVAC
-    // writes dirty data to the point where other CPUs can observe it; ordinary
-    // stores alone could otherwise leave the new entry address only in our cache.
+    // writes dirty data to the point where other CPUs can observe it. Ordinary
+    // stores could leave the new entry address only in our cache.
     for (address &= ~(line - 1); address < end; address += line) {
         __asm__ volatile("dc cvac, %0" :: "r"(address) : "memory");
     }
@@ -141,17 +147,15 @@ __PublishRange(
 }
 
 /**
- * @brief Asks PSCI firmware to start a CPU at the supplied physical entry address.
+ * @brief Asks PSCI firmware to start a CPU.
  *
- * Uses the SMC or HVC interface selected from the device tree. That selection
- * must already be validated; this helper does not probe for firmware support.
- * Firmware acceptance does not mean the CPU has finished kernel initialization.
+ * The platform's SMC/HVC selection must already be validated. Firmware
+ * acceptance does not confirm that kernel initialization has finished.
  *
- * @param affinity Full target CPU affinity expected by PSCI CPU_ON.
- * @param entry Physical entry address reachable before the target enables translation.
- * @param id Kernel CPU ID supplied as firmware context. The assembly entry still
- *           finds its descriptor by affinity rather than trusting this argument.
- * @return Signed PSCI status returned in x0; zero is success, other values are errors.
+ * @param affinity Target CPU affinity for PSCI CPU_ON.
+ * @param entry Physical entry, reachable before translation is enabled.
+ * @param id Kernel CPU ID passed as firmware context. Assembly matches by affinity.
+ * @return Signed PSCI status in x0. Zero means success.
  */
 static int64_t
 __PsciCpuOn(
@@ -160,13 +164,13 @@ __PsciCpuOn(
     _In_ unsigned int id)
 {
     // PSCI's calling convention places function, affinity, entry, and context
-    // in x0-x3; x0 returns a signed firmware status, with zero meaning success.
+    // in x0-x3. x0 returns a signed firmware status, with zero meaning success.
     register uint64_t x0 __asm__("x0") = ARM64_PSCI_CPU_ON;
     register uint64_t x1 __asm__("x1") = affinity;
     register uint64_t x2 __asm__("x2") = entry;
     register uint64_t x3 __asm__("x3") = id;
 
-    // SMC calls the secure monitor; HVC calls the firmware's hypervisor-level
+    // SMC calls the secure monitor. HVC calls the firmware's hypervisor-level
     // interface. Use the advertised method, not a guess based on the CPU model.
     // The operands/clobbers tell the compiler that firmware may change argument
     // and scratch registers or access memory during the call.
@@ -186,12 +190,12 @@ __PsciCpuOn(
 }
 
 /**
- * @brief Prepares and publishes a secondary CPU's assembly startup descriptor.
+ * @brief Prepares a secondary CPU's descriptor for the assembly startup code.
  *
- * Copies the shared roots and the calling CPU's translation settings, selects
- * the target's reserved stack, and publishes the tables and descriptor. Called
- * on the startup-requesting CPU before the target is released. This is not a
- * live CPU restart or concurrent descriptor-update operation.
+ * Must be called before starting the target CPU. Copies the shared roots and
+ * the calling CPU's translation settings, selects the target's startup stack,
+ * and writes the tables and descriptor out of the cache. Restarting a live
+ * CPU or changing its descriptor concurrently is not supported.
  *
  * @param id Registered kernel CPU ID, less than ARM64_CPU_COUNT.
  * @param block Validated platform information for that same target CPU.
@@ -218,8 +222,9 @@ __PrepareSecondaryState(
     
     // Ready lets assembly ignore unused zero-initialized array slots. It is
     // not the completion flag checked by StartApplicationCore. The target must
-    // not be released until the following publication steps have finished.
+    // not be started until the tables and descriptor have been written out.
     state->Id = id;
+    state->GicVersion = g_arm64Platform.Gic.Version;
     state->Ready = 1;
 
     // The target first reads with caches disabled. Publish referenced tables
@@ -229,17 +234,15 @@ __PrepareSecondaryState(
 }
 
 /**
- * @brief Requests secondary startup using its validated firmware enable method.
+ * @brief Requests secondary startup using its validated firmware method.
  *
- * For spin-table firmware, writes and publishes an entry address then signals
- * a wakeup event. For PSCI, checks the CPU_ON response. Neither method waits
- * for CpuStateRunning, and failure does not undo the prepared descriptor.
+ * Writes the spin-table entry before sending a wakeup event, or calls PSCI
+ * CPU_ON. Does not wait for CpuStateRunning. Failure leaves the descriptor intact.
  *
- * @param id Registered kernel CPU ID, used for logging and PSCI context.
- * @param block Target affinity and start method. A spin-table release word must
- *              be writable through its physical address and naturally aligned.
- * @return One if the release request was issued successfully; zero if unsupported
- *         or rejected by PSCI. One does not confirm that the CPU is running.
+ * @param id Registered CPU ID for logging and PSCI context.
+ * @param block Target details. Spin-table words must be naturally aligned and
+ *              writable through their physical addresses.
+ * @return One if requested, zero if unsupported or rejected. This does not confirm startup.
  */
 static int
 __ReleaseSecondary(
@@ -258,12 +261,12 @@ __ReleaseSecondary(
         __PublishRange((uintptr_t)release, sizeof(*release));
         
         // Publish the word before SEV asks a waiting firmware CPU to check it
-        // again. SEV sends an event; it is not a scheduler/GIC interrupt and
-        // does not itself prove that the target branched to the entry point.
+        // again. SEV sends an event, separate from scheduler/GIC interrupts.
+        // It does not confirm that the target reached the entry point.
         __asm__ volatile("sev" ::: "memory");
     } else if (block->EnableMethod == ARM64_CPU_ENABLE_PSCI) {
         // PSCI firmware chooses the hardware startup sequence. Its zero status
-        // only accepts the request; StartApplicationCore checks kernel progress.
+        // only accepts the request. StartApplicationCore checks kernel progress.
         status = __PsciCpuOn(block->Affinity, (uintptr_t)Arm64SecondaryEntry, id);
         if (status != 0) {
             // Do not wait or retry after a rejected request, including statuses
@@ -281,15 +284,14 @@ __ReleaseSecondary(
 }
 
 /**
- * @brief Releases a registered secondary CPU and waits briefly for kernel startup.
+ * @brief Starts a registered secondary CPU and waits for kernel startup.
  *
- * Prepares state, requests firmware release, and waits at most one second for
- * CpuStateRunning. Logs failures instead of returning a status. A timeout does
- * not cancel startup, clear the descriptor, or reclaim its stack; the CPU may
- * still reach the kernel later. Intended for initial boot, not CPU hotplug.
+ * For initial boot only. Prepares the descriptor and waits at most one second
+ * for CpuStateRunning. Failures are logged. A timeout does not cancel startup,
+ * so the descriptor and stack stay allocated for a CPU that arrives late.
  *
- * @param core Registered secondary whose ID and platform start information are valid.
- *             Shared memory/GIC setup and a nonzero counter frequency must be ready.
+ * @param core Validated secondary CPU. Shared memory/GIC setup and a nonzero
+ *             counter frequency must be ready.
  */
 void
 StartApplicationCore(
@@ -300,12 +302,12 @@ StartApplicationCore(
     uint64_t                deadline;
     int                     released;
 
-    // Finish the descriptor and cache publication before any action can make
-    // the target execute code that reads those fields or translation tables.
+    // Finish writing the descriptor and tables out of the cache before starting
+    // the target, as it reads them with caches disabled.
     __PrepareSecondaryState(id, block);
     released = __ReleaseSecondary(id, block);
     // A rejected or unsupported release cannot be made successful by waiting.
-    // The release helper already logs its reason; leave the prepared storage intact.
+    // The release helper already logs its reason. Leave the prepared storage intact.
     if (!released) {
         return;
     }
@@ -349,10 +351,14 @@ Arm64SecondaryStart(
     // Install the registered core pointer before GIC and shared startup use it.
     g_arm64CpuLocals[id].Reserved[0] = (uintptr_t)GetProcessorCore(id);
 
-    // GIC private registers and the physical timer are local to this CPU; the
-    // boot CPU's initialization cannot substitute for these writes. Keep IRQs
-    // masked until shared startup has created the scheduler that handles them.
-    Arm64GicInitializeCore();
+    // GIC private registers and the physical timer are local to this CPU.
+    // The boot CPU cannot set them up for us. Keep IRQs masked until shared
+    // startup has created the scheduler that handles them.
+    if (Arm64GicInitializeCore() != OS_EOK) {
+        ERROR("Core %u could not initialize its GIC interface", id);
+        ArchProcessorHalt();
+        __builtin_unreachable();
+    }
     Arm64TimerInitializeCore();
 
     // Shared startup publishes CpuStateRunning and enters the CPU's idle loop.

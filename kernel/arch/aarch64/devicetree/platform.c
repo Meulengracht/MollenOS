@@ -88,12 +88,14 @@ __ReadGic(
         return OS_EINVALPARAMS;
     }
     
+    platform->Gic.Version = 2;
+
     // Read the GIC distributor and CPU interface registers from the device tree.
     status = DeviceTreeReadRegister(
         node,
         0,
-        &platform->Distributor,
-        &platform->DistributorLength
+        &platform->Gic.Distributor,
+        &platform->Gic.DistributorLength
     );
     if (status != OS_EOK) {
         return status;
@@ -102,15 +104,15 @@ __ReadGic(
     status = DeviceTreeReadRegister(
         node,
         1,
-        &platform->CpuInterface,
-        &platform->CpuInterfaceLength
+        &platform->Gic.CpuInterface,
+        &platform->Gic.CpuInterfaceLength
     );
     if (status != OS_EOK) {
         return status;
     }
 
-    if (platform->DistributorLength < ARM64_GIC_REGION_MINIMUM ||
-        platform->CpuInterfaceLength < ARM64_GIC_REGION_MINIMUM) {
+    if (platform->Gic.DistributorLength < ARM64_GIC_REGION_MINIMUM ||
+        platform->Gic.CpuInterfaceLength < ARM64_GIC_REGION_MINIMUM) {
         return OS_EINVALPARAMS;
     }
     return OS_EOK;
@@ -355,18 +357,15 @@ __PublishCores(
 }
 
 /**
- * @brief Builds the AArch64 platform and CPU configuration from the live device tree.
+ * @brief Builds the platform configuration from the device tree.
  *
- * Validates the CPUs, GIC, physical timer, and secondary-CPU start methods
- * before publishing them to shared kernel state. Then prepares optional serial
- * output and registers the interrupt controller. The boot CPU's platform block
- * must already contain its hardware affinity. This does not start other CPUs
- * or configure GIC delivery; those operations run later during kernel startup.
+ * The boot CPU's affinity must already be set. Checks CPUs, GIC, physical timer
+ * and CPU start methods before publishing them. Prepares optional serial output
+ * and registers the GIC. CPU startup and interrupt setup run later.
  *
- * @param tree Parsed firmware device tree whose nodes remain available during setup.
- * @return OS_EOK on success, or an error from discovery, resource validation,
- *         or controller registration. Serial initialization errors are ignored.
- *         Failure after publication does not undo the published platform state.
+ * @param tree Parsed tree, available throughout setup.
+ * @return OS_EOK, or a discovery, validation or registration error. Serial errors
+ *         are ignored. Failure after publication leaves platform state in place.
  */
 oserr_t
 ArchDeviceTreeInitialize(
@@ -409,8 +408,8 @@ ArchDeviceTreeInitialize(
     // startup. Reject unsupported descriptions now, rather than advertising
     // CPUs that the later secondary-start path cannot bring online.
     for (index = 0; index < description.Count; index++) {
-        // Firmware has already started the boot CPU; it does not need an
-        // enable-method merely to describe the CPU that is executing this code.
+        // Firmware has already started the boot CPU, so it does not need an
+        // enable-method.
         if (index == description.BootIndex) {
             continue;
         }
@@ -452,14 +451,14 @@ ArchDeviceTreeInitialize(
 
     // Register the GIC with the shared kernel controller list, using its device
     // tree phandle as the ID and its physical distributor address as the base.
-    // IDs start at zero and cover the kernel's supported interrupt range; the
-    // actual hardware count and register setup are determined later by the GIC
+    // IDs start at zero and cover the kernel's supported interrupt range. The
+    // hardware count and register setup are determined later by the GIC
     // initialization path. Return registration failure even though CPU/platform
-    // state has already been published; this startup path does not roll it back.
+    // state has already been published, as this startup path does not undo it.
     return CreateInterruptController(
         description.Gic->Phandle,
         0,
         INTERRUPT_PHYSICAL_END,
-        description.Platform.Distributor
+        description.Platform.Gic.Distributor
     );
 }

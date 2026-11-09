@@ -22,6 +22,7 @@
 #include <ds/guid.h>
 #include <os/handle.h>
 #include <os/shm.h>
+#include <os/memory.h>
 #include <os/types/file.h>
 #include <vfs/filesystem.h>
 #include <vfs/interface.h>
@@ -57,11 +58,11 @@ __DetectFileSystem(
     // Allocate a generic transfer buffer for disk operations
     // on the given disk, we need it to parse the disk
     oserr = SHMCreate(
-            &(SHM_t) {
-                .Flags = SHM_COMMIT,
-                .Size = storage->Stats.SectorSize,
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
+        &(SHM_t) {
+            .Flags = SHM_COMMIT | SHM_CLEAN,
+            .Size = ((storage->Stats.SectorSize + MemoryPageSize() - 1) / MemoryPageSize()) * MemoryPageSize(),
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+        },
         &shm
     );
     if (oserr != OS_EOK) {

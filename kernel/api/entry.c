@@ -73,7 +73,7 @@ extern oserr_t ScFirmwareQuery(OSFirmwareInfo_t* infoOut);
 extern oserr_t ScFirmwareTableLocate(const OSFirmwareTableKey_t* key, OSFirmwareTable_t* tableOut);
 extern oserr_t ScFirmwareTableRead(const OSFirmwareTableKey_t* key, void* buffer, size_t size, size_t* lengthOut);
 extern oserr_t ScFirmwareTableMap(const OSFirmwareTableKey_t* key, const void** mappingOut, size_t* lengthOut);
-extern oserr_t ScAcpiQueryInterrupt(int, int, int, int*, unsigned int*);
+extern oserr_t ScAcpiQueryPci(const void*, void*);
 
 extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
@@ -204,7 +204,7 @@ static struct SystemCallDescriptor {
         DefineSyscall(10, ScFirmwareTableRead),
         DefineSyscall(11, ScFirmwareTableMap),
         
-        DefineSyscall(12, ScAcpiQueryInterrupt),
+        DefineSyscall(12, ScAcpiQueryPci),
         DefineSyscall(13, ScIoSpaceRegister),
         DefineSyscall(14, ScIoSpaceAcquire),
         DefineSyscall(15, ScIoSpaceMap),

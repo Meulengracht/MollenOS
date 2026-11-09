@@ -392,34 +392,6 @@ __BcmWrite(
 }
 
 static oserr_t
-__BcmTranslate(
-    _In_  PciHost_t* bus,
-    _In_  uint32_t   space,
-    _In_  uint64_t   address,
-    _In_  uint64_t   length,
-    _Out_ uint64_t*  physical)
-{
-    struct BcmPciHost* controller = bus->OpContext;
-    oserr_t            status;
-
-    // Translate a PCI device address using the ranges installed during setup.
-    status = FdtTranslatePciAddress(
-        &controller->Firmware,
-        (FdtPciSpace_t)space,
-        address,
-        length,
-        physical
-    );
-    if (status != OS_EOK) {
-        ERROR("__BcmTranslate: segment %u space %u address 0x%llx length 0x%llx translation failed (%u)",
-            controller->Firmware.Segment, space,
-            (unsigned long long)address, (unsigned long long)length, status);
-        return status;
-    }
-    return OS_EOK;
-}
-
-static oserr_t
 __BcmInterrupt(
     _In_  PciHost_t*    bus,
     _In_  unsigned int  number,
@@ -483,7 +455,6 @@ const struct PciHostOperations g_pciBcmOperations = {
     .GetDmaDescription = __BcmGetDmaDescription,
     .Read = __BcmRead,
     .Write = __BcmWrite,
-    .Translate = __BcmTranslate,
     .ResolveInterrupt = __BcmInterrupt,
     .Destroy = __BcmDestroy
 };
@@ -600,6 +571,7 @@ __BcmBridgeWindow(
     uint32_t     memory = 0x0000FFF0;
     uint32_t     prefetch = 0x0000FFF0;
     uint32_t     command;
+    uint32_t     observed;
     oserr_t      status;
 
     TRACE("__BcmBridgeWindow(segment=%u)", firmware->Segment);
@@ -667,13 +639,26 @@ __BcmBridgeWindow(
     }
 
     command = (uint32_t)ReadDeviceIo(&bus->IoSpace, 0x04, 2);
+    if (command == UINT16_MAX) {
+        ERROR("__BcmBridgeWindow: segment %u command register is inaccessible", firmware->Segment);
+        return OS_EUNKNOWN;
+    }
+
     command = (command & ~PCI_COMMAND_PORTIO) | PCI_COMMAND_MMIO | PCI_COMMAND_BUSMASTER;
-    
     status = WriteDeviceIo(&bus->IoSpace, 0x04, command, 2);
     if (status != OS_EOK) {
         ERROR("__BcmBridgeWindow WriteDeviceIo register 0x%x failed: %u",
             (unsigned)(0x04), status);
         return status;
+    }
+
+    observed = (uint32_t)ReadDeviceIo(&bus->IoSpace, 0x04, 2);
+    if (observed == UINT16_MAX ||
+        (observed & (PCI_COMMAND_PORTIO | PCI_COMMAND_MMIO | PCI_COMMAND_BUSMASTER)) !=
+            (PCI_COMMAND_MMIO | PCI_COMMAND_BUSMASTER)) {
+        ERROR("__BcmBridgeWindow: segment %u forwarding enable failed: requested=0x%04x observed=0x%04x",
+            firmware->Segment, command, observed);
+        return OS_EUNKNOWN;
     }
     return OS_EOK;
 }
@@ -886,12 +871,6 @@ BcmPciInitialize(
     }
     controller->InboundConfigured = 1;
 
-    status = __BcmBridgeWindow(bus, firmware);
-    if (status != OS_EOK) {
-        ERROR("BcmPciInitialize __BcmBridgeWindow failed: %u", status);
-        goto failure;
-    }
-
     status = variant->Start(bus, firmware);
     if (status != OS_EOK) {
         ERROR("BcmPciInitialize variant->Start failed: %u", status);
@@ -902,9 +881,20 @@ BcmPciInitialize(
     // twenty 5 ms waits for the link to start before failing setup.
     for (attempt = 0; attempt <= 20; attempt++) {
         if (BcmPciLinkUp(bus)) {
+            // On the Pi 4 the reset clears the forwarding we programmed earlier,
+            // and then BAR0 cannot be placed. So the bridge windows are set up
+            // after the link is up, and the command bits are checked before we
+            // allow configuration access.
+            status = __BcmBridgeWindow(bus, firmware);
+            if (status != OS_EOK) {
+                ERROR("BcmPciInitialize __BcmBridgeWindow failed: %u", status);
+                goto failure;
+            }
+
             controller->Ready = 1;
             bus->Operations = &g_pciBcmOperations;
             bus->Firmware = &controller->Firmware;
+
             TRACE("BcmPciInitialize segment %u link ready after %u polls",
                 firmware->Segment, attempt + 1);
             return OS_EOK;
@@ -1014,8 +1004,8 @@ BcmPciDmaAddress(
     _Out_ uint64_t*                address)
 {
     const struct FdtPciWindow* window;
-    uint64_t                  displacement;
-    uint32_t                  index;
+    uint64_t                   offset;
+    uint32_t                   index;
 
     // A translation needs a live host, an output location, and a non-empty
     // physical range whose end does not wrap around.
@@ -1023,10 +1013,12 @@ BcmPciDmaAddress(
         WARNING("BcmPciDmaAddress missing controller or output");
         return OS_EINVALPARAMS;
     }
+
     if (!controller->Ready || !controller->InboundConfigured || length == 0) {
         WARNING("BcmPciDmaAddress controller is not ready or length is zero");
         return OS_EINVALPARAMS;
     }
+
     if (length - 1 > UINT64_MAX - physical) {
         WARNING("BcmPciDmaAddress requested range wraps the physical address space");
         return OS_EINVALPARAMS;
@@ -1043,17 +1035,17 @@ BcmPciDmaAddress(
             continue;
         }
         
-        displacement = physical - window->PhysicalBase;
-        if (displacement >= window->Length || length > window->Length - displacement) {
+        offset = physical - window->PhysicalBase;
+        if (offset >= window->Length || length > window->Length - offset) {
             continue;
         }
-        if (displacement > UINT64_MAX - window->BusBase) {
+        if (offset > UINT64_MAX - window->BusBase) {
             continue;
         }
-        if (length - 1 > UINT64_MAX - (window->BusBase + displacement)) {
+        if (length - 1 > UINT64_MAX - (window->BusBase + offset)) {
             continue;
         }
-        *address = window->BusBase + displacement;
+        *address = window->BusBase + offset;
         return OS_EOK;
     }
 

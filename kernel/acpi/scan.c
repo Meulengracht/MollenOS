@@ -24,47 +24,25 @@
 //#define __TRACE
 
 #include <acpiinterface.h>
+#include "pci.h"
 #include <debug.h>
 #include <hpet.h>
 #include <heap.h>
 
-extern ACPI_STATUS AcpiHwDerivePciId(ACPI_PCI_ID *PciId, ACPI_HANDLE RootPciDevice, ACPI_HANDLE PciRegion);
-
 // Static storage for the pci-acpi mappings
 static list_t g_acpiDevices = LIST_INIT;
-static int    g_busCounter  = 0;
-
-struct FindBusRoutings {
-    int           Bus;
-    AcpiDevice_t* Device;
-};
-
-static int
-BusRoutingLookupCallback(
-    _In_ int        i,
-    _In_ element_t* element,
-    _In_ void*      context)
-{
-    AcpiDevice_t*           device      = element->value;
-    struct FindBusRoutings* findContext = context;
-    
-    if (device->Type == ACPI_BUS_ROOT_BRIDGE &&
-        device->GlobalBus == findContext->Bus &&
-        device->Routings != NULL)
-    {
-        findContext->Device = device;
-        return LIST_ENUMERATE_STOP;
-    }
-    return LIST_ENUMERATE_CONTINUE;
-}
-
 AcpiDevice_t*
-AcpiDeviceLookupBusRoutings(
-    _In_ int bus)
+AcpiDeviceLookupHandle(
+    _In_ ACPI_HANDLE handle)
 {
-    struct FindBusRoutings context = { .Bus = bus };
-    list_enumerate(&g_acpiDevices, BusRoutingLookupCallback, &context);
-    return context.Device;
+    element_t* element;
+
+    _foreach(element, &g_acpiDevices) {
+        if (((AcpiDevice_t*)element->value)->Handle == handle) {
+            return element->value;
+        }
+    }
+    return NULL;
 }
 
 oserr_t
@@ -175,27 +153,10 @@ AcpiDeviceCreate(
     // PNP0A08 (PCI Express Bridge)
     if (strncmp(acpiDevice->HId, "PNP0A03", 7) == 0 ||
         strncmp(acpiDevice->HId, "PNP0A08", 7) == 0) {
-        // Steps are: 
-        // 1 NegotiateOsControl
-        // 2 Install pci-config address handler
-        // 3 Derive final pci-id
-        // 4 Enumerate
-        //pci_negiotiate_os_control(device);
-        if (strncmp(acpiDevice->HId, "PNP0A08", 7) == 0) {
-            // No support in kernel for PCI-Express
-            ERROR("Missing support for PCI-Express");
-            acpiStatus = AE_NOT_IMPLEMENTED;
-        }
-        else {
-            acpiStatus = AcpiInstallAddressSpaceHandler(
-                    acpiDevice->Handle, ACPI_ADR_SPACE_PCI_CONFIG,
-                    ACPI_DEFAULT_HANDLER, NULL, NULL);
-        }
-        acpiStatus = AcpiHwDerivePciId(&acpiDevice->PciLocation, acpiDevice->Handle, NULL);
-        
-        // Store correct bus-nr
-        acpiDevice->Type      = ACPI_BUS_ROOT_BRIDGE;
-        acpiDevice->GlobalBus = g_busCounter++;
+        // ACPICA installs the PCI configuration handlers before AML is
+        // initialized. Here we only mark the device as a root bridge, and
+        // deviced creates and manages the PCI host itself.
+        acpiDevice->Type = ACPI_BUS_ROOT_BRIDGE;
     }
     else {
         acpiDevice->Type = type;
@@ -204,6 +165,7 @@ AcpiDeviceCreate(
     // Feature data checks like _PRT
     // This must be run after initalizing of the bridge if
     // the device is a pci bridge
+#if defined(__i386__) || defined(__amd64__)
     if (acpiDevice->Features & ACPI_FEATURE_PRT) {
         acpiStatus = AcpiDeviceGetIrqRoutings(acpiDevice);
         if (ACPI_FAILURE(acpiStatus)) {
@@ -211,7 +173,8 @@ AcpiDeviceCreate(
                   acpiDevice->BusId, acpiStatus);
         }
     }
-    
+#endif
+
     // Setup GPE
     if (acpiDevice->Features & ACPI_FEATURE_PRW) {
         acpiStatus = AcpiDeviceParsePower(acpiDevice);
@@ -300,6 +263,7 @@ AcpiDevicesScan(void)
 
     // Run device scan and update Gpes
     if (AcpiGetDevices(NULL, AcpiDeviceScanCallback, NULL, NULL) == AE_OK) {
+        AcpiPciScan();
         if (AcpiUpdateAllGpes() != AE_OK) {
             FATAL(FATAL_SCOPE_KERNEL, "Failed to update Gpes");
         }

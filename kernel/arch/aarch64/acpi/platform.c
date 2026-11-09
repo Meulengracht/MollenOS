@@ -48,6 +48,7 @@ __PublishCores(
             logicalId++;
         }
         core->Affinity = description->Cpus[i].Affinity;
+        core->Gic.RedistributorPhysical = description->Cpus[i].Redistributor;
         core->ReleaseAddress = 0;
         core->EnableMethod = ARM64_CPU_ENABLE_PSCI;
     }
@@ -82,6 +83,7 @@ ArchAcpiInitialize(void)
 
     status = Arm64AcpiReadGtdt(&description.Platform);
     if (status != OS_EOK) {
+        Arm64AcpiReleaseDescription(&description, 0);
         ERROR("ARM64 GTDT discovery failed: %u", status);
         return status;
     }
@@ -95,9 +97,10 @@ ArchAcpiInitialize(void)
         description.GicId,
         0,
         INTERRUPT_PHYSICAL_END,
-        description.Platform.Distributor
+        description.Platform.Gic.Distributor
     );
     if (status != OS_EOK) {
+        Arm64AcpiReleaseDescription(&description, 0);
         return status;
     }
 
@@ -107,7 +110,8 @@ ArchAcpiInitialize(void)
     g_arm64Platform = description.Platform;
     __PublishCores(&description);
     
-    DEBUG("ARM64 ACPI platform: %u CPUs, GICv2, timer PPI %u, PSCI %u",
-        description.Count, description.Platform.TimerInterrupt, description.Platform.PsciConduit);
+    Arm64AcpiReleaseDescription(&description, 1);
+    DEBUG("ARM64 ACPI platform: %u CPUs, GICv%u, timer PPI %u, PSCI %u",
+        description.Count, description.Platform.Gic.Version, description.Platform.TimerInterrupt, description.Platform.PsciConduit);
     return OS_EOK;
 }

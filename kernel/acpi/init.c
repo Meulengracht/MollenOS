@@ -29,6 +29,8 @@
 #include <heap.h>
 #include <arch/interrupts.h>
 
+#include "pci.h"
+
 // Access to the embedded controller instance
 extern AcpiEcdt_t EmbeddedController;
 
@@ -109,6 +111,10 @@ static ACPI_STATUS __ExecutePIC(int interruptMode)
 void AcpiInitialize(void)
 {
     ACPI_STATUS status;
+
+    // AML can access PCI_Config while tables are loaded or _INI is evaluated,
+    // so set up PCI configuration access (with segment support) before both.
+    AcpiPciInitializeConfig();
 
     // Create the ACPI namespace from ACPI tables
     TRACE("AcpiInitialize loading acpi tables");

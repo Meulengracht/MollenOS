@@ -22,6 +22,8 @@ set (AARCH64_SOURCES
     common/boot-memory.c
     common/device.c
     common/interrupts.c
+    common/gicv2.c
+    common/gicv3.c
     common/timer.c
     common/output.c
 )
@@ -49,6 +51,10 @@ if (VALI_BUILD_FEATURE_ACPI)
         acpi/gtdt.c
         acpi/fadt.c
     )
+endif ()
+
+if (VALI_ARM64_GIC_SELFTEST)
+    list(APPEND AARCH64_SOURCES ${CMAKE_SOURCE_DIR}/testing/gic/native.c)
 endif ()
 
 add_kernel_library(vali-aarch64 "" ${AARCH64_SOURCES})

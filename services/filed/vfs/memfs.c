@@ -23,6 +23,7 @@
 #include <os/usched/mutex.h>
 #include <os/handle.h>
 #include <os/shm.h>
+#include <os/types/grants.h>
 #include <os/time.h>
 #include <stdlib.h>
 #include <string.h>
@@ -392,8 +393,8 @@ static oserr_t __CreateInNode(
 
     *entryOut = newEntry;
 
-    // Important to note here that we set .Name to the name pointer *inside* the
-    // entry structure, as we must always use memory owned by the entry.
+    // The name must stay allocated with the entry, so point .Name at the
+    // entry's own copy.
     hashtable_set(
             &entry->Data.Directory.Entries,
             &(struct __DirectoryEntry) { .Name = newEntry->Name, newEntry }
@@ -521,8 +522,8 @@ static oserr_t __SymlinkInNode(
 
     *entryOut = newEntry;
 
-    // Important to note here that we set .Name to the name pointer *inside* the
-    // entry structure, as we must always use memory owned by the entry.
+    // The name must stay allocated with the entry, so point .Name at the
+    // entry's own copy.
     hashtable_set(
             &entry->Data.Directory.Entries,
             &(struct __DirectoryEntry) { .Name = newEntry->Name, newEntry }
@@ -789,99 +790,68 @@ static oserr_t __ReadDirectory(
 }
 
 static oserr_t
-__MapUserBufferRead(
-        _In_ uuid_t      handle,
-        _In_ OSHandle_t* shm)
-{
-    oserr_t oserr;
-
-    oserr = SHMAttach(handle, shm);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    // When mapping the buffer for reading, we need write access to the buffer,
-    // so we can do buffer combining.
-    oserr = SHMMap(shm, 0, SHMBufferCapacity(shm), SHM_ACCESS_READ | SHM_ACCESS_WRITE);
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(shm);
-        return oserr;
-    }
-    return OS_EOK;
-}
-
-static oserr_t
 __MemFSRead(
-        _In_  struct VFSInterface* interface,
-        _In_  void*                instanceData,
-        _In_  void*                data,
-        _In_  uuid_t               bufferHandle,
-        _In_  void*                buffer,
-        _In_  size_t               bufferOffset,
-        _In_  size_t               unitCount,
-        _Out_ size_t*              unitsRead)
+    _In_  struct VFSInterface* interface,
+    _In_  void*                instanceData,
+    _In_  void*                data,
+    _In_  const SHMTransfer_t* transfer,
+    _Out_ size_t*              unitsRead)
 {
     struct MemFSHandle* handle = data;
-    OSHandle_t          shmHandle;
-    void*               pointer;
-    oserr_t             oserr;
+    OSHandle_t          shm;
+    size_t              offset;
+    size_t              length;
+    oserr_t             status;
 
-    TRACE("__MemFSRead(entry=%ms)", handle ? handle->Entry->Name : NULL);
+    // reset even on error
+    *unitsRead = 0;
+    
     if (instanceData == NULL || data == NULL) {
         return OS_EINVALPARAMS;
     }
-
-    // All data is sourced locally, so we do not really need to use
-    // the buffer-handle in this type of FS.
-    if (buffer == NULL) {
-        oserr = __MapUserBufferRead(
-                bufferHandle,
-                &shmHandle
-        );
-        if (oserr != OS_EOK) {
-            return oserr;
-        }
-        pointer = SHMBuffer(&shmHandle);
-    } else {
-        // use the provided local buffer
-        pointer = buffer;
+    
+    offset = transfer->RangeMode == SHMTransferRangeFull ? 0 : transfer->RelativeOffset;
+    length = transfer->RangeMode == SHMTransferRangeFull
+        ? transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+    
+    status = SHMAttachToken(&transfer->Token, &shm);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Handle reading of data differently based on the type of file
-    // entry.
+    status = SHMMap(&shm, 0, offset + length, SHM_ACCESS_READ | SHM_ACCESS_WRITE);
+    if (status != OS_EOK) {
+        OSHandleDestroy(&shm);
+        return status;
+    }
+    
     switch (handle->Entry->Type) {
         case MEMFS_ENTRY_TYPE_FILE:
-            oserr = __ReadFile(handle, pointer, bufferOffset, unitCount, unitsRead);
+            status = __ReadFile(handle, SHMBuffer(&shm), offset, length, unitsRead);
             break;
         case MEMFS_ENTRY_TYPE_DIRECTORY:
-            oserr = __ReadDirectory(handle, pointer, bufferOffset, unitCount, unitsRead);
+            status = __ReadDirectory(handle, SHMBuffer(&shm), offset, length, unitsRead);
             break;
         default:
-            oserr = OS_ENOTSUPPORTED;
+            status = OS_ENOTSUPPORTED;
             break;
     }
-    if (buffer == NULL) {
-        OSHandleDestroy(&shmHandle);
-    }
-    return oserr;
+    OSHandleDestroy(&shm);
+    return status;
 }
 
 static oserr_t
 __MemFSWrite(
-        _In_  struct VFSInterface* interface,
-        _In_  void*                instanceData,
-        _In_  void*                data,
-        _In_  uuid_t               bufferHandle,
-        _In_  const void*          buffer,
-        _In_  size_t               bufferOffset,
-        _In_  size_t               unitCount,
-        _Out_ size_t*              unitsWritten)
+    _In_  struct VFSInterface* interface,
+    _In_  void*                instanceData,
+    _In_  void*                data,
+    _In_  const SHMTransfer_t* transfer,
+    _Out_ size_t*              unitsWritten)
 {
-    TRACE("__MemFSWrite()");
+    *unitsWritten = 0;
     if (instanceData == NULL) {
         return OS_EINVALPARAMS;
     }
-
     return OS_ENOTSUPPORTED;
 }
 

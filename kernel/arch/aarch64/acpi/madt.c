@@ -17,44 +17,77 @@
  */
 
 #include <component/cpu.h>
+#include <heap.h>
 #include <machine.h>
+#include <string.h>
+
 #include "tables.h"
 
-/**
- * @brief Checks that an address can hold one of the fixed 4 KiB GICv2 register
- * blocks.
- *
- * The address must be nonzero, page aligned and fit in 48 bits. This catches
- * bad addresses while the MADT is read. Overlap with RAM is checked later, when
- * the registers are mapped.
- */
+// On GICv3 the GICD and GICR frames are 64 KiB aligned. A redistributor has at
+// least an RD frame and an SGI frame. Any extra frames are detected at runtime.
+#define GICV3_FRAME_SIZE         0x10000ULL
+#define GICV3_REDISTRIBUTOR_SIZE (2 * GICV3_FRAME_SIZE)
+
 static int
-__ValidGicAddress(
-    _In_ uint64_t address)
+__ValidRange(
+    _In_ uint64_t base,
+    _In_ uint64_t length,
+    _In_ uint64_t alignment)
 {
-    return address != 0 && address < (1ULL << 48) && !(address & (ARM64_PAGE_SIZE - 1));
+    if (!base || (base & (alignment - 1)) || !length) {
+        return 0;
+    }
+    return base < (1ULL << 48) && length <= (1ULL << 48) - base;
+}
+
+static int
+__Overlap(
+    _In_ uint64_t first,
+    _In_ uint64_t firstLength,
+    _In_ uint64_t second,
+    _In_ uint64_t secondLength)
+{
+    // Both ranges must have been checked with __ValidRange before this is called.
+    return first < second + secondLength && second < first + firstLength;
+}
+
+static oserr_t
+__ReadDistributor(
+    _In_ const ACPI_MADT_GENERIC_DISTRIBUTOR* entry,
+    _InOut_ struct __AcpiPlatformDescription* description)
+{
+    struct Arm64GicDescription* gic = &description->Platform.Gic;
+    uint64_t                    length;
+
+    if (gic->Distributor || (entry->Version != 2 && entry->Version != 3)) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    length = entry->Version == 3 ? GICV3_FRAME_SIZE : ARM64_GIC_REGION_MINIMUM;
+    if (entry->GlobalIrqBase || !__ValidRange(entry->BaseAddress, length, length)) {
+        return OS_EINVALPARAMS;
+    }
+
+    gic->Version = entry->Version;
+    gic->Distributor = entry->BaseAddress;
+    gic->DistributorLength = length;
+
+    description->GicId = entry->GicId;
+    return OS_EOK;
 }
 
 static oserr_t
 __ReadCpu(
     _In_    const ACPI_MADT_GENERIC_INTERRUPT* entry,
     _In_    uint64_t                           defaultBase,
-    _InOut_ struct __AcpiPlatformDescription*   description)
+    _InOut_ struct __AcpiPlatformDescription*  description)
 {
+    struct Arm64GicDescription*  gic = &description->Platform.Gic;
     struct __AcpiCpuDescription* cpu;
-    uint64_t                     cpuBase;
-    uint64_t                     bootAffinity;
+    uint64_t                     base;
 
-    // Skip CPUs that are disabled or only marked online-capable. Those are
-    // meant for CPU hotplug, which needs its own handling, so a GICC entry
-    // alone is not enough to start them. The caller has already checked the
-    // entry size.
     if (!(entry->Flags & ACPI_MADT_ENABLED)) {
         return OS_EOK;
-    }
-
-    if (description->Count == ARM64_ACPI_GICV2_CPUS || entry->CpuInterfaceNumber >= ARM64_ACPI_GICV2_CPUS) {
-        return OS_ENOTSUPPORTED;
     }
 
     if (entry->ArmMpidr & ~ARM64_MPIDR_AFFINITY_MASK) {
@@ -63,32 +96,59 @@ __ReadCpu(
 
     for (unsigned int i = 0; i < description->Count; i++) {
         cpu = &description->Cpus[i];
-        if (cpu->Affinity == entry->ArmMpidr || cpu->Uid == entry->Uid ||
-            cpu->InterfaceNumber == entry->CpuInterfaceNumber) {
+        if (cpu->Affinity == entry->ArmMpidr || cpu->Uid == entry->Uid) {
+            return OS_EINVALPARAMS;
+        }
+        if (gic->Version == 2 && cpu->InterfaceNumber == entry->CpuInterfaceNumber) {
             return OS_EINVALPARAMS;
         }
     }
 
-    // A nonzero address in the GICC entry is used instead of the common
-    // address in the MADT header. Our GIC driver uses the same banked CPU
-    // interface address on every core, so all CPUs must report the same one.
-    // If they don't, the MADT is rejected. Quietly using the boot CPU's
-    // address for the others would be wrong, and separate addresses per CPU
-    // need driver support first.
-    cpuBase = entry->BaseAddress ? entry->BaseAddress : defaultBase;
-    if (!__ValidGicAddress(cpuBase)) {
-        return OS_EINVALPARAMS;
+    if (gic->Version == 2) {
+        // GICC.BaseAddress takes priority over MADT.Address. The GICv2 CPU
+        // interface is banked, so it must be at the same address for every CPU.
+        // The target mask has 8 bits, so at most 8 CPUs are supported.
+        if (description->Count == ARM64_ACPI_GICV2_CPUS ||
+            entry->CpuInterfaceNumber >= ARM64_ACPI_GICV2_CPUS) {
+            return OS_ENOTSUPPORTED;
+        }
+
+        base = entry->BaseAddress ? entry->BaseAddress : defaultBase;
+        if (!__ValidRange(base, ARM64_GIC_REGION_MINIMUM, ARM64_PAGE_SIZE)) {
+            return OS_EINVALPARAMS;
+        }
+
+        if (description->Count && gic->CpuInterface != base) {
+            return OS_ENOTSUPPORTED;
+        }
+
+        if (__Overlap(base, ARM64_GIC_REGION_MINIMUM, gic->Distributor, gic->DistributorLength)) {
+            return OS_EINVALPARAMS;
+        }
+        
+        gic->CpuInterface = base;
+        gic->CpuInterfaceLength = ARM64_GIC_REGION_MINIMUM;
+    } else if (!gic->RegionCount) {
+        // ACPI says GICR ranges take priority over the GICC addresses, so this
+        // is only used when there are none. The GICC interface number and
+        // GICC.BaseAddress are not used for routing on GICv3, as we go through
+        // the system registers.
+        base = entry->GicrBaseAddress;
+        
+        if (!__ValidRange(base, GICV3_REDISTRIBUTOR_SIZE, GICV3_FRAME_SIZE) ||
+            __Overlap(base, GICV3_REDISTRIBUTOR_SIZE, gic->Distributor, gic->DistributorLength)) {
+            return OS_EINVALPARAMS;
+        }
+
+        for (unsigned int i = 0; i < description->Count; i++) {
+            if (__Overlap(base, GICV3_REDISTRIBUTOR_SIZE,
+                description->Cpus[i].Redistributor, GICV3_REDISTRIBUTOR_SIZE)) {
+                return OS_EINVALPARAMS;
+            }
+        }
     }
 
-    if (description->Count && description->Platform.CpuInterface != cpuBase) {
-        return OS_ENOTSUPPORTED;
-    }
-    
-    description->Platform.CpuInterface = cpuBase;
-    description->Platform.CpuInterfaceLength = ARM64_GIC_REGION_MINIMUM;
-
-    bootAffinity = CpuCorePlatformBlock(GetMachine()->Processor.Cores)->Affinity;
-    if (entry->ArmMpidr == bootAffinity) {
+    if (entry->ArmMpidr == CpuCorePlatformBlock(GetMachine()->Processor.Cores)->Affinity) {
         description->BootIndex = description->Count;
     }
 
@@ -96,29 +156,41 @@ __ReadCpu(
     cpu->Affinity = entry->ArmMpidr;
     cpu->Uid = entry->Uid;
     cpu->InterfaceNumber = entry->CpuInterfaceNumber;
+    cpu->Redistributor = gic->RegionCount ? 0 : entry->GicrBaseAddress;
     return OS_EOK;
 }
 
 static oserr_t
-__ReadDistributor(
-    _In_    const ACPI_MADT_GENERIC_DISTRIBUTOR* entry,
-    _InOut_ struct __AcpiPlatformDescription*    description)
+__ReadRegion(
+    _In_    const ACPI_MADT_GENERIC_REDISTRIBUTOR* entry,
+    _InOut_ struct Arm64GicDescription*            gic,
+    _In_    unsigned int                           index)
 {
-    // Only GICv2 is supported. Version zero means unspecified, and we don't
-    // guess the version from the address. GICv2 MMIO accesses won't work on a
-    // GICv3 or v4 that uses the system register interface.
-    if (entry->Version != ACPI_MADT_GIC_VERSION_V2 || description->Platform.Distributor) {
+    // Non-coherent redistributors need different power management, which we do
+    // not support. This version of ACPICA names the two flag bytes Reserved, so
+    // fail on any non-zero value instead of ignoring a feature we lack.
+    if (gic->Version != 3 || entry->Reserved) {
         return OS_ENOTSUPPORTED;
     }
 
-    if (entry->GlobalIrqBase != 0 || !__ValidGicAddress(entry->BaseAddress)) {
+    if (entry->Length < GICV3_REDISTRIBUTOR_SIZE ||
+        (entry->Length & (GICV3_FRAME_SIZE - 1)) ||
+        !__ValidRange(entry->BaseAddress, entry->Length, GICV3_FRAME_SIZE)) {
         return OS_EINVALPARAMS;
     }
 
-    description->GicId = entry->GicId;
-    description->Platform.Distributor = entry->BaseAddress;
-    description->Platform.DistributorLength = ARM64_GIC_REGION_MINIMUM;
+    if (__Overlap(entry->BaseAddress, entry->Length, gic->Distributor, gic->DistributorLength)) {
+        return OS_EINVALPARAMS;
+    }
     
+    for (unsigned int i = 0; i < index; i++) {
+        if (__Overlap(entry->BaseAddress, entry->Length, gic->Regions[i].Base, gic->Regions[i].Length)) {
+            return OS_EINVALPARAMS;
+        }
+    }
+
+    gic->Regions[index].Base = entry->BaseAddress;
+    gic->Regions[index].Length = entry->Length;
     return OS_EOK;
 }
 
@@ -130,59 +202,118 @@ __ReadEntries(
     const ACPI_SUBTABLE_HEADER* entry;
     const uint8_t*              current = (const uint8_t*)table + sizeof(*table);
     size_t                      remaining = table->Header.Length - sizeof(*table);
+    unsigned int                cpuCount = 0;
+    unsigned int                region = 0;
     oserr_t                     status;
 
-    while (remaining != 0) {
-        // Check the entry header and length before we cast or step past it.
-        // A zero length would loop forever, and a truncated entry at the end
-        // would make us read past the table.
-        if (remaining < sizeof(*entry)) {
+    // The first pass checks the length of every entry and finds the GIC version.
+    // MADT entries can come in any order, so we cannot expect GICD to come
+    // before GICC. Enabled CPUs are counted here, so we know how many temporary
+    // records to allocate.
+    while (remaining) {
+        if (remaining < sizeof(ACPI_SUBTABLE_HEADER)) {
             return OS_EINVALPARAMS;
         }
 
         entry = (const void*)current;
-        if (entry->Length < sizeof(*entry) || entry->Length > remaining) {
+        if (entry->Length < sizeof(ACPI_SUBTABLE_HEADER) || entry->Length > remaining) {
             return OS_EINVALPARAMS;
         }
-
-        status = OS_EOK;
         switch (entry->Type) {
             case ACPI_MADT_TYPE_GENERIC_INTERRUPT:
-                // We read up to and including MPIDR. Newer GICC revisions
-                // only add fields after it.
                 if (entry->Length < offsetof(ACPI_MADT_GENERIC_INTERRUPT, ArmMpidr) + sizeof(UINT64)) {
                     return OS_EINVALPARAMS;
                 }
-                status = __ReadCpu(
-                    (const void*)entry,
-                    table->Address,
-                    description
-                );
+
+                if (((const ACPI_MADT_GENERIC_INTERRUPT*)entry)->Flags & ACPI_MADT_ENABLED) {
+                    cpuCount++;
+                }
                 break;
             case ACPI_MADT_TYPE_GENERIC_DISTRIBUTOR:
                 if (entry->Length < sizeof(ACPI_MADT_GENERIC_DISTRIBUTOR)) {
                     return OS_EINVALPARAMS;
                 }
-                status = __ReadDistributor(
-                    (const void*)entry,
-                    description
-                );
+
+                status = __ReadDistributor((const void*)entry, description);
+                if (status != OS_EOK) {
+                    return status;
+                }
+                break;
+            case ACPI_MADT_TYPE_GENERIC_REDISTRIBUTOR:
+                if (entry->Length < sizeof(ACPI_MADT_GENERIC_REDISTRIBUTOR)) {
+                    return OS_EINVALPARAMS;
+                }
+
+                description->Platform.Gic.RegionCount++;
                 break;
             default:
-                // Other entries, like PMU or MSI, are not needed to start the
-                // timer or the other CPUs. They are skipped, but their length
-                // has still been checked above.
+                // ITS and other optional entries are ignored, as we do not
+                // support MSI/LPI. Their length is still checked above.
                 break;
         }
 
+        current += entry->Length;
+        remaining -= entry->Length;
+    }
+
+    if (!description->Platform.Gic.Distributor || !cpuCount) {
+        return OS_ENOENT;
+    }
+
+    if (cpuCount > ARM64_CPU_COUNT) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    description->Cpus = kmalloc(cpuCount * sizeof(struct __AcpiCpuDescription));
+    if (!description->Cpus) {
+        return OS_EOOM;
+    }
+
+    if (description->Platform.Gic.RegionCount) {
+        description->Platform.Gic.Regions = kmalloc(
+            description->Platform.Gic.RegionCount * sizeof(struct Arm64GicRegion));
+        if (!description->Platform.Gic.Regions) {
+            return OS_EOOM;
+        }
+    }
+
+    // The first pass made sure every entry fits in the table. This pass reads
+    // the same entries again and does the checks for the GIC version, before
+    // anything is published.
+    current = (const uint8_t*)table + sizeof(*table);
+    remaining = table->Header.Length - sizeof(*table);
+    while (remaining) {
+        entry = (const void*)current;
+        status = OS_EOK;
+        
+        if (entry->Type == ACPI_MADT_TYPE_GENERIC_INTERRUPT) {
+            status = __ReadCpu((const void*)entry, table->Address, description);
+        } else if (entry->Type == ACPI_MADT_TYPE_GENERIC_REDISTRIBUTOR) {
+            status = __ReadRegion((const void*)entry, &description->Platform.Gic, region++);
+        }
+        
         if (status != OS_EOK) {
             return status;
         }
-
-        remaining -= entry->Length;
+        
         current += entry->Length;
+        remaining -= entry->Length;
     }
-    return OS_EOK;
+
+    return description->BootIndex == ARM64_CPU_COUNT ? OS_ENOENT : OS_EOK;
+}
+
+void
+Arm64AcpiReleaseDescription(
+    _InOut_ struct __AcpiPlatformDescription* description,
+    _In_ int published)
+{
+    kfree(description->Cpus);
+    description->Cpus = NULL;
+    if (!published) {
+        kfree(description->Platform.Gic.Regions);
+        description->Platform.Gic.Regions = NULL;
+    }
 }
 
 oserr_t
@@ -190,30 +321,19 @@ Arm64AcpiReadMadt(
     _InOut_ struct __AcpiPlatformDescription* description)
 {
     ACPI_TABLE_HEADER* header;
-    oserr_t            status;
+    oserr_t status;
 
     status = Arm64AcpiGetTable(ACPI_SIG_MADT, sizeof(ACPI_TABLE_MADT), &header);
     if (status != OS_EOK) {
         return status;
     }
 
-    description->BootIndex = ARM64_ACPI_GICV2_CPUS;
+    description->BootIndex = ARM64_CPU_COUNT;
     
-    status = __ReadEntries(
-        (const ACPI_TABLE_MADT*)header,
-        description
-    );
+    status = __ReadEntries((const ACPI_TABLE_MADT*)header, description);
     AcpiPutTable(header);
     if (status != OS_EOK) {
-        return status;
+        Arm64AcpiReleaseDescription(description, 0);
     }
-
-    if (!description->Platform.Distributor || description->BootIndex == ARM64_ACPI_GICV2_CPUS) {
-        return OS_ENOENT;
-    }
-    
-    if (description->Platform.Distributor == description->Platform.CpuInterface) {
-        return OS_EINVALPARAMS;
-    }
-    return OS_EOK;
+    return status;
 }

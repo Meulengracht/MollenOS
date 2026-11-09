@@ -27,6 +27,7 @@
 #include <bus/pci/config.h>
 #include <bus/pci/interrupts.h>
 #include <bus/pci/strings.h>
+#include <firmware/pci.h>
 #include <ddk/devices/bus.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -65,7 +66,7 @@ __GetPciDeviceNativeHeader(
         return OS_EOOM;
     }
 
-    // The device owns this header after the function returns successfully.
+    // On success, the header stays allocated with the device.
     PciReadFunction(
         nativeHeader,
         parent->Host,
@@ -76,6 +77,23 @@ __GetPciDeviceNativeHeader(
 
     *headerOut = nativeHeader;
     return OS_EOK;
+}
+
+static int
+__HasHostControllerBars(
+    _In_ PciDevice_t* device)
+{
+    const struct FdtPciHost* firmware = device->Host->Firmware;
+
+    if (firmware == NULL || !device->IsBridge) {
+        return 0;
+    }
+
+    if (firmware->Type != FdtPciHostBcm2711 && firmware->Type != FdtPciHostBcm2712) {
+        return 0;
+    }
+    
+    return device->Bus == firmware->BusStart && device->Slot == 0 && device->Function == 0;
 }
 
 static oserr_t
@@ -158,7 +176,10 @@ __PciCheckFunction(
     resources.Slot = slot;
     resources.Function = function;
     
-    if (!device->IsBridge) {
+    // The BARs on the host root port are specific to the controller and are used
+    // for inbound RAM, so we skip those. BARs on any other bridge are normal BARs,
+    // and must be reserved when resources are assigned.
+    if (!__HasHostControllerBars(device)) {
         PciProbeBars(device->Host, &resources, device->Header->HeaderType, device->Resources.Bars);
         PciDiagnoseBars(device->Host, &resources, device->Resources.Bars);
     }

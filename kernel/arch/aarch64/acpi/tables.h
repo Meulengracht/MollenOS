@@ -35,12 +35,14 @@ struct __AcpiCpuDescription {
     uint32_t Uid;
     // InterfaceNumber identifies its GICv2 target bit
     uint32_t InterfaceNumber;
+    // Redistributor is the GICR base of this CPU, only used if MADT has no GICR ranges
+    uint64_t Redistributor;
 };
 
 // Acpi information gathered during initialization
 struct __AcpiPlatformDescription {
     struct Arm64Platform        Platform;
-    struct __AcpiCpuDescription Cpus[ARM64_ACPI_GICV2_CPUS];
+    struct __AcpiCpuDescription* Cpus;
     unsigned int                Count;
     unsigned int                BootIndex;
     uint32_t                    GicId;
@@ -86,10 +88,10 @@ Arm64AcpiGetTable(
     _Out_ ACPI_TABLE_HEADER** header);
 
 /**
- * @brief Reads the enabled CPUs and the GICv2 interrupt controller from the
+ * @brief Reads the enabled CPUs and the GIC interrupt controller from the
  * MADT.
  *
- * Only a single GICv2 distributor is supported. Nothing global is changed
+ * A single GICv2 or GICv3 distributor is supported. Nothing global is changed
  * here, so on failure the platform state is left as it was.
  *
  * @param description Receives the CPUs and GIC addresses. BootIndex is set to
@@ -127,5 +129,19 @@ Arm64AcpiReadGtdt(
 __EXTERN oserr_t
 Arm64AcpiReadFadt(
     _InOut_ struct Arm64Platform* platform);
+
+/**
+ * @brief Frees the temporary CPU records, and the GICR ranges if they were
+ * never published.
+ *
+ * @param description The description that was read. It must have been zeroed
+ *                    before the tables were read.
+ * @param published   Non-zero once Platform has been copied to its permanent
+ *                    location.
+ */
+__EXTERN void
+Arm64AcpiReleaseDescription(
+    _InOut_ struct __AcpiPlatformDescription* description,
+    _In_ int                                  published);
 
 #endif //!__VALI_AARCH64_ACPI_TABLES_H__

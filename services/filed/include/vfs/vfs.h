@@ -20,6 +20,7 @@
 #define __VFS_H__
 
 #include <ddk/storage.h>
+#include <os/types/grants.h>
 #include <ds/guid.h>
 #include <ds/mstring.h>
 
@@ -74,10 +75,10 @@ extern oserr_t VFSNodeUnmount(struct VFS*, uuid_t directoryHandleID);
 extern oserr_t VFSNodeUnmountPath(struct VFS*, mstring_t* path);
 
 extern oserr_t VFSNodeDuplicate(uuid_t handle, uuid_t* handleOut);
-extern oserr_t VFSNodeRead(uuid_t fileHandle, uuid_t bufferHandle, size_t offset, size_t length, size_t* readOut);
-extern oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* readOut);
-extern oserr_t VFSNodeWrite(uuid_t fileHandle, uuid_t bufferHandle, size_t offset, size_t length, size_t* writtenOut);
-extern oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* writtenOut);
+extern oserr_t VFSNodeRead(uuid_t fileHandle, const SHMTransfer_t* transfer, size_t* readOut);
+extern oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, const SHMTransfer_t* transfer, size_t* readOut);
+extern oserr_t VFSNodeWrite(uuid_t fileHandle, const SHMTransfer_t* transfer, size_t* writtenOut);
+extern oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, const SHMTransfer_t* transfer, size_t* writtenOut);
 extern oserr_t VFSNodeSeek(uuid_t fileHandle, UInteger64_t* position, uint64_t* positionOut);
 extern oserr_t VFSNodeFlush(uuid_t fileHandle);
 

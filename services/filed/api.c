@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <ddk/convert.h>
+#include <ddk/convert/grants.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,15 +95,16 @@ void sys_file_delete_invocation(struct gracht_message* message,
 }
 
 void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle,
-                                  const enum sys_transfer_direction direction, const uuid_t bufferHandle,
-                                  const size_t offset, const size_t length)
+                                  const enum sys_transfer_direction direction, const struct sys_shm_transfer* buffer)
 {
-    struct VFS* fsScope = VFSScopeGet(processId);
-    size_t      transferred = 0;
-    oserr_t     oserr;
+    struct VFS*   fsScope = VFSScopeGet(processId);
+    size_t        transferred = 0;
+    oserr_t       oserr;
+    SHMTransfer_t transfer;
+
     TRACE("sys_file_transfer_invocation()");
 
-    if (bufferHandle == UUID_INVALID || length == 0 ||
+    if (__FromSysSHMTransfer(buffer, &transfer) != OS_EOK ||
         (direction != SYS_TRANSFER_DIRECTION_READ &&
          direction != SYS_TRANSFER_DIRECTION_WRITE)) {
         sys_file_transfer_response(message, OS_EINVALPARAMS, 0);
@@ -114,9 +116,9 @@ void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t p
     }
 
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
-        oserr = VFSNodeRead(handle, bufferHandle, offset, length, &transferred);
+        oserr = VFSNodeRead(handle, &transfer, &transferred);
     } else {
-        oserr = VFSNodeWrite(handle, bufferHandle, offset, length, &transferred);
+        oserr = VFSNodeWrite(handle, &transfer, &transferred);
     }
     sys_file_transfer_response(message, oserr, transferred);
 }
@@ -144,14 +146,16 @@ void sys_file_seek_invocation(struct gracht_message* message, const uuid_t proce
 void sys_file_transfer_absolute_invocation(struct gracht_message* message, const uuid_t processId,
                                            const uuid_t handle, const enum sys_transfer_direction direction,
                                            const unsigned int seekLow, const unsigned int seekHigh,
-                                           const uuid_t bufferHandle, const size_t offset, const size_t length)
+                                           const struct sys_shm_transfer* buffer)
 {
-    struct VFS* fsScope = VFSScopeGet(processId);
-    size_t      transferred = 0;
-    oserr_t     oserr;
+    struct VFS*   fsScope = VFSScopeGet(processId);
+    size_t        transferred = 0;
+    oserr_t       oserr;
+    SHMTransfer_t transfer;
+
     TRACE("sys_file_transfer_absolute_invocation()");
 
-    if (bufferHandle == UUID_INVALID || length == 0 ||
+    if (__FromSysSHMTransfer(buffer, &transfer) != OS_EOK ||
         (direction != SYS_TRANSFER_DIRECTION_READ &&
          direction != SYS_TRANSFER_DIRECTION_WRITE)) {
         sys_file_transfer_absolute_response(message, OS_EINVALPARAMS, 0);
@@ -164,27 +168,23 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
 
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
         oserr = VFSNodeReadAt(
-                handle,
-                &(UInteger64_t) {
-                    .u.LowPart = seekLow,
-                    .u.HighPart = seekHigh
-                },
-                bufferHandle,
-                offset,
-                length,
-                &transferred
+            handle,
+            &(UInteger64_t) {
+                .u.LowPart = seekLow,
+                .u.HighPart = seekHigh
+            },
+            &transfer,
+            &transferred
         );
     } else {
         oserr = VFSNodeWriteAt(
-                handle,
-                &(UInteger64_t) {
-                        .u.LowPart = seekLow,
-                        .u.HighPart = seekHigh
-                },
-                bufferHandle,
-                offset,
-                length,
-                &transferred
+            handle,
+            &(UInteger64_t) {
+                    .u.LowPart = seekLow,
+                    .u.HighPart = seekHigh
+            },
+            &transfer,
+            &transferred
         );
     }
     sys_file_transfer_absolute_response(message, oserr, transferred);

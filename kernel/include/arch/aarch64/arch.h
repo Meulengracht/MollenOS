@@ -31,7 +31,7 @@
 // Allocation block size for memory management
 #define ALLOCATION_BLOCK_SIZE 0x100000 // 1 mb
 
-// Physical GIC IDs occupy 0..1019; 1020..1023 are reserved hardware responses.
+// Physical GIC IDs occupy 0..1019. 1020..1023 are reserved hardware responses.
 #define INTERRUPT_PHYSICAL_BASE 32
 #define INTERRUPT_PHYSICAL_END  1020
 
@@ -78,6 +78,18 @@ typedef struct PlatformCpuBlock {
     uint64_t CounterFrequency;
 } PlatformCpuBlock_t;
 
+struct Arm64GicCore {
+    // GICv2 target bit (from ITARGETSR). This is not the same as the MPIDR affinity.
+    unsigned int Target;
+    // Set once this CPU is able to receive interrupts.
+    unsigned int Ready;
+    // GICv3 redistributor of this CPU. RedistributorPhysical is first taken from
+    // GICC (when MADT has no GICR ranges), and then set to the frame we matched.
+    // Redistributor is the mapped address of that frame.
+    uint64_t     RedistributorPhysical;
+    uintptr_t    Redistributor;
+};
+
 typedef struct PlatformCpuCoreBlock {
     // Hardware ID used to identify this core when starting it.
     uint64_t     Affinity;
@@ -88,8 +100,7 @@ typedef struct PlatformCpuCoreBlock {
     uintptr_t    BootStack;
     // Selects how the system asks this core to start.
     unsigned int EnableMethod;
-    // Value used to direct device interrupts to this core.
-    unsigned int GicTarget;
+    struct Arm64GicCore Gic;
 } PlatformCpuCoreBlock_t;
 
 typedef struct PlatformThreadBlock {
@@ -111,7 +122,7 @@ typedef struct PlatformMemoryBlock {
 /**
  * @brief Returns userspace CPU capabilities common to all configured cores.
  * 
- * @return OSSystemCPUFeatures flags; uninitialized cores contribute no features.
+ * @return OSSystemCPUFeatures flags. Uninitialized cores contribute no features.
  */
 KERNELAPI unsigned int KERNELABI
 Arm64GetCpuFeatures(void);

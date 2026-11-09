@@ -16,6 +16,7 @@
  */
 
 #include <ddk/convert.h>
+#include <ddk/convert/grants.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <vfs/interface.h>
@@ -181,58 +182,90 @@ __DriverMove(struct VFSInterface* interface, void* instanceData, mstring_t* from
 
 static oserr_t
 __DriverRead(
-        _In_  struct VFSInterface* interface,
-        _In_  void*                instanceData,
-        _In_  void*                data,
-        _In_  uuid_t               bufferHandle,
-        _In_  void*                buffer,
-        _In_  size_t               bufferOffset,
-        _In_  size_t               unitCount,
-        _Out_ size_t*              unitsRead)
+    _In_  struct VFSInterface* interface,
+    _In_  void*                instanceData,
+    _In_  void*                data,
+    _In_  const SHMTransfer_t* transfer,
+    _Out_ size_t*              unitsOut)
 {
     struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
-    oserr_t                       oserr;
     struct ctt_fs_transfer_params params;
-    uint64_t                      read;
-    _CRT_UNUSED(buffer);
+    uint64_t                      completed = 0;
+    size_t                        length;
+    oserr_t                       status;
 
-    params.buffer_id = bufferHandle;
-    params.offset = bufferOffset;
-    params.count = unitCount;
+    // reset even on error
+    *unitsOut = 0;
+    
+    status = __ToSysSHMTransfer(transfer, &params.buffer);
+    if (status != OS_EOK) {
+        return status;
+    }
 
-    ctt_filesystem_read(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_filesystem_read_result(GetGrachtClient(), &msg.base, &oserr, &read);
-    *unitsRead = read;
-    return oserr;
+    length = transfer->RangeMode == SHMTransferRangeFull
+        ? transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+    if (ctt_filesystem_read(GetGrachtClient(), &msg.base,
+                          (uintptr_t)instanceData, (uintptr_t)data, &params) != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
+        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
+        gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+
+    if (ctt_filesystem_read_result(GetGrachtClient(), &msg.base, &status, &completed) != 0 ||
+        completed > length) {
+        return OS_EPROTOCOL;
+    }
+
+    *unitsOut = (size_t)completed;
+    return status;
 }
 
 static oserr_t
 __DriverWrite(
-        _In_  struct VFSInterface* interface,
-        _In_  void*                instanceData,
-        _In_  void*                data,
-        _In_  uuid_t               bufferHandle,
-        _In_  const void*          buffer,
-        _In_  size_t               bufferOffset,
-        _In_  size_t               unitCount,
-        _Out_ size_t*              unitsWritten)
+    _In_  struct VFSInterface* interface,
+    _In_  void*                instanceData,
+    _In_  void*                data,
+    _In_  const SHMTransfer_t* transfer,
+    _Out_ size_t*              unitsOut)
 {
     struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
-    oserr_t                       oserr;
     struct ctt_fs_transfer_params params;
-    uint64_t                      written;
-    _CRT_UNUSED(buffer);
+    uint64_t                      completed = 0;
+    size_t                        length;
+    oserr_t                       status;
 
-    params.buffer_id = bufferHandle;
-    params.offset = bufferOffset;
-    params.count = unitCount;
+    // reset even on error
+    *unitsOut = 0;
 
-    ctt_filesystem_write(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_filesystem_write_result(GetGrachtClient(), &msg.base, &oserr, &written);
-    *unitsWritten = (size_t)written;
-    return oserr;
+    status = __ToSysSHMTransfer(transfer, &params.buffer);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    length = transfer->RangeMode == SHMTransferRangeFull
+        ? transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+    if (ctt_filesystem_write(GetGrachtClient(), &msg.base,
+                          (uintptr_t)instanceData, (uintptr_t)data, &params) != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
+        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
+        gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+
+    if (ctt_filesystem_write_result(GetGrachtClient(), &msg.base, &status, &completed) != 0 ||
+        completed > length) {
+        return OS_EPROTOCOL;
+    }
+    
+    *unitsOut = (size_t)completed;
+    return status;
 }
 
 static oserr_t

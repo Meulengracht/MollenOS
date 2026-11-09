@@ -57,7 +57,7 @@
 #define ARM64_GIC_CONFIG_MASK         3U
 #define ARM64_GIC_CONFIG_EDGE         2U
 
-// TYPER describes groups of 32 lines; bit 10 reports security extensions.
+// TYPER describes groups of 32 lines. Bit 10 reports security extensions.
 #define ARM64_GIC_TYPER_LINES_MASK    0x1fU
 #define ARM64_GIC_TYPER_SECURITY      (1U << 10)
 
@@ -71,16 +71,16 @@
 #define ARM64_GIC_SGI_MASK            0x0000ffffU
 #define ARM64_GIC_ALL_BITS            0xffffffffU
 
-// Priorities and CPU target lists occupy one byte; repeat a byte across a word.
+// Priorities and CPU target lists occupy one byte. Repeat a byte across a word.
 #define ARM64_GIC_BYTE_MASK           0xffU
 #define ARM64_GIC_REPEAT_BYTE         0x01010101U
 #define ARM64_GIC_DEFAULT_PRIORITIES  0xa0a0a0a0U
 
-// IAR bits 9:0 are the ID; IDs 1020-1023 do not represent a usable interrupt.
+// IAR bits 9:0 are the ID. IDs 1020-1023 do not represent a usable interrupt.
 #define ARM64_GIC_INTERRUPT_ID_MASK   0x3ffU
 #define ARM64_GIC_SPECIAL_ID_BASE     1020U
 
-// SGIR bits 23:16 select target interfaces; Vali interrupt IDs use the low word.
+// SGIR bits 23:16 select target interfaces. Vali interrupt IDs use the low word.
 #define ARM64_GIC_SGI_TARGET_SHIFT    16U
 #define ARM64_INTERRUPT_VECTOR_MASK   0xffffU
 
@@ -88,7 +88,7 @@
 #define ARM64_GIC_ALLOCATABLE_SGI_BASE  2U
 #define ARM64_GIC_ALLOCATABLE_SGI_COUNT 14U
 
-// DAIF.I masks IRQ delivery; DAIFSet/DAIFClr encode that bit as immediate 2.
+// DAIF.I masks IRQ delivery. DAIFSet/DAIFClr encode that bit as immediate 2.
 #define ARM64_DAIF_IRQ_MASK           (1U << 7)
 
 // Four-level, 4 KiB translation tables have 512 entries and consume nine
@@ -110,7 +110,7 @@
 #define TABLE_TYPE_MASK         3ULL
 #define TABLE_PAGE_BIT          2ULL
 
-// AF marks an accessed page; SH=11 selects inner-shareable memory. AP bit 6
+// AF marks an accessed page. SH=11 selects inner-shareable memory. AP bit 6
 // permits EL0 access and AP bit 7 makes the page read-only.
 #define PAGE_ACCESS             (1ULL << 10)
 #define PAGE_INNER_SHAREABLE    (3ULL << 8)
@@ -127,14 +127,14 @@
 #define PAGE_PXN                (1ULL << 53)
 #define PAGE_UXN                (1ULL << 54)
 
-// Software-owned descriptor bits retain reservation, lifetime, trap, and
-// inherited-table ownership information; they do not enable hardware access.
+// Software descriptor bits track reservations, persistent mappings, traps and
+// inherited tables. These bits do not enable hardware access.
 #define PAGE_RESERVED           (1ULL << 55)
 #define PAGE_PERSISTENT         (1ULL << 56)
 #define PAGE_TRAP               (1ULL << 57)
 #define TABLE_INHERITED         (1ULL << 58)
 
-// ID_AA64MMFR0_EL1: TGran4[31:28]=0xf rejects 4 KiB pages; PARange[2:0]
+// ID_AA64MMFR0_EL1: TGran4[31:28]=0xf rejects 4 KiB pages. PARange[2:0]
 // is copied to TCR_EL1.IPS[34:32] to select the implemented physical width.
 #define ARM64_MMFR0_GRANULE_SHIFT 28U
 #define ARM64_MMFR0_NO_GRANULE    0xfU
@@ -142,7 +142,7 @@
 #define ARM64_TCR_PA_SHIFT        32U
 
 // T0SZ/T1SZ=16 provide 48-bit virtual addresses. Both table walks use
-// inner-shareable WBWA memory; TG0=00 and TG1=10 select 4 KiB granules.
+// inner-shareable WBWA memory. TG0=00 and TG1=10 select 4 KiB granules.
 #define ARM64_TCR_VA_SIZE        (16ULL | (16ULL << 16))
 #define ARM64_TCR_SHAREABLE      ((3ULL << 12) | (3ULL << 28))
 #define ARM64_TCR_WALK_CACHE     ((1ULL << 8) | (1ULL << 10) | (1ULL << 24) | (1ULL << 26))
@@ -151,12 +151,12 @@
 // MAIR slots 0/1/2: normal WBWA (0xff), Device-nGnRnE (0x00), normal NC (0x44).
 #define ARM64_MAIR               0x4400ffULL
 
-// CTR_EL0 line-size fields encode log2(words); a word contains four bytes.
+// CTR_EL0 line-size fields encode log2(words). A word contains four bytes.
 #define ARM64_CTR_DATA_SHIFT     16U
 #define ARM64_FEATURE_FIELD_MASK 0xfU
 #define ARM64_CACHE_WORD_SIZE    4UL
 
-// TTBR0 uses the low 48-bit VA range; bit 63 selects the upper TTBR1 range.
+// TTBR0 uses the low 48-bit VA range. Bit 63 selects the upper TTBR1 range.
 #define ARM64_VIRTUAL_ADDRESS_BITS 48U
 #define ARM64_ADDRESS_HIGH_BIT     63U
 
@@ -164,10 +164,10 @@
 #define ARM64_MEMORY_MASK_LOW    0x7fffffffULL
 #define ARM64_MEMORY_MASK_32     0xffffffffULL
 
-// Default device pool size; a multiple of ARM64_BLOCK_SIZE so it maps in blocks.
+// Default device pool size, in whole ARM64_BLOCK_SIZE blocks.
 #define ARM64_DEVICE_POOL_SIZE   0x400000ULL
 
-// ESR_EL1.EC[31:26] selects the exception class; ISS[24:0] carries details.
+// ESR_EL1.EC[31:26] selects the exception class. ISS[24:0] carries details.
 #define ARM64_ESR_SYNDROME_MASK           0x1ffffffU
 #define ARM64_EC_UNKNOWN                  0x00U
 #define ARM64_EC_FP_ACCESS                0x07U
@@ -181,8 +181,8 @@
 #define ARM64_EC_SOFTWARE_STEP            0x32U
 #define ARM64_EC_BRK                      0x3cU
 
-// Abort FSC[5:2]=0001 identifies translation faults at any table level;
-// data-abort WnR[6] distinguishes writes from reads.
+// Abort FSC[5:2]=0001 identifies translation faults at any table level.
+// Data-abort WnR[6] distinguishes writes from reads.
 #define ARM64_ABORT_KIND_MASK    0x3cU
 #define ARM64_ABORT_TRANSLATION  4U
 #define ARM64_ABORT_WRITE        (1U << 6)
@@ -193,7 +193,7 @@
 #define ARM64_SVC_SIGNAL_RETURN  2U
 
 // MOPS ISS register operands are five-bit fields. Encoding 31 is outside
-// Context.X; SET uses its source field as a value rather than a saved pointer.
+// Context.X. SET uses its source field as a value rather than a saved pointer.
 #define ARM64_MOPS_REGISTER_MASK      31U
 #define ARM64_MOPS_DESTINATION_SHIFT  10U
 #define ARM64_MOPS_SOURCE_SHIFT       5U
@@ -202,14 +202,14 @@
 #define ARM64_MOPS_OPTION_SHIFT       16U
 #define ARM64_MOPS_WRONG_OPTION_SHIFT 17U
 
-// PSTATE.M selects EL0t or EL1h. Signal return retains only arithmetic NZCV
+// PSTATE.M selects EL0t or EL1h. Signal return keeps only arithmetic NZCV
 // flags, never privileged execution or interrupt-mask state. N marks MOPS
-// Option B backward copies; bit 63 marks a negative remaining size in Option A.
+// Option B backward copies. Bit 63 marks a negative remaining size in Option A.
 #define ARM64_PSTATE_NZCV        0xf0000000ULL
 #define ARM64_PSTATE_NEGATIVE    (1ULL << 31)
 #define ARM64_SIGN_BIT           (1ULL << 63)
 
-// AArch64 instructions occupy four bytes; stacks and frame records are 16-byte aligned.
+// AArch64 instructions occupy four bytes. Stacks and frame records are 16-byte aligned.
 #define ARM64_INSTRUCTION_SIZE   4U
 #define ARM64_STACK_ALIGNMENT    16U
 
@@ -220,8 +220,8 @@
 // Spin-table release slots hold one naturally aligned 64-bit entry address.
 #define ARM64_CPU_RELEASE_ALIGNMENT 8U
 
-// GICv2 DT interrupts contain type, relative ID, and flags. Type 1 is a PPI;
-// its relative ID is 0-15. The low flags nibble selects level-high/level-low.
+// GICv2 DT interrupts contain type, relative ID, and flags. Type 1 is a PPI
+// with relative ID 0-15. The low flags nibble selects level-high/level-low.
 #define ARM64_DT_GIC_CELLS          3U
 #define ARM64_DT_GIC_PPI            1U
 #define ARM64_DT_GIC_TRIGGER_MASK   0xfU
@@ -234,7 +234,7 @@
 // Both GICv2 register regions must cover at least their first 4 KiB page.
 #define ARM64_GIC_REGION_MINIMUM    0x1000U
 
-// PL011 DR transmits bytes; FR.TXFF[5] means its transmit FIFO is full.
+// PL011 DR transmits bytes. FR.TXFF[5] means its transmit FIFO is full.
 #define ARM64_UART_DATA             0x00U
 #define ARM64_UART_FLAGS            0x18U
 #define ARM64_UART_TX_FULL          (1U << 5)
@@ -243,12 +243,12 @@
 // Console discovery must include FR, the highest register used by this port.
 #define ARM64_UART_REGION_MINIMUM   (ARM64_UART_FLAGS + ARM64_MMIO_REGISTER_SIZE)
 
-// Per-core stack reservations: IRQ dispatch survives thread destruction; the
-// smaller secondary stack is used only while that core enters shared startup.
+// The per-core IRQ dispatch stack stays allocated when a thread is destroyed.
+// The smaller secondary stack is used only while that core enters shared startup.
 #define ARM64_INTERRUPT_STACK_SIZE 32768U
 #define ARM64_SECONDARY_STACK_SIZE 16384U
 
-// CPU feature fields: AdvSIMD is a signed nibble; FPEN must permit both ELs.
+// CPU feature fields: AdvSIMD is a signed nibble. FPEN must permit both ELs.
 #define ARM64_PFR0_SIMD_SHIFT       20U
 #define ARM64_PFR0_SIMD_SIGN_BIT    8U
 #define ARM64_CPACR_FP_MASK         ARM64_CPACR_FP_ENABLE
@@ -284,16 +284,28 @@ struct Arm64CpuLocal {
     uintptr_t             InterruptStackTop;
 };
 
+struct Arm64GicRegion {
+    uint64_t Base;
+    uint64_t Length;
+};
+
+struct Arm64GicDescription {
+    uint64_t               Distributor;
+    uint64_t               CpuInterface;
+    uint64_t               DistributorLength;
+    uint64_t               CpuInterfaceLength;
+    unsigned int           Version;
+    unsigned int           RegionCount;
+    struct Arm64GicRegion* Regions;
+};
+
 struct Arm64Platform {
-    uint64_t     Distributor;
-    uint64_t     CpuInterface;
-    uint64_t     DistributorLength;
-    uint64_t     CpuInterfaceLength;
-    uint64_t     Uart;
-    uint64_t     UartLength;
-    unsigned int TimerInterrupt;
-    unsigned int TimerFlags; // INTERRUPT_ACPICONFORM_* flags
-    unsigned int PsciConduit;
+    struct Arm64GicDescription Gic;
+    uint64_t                   Uart;
+    uint64_t                   UartLength;
+    unsigned int               TimerInterrupt;
+    unsigned int               TimerFlags; // INTERRUPT_ACPICONFORM_* flags
+    unsigned int               PsciConduit;
 };
 
 extern struct Arm64Platform g_arm64Platform;
@@ -334,7 +346,7 @@ Arm64BootMemoryInitialize(
  * may use. Call on each CPU before its interrupt or scheduling paths run.
  *
  * @param coreId Kernel-assigned ID of the current CPU, less than ARM64_CPU_COUNT.
- *               This selects its storage slot; it is not a hardware affinity value.
+ *               This selects its storage slot, not a hardware affinity value.
  */
 __EXTERN void
 Arm64InitializeLocal(
@@ -343,13 +355,14 @@ Arm64InitializeLocal(
 /**
  * @brief Prepares the current CPU to receive interrupts from the GIC.
  *
- * Records this CPU's hardware routing mask, disables its private device
- * interrupts, clears pending private requests, and enables software interrupts.
- * Sets priorities and enables its receiving interface. These settings belong
- * to the current CPU, so every CPU must perform this setup during startup.
- * The GIC register regions must already be mapped by platform initialization.
+ * Call on each CPU after mapping the GIC registers. Records routing state,
+ * disables private device interrupts and clears pending requests. Sets priorities
+ * and enables software interrupts and the CPU interface.
+ *
+ * @return OS_EOK when the interface is ready. If this fails, the CPU must not
+ *         be marked as online or used as an IPI target.
  */
-__EXTERN void
+__EXTERN oserr_t
 Arm64GicInitializeCore(void);
 
 /**
@@ -364,16 +377,14 @@ __EXTERN void
 Arm64TimerInitializeCore(void);
 
 /**
- * @brief Updates elapsed thread time and asks the scheduler what should run next.
+ * @brief Updates elapsed thread time and runs the scheduler.
  *
- * Converts counter ticks since the previous update to nanoseconds and passes
- * them to the scheduler, which may select another thread. Sets the next timer
- * deadline, or disables the timer if there is no work or wakeup deadline.
- * Called with local IRQs masked and the interrupted context recorded by the
- * CPU's interrupt bookkeeping. The timer must already be initialized.
+ * Requires an initialized timer, masked local IRQs and a recorded interrupt
+ * context. Converts elapsed counter ticks to nanoseconds for the scheduler,
+ * which may select another thread. Sets the next deadline, or disables the
+ * timer when there is no work or wakeup deadline.
  *
- * @param preemptive Nonzero for a timer interrupt; zero for an explicit yield
- *                   or a software interrupt requesting a scheduling update.
+ * @param preemptive Nonzero for timer preemption, zero for a yield or scheduling SGI.
  */
 __EXTERN void
 Arm64TimerAdvance(
@@ -388,7 +399,7 @@ Arm64TimerAdvance(
  * The CPU must already allow kernel access to these registers.
  *
  * @param buffer Writable storage of at least ARM64_FP_STATE_SIZE bytes (528 bytes).
- *               The caller owns the buffer and keeps it until the state is restored.
+ *               The caller must keep the buffer until the state is restored.
  */
 __EXTERN void
 Arm64SaveFp(

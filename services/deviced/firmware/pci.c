@@ -460,7 +460,7 @@ FdtTranslatePciAddress(
     _Out_ uint64_t*                physicalOut)
 {
     const struct FdtPciWindow* window;
-    uint64_t                   displacement;
+    uint64_t                   busOffset;
 
     TRACE("FdtTranslatePciAddress(host=%p, space=%u, address=0x%llx, length=0x%llx)",
         host, space, (unsigned long long)address, (unsigned long long)length);
@@ -489,15 +489,15 @@ FdtTranslatePciAddress(
             continue;
         }
 
-        displacement = address - window->BusBase;
-        if (displacement > UINT64_MAX - window->PhysicalBase ||
-            length - 1 > UINT64_MAX - window->PhysicalBase - displacement) {
+        busOffset = address - window->BusBase;
+        if (busOffset > UINT64_MAX - window->PhysicalBase ||
+            length - 1 > UINT64_MAX - window->PhysicalBase - busOffset) {
             ERROR("FdtTranslatePciAddress: domain %u window %u physical extent overflows",
                 host->Segment, index);
             return OS_EINVALPARAMS;
         }
 
-        *physicalOut = window->PhysicalBase + displacement;
+        *physicalOut = window->PhysicalBase + busOffset;
         return OS_EOK;
     }
     WARNING("FdtTranslatePciAddress: domain %u has no window covering the requested range", host->Segment);

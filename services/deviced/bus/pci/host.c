@@ -226,12 +226,13 @@ PciHostDestroy(
             bus->Identification.BusStart, bus->Identification.BusEnd, status);
         return status;
     }
-    // Keep the host's bus range reserved until every owned resource is gone.
+    // Keep the host's bus range reserved until all its resources are released.
     if (bus->RootDevice != NULL) {
         list_remove(&g_pciRoots, &bus->RootDevice->ListHeader);
         free(bus->RootDevice);
     }
     FdtTreeRelease(bus->FirmwareTree);
+    free(bus->Resources.Windows);
     free(bus);
 
     PciCriticalSectionLeave();
@@ -343,8 +344,13 @@ PciHostAttach(
         return OS_EEXISTS;
     }
 
+    status = PciHostLoadDtWindows(bus);
+    if (status != OS_EOK) {
+        return status;
+    }
+
     // The constructor uses the common firmware tree without adding a reference.
-    // Add the host's reference before registration transfers ownership to PCI.
+    // Add a reference for the host before registering it with PCI.
     bus->FirmwareTree = tree;
     if (tree != NULL) {
         FdtTreeAddReference(tree);

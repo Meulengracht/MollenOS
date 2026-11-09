@@ -92,44 +92,6 @@ __EcamWrite(
 }
 
 static oserr_t
-__DtTranslate(
-    _In_  PciHost_t* host,
-    _In_  uint32_t   space,
-    _In_  uint64_t   address,
-    _In_  uint64_t   length,
-    _Out_ uint64_t* physicalOut)
-{
-    oserr_t status;
-
-    status = FdtTranslatePciAddress(
-        host->OpContext,
-        (FdtPciSpace_t)space,
-        address,
-        length,
-        physicalOut
-    );
-    if (status != OS_EOK) {
-        if (status == OS_ENOENT) {
-            WARNING("__DtTranslate: segment %u space %u address 0x%llx length 0x%llx has no window (%u)",
-                host->Identification.Segment,
-                space,
-                (unsigned long long)address,
-                (unsigned long long)length,
-                status);
-        } else {
-            ERROR("__DtTranslate: segment %u space %u address 0x%llx length 0x%llx translation failed (%u)",
-                host->Identification.Segment,
-                space,
-                (unsigned long long)address,
-                (unsigned long long)length,
-                status);
-        }
-        return status;
-    }
-    return OS_EOK;
-}
-
-static oserr_t
 __DtResolveInterrupt(
     _In_  PciHost_t*    host,
     _In_  unsigned int  bus,
@@ -182,7 +144,6 @@ static const struct PciHostOperations g_pciAcpiEcamOperations = {
 static const struct PciHostOperations g_pciDtEcamOperations = {
     .Read = __EcamRead,
     .Write = __EcamWrite,
-    .Translate = __DtTranslate,
     .ResolveInterrupt = __DtResolveInterrupt
 };
 

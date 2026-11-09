@@ -99,7 +99,7 @@ PciDiagnoseBars(
 {
     for (unsigned int i = 0; i < 6; i++) {
         if (bars[i].State == PciBarUnassigned) {
-            WARNING("PciDiagnoseBars: PCI %u:%u:%u.%u BAR%u is unassigned (size 0x%llx); firmware-assigned BAR required",
+            WARNING("PciDiagnoseBars: PCI %u:%u:%u.%u BAR%u is unassigned (size 0x%llx)",
                 host->Identification.Segment, device->Bus, device->Slot, device->Function,
                 i, (unsigned long long)bars[i].Size);
         } else if (bars[i].State == PciBarOutsideWindow) {

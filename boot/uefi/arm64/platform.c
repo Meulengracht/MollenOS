@@ -81,6 +81,11 @@ Arm64Identity(
     return TRUE;
 }
 
+// GIC version found in the MADT. It is only used by the loader, and Arm64Enter
+// reads it before cleaning the caches. It is not passed on in VBoot, as the
+// kernel reads and checks the MADT again before it uses the GIC.
+UINT32 gArm64GicVersion;
+
 /**
  * Check architectural capabilities without changing firmware's CPU controls.
  * Boot services still run after this check, so HCR and translation state must
@@ -195,6 +200,42 @@ __TableLength(
     return Length;
 }
 
+static EFI_STATUS
+__DiscoverGic(
+    IN UINT64 Address,
+    IN UINT32 Size)
+{
+    UINT32 Offset = 44;
+    UINT8* Entry;
+
+    if (Size < Offset) {
+        return EFI_UNSUPPORTED;
+    }
+
+    while (Offset < Size) {
+        if (Size - Offset < 2) {
+            return EFI_UNSUPPORTED;
+        }
+
+        Entry = (UINT8*)(UINTN)(Address + Offset);
+        if (Entry[1] < 2 || Entry[1] > Size - Offset) {
+            return EFI_UNSUPPORTED;
+        }
+
+        if (Entry[0] == 12) {
+            // Entry type 12 is the GIC distributor, and byte 20 of its 24 byte
+            // record is the GIC version. We must not use the ICC registers just
+            // because the CPU has them, as GICv2 still uses the MMIO interface.
+            if (Entry[1] < 24 || gArm64GicVersion || (Entry[20] != 2 && Entry[20] != 3)) {
+                return EFI_UNSUPPORTED;
+            }
+            gArm64GicVersion = Entry[20];
+        }
+        Offset += Entry[1];
+    }
+    return EFI_SUCCESS;
+}
+
 /*
  * Locate the FADT and derive the PSCI conduit selected by firmware. The
  * kernel needs this before SMP or power-management calls, and ARM64 EFI does
@@ -206,9 +247,12 @@ __DiscoverPsci(
     IN  UINT64                        AcpiRsdp,
     OUT UINT32*                       PsciConduit)
 {
-    UINT8* Rsdp = (UINT8*)(UINTN)AcpiRsdp;
-    UINT32 Length;
-    UINT64 Xsdt;
+    UINT8*     Rsdp = (UINT8*)(UINTN)AcpiRsdp;
+    UINT32     Length;
+    UINT64     Xsdt;
+    EFI_STATUS Status;
+
+    gArm64GicVersion = 0;
 
     // Validate the full RSDP before reading its XSDT address.
     if (!Arm64AcpiRange(Map, AcpiRsdp, 36) ||
@@ -248,11 +292,16 @@ __DiscoverPsci(
             }
 
             *PsciConduit = Flags & 2 ? VBOOT_PSCI_HVC : VBOOT_PSCI_SMC;
-            return EFI_SUCCESS;
+        }
+        
+        if (!__CompareBytes((CONST VOID*)(UINTN)Address, "APIC", 4)) {
+            Status = __DiscoverGic(Address, Size);
+            if (EFI_ERROR(Status)) {
+                return Status;
+            }
         }
     }
-
-    return EFI_UNSUPPORTED;
+    return *PsciConduit && gArm64GicVersion ? EFI_SUCCESS : EFI_UNSUPPORTED;
 }
 
 EFI_STATUS
@@ -266,6 +315,7 @@ Arm64Prepare(
     struct Arm64FirmwareMap map;
     UINT64                  El;
     UINT64                  Midr;
+    UINT64                  Features;
     UINT64                  Hcr;
     UINT64                  AcpiRsdp = 0;
     UINT32                  PsciConduit = 0;
@@ -327,6 +377,16 @@ Arm64Prepare(
         return Status;
     }
     
+    if (gArm64GicVersion == 3) {
+        // ICC_SRE is undefined if the CPU does not have the GIC system
+        // registers, so check ID_AA64PFR0_EL1.GIC first. Firmware at EL2/EL3
+        // must also allow these accesses, as we cannot change its traps from EL1.
+        __asm__ volatile("mrs %0, id_aa64pfr0_el1" : "=r"(Features));
+        if (!((Features >> 24) & 15)) {
+            return EFI_UNSUPPORTED;
+        }
+    }
+
     if (El == 8 && PsciConduit != VBOOT_PSCI_SMC) {
         return EFI_UNSUPPORTED;
     }

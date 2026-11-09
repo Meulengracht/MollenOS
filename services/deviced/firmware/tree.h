@@ -23,9 +23,9 @@
 #include <startup.h>
 
 /**
- * @brief Parse and validate an immutable blob into a private indexed inventory.
- * No consumer callbacks run until construction has succeeded. The caller owns
- * the blob and must keep it unchanged until the final tree reference is released.
+ * @brief Parse a device tree and build an index of its nodes.
+ * The caller must keep the blob allocated and unchanged until the last tree
+ * reference is released. Consumer callbacks only run after parsing succeeds.
  *
  * @param blob Device-tree bytes.
  * @param length Available bytes.
@@ -75,7 +75,7 @@ FdtTreeNode(
 /**
  * @brief Return the cached parent of a node without reparsing the device tree.
  *
- * @param tree Immutable inventory held by the caller.
+ * @param tree Inventory that the caller holds a reference to.
  * @param offset Structure offset of a node in tree.
  * @return Parent record valid while the caller holds a tree reference, or NULL for the
  *         root or an unknown offset.
@@ -118,7 +118,7 @@ FdtTreeConsole(
 
 /**
  * @brief Map and parse the service's device tree before starting bus discovery.
- * Startup and shutdown are serialized by the service owner. Add a tree reference
+ * The service must serialize startup and shutdown. Add a tree reference
  * before storing descriptions that point into the firmware blob beyond discovery.
  * Terminal validation failures are remembered until FirmwareShutdown succeeds.
  * Cleanup failures always request another attempt before reporting terminal failure.
@@ -151,7 +151,7 @@ FirmwareGetTree(void);
 
 /**
  * @brief Unmap and free firmware after all consumers have released it.
- * Busy consumers or a failed unmap leave ownership intact for a later retry.
+ * If consumers are busy or unmapping fails, the caller must retry cleanup.
  *
  * @return OS_EOK, OS_EBUSY, or the unmap error.
  */

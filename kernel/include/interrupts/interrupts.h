@@ -319,22 +319,4 @@ ConvertAcpiFlagsToConformFlags(
     _In_ uint16_t intiFlags,
     _In_ int      source);
 
-/**
- * @brief Get the device interrupt from its bus routing.
- *
- * @param bus
- * @param device
- * @param pciPin
- * @param interruptOut
- * @param acpiConformOut
- * @return
- */
-KERNELAPI oserr_t KERNELABI
-AcpiDeviceGetInterrupt(
-        _In_  int           bus,
-        _In_  int           device,
-        _In_  int           pciPin,
-        _Out_ int*          interruptOut,
-        _Out_ unsigned int* acpiConformOut);
-
 #endif //!_MCORE_INTERRUPTS_H_
