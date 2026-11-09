@@ -138,8 +138,8 @@ struct netadapter_info {
 }
 
 /**
- * Slot N begins at region_offset + N * slot_size. slot_count * slot_size must
- * fit region_size. Validate overflow, SHM bounds/access, quotas, alignment and
+ * Slot N begins at N * slot_size within the selected buffer range.
+ * slot_count * slot_size must fit that range. Validate overflow, SHM bounds/access, quotas, alignment and
  * overlapping registrations, including aliases of the same storage.
  * buffer_alignment is a nonzero power of two applying to each frame address.
  * Each slot reserves the advertised headroom/tailroom outside the frame.
@@ -151,9 +151,7 @@ struct netadapter_info {
  */
 struct netadapter_pool {
     netadapter_direction direction;
-    uuid_t               buffer_handle;
-    uint64               region_offset;
-    uint64               region_size;
+    shm_transfer         buffer;
     uint32               slot_size;
     uint32               slot_count;
 }

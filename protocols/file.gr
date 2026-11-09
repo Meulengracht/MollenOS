@@ -63,8 +63,8 @@ service file : message {
     func open(uuid_t processId, string path, uint options, uint access) : (oserr_t result, uuid_t handle) = 2;
     func close(uuid_t processId, uuid_t handle) : (oserr_t result) = 3;
     func delete(uuid_t processId, string path, uint flags) : (oserr_t result) = 4;
-    func transfer(uuid_t processId, uuid_t handle, transfer_direction direction, uuid_t bufferHandle, ulong offset, ulong length) : (oserr_t result, ulong bytesTransferred) = 5;
-    func transfer_absolute(uuid_t processId, uuid_t handle, transfer_direction direction, uint seekLow, uint seekHigh, uuid_t bufferHandle, ulong offset, ulong length) : (oserr_t result, ulong bytesTransferred) = 6;
+    func transfer(uuid_t processId, uuid_t handle, transfer_direction direction, shm_transfer buffer) : (oserr_t result, ulong bytesTransferred) = 5;
+    func transfer_absolute(uuid_t processId, uuid_t handle, transfer_direction direction, uint seekLow, uint seekHigh, shm_transfer buffer) : (oserr_t result, ulong bytesTransferred) = 6;
     func mkdir(uuid_t processId, string path, uint permissions) : (oserr_t result) = 7;
     func readdir(uuid_t processId, uuid_t handle) : (oserr_t result, directory_entry entry) = 8;
     func seek(uuid_t processId, uuid_t handle, uint seekLow, uint seekHigh) : (oserr_t result) = 9;

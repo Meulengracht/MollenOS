@@ -57,9 +57,7 @@ struct fs_open_params {
 }
 
 struct fs_transfer_params {
-    uuid_t buffer_id;
-    uint   offset;
-    uint64 count;
+    shm_transfer buffer;
 }
 
 service filesystem : message {
