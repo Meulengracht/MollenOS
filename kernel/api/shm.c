@@ -353,8 +353,8 @@ ScShmAccessCreate(
     if (status != OS_EOK) {
         return status;
     }
-    status = SHMAc
-    cessCreate(shm, offset, length, &access);
+    
+    status = SHMAccessCreate(shm, offset, length, &access);
     if (status != OS_EOK) {
         SHMRecordRemove(record);
         return status;
