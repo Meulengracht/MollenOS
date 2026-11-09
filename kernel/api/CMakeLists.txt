@@ -7,6 +7,7 @@ add_kernel_library (vali-core-api ""
         entry.c
         memory.c
         dma.c
+        shm.c
         handles.c
         sync.c
         misc.c

@@ -24,8 +24,8 @@
 #include <heap.h>
 #include <memoryspace.h>
 #include <spinlock.h>
+#include <shm/view.h>
 #include <string.h>
-#include "memory/private.h"
 
 // TODO: Replace the fixed key with a separate, unpredictable secret for each export.
 static const uint8_t g_grantTokenSecret[16] = {
@@ -33,61 +33,48 @@ static const uint8_t g_grantTokenSecret[16] = {
     0x74, 0x54, 0x6F, 0x6B, 0x65, 0x6E, 0x30, 0x31
 };
 
-/**
- * @brief Stores the export options, secret and SHM handle reference.
- * The lock protects Active and the resource reference during verification and revoke.
- */
-struct __GrantTokenRecord {
-    GrantTokenOptions_t Options;
-    uint8_t             Secret[16];
-    uuid_t              ResourceHandleID;
-    Spinlock_t          Lock;
-    bool                Active;
+enum __GrantTokenStatus {
+    GrantTokenStatusInvalid = 0,
+    GrantTokenStatusActive,
+    GrantTokenStatusRevoked
 };
 
-static bool
-__GrantTokenScopeValid(
-    _In_ GrantTokenScope_t scope)
-{
-    unsigned int knownFlags = GrantTokenScopeRead | GrantTokenScopeWrite;
+struct __GrantTokenRecord {
+    enum __GrantTokenStatus Status;
+    GrantTokenOptions_t     Options;
+    uint8_t                 Secret[16];
+    uuid_t                  ResourceHandleID;
+    HandleType_t            ResourceHandleType;
+    Spinlock_t              Lock;
+};
 
-    return scope != 0 && ((unsigned int)scope & ~knownFlags) == 0;
+static oserr_t
+__GrantTokenValidateTarget(
+    _In_ const GrantTokenOptions_t* options)
+{
+    if (options->TargetType == GrantTokenTargetTypeAny) {
+        return options->TargetGlobalHandleID == UUID_INVALID ? OS_EOK : OS_EINVALPARAMS;
+    }
+
+    if (options->TargetType == GrantTokenTargetTypeSpecific) {
+        return options->TargetGlobalHandleID != UUID_INVALID ? OS_EOK : OS_EINVALPARAMS;
+    }
+
+    return OS_EINVALPARAMS;
 }
 
 static oserr_t
-__GrantTokenValidateOptions(
-    _In_ const GrantTokenOptions_t* options,
-    _In_ const struct SHMBuffer*    buffer)
+__GrantTokenReferenceResource(
+    _In_  uuid_t                     handleID,
+    _In_  const GrantTokenOptions_t* options,
+    _Out_ HandleType_t*              handleTypeOut)
 {
-    if (!__GrantTokenScopeValid(options->Scope)) {
-        return OS_EINVALPARAMS;
+    switch (options->ResourceType) {
+        case GrantTokenResourceTypeSHM:
+            return SHMReferenceForExport(handleID, options, handleTypeOut);
+        default:
+            return OS_ENOTSUPPORTED;
     }
-
-    if (options->TargetType == GrantTokenTargetTypeAny) {
-        if (options->TargetGlobalHandleID != UUID_INVALID) {
-            return OS_EINVALPARAMS;
-        }
-    } else if (options->TargetType == GrantTokenTargetTypeSpecific) {
-        if (options->TargetGlobalHandleID == UUID_INVALID) {
-            return OS_EINVALPARAMS;
-        }
-    } else {
-        return OS_EINVALPARAMS;
-    }
-
-    if (buffer->Flags & SHM_PRIVATE) {
-        return OS_EPERMISSIONS;
-    }
-
-    // The range must fit within the buffer's logical length. The helper uses
-    // subtraction to avoid overflow when checking offset + length.
-    if (options->Length == 0) {
-        return OS_EINVALPARAMS;
-    }
-    if (!__SHMRangeContains(0, buffer->Length, options->Offset, options->Length)) {
-        return OS_EINVALPARAMS;
-    }
-    return OS_EOK;
 }
 
 static bool
@@ -119,12 +106,13 @@ __GrantTokenMatches(
         return false;
     }
 
-    if (token->Options.Scope != record->Options.Scope) {
+    if (token->Options.ResourceType != record->Options.ResourceType ||
+        token->Options.Scope != record->Options.Scope) {
         return false;
     }
 
-    return token->Options.Offset == record->Options.Offset &&
-           token->Options.Length == record->Options.Length;
+    return token->Options.Data.Words[0] == record->Options.Data.Words[0] &&
+           token->Options.Data.Words[1] == record->Options.Data.Words[1];
 }
 
 static void
@@ -134,11 +122,12 @@ __GrantTokenDisable(
     struct __GrantTokenRecord* record = resource;
     uuid_t                     handleID = UUID_INVALID;
 
-    // Clear Active under the same lock used by verification. Only the first
-    // revoke releases the export's resource reference.
+    // Update the status under the same lock that verification takes. Only the
+    // first revoke sees the export as active, so the resource reference is
+    // released exactly once.
     SpinlockAcquireIrq(&record->Lock);
-    if (record->Active) {
-        record->Active = false;
+    if (record->Status == GrantTokenStatusActive) {
+        record->Status = GrantTokenStatusRevoked;
         handleID = record->ResourceHandleID;
     }
     SpinlockReleaseIrq(&record->Lock);
@@ -167,10 +156,9 @@ GrantTokenCreate(
     _Out_ GrantToken_t*              tokenOut)
 {
     struct __GrantTokenRecord* record;
-    struct SHMBuffer*          buffer;
-    GrantToken_t               token = {0};
+    HandleType_t               sourceType;
+    GrantToken_t               token = { 0 };
     uuid_t                     controlHandleID;
-    void*                      resource;
     oserr_t                    oserr;
 
     if (options == NULL || tokenOut == NULL) {
@@ -181,19 +169,17 @@ GrantTokenCreate(
         return OS_ENOTSUPPORTED;
     }
 
-    // Copy the options before validating them. The caller must have a grant
-    // for the SHM handle, and the export needs a separate reference to it.
+    // Copy the options into the token first. All the checks below run on
+    // that copy.
     token.Options = *options;
-    oserr = AcquireHandleReference(handleID, HandleTypeSHM, &resource);
+
+    oserr = __GrantTokenValidateTarget(&token.Options);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    buffer = resource;
-
-    oserr = __GrantTokenValidateOptions(&token.Options, buffer);
+    oserr = __GrantTokenReferenceResource(handleID, &token.Options, &sourceType);
     if (oserr != OS_EOK) {
-        ReleaseGlobalHandle(handleID);
         return oserr;
     }
 
@@ -202,9 +188,11 @@ GrantTokenCreate(
         ReleaseGlobalHandle(handleID);
         return OS_EOOM;
     }
+
     record->Options = token.Options;
     record->ResourceHandleID = handleID;
-    record->Active = true;
+    record->ResourceHandleType = sourceType;
+    record->Status = GrantTokenStatusActive;
     SpinlockConstruct(&record->Lock);
     memcpy(record->Secret, g_grantTokenSecret, sizeof(record->Secret));
 
@@ -227,6 +215,7 @@ GrantTokenCreate(
     token.ExportGlobalHandleID = controlHandleID;
     token.Version = GRANT_TOKEN_VERSION;
     memcpy(token.Secret, g_grantTokenSecret, sizeof(token.Secret));
+
     *tokenOut = token;
     return OS_EOK;
 }
@@ -236,8 +225,8 @@ GrantTokenRevoke(
     _In_ uuid_t controlHandleID)
 {
     struct __GrantTokenRecord* record;
-    void*                     resource;
-    oserr_t                   oserr;
+    void*                      resource;
+    oserr_t                    oserr;
 
     if (MemorySpaceGetSecurityContext() == NULL) {
         return OS_ENOTSUPPORTED;
@@ -249,7 +238,9 @@ GrantTokenRevoke(
     if (oserr != OS_EOK) {
         return oserr;
     }
+
     record = resource;
+
     __GrantTokenDisable(record);
     oserr = DestroyHandle(controlHandleID);
     ReleaseGlobalHandle(controlHandleID);
@@ -258,16 +249,17 @@ GrantTokenRevoke(
 
 oserr_t
 GrantTokenVerify(
-    _In_  const GrantToken_t* token,
-    _In_  GrantTokenScope_t   scope,
-    _Out_ uuid_t*             handleIDOut)
+    _In_  const GrantToken_t*      token,
+    _In_  GrantTokenResourceType_t expectedType,
+    _In_  GrantTokenScope_t        scope,
+    _Out_ uuid_t*                  handleIDOut)
 {
     struct __GrantTokenRecord* record;
-    MSContextSecurity_t*      securityContext;
-    GrantToken_t              snapshot;
-    uuid_t                    resourceHandleID;
-    void*                     resource;
-    oserr_t                   oserr;
+    MSContextSecurity_t*       securityContext;
+    GrantToken_t               tokenCopy;
+    uuid_t                     resourceHandleID;
+    void*                      resource;
+    oserr_t                    oserr;
 
     if (token == NULL || handleIDOut == NULL) {
         return OS_EINVALPARAMS;
@@ -278,10 +270,12 @@ GrantTokenVerify(
         return OS_ENOTSUPPORTED;
     }
 
-    // The export ID locates the record. We must verify the token before adding
-    // a reference to the SHM buffer.
-    snapshot = *token;
-    oserr = AcquireGlobalHandle(snapshot.ExportGlobalHandleID, HandleTypeGrantToken, &resource);
+    // Work on a local copy of the token from here on. The export ID tells us
+    // which record to look up, and the token must be verified before we add
+    // any reference to the resource.
+    tokenCopy = *token;
+
+    oserr = AcquireGlobalHandle(tokenCopy.ExportGlobalHandleID, HandleTypeGrantToken, &resource);
     if (oserr != OS_EOK) {
         return OS_EINVALPARAMS;
     }
@@ -289,7 +283,13 @@ GrantTokenVerify(
     record = resource;
 
     oserr = OS_EINVALPARAMS;
-    if (!__GrantTokenMatches(&snapshot, record)) {
+    if (!__GrantTokenMatches(&tokenCopy, record)) {
+        goto exit;
+    }
+
+    // The token must be for the resource type the caller expects, as the
+    // caller will treat the returned handle as that type.
+    if (record->Options.ResourceType != expectedType) {
         goto exit;
     }
 
@@ -299,17 +299,19 @@ GrantTokenVerify(
         record->Options.TargetGlobalHandleID != securityContext->GlobalHandleID) {
         goto exit;
     }
-    if (!__GrantTokenScopeValid(scope) || (scope & record->Options.Scope) != scope) {
+
+    if (scope == 0 || (scope & record->Options.Scope) != scope) {
         goto exit;
     }
 
-    // Hold the export lock while checking Active and adding the SHM reference.
-    // A later revoke leaves this reference valid.
+    // Hold the export lock while we check the status and add the resource
+    // reference, so a revoke cannot happen in between. A revoke after this
+    // point leaves our reference valid.
     SpinlockAcquireIrq(&record->Lock);
     oserr = OS_ECANCELLED;
-    if (record->Active) {
+    if (record->Status == GrantTokenStatusActive) {
         resourceHandleID = record->ResourceHandleID;
-        oserr = AcquireGlobalHandle(resourceHandleID, HandleTypeSHM, NULL);
+        oserr = AcquireGlobalHandle(resourceHandleID, record->ResourceHandleType, NULL);
     }
     SpinlockReleaseIrq(&record->Lock);
     if (oserr == OS_EOK) {
@@ -317,6 +319,6 @@ GrantTokenVerify(
     }
 
 exit:
-    ReleaseGlobalHandle(snapshot.ExportGlobalHandleID);
+    ReleaseGlobalHandle(tokenCopy.ExportGlobalHandleID);
     return oserr;
 }
