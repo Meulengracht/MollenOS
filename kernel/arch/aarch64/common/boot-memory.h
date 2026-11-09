@@ -23,29 +23,35 @@
 #include <vboot/vboot.h>
 
 /**
- * @brief Reports whether a validated boot entry permits a Normal RAM mapping.
+ * @brief Checks whether a boot memory entry may be mapped as Normal RAM.
  *
- * Reserved says nothing about the underlying storage. In particular, it may
- * contain device registers, which must never receive a speculative RAM view.
- * NO_MAP excludes even known RAM from the boot identity map.
+ * A Reserved entry tells us nothing about what is behind it. It may contain
+ * device registers, and those must never be mapped as RAM, as the CPU could
+ * then access them speculatively. NO_MAP keeps an entry out of the boot
+ * identity map, even when it is known RAM.
  *
- * @param entry Entry whose type was checked by Arm64ValidateBootMemory.
- * @return Nonzero for RAM that may be mapped by early translation setup.
+ * @param entry The entry to check. Its type must already be validated by
+ *              Arm64ValidateBootMemory.
+ * @return Nonzero if the entry is RAM that early translation setup may map.
  */
 int
 Arm64BootMemoryIsRam(
     _In_ const struct VBootMemoryEntry* entry);
 
 /**
- * @brief Validates the physical memory contract before constructing page tables.
+ * @brief Validates the memory map from the loader before any page tables are
+ * built.
  *
- * Runs with translation disabled and needs no allocation or synchronization.
- * The loader must supply readable boot storage. Validates descriptor arithmetic,
- * types, overlaps and page-rounded mapping boundaries before the first mapping.
+ * This runs with translation disabled, and does not allocate or take any locks.
+ * The boot information and the memory map must be readable at their physical
+ * addresses. The magic and version are checked first. Then each entry is
+ * checked for a known type, a base and length that don't overflow, overlaps
+ * with other entries, and conflicts once the ranges are rounded to pages.
  *
- * @param boot Physical boot information supplied by the loader.
- * @param identityLimit Exclusive end of the kernel's boot identity window.
- * @return OS_EOK for a supported map, otherwise OS_ENOTSUPPORTED.
+ * @param boot The boot information from the loader, at its physical address.
+ * @param identityLimit The end (exclusive) of the boot identity map. All RAM
+ *                      must be below this address.
+ * @return OS_EOK if the map can be used, otherwise OS_ENOTSUPPORTED.
  */
 oserr_t
 Arm64ValidateBootMemory(

@@ -514,14 +514,14 @@ __MapBootPieces(
 /**
  * @brief Builds identity mappings for the loader's mappable physical memory.
  *
- * Maps only known RAM, skips Reserved and NO_MAP entries, and keeps
- * identity mappings below the userspace code region. Boot table allocation and
+ * Only known RAM is mapped, so Reserved and NO_MAP entries are skipped. The
+ * memory map must already be validated by Arm64ValidateBootMemory, which also
+ * keeps all RAM below the userspace code region. Boot table allocation and
  * the identity root must already be initialized. Failure does not roll back
  * ranges that were mapped earlier in the loop.
  *
  * @param boot Loader-provided physical memory entries.
- * @return OS_EOK on success, OS_ENOTSUPPORTED for a range outside the supported
- *         identity window or a wrapped range, or an error from boot-range mapping.
+ * @return OS_EOK on success, or OS_EOOM if a boot table cannot be created.
  */
 static oserr_t
 __MapBootMemory(
@@ -529,8 +529,9 @@ __MapBootMemory(
 {
     const struct VBootMemoryEntry* entries = (const void*)(uintptr_t)boot->Memory.Entries;
 
-    // Validation precedes table allocation, including page-rounded conflicts.
-    // Reserved includes MMIO; only an explicit device mapper may access it.
+    // The memory map was validated before any tables were allocated, page
+    // rounding conflicts included. Reserved can contain MMIO, so those ranges
+    // are left for the device mapping code to map explicitly.
     for (uint32_t i = 0; i < boot->Memory.NumberOfEntries; i++) {
         uintptr_t base;
         uintptr_t end;
@@ -545,8 +546,9 @@ __MapBootMemory(
             ~(ARM64_PAGE_SIZE - 1ULL);
 
         if (entries[i].Type == VBootMemoryType_DevicePool) {
-            // Every declared pool is uncached RAM, even if the allocator selects
-            // a different pool. Device attributes would break normal C accesses.
+            // Every device pool is mapped as uncached RAM, even the ones the
+            // allocator ends up not using. We can't use Device attributes here,
+            // as normal C code is not able to safely access Device memory.
             status = __MapBootRange(g_identityTable, base, base, end - base, MAPPING_NOCACHE, 1);
         } else {
             status = __MapBootPieces(base, end);
@@ -624,8 +626,9 @@ Arm64BootMemoryInitialize(
     uint64_t features;
     oserr_t  status;
 
-    // Check the contract before any map consumer, including DMA-pool selection.
-    // There is no conversion path for an older memory-type interpretation.
+    // Validate the memory map before anything reads it, DMA pool selection
+    // included. We have no way of converting a map that uses the old meaning
+    // of the memory types, so those are rejected here.
     status = Arm64ValidateBootMemory(boot, MEMORY_LOCATION_RING3_CODE);
     if (status != OS_EOK) {
         return status;

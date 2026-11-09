@@ -768,10 +768,12 @@ __InstallFirmwareMapping(
 }
 
 /**
- * @brief Finds reserved Normal RAM covering a physical boot resource address.
+ * @brief Finds the Firmware entry that covers the physical address of a boot
+ * resource.
  *
- * Firmware descriptors can be unordered. Do not infer RAM from a Reserved
- * entry or from a missing descriptor; both can describe device register space.
+ * The entries from firmware may not be sorted, so all of them are searched. A
+ * Reserved entry or a missing entry is never treated as RAM, as both can be
+ * device registers.
  */
 static struct VBootMemoryEntry*
 __BootResourceEntry(
@@ -797,13 +799,14 @@ __BootResourceEntry(
 }
 
 /**
- * @brief Maps one live boot resource into the global kernel virtual window.
+ * @brief Maps a boot resource that is still in use into global access memory.
  *
- * The window is finite: reserved RAM is not necessarily needed virtually.
- * Mapping complete firmware descriptors would make unused boot-services RAM
- * consume that window, including large descriptors containing small payloads.
- * Validate the page-rounded resource first, then map only those pages. The
- * caller is still using the loader mappings and supplies physical addresses.
+ * Global access memory is limited, and most Firmware RAM never needs a virtual
+ * mapping. If we mapped whole Firmware entries, unused boot services RAM would
+ * eat up that space, and a large entry may only hold a small resource. So the
+ * resource is rounded to pages and validated first, and then only those pages
+ * are mapped. The caller must still be running on the loader page tables, and
+ * must pass physical addresses.
  */
 static oserr_t
 __MapBootResource(
@@ -836,8 +839,9 @@ __MapBootResource(
     end = (physical + length + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
     roundedLength = end - base;
 
-    // A resource may cross adjacent descriptors. Validate every page, including
-    // the leading/trailing bytes exposed by page rounding, before allocation.
+    // A resource can span multiple entries. Validate every page before we
+    // allocate anything, including the extra bytes at either end that page
+    // rounding pulls in.
     current = base;
     while (current < end) {
         struct VBootMemoryEntry* entry = __BootResourceEntry(boot, current);
@@ -879,13 +883,13 @@ __MapBootResource(
         status = __InstallFirmwareMapping(
             memorySpace,
             virtualBase + (uintptr_t)(current - base),
-            (paddr_t)cursor,
-            (int)((next - cursor) / PAGE_SIZE),
+            (paddr_t)current,
+            (int)((next - current) / PAGE_SIZE),
             __GetBootMappingAttributes(entry->Attributes)
         );
         if (status != OS_EOK) {
-            // Boot stops on failure. Earlier page-table entries may already
-            // refer to this virtual span, so it cannot be returned to the pool.
+            // Boot stops if this fails. The page tables may already point into
+            // this virtual range, so we can't give it back to the pool.
             return status;
         }
 
@@ -905,8 +909,9 @@ __MapBootResources(
     vaddr_t virtual;
     oserr_t status;
 
-    // The kernel image and Phoenix have separate mapping paths. Only these
-    // physical pointers must be rewritten before switching from loader tables.
+    // The kernel image and Phoenix are mapped elsewhere. These are the only
+    // physical pointers we must update before we switch away from the loader
+    // page tables.
     status = __MapBootResource(memorySpace, boot, boot->Stack.Base, boot->Stack.Length, stackMapping);
     if (status != OS_EOK) {
         return status;
@@ -1066,8 +1071,9 @@ MmuLoadKernel(
         return osStatus;
     }
 
-    // Map only live boot resources before replacing the loader page tables.
-    // Other Firmware RAM stays reserved without consuming global virtual space.
+    // Map the boot resources that are still in use before we replace the
+    // loader page tables. The rest of the Firmware RAM stays reserved, and
+    // does not use up any global access memory.
     osStatus = __MapBootResources(memorySpace, bootInformation, &stackVirtual);
     if (osStatus != OS_EOK) {
         return osStatus;

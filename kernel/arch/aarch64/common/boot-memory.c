@@ -36,8 +36,9 @@ Arm64ValidateBootMemory(
     const struct VBootMemoryEntry* entries;
     uint64_t                       mapLength;
 
-    // Shared machine initialization runs after this function. Check the version
-    // here so an old Reserved/Firmware interpretation cannot affect page tables.
+    // This runs before the shared machine initialization, so the version must
+    // be checked here. Otherwise a loader that uses the old meaning of Reserved
+    // and Firmware could end up affecting the page tables.
     if (!boot || boot->Magic != VBOOT_MAGIC || boot->Version != VBOOT_VERSION) {
         return OS_ENOTSUPPORTED;
     }
@@ -70,8 +71,9 @@ Arm64ValidateBootMemory(
         base = entry->PhysicalBase;
         end = base + entry->Length;
         if (ram) {
-            // Round only known RAM. An unused high MMIO reservation must not
-            // consume identity space or fail the RAM address-window check.
+            // Only known RAM must fit below the identity limit and is rounded
+            // to pages. An MMIO reservation high up that we never map should
+            // not take up identity space or fail this check.
             if (end > identityLimit) {
                 return OS_ENOTSUPPORTED;
             }
@@ -80,8 +82,9 @@ Arm64ValidateBootMemory(
         }
         
         if (entry->Type == VBootMemoryType_Available || entry->Type == VBootMemoryType_DevicePool) {
-            // The physical allocator takes whole pages and does not interpret
-            // NO_MAP. Reject such input instead of allocating inaccessible RAM.
+            // The physical allocator works on whole pages and does not know
+            // about NO_MAP. So free RAM must be page aligned and mappable, or
+            // we reject the map instead of handing out RAM we can't access.
             if (!ram || ((entry->PhysicalBase | entry->Length) & BOOT_PAGE_MASK)) {
                 return OS_ENOTSUPPORTED;
             }
@@ -106,9 +109,10 @@ Arm64ValidateBootMemory(
                 continue;
             }
 
-            // Exact byte ranges may be disjoint while their mapping pages are
-            // shared. RAM fragments can share a page only with the same memory
-            // type. Never round RAM into Reserved/NO_MAP or mix DMA and cached RAM.
+            // Two entries can be apart byte-wise but still share a page once
+            // they are rounded. RAM can only share a page with RAM of the same
+            // kind. We must never round RAM into a Reserved or NO_MAP entry, or
+            // put device pool (uncached) RAM and cached RAM in the same page.
             if (ram != previousRam ||
                 ((entry->Type == VBootMemoryType_DevicePool) !=
                  (previous->Type == VBootMemoryType_DevicePool))) {
