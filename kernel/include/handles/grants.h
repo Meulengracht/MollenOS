@@ -56,17 +56,17 @@ GrantHandle(
     _In_ uuid_t               handleId);
 
 /**
- * @brief Creates a grant token for an SHM buffer in the caller's grant table.
- * The caller must have a current security context. SHM_PRIVATE buffers cannot be shared.
- * If the buffer was created with SHMExport, its original memory must stay valid
- * until the export and all references added by verification have been released.
+ * @brief Creates a typed resource grant token from the caller's grant table.
+ * The caller must have a current security context. Only the SHM resource type is
+ * supported. SHM_PRIVATE buffers cannot be shared.
  * options and tokenOut must point to kernel memory. Only use tokenOut on success.
  * The fixed secret is temporary and must be replaced before production use.
  *
- * @param handleID   SHM handle in the caller's grant table.
- * @param options    Requested access, buffer range and allowed receiver.
+ * @param handleID   Resource handle in the caller's grant table.
+ * @param options    Resource type, scope, typed restrictions and allowed receiver.
  * @param tokenOut   Receives the token on success.
- * @return OS_EOK on success, or a validation or resource error.
+ * @return OS_EOK, OS_ENOTSUPPORTED for an unsupported resource type, or a
+ *         validation or resource error.
  */
 __EXTERN oserr_t
 GrantTokenCreate(
@@ -87,31 +87,29 @@ GrantTokenRevoke(
     _In_ uuid_t controlHandleID);
 
 /**
- * @brief Verifies a grant token and adds a reference to its SHM buffer.
+ * @brief Verify a typed token and add an independent reference to its resource.
  * token and handleIDOut must point to kernel memory. The current security group
- * is the receiver. scope must contain Read, Write or both, and the token must
- * permit each requested flag.
- * The kernel operation using the returned handle must enforce the token's range
- * and scope, then release the reference with ReleaseGlobalHandle when done.
- * Verification must be part of the kernel operation that uses the buffer.
- * This call creates no process grant or mapping. Do not use the returned ID
- * to give userspace unrestricted access to the buffer.
+ * is the receiver. The resource type must match expectedType, and scope must be
+ * nonzero with every requested flag permitted by the authenticated policy.
+ * The consuming resource module must enforce the policy restrictions before
+ * exposing access, then release the reference with ReleaseGlobalHandle.
+ * This call creates no process grant or mapping.
  *
- * @param token       Token to copy and verify.
- * @param scope       Requested access to the buffer.
- * @param handleIDOut Receives the SHM handle with one added reference on success.
+ * @param token Token to snapshot and authenticate.
+ * @param expectedType Public resource category required by the consuming operation.
+ * @param scope Requested permission flags for that resource category.
+ * @param handleIDOut Receives the source handle with one added reference on success.
  *                    Unchanged on failure.
- * @return OS_EOK on success, OS_EINVALPARAMS for an invalid token,
- *         OS_EPERMISSIONS if the receiver does not match or scope is not permitted,
- *         OS_ECANCELLED if the export was revoked, OS_ENOTSUPPORTED without a
- *         current security context, or an error from adding the SHM reference.
- *         Receiver, scope and revoke errors are reported only after the token
- *         fields have been verified.
+ * @return OS_EOK; OS_EINVALPARAMS for invalid tokens or a resource-type mismatch;
+ *         OS_EPERMISSIONS for receiver/scope failures; OS_ECANCELLED after revoke;
+ *         OS_ENOTSUPPORTED without a current security context; or a reference error.
+ *         Type, receiver, scope and revoke checks follow token authentication.
  */
 __EXTERN oserr_t
 GrantTokenVerify(
-    _In_  const GrantToken_t* token,
-    _In_  GrantTokenScope_t   scope,
-    _Out_ uuid_t*             handleIDOut);
+    _In_  const GrantToken_t*      token,
+    _In_  GrantTokenResourceType_t expectedType,
+    _In_  GrantTokenScope_t        scope,
+    _Out_ uuid_t*                  handleIDOut);
 
 #endif //! __HANDLES_GRANTS_H__

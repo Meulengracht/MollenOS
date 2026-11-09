@@ -15,7 +15,14 @@ add_custom_command(
     DEPENDS file2c ap ${VALI_PATH_DEPLOY}/ap.sys
 )
 
+# The shared ACPICA layer calls the architecture hook only in ACPI builds.
+set(X86_ACPI_SOURCES)
+if (VALI_BUILD_FEATURE_ACPI)
+    list(APPEND X86_ACPI_SOURCES components/acpi.c)
+endif ()
+
 add_kernel_library(vali-x86 ""
+        ${X86_ACPI_SOURCES}
         ${CMAKE_BINARY_DIR}/smp_trampoline.c
         components/cmos.c
         components/cpu.c

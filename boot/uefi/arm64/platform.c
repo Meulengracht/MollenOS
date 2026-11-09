@@ -18,29 +18,28 @@
  */
 
 #include <platform/arm64.h>
+#include <platform/arm64-memory.h>
 #include <console.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/BaseLib.h>
-#include <Library/SerialPortLib.h>
 #include <Protocol/LoadedImage.h>
 #include <Guid/Acpi.h>
 
 /*
- * Verify that every page in a physical range is also reachable through the
- * current translation regime. The kernel is entered with the firmware's
- * translation state, so ranges that are valid physical addresses can still
- * fault during the handoff if firmware has mapped them elsewhere or not at
- * all.
+ * Verify that a physical range keeps the same address under the current
+ * translation regime. The trampoline disables translation during handoff.
  */
-BOOLEAN Arm64Identity(
+BOOLEAN
+Arm64Identity(
     IN UINT64 Base,
     IN UINT64 Length)
 {
     UINT64 El;
     UINT64 Sctlr;
     UINT64 Par;
+    UINT64 Page;
 
-    /* Reject wrapped ranges before using the end address in the page walk. */
+    // Reject wrapped ranges before using the end address in the page walk.
     if (!Length || Base + Length < Base) {
         return FALSE;
     }
@@ -51,17 +50,17 @@ BOOLEAN Arm64Identity(
     } else if (El == 8) {
         __asm__ volatile("mrs %0, sctlr_el2" : "=r"(Sctlr));
     } else {
-        /* The loader only knows how to inspect the levels used by ARM64 EFI. */
+        // ARM64 UEFI runs this loader at EL1 or EL2.
         return FALSE;
     }
 
-    /* With translation disabled, the firmware already provides identity access. */
+    // With the MMU off, virtual addresses are physical addresses.
     if (!(Sctlr & 1)) {
         return TRUE;
     }
 
-    for (UINT64 Page = Base & ~4095ULL; Page < Base + Length; Page += 4096) {
-        /* AT checks the translation without changing architectural state. */
+    for (Page = Base & ~4095ULL; Page < Base + Length; Page += 4096) {
+        // Use the current EL's translation regime. AT changes PAR_EL1, not the firmware tables.
         if (El == 4) {
             __asm__ volatile("at s1e1r, %0; isb" :: "r"(Page) : "memory");
         } else {
@@ -69,17 +68,80 @@ BOOLEAN Arm64Identity(
         }
         __asm__ volatile("mrs %0, par_el1" : "=r"(Par));
 
-        /* A fault or a translated physical address would break the handoff. */
+        // Reject faults and translations that change the address.
         if ((Par & 1) || (Par & 0x0000fffffffff000ULL) != Page) {
             return FALSE;
+        }
+        // Avoid overflow when advancing past the final page.
+        if (Base + Length - Page <= EFI_PAGE_SIZE) {
+            break;
         }
     }
 
     return TRUE;
 }
 
+/**
+ * Check architectural capabilities without changing firmware's CPU controls.
+ * Boot services still run after this check, so HCR and translation state must
+ * remain as firmware configured them until Arm64Enter runs.
+ */
+EFI_STATUS
+Arm64CheckCpu(
+    VOID)
+{
+    UINT64 El;
+    UINT64 Pfr0;
+    UINT64 Mmfr0;
+    UINT64 Mmfr1;
+    UINT64 Mmfr2;
+    UINT64 Sctlr;
+    UINT64 Hcr;
+    UINT64 Frequency;
+    UINT64 El1;
+
+    __asm__ volatile("mrs %0, CurrentEL" : "=r"(El));
+    if (El != 4 && El != 8) {
+        return EFI_UNSUPPORTED;
+    }
+
+    // Require AArch64 EL1 and 4 KiB translation granules.
+    __asm__ volatile("mrs %0, id_aa64pfr0_el1" : "=r"(Pfr0));
+    __asm__ volatile("mrs %0, id_aa64mmfr0_el1" : "=r"(Mmfr0));
+    El1 = (Pfr0 >> 4) & 15;
+    if ((El1 != 1 && El1 != 2) || ((Mmfr0 >> 28) & 15) > 1) {
+        return EFI_UNSUPPORTED;
+    }
+
+    // The cache clean loop supports legacy and CCIDX layouts only.
+    __asm__ volatile("mrs %0, id_aa64mmfr2_el1" : "=r"(Mmfr2));
+    if (((Mmfr2 >> 20) & 15) > 1) {
+        return EFI_UNSUPPORTED;
+    }
+
+    if (El == 8) {
+        __asm__ volatile("mrs %0, sctlr_el2" : "=r"(Sctlr));
+        __asm__ volatile("mrs %0, hcr_el2" : "=r"(Hcr));
+        __asm__ volatile("mrs %0, id_aa64mmfr1_el1" : "=r"(Mmfr1));
+        // With E2H set, EL1 register names access EL2 state. The trampoline uses EL12/EL02 instead.
+        if ((Hcr & (1ULL << 34)) && ((Mmfr1 >> 8) & 15) != 1) {
+            return EFI_UNSUPPORTED;
+        }
+    } else {
+        __asm__ volatile("mrs %0, sctlr_el1" : "=r"(Sctlr));
+    }
+
+    // Require little-endian data and a usable architected timer.
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(Frequency));
+    if ((Sctlr & (1ULL << 25)) || !Frequency) {
+        return EFI_UNSUPPORTED;
+    }
+    return EFI_SUCCESS;
+}
+
 /* Compare firmware signatures without depending on libc being available. */
-static INTN __CompareBytes(
+static INTN
+__CompareBytes(
     IN CONST VOID* Left,
     IN CONST VOID* Right,
     IN UINTN       Size)
@@ -96,21 +158,9 @@ static INTN __CompareBytes(
     return 0;
 }
 
-/*
- * Restrict firmware table reads to the address window exposed by the ARM64
- * platform. This prevents malformed configuration tables from making the
- * loader dereference arbitrary physical addresses before the kernel starts.
- */
-static BOOLEAN __FirmwareRange(
-    IN UINT64 Address,
-    IN UINT64 Length)
-{
-    return Address >= 0x40000000 && Address < 0x80000000 &&
-        Length <= 0x80000000 - Address && Arm64Identity(Address, Length);
-}
-
 /* ACPI tables are valid only when their byte-wise sum wraps to zero. */
-static BOOLEAN __Checksum(
+static BOOLEAN
+__Checksum(
     IN CONST UINT8* Bytes,
     IN UINTN        Length)
 {
@@ -124,17 +174,20 @@ static BOOLEAN __Checksum(
 }
 
 /* Read and validate an ACPI table header before walking its contents. */
-static UINT32 __TableLength(IN UINT64 Address)
+static UINT32
+__TableLength(
+    IN const struct Arm64FirmwareMap* Map,
+    IN UINT64                         Address)
 {
     UINT32 Length;
 
-    if (!__FirmwareRange(Address, 36)) {
+    if (!Arm64AcpiRange(Map, Address, 36)) {
         return 0;
     }
 
     Length = ReadUnaligned32((UINT32*)(UINTN)(Address + 4));
     if (Length < 36 || Length > 0x100000 ||
-        !__FirmwareRange(Address, Length) ||
+        !Arm64AcpiRange(Map, Address, Length) ||
         !__Checksum((CONST UINT8*)(UINTN)Address, Length)) {
         return 0;
     }
@@ -147,14 +200,18 @@ static UINT32 __TableLength(IN UINT64 Address)
  * kernel needs this before SMP or power-management calls, and ARM64 EFI does
  * not provide the conduit as a separate boot protocol field.
  */
-static EFI_STATUS __DiscoverPsci(IN struct VBoot* Boot)
+static EFI_STATUS
+__DiscoverPsci(
+    IN const struct Arm64FirmwareMap* Map,
+    IN  UINT64                        AcpiRsdp,
+    OUT UINT32*                       PsciConduit)
 {
-    UINT8* Rsdp = (UINT8*)(UINTN)Boot->AcpiRsdp;
+    UINT8* Rsdp = (UINT8*)(UINTN)AcpiRsdp;
     UINT32 Length;
     UINT64 Xsdt;
 
-    /* The RSDP identifies the ACPI revision and the root table address. */
-    if (!__FirmwareRange(Boot->AcpiRsdp, 36) ||
+    // Validate the full RSDP before reading its XSDT address.
+    if (!Arm64AcpiRange(Map, AcpiRsdp, 36) ||
         __CompareBytes(Rsdp, "RSD PTR ", 8) || Rsdp[15] < 2 ||
         !__Checksum(Rsdp, 20)) {
         return EFI_UNSUPPORTED;
@@ -162,13 +219,13 @@ static EFI_STATUS __DiscoverPsci(IN struct VBoot* Boot)
 
     Length = ReadUnaligned32((UINT32*)(Rsdp + 20));
     if (Length < 36 || Length > 4096 ||
-        !__FirmwareRange(Boot->AcpiRsdp, Length) ||
+        !Arm64AcpiRange(Map, AcpiRsdp, Length) ||
         !__Checksum(Rsdp, Length)) {
         return EFI_UNSUPPORTED;
     }
 
     Xsdt = ReadUnaligned64((UINT64*)(Rsdp + 24));
-    Length = __TableLength(Xsdt);
+    Length = __TableLength(Map, Xsdt);
     if (!Length || (Length - 36) % 8 ||
         __CompareBytes((CONST VOID*)(UINTN)Xsdt, "XSDT", 4)) {
         return EFI_UNSUPPORTED;
@@ -176,7 +233,7 @@ static EFI_STATUS __DiscoverPsci(IN struct VBoot* Boot)
 
     for (UINTN Offset = 36; Offset < Length; Offset += 8) {
         UINT64 Address = ReadUnaligned64((UINT64*)(UINTN)(Xsdt + Offset));
-        UINT32 Size = __TableLength(Address);
+        UINT32 Size = __TableLength(Map, Address);
 
         if (!Size) {
             return EFI_UNSUPPORTED;
@@ -185,12 +242,12 @@ static EFI_STATUS __DiscoverPsci(IN struct VBoot* Boot)
         if (Size >= 132 && !__CompareBytes((CONST VOID*)(UINTN)Address, "FACP", 4)) {
             UINT16 Flags = ReadUnaligned16((UINT16*)(UINTN)(Address + 129));
 
-            /* The FADT flags declare whether firmware supports PSCI at all. */
+            // Reject firmware that does not advertise PSCI support.
             if (!(Flags & 1)) {
                 return EFI_UNSUPPORTED;
             }
 
-            Boot->PsciConduit = Flags & 2 ? VBOOT_PSCI_HVC : VBOOT_PSCI_SMC;
+            *PsciConduit = Flags & 2 ? VBOOT_PSCI_HVC : VBOOT_PSCI_SMC;
             return EFI_SUCCESS;
         }
     }
@@ -198,36 +255,39 @@ static EFI_STATUS __DiscoverPsci(IN struct VBoot* Boot)
     return EFI_UNSUPPORTED;
 }
 
-EFI_STATUS Arm64Prepare(IN struct VBoot* Boot)
+EFI_STATUS
+Arm64Prepare(
+    IN struct VBoot* Boot)
 {
-    UINT64 El;
-    UINT64 Midr;
-    UINT64 Hcr;
     EFI_LOADED_IMAGE_PROTOCOL* Image;
-    EFI_GUID Loaded = EFI_LOADED_IMAGE_PROTOCOL_GUID;
-    EFI_GUID Acpi = EFI_ACPI_20_TABLE_GUID;
-    /* SMBIOS 3 GUID, normalized to its physical entry-point address. */
-    EFI_GUID Smbios = {
-        0xf2fd1544, 0x9794, 0x4a2c,
-        {0x99, 0x2e, 0xe5, 0xbb, 0xcf, 0x20, 0xe3, 0x94}
-    };
+    EFI_GUID                   Loaded = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_GUID                   Acpi = EFI_ACPI_20_TABLE_GUID;
+
+    struct Arm64FirmwareMap map;
+    UINT64                  El;
+    UINT64                  Midr;
+    UINT64                  Hcr;
+    UINT64                  AcpiRsdp = 0;
+    UINT32                  PsciConduit = 0;
+    EFI_STATUS              Status;
+    VOID*                   Tables;
+    UINTN                   Bytes;
+    UINTN                   Index;
 
     __asm__ volatile("mrs %0, CurrentEL; mrs %1, midr_el1" : "=r"(El), "=r"(Midr));
     ConsoleWrite(L"ARM64 firmware EL%u, MIDR %lx\n", El >> 2, Midr);
-    if ((El != 4 && El != 8) || ((Midr >> 4) & 0xfff) != 0xd07) {
-        return EFI_UNSUPPORTED;
+    
+    Status = Arm64CheckCpu();
+    if (EFI_ERROR(Status)) {
+        return Status;
     }
 
     if (El == 8) {
         __asm__ volatile("mrs %0, hcr_el2" : "=r"(Hcr));
         ConsoleWrite(L"ARM64 HCR %lx\n", Hcr);
-        /* HCR.TGE would make the EL1 translation checks observe the wrong regime. */
-        if (Hcr & (1ULL << 34)) {
-            return EFI_UNSUPPORTED;
-        }
     }
 
-    EFI_STATUS Status = gBS->HandleProtocol(
+    Status = gBS->HandleProtocol(
         gImageHandle,
         &Loaded,
         (VOID**)&Image
@@ -236,7 +296,7 @@ EFI_STATUS Arm64Prepare(IN struct VBoot* Boot)
         return Status;
     }
 
-    /* Every object passed after ExitBootServices must remain directly reachable. */
+    // Keep every handoff object identity mapped after ExitBootServices.
     if (!Arm64Identity((UINTN)Image->ImageBase, Image->ImageSize) ||
         !Arm64Identity((UINTN)Boot, sizeof(*Boot)) ||
         !Arm64Identity(Boot->Kernel.Base, Boot->Kernel.Length) ||
@@ -246,57 +306,46 @@ EFI_STATUS Arm64Prepare(IN struct VBoot* Boot)
         return EFI_UNSUPPORTED;
     }
 
-    /* Describe the physical, identity-mapped handoff contract to the kernel. */
-    Boot->Version = VBOOT_VERSION;
-    Boot->DescriptorSize = sizeof(*Boot);
-    Boot->Architecture = VBOOT_ARCH_AARCH64;
-    Boot->Features = VBOOT_FEATURE_PHYSICAL | VBOOT_FEATURE_MMU_OFF | VBOOT_FEATURE_RESERVED_FIRMWARE;
-    
-    if (Boot->Video.FrameBuffer) {
-        Boot->Features |= VBOOT_FEATURE_GOP;
-    }
-    
-    Boot->MemoryEntrySize = sizeof(struct VBootMemoryEntry);
-    Boot->ConfigurationEntrySize = sizeof(EFI_CONFIGURATION_TABLE);
-    Boot->Console.Base = 0x09000000;
-    Boot->Console.Kind = VBOOT_CONSOLE_PL011;
-    Boot->Console.ClockHz = 24000000;
-    Boot->Console.Baud = 115200;
-
-    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(Boot->CounterFrequency));
-    Boot->LoaderBase = (UINTN)Image->ImageBase;
-    Boot->LoaderLength = Image->ImageSize;
+    // The kernel discovers ACPI through VBoot's configuration table list.
     for (UINTN Index = 0; Index < gST->NumberOfTableEntries; ++Index) {
         EFI_CONFIGURATION_TABLE* Table = &gST->ConfigurationTable[Index];
 
         if (CompareGuid(&Table->VendorGuid, &Acpi)) {
-            Boot->AcpiRsdp = (UINTN)Table->VendorTable;
-        }
-        if (CompareGuid(&Table->VendorGuid, &Smbios)) {
-            Boot->Smbios = (UINTN)Table->VendorTable;
+            AcpiRsdp = (UINTN)Table->VendorTable;
         }
     }
 
-    Status = __DiscoverPsci(Boot);
-    ConsoleWrite(L"ARM64 ACPI %lx, PSCI %u, status %r\n", Boot->AcpiRsdp, Boot->PsciConduit, Status);
+    // Use this snapshot only to validate firmware tables. LibraryCleanup collects the final map.
+    Status = Arm64ReadFirmwareMap(&map);
     if (EFI_ERROR(Status)) {
         return Status;
     }
-    if (El == 8 && Boot->PsciConduit != VBOOT_PSCI_SMC) {
+    
+    Status = __DiscoverPsci(&map, AcpiRsdp, &PsciConduit);
+    LibraryFreeMemory(map.Descriptors);
+    ConsoleWrite(L"ARM64 ACPI %lx, PSCI %u, status %r\n", AcpiRsdp, PsciConduit, Status);
+    if (EFI_ERROR(Status)) {
+        return Status;
+    }
+    
+    if (El == 8 && PsciConduit != VBOOT_PSCI_SMC) {
         return EFI_UNSUPPORTED;
     }
 
-    /* Copy the table list because the EFI system table ceases to be usable later. */
-    VOID* Tables;
-    UINTN Bytes = Boot->ConfigurationTableCount * sizeof(EFI_CONFIGURATION_TABLE);
+    // Copy the table list before ExitBootServices invalidates the system table.
+    Bytes = Boot->ConfigurationTableCount * sizeof(EFI_CONFIGURATION_TABLE);
     Status = LibraryAllocateMemory(Bytes, &Tables);
     if (EFI_ERROR(Status)) {
         return Status;
     }
+
     CopyMem(Tables, gST->ConfigurationTable, Bytes);
+    
     if (!Arm64Identity((UINTN)Tables, Bytes)) {
+        LibraryFreeMemory(Tables);
         return EFI_UNSUPPORTED;
     }
+
     Boot->ConfigurationTable = (UINTN)Tables;
     return EFI_SUCCESS;
 }

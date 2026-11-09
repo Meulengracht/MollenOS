@@ -21,26 +21,37 @@
 #include <platform/arm64.h>
 #include <console.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/BaseLib.h>
 
-EFI_STATUS LibraryInitialize(
-  IN EFI_HANDLE        ImageHandle,
-  IN EFI_SYSTEM_TABLE* SystemTable)
+EFI_STATUS
+LibraryInitialize(
+    IN EFI_HANDLE        ImageHandle,
+    IN EFI_SYSTEM_TABLE* SystemTable)
 {
+    EFI_STATUS status;
+
     gImageHandle = ImageHandle;
     gST = SystemTable;
     gBS = gST->BootServices;
     
-    return EFI_SUCCESS;
+    // Disable the watchdog while boot services are available.
+    status = gBS->SetWatchdogTimer(0, 0, 0, NULL);
+    if (status == EFI_UNSUPPORTED) {
+        return EFI_SUCCESS;
+    }
+    return status;
 }
 
-EFI_STATUS LibraryAllocateMemory(
+EFI_STATUS
+LibraryAllocateMemory(
     IN UINTN   Size,
     OUT VOID** Memory)
 {
     return gBS->AllocatePool(EfiLoaderData, Size, Memory);
 }
 
-EFI_STATUS LibraryFreeMemory(
+EFI_STATUS
+LibraryFreeMemory(
     IN VOID* Memory)
 {
     return gBS->FreePool(Memory);
@@ -56,7 +67,8 @@ struct __MemoryMap {
     struct VBootMemoryEntry* Entries;
 };
 
-static EFI_STATUS __LoadMemoryMap(
+static EFI_STATUS
+__LoadMemoryMap(
     IN struct __MemoryMap* MemoryMap)
 {
     EFI_STATUS status = gBS->GetMemoryMap(
@@ -70,7 +82,7 @@ static EFI_STATUS __LoadMemoryMap(
         return EFI_UNSUPPORTED;
     }
 
-    /* No allocations after the first ExitBootServices attempt. */
+    // Do not allocate after the first ExitBootServices attempt.
     MemoryMap->Capacity = MemoryMap->Size + 64 * MemoryMap->Stride;
     status = LibraryAllocateMemory(
         MemoryMap->Capacity,
@@ -98,7 +110,8 @@ static EFI_STATUS __LoadMemoryMap(
     return EFI_SUCCESS;
 }
 
-static enum VBootMemoryType __ToVBootMemoryType(
+static enum VBootMemoryType
+__ToVBootMemoryType(
     IN UINT8 EfiType)
 {
     switch (EfiType) {
@@ -113,8 +126,10 @@ static enum VBootMemoryType __ToVBootMemoryType(
     }
 }
 
-static EFI_STATUS __FillMemoryMapEntries(
-    IN struct __MemoryMap* MemoryMap)
+static EFI_STATUS
+__FillMemoryMapEntries(
+    IN struct __MemoryMap* MemoryMap,
+    IN struct VBoot*       Boot)
 {
     UINTN      size;
     EFI_STATUS status;
@@ -151,7 +166,9 @@ static EFI_STATUS __FillMemoryMapEntries(
     return EFI_SUCCESS;
 }
 
-EFI_STATUS LibraryCleanup(struct VBoot* Boot)
+EFI_STATUS
+LibraryCleanup(
+    IN struct VBoot* Boot)
 {
     struct __MemoryMap memoryMap = { 0 };
     EFI_STATUS         status;
@@ -164,27 +181,26 @@ EFI_STATUS LibraryCleanup(struct VBoot* Boot)
     // Store the entries, as we exit in-loop later
     Boot->Memory.Entries = (UINTN)memoryMap.Entries;
     
+    ConsoleDisable();
     for (UINTN attempt = 0; attempt < 8; ++attempt) {
-        status = __FillMemoryMapEntries(&memoryMap);
+        status = __FillMemoryMapEntries(&memoryMap, Boot);
         if (EFI_ERROR(status)) {
-            return status;
+            break;
         }
         
         status = gBS->ExitBootServices(gImageHandle, memoryMap.Key);
         if (status == EFI_SUCCESS) {
-            ConsoleDisable();
             gBS = NULL;
             return EFI_SUCCESS;
         }
         
         if (status != EFI_INVALID_PARAMETER) {
-            ConsoleWrite(L"Failed to exit boot services: %r\n", status);
             break;
         }
     }
     
     // Firmware may be partially shut down: 
     // never return to it or use ConOut.
-    ConsoleWrite(L"ARM64: final memory map/ExitBootServices failed: %r\n", status);
+    CpuDeadLoop();
     return status;
 }

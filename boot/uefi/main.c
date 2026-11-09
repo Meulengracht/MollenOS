@@ -47,6 +47,8 @@ static EFI_STATUS __InitializeBootDescriptor(void)
     gBootDescriptor->Magic    = VBOOT_MAGIC;
     gBootDescriptor->Version  = VBOOT_VERSION;
     gBootDescriptor->Firmware = VBootFirmware_UEFI;
+    gBootDescriptor->Memory.EntrySize = sizeof(struct VBootMemoryEntry);
+    gBootDescriptor->ConfigurationEntrySize = sizeof(EFI_CONFIGURATION_TABLE);
     gBootDescriptor->ConfigurationTableCount = gST->NumberOfTableEntries;
     gBootDescriptor->ConfigurationTable = (unsigned long long)gST->ConfigurationTable;
     return Status;
@@ -150,10 +152,6 @@ EFI_STATUS EFIAPI VBootMain (
         return Status;
     }
 
-#if defined(__aarch64__)
-    __JumpToKernel(gBootDescriptor->Platform.KernelPhysicalEntry, KernelStack);
-#else
     __JumpToKernel(gBootDescriptor->Kernel.EntryPoint, KernelStack);
-#endif
     return EFI_SUCCESS;
 }

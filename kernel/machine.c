@@ -139,14 +139,24 @@ InitializeMachine(
         ArchProcessorHalt();
     }
 
-    // Build system topology by enumerating the SRAT table if present.
-    // If ACPI is not present or the SRAT is missing the system is running in UMA
-    // mode and there is no hardware seperation
+    // Initialize firmware table access and let the architecture describe its
+    // CPUs, interrupt controllers and timers before any of them are started.
 #ifdef __OSCONFIG_ACPI_SUPPORT
     oserr = AcpiInitializeEarly();
     if (oserr != OS_EOK) {
-        // Assume UMA machine and put the machine into UMA mode
+#if defined(__aarch64__)
+        // ARM's ACPI path has no legacy interrupt/timer discovery fallback.
+        // A usable table manager is not enough to start devices. Stop before
+        // SystemInterruptsInitialize can use an incomplete platform description.
+        ERROR("Failed to discover the ARM64 ACPI platform: %u", oserr);
+        for (;;) {
+            ArchProcessorHalt();
+        }
+#else
+        // Preserve the existing x86 UMA fallback. Its processor and legacy
+        // interrupt/timer paths can continue without ACPI topology information.
         SetMachineUmaMode();
+#endif
     }
 #elif __OSCONFIG_DEVICETREE_SUPPORT
     // Full parsing follows memory initialization. The ARM memory port must

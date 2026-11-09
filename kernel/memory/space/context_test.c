@@ -156,44 +156,59 @@ static void
 __TestGroupLifetime(
     _In_ void** state)
 {
-    MemorySpace_t* root;
-    MemorySpace_t* child;
-    MemorySpace_t* sibling;
-    MemorySpaceCreateResult_t rootHandle;
-    MemorySpaceCreateResult_t childHandle;
-    MemorySpaceCreateResult_t siblingHandle;
-    uuid_t         groupGlobalHandleID;
+    MemorySpace_t*    root;
+    MemorySpace_t*    child;
+    MemorySpace_t*    sibling;
+    uuid_t            rootHandle;
+    uuid_t            rootSecurityGroupID;
+    uuid_t            childHandle;
+    uuid_t            childSecurityGroupID;
+    uuid_t            siblingHandle;
+    uuid_t            siblingSecurityGroupID;
+    uuid_t            groupGlobalHandleID;
 
     (void)state;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &rootHandle), OS_EOK);
-    root = LookupHandle(rootHandle.Handle, HandleTypeMemorySpace);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &rootHandle,
+        &rootSecurityGroupID
+    ), OS_EOK);
+    root = LookupHandle(rootHandle, HandleTypeMemorySpace);
     groupGlobalHandleID = root->GroupGlobalHandleID;
-    assert_int_equal(rootHandle.SecurityGroupID, groupGlobalHandleID);
+    assert_int_equal(rootSecurityGroupID, groupGlobalHandleID);
     assert_int_equal(root->ParentHandle, UUID_INVALID);
     assert_int_equal(g_testContext.Handles[groupGlobalHandleID].References, 1);
 
-    g_testContext.CurrentHandle = rootHandle.Handle;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT, &childHandle), OS_EOK);
-    child = LookupHandle(childHandle.Handle, HandleTypeMemorySpace);
-    assert_int_equal(childHandle.SecurityGroupID, groupGlobalHandleID);
+    g_testContext.CurrentHandle = rootHandle;
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT,
+        &childHandle,
+        &childSecurityGroupID
+    ), OS_EOK);
+    child = LookupHandle(childHandle, HandleTypeMemorySpace);
+    assert_int_equal(childSecurityGroupID, groupGlobalHandleID);
     assert_int_equal(child->GroupGlobalHandleID, groupGlobalHandleID);
-    assert_int_equal(child->ParentHandle, rootHandle.Handle);
+    assert_int_equal(child->ParentHandle, rootHandle);
     assert_ptr_equal(__MSContextGet(root), __MSContextGet(child));
 
-    g_testContext.CurrentHandle = childHandle.Handle;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT, &siblingHandle), OS_EOK);
-    sibling = LookupHandle(siblingHandle.Handle, HandleTypeMemorySpace);
-    assert_int_equal(siblingHandle.SecurityGroupID, groupGlobalHandleID);
-    assert_int_equal(sibling->ParentHandle, rootHandle.Handle);
+    g_testContext.CurrentHandle = childHandle;
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT,
+        &siblingHandle,
+        &siblingSecurityGroupID
+    ), OS_EOK);
+    sibling = LookupHandle(siblingHandle, HandleTypeMemorySpace);
+    assert_int_equal(siblingSecurityGroupID, groupGlobalHandleID);
+    assert_int_equal(sibling->ParentHandle, rootHandle);
     assert_int_equal(sibling->GroupGlobalHandleID, groupGlobalHandleID);
     assert_int_equal(g_testContext.Handles[groupGlobalHandleID].References, 3);
     assert_ptr_equal(MemorySpaceGetSecurityContext(), &__MSContextGet(child)->Security);
 
     // Releasing the root handle must leave inherited tables valid.
-    assert_int_equal(DestroyHandle(rootHandle.Handle), OS_EINCOMPLETE);
-    assert_int_equal(DestroyHandle(childHandle.Handle), OS_EOK);
+    assert_int_equal(DestroyHandle(rootHandle), OS_EINCOMPLETE);
+    assert_int_equal(DestroyHandle(childHandle), OS_EOK);
     assert_int_equal(g_testContext.Handles[groupGlobalHandleID].References, 2);
-    assert_int_equal(DestroyHandle(siblingHandle.Handle), OS_EOK);
+    assert_int_equal(DestroyHandle(siblingHandle), OS_EOK);
     assert_int_equal(g_testContext.Handles[groupGlobalHandleID].References, 0);
     assert_int_equal(g_testContext.VirtualSpaceDestroyCalls, 3);
     assert_int_equal(g_testContext.LiveAllocations, 0);
@@ -205,15 +220,20 @@ __TestRetainedGroup(
 {
     MemorySpace_t*    space;
     struct MSContext* context;
-    MemorySpaceCreateResult_t handle;
+    uuid_t            handle;
+    uuid_t            securityGroupID;
     uuid_t            groupGlobalHandleID;
 
     (void)state;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &handle), OS_EOK);
-    space = LookupHandle(handle.Handle, HandleTypeMemorySpace);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &handle,
+        &securityGroupID
+    ), OS_EOK);
+    space = LookupHandle(handle, HandleTypeMemorySpace);
     groupGlobalHandleID = space->GroupGlobalHandleID;
     assert_int_equal(AcquireGlobalHandle(groupGlobalHandleID, HandleTypeMSContext, (void**)&context), OS_EOK);
-    assert_int_equal(DestroyHandle(handle.Handle), OS_EOK);
+    assert_int_equal(DestroyHandle(handle), OS_EOK);
     assert_ptr_equal(LookupGlobalHandle(groupGlobalHandleID, HandleTypeMSContext), context);
     assert_int_equal(context->Security.GlobalHandleID, groupGlobalHandleID);
     // The context and its grant table stay allocated until the final reference is released.
@@ -226,18 +246,23 @@ static void
 __TestKernelSpace(
     _In_ void** state)
 {
-    MemorySpace_t* space;
-    MemorySpaceCreateResult_t handle;
+    MemorySpace_t*    space;
+    uuid_t            handle;
+    uuid_t            securityGroupID;
 
     (void)state;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_INHERIT, &handle), OS_EOK);
-    space = LookupHandle(handle.Handle, HandleTypeMemorySpace);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_INHERIT,
+        &handle,
+        &securityGroupID
+    ), OS_EOK);
+    space = LookupHandle(handle, HandleTypeMemorySpace);
     assert_int_equal(space->GroupGlobalHandleID, UUID_INVALID);
-    assert_int_equal(handle.SecurityGroupID, UUID_INVALID);
+    assert_int_equal(securityGroupID, UUID_INVALID);
     assert_null(__MSContextGet(space));
-    g_testContext.CurrentHandle = handle.Handle;
+    g_testContext.CurrentHandle = handle;
     assert_null(MemorySpaceGetSecurityContext());
-    assert_int_equal(DestroyHandle(handle.Handle), OS_EOK);
+    assert_int_equal(DestroyHandle(handle), OS_EOK);
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
 
@@ -255,12 +280,17 @@ static void
 __TestGroupGlobalHandleIDFailure(
     _In_ void** state)
 {
-    MemorySpaceCreateResult_t handle;
+    uuid_t            handle;
+    uuid_t            securityGroupID;
 
     (void)state;
     g_testContext.FailHandle = true;
     g_testContext.FailHandleType = HandleTypeMSContext;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &handle), OS_EOOM);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &handle,
+        &securityGroupID
+    ), OS_EOOM);
     assert_int_equal(g_testContext.LiveAllocations, 0);
     assert_int_equal(g_testContext.VirtualSpaceDestroyCalls, 0);
 }
@@ -269,23 +299,37 @@ static void
 __TestCloneFailure(
     _In_ void** state)
 {
-    MemorySpaceCreateResult_t root;
-    MemorySpaceCreateResult_t child;
-    uuid_t groupGlobalHandleID;
+    uuid_t            root;
+    uuid_t            rootSecurityGroupID;
+    uuid_t            child;
+    uuid_t            childSecurityGroupID;
+    uuid_t            groupGlobalHandleID;
 
     (void)state;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &root), OS_EOK);
-    groupGlobalHandleID = ((MemorySpace_t*)LookupHandle(root.Handle, HandleTypeMemorySpace))->GroupGlobalHandleID;
-    g_testContext.CurrentHandle = root.Handle;
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &root,
+        &rootSecurityGroupID
+    ), OS_EOK);
+    groupGlobalHandleID = ((MemorySpace_t*)LookupHandle(root, HandleTypeMemorySpace))->GroupGlobalHandleID;
+    g_testContext.CurrentHandle = root;
     g_testContext.CloneResult = OS_EOOM;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT, &child), OS_EOOM);
-    assert_int_equal(g_testContext.Handles[root.Handle].References, 1);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT,
+        &child,
+        &childSecurityGroupID
+    ), OS_EOOM);
+    assert_int_equal(g_testContext.Handles[root].References, 1);
     assert_int_equal(g_testContext.Handles[groupGlobalHandleID].References, 1);
     assert_int_equal(g_testContext.VirtualSpaceDestroyCalls, 0);
-    assert_int_equal(DestroyHandle(root.Handle), OS_EOK);
+    assert_int_equal(DestroyHandle(root), OS_EOK);
     assert_int_equal(g_testContext.LiveAllocations, 0);
 
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &root), OS_EOOM);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &root,
+        &rootSecurityGroupID
+    ), OS_EOOM);
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
 
@@ -293,23 +337,37 @@ static void
 __TestSpaceHandleFailure(
     _In_ void** state)
 {
-    MemorySpaceCreateResult_t root;
-    uuid_t groupGlobalHandleID;
-    MemorySpaceCreateResult_t handle;
+    uuid_t            root;
+    uuid_t            rootSecurityGroupID;
+    uuid_t            groupGlobalHandleID;
+    uuid_t            handle;
+    uuid_t            securityGroupID;
 
     (void)state;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &root), OS_EOK);
-    groupGlobalHandleID = ((MemorySpace_t*)LookupHandle(root.Handle, HandleTypeMemorySpace))->GroupGlobalHandleID;
-    g_testContext.CurrentHandle = root.Handle;
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &root,
+        &rootSecurityGroupID
+    ), OS_EOK);
+    groupGlobalHandleID = ((MemorySpace_t*)LookupHandle(root, HandleTypeMemorySpace))->GroupGlobalHandleID;
+    g_testContext.CurrentHandle = root;
     g_testContext.FailHandle = true;
     g_testContext.FailHandleType = HandleTypeMemorySpace;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT, &handle), OS_EOOM);
-    assert_int_equal(g_testContext.Handles[root.Handle].References, 1);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT,
+        &handle,
+        &securityGroupID
+    ), OS_EOOM);
+    assert_int_equal(g_testContext.Handles[root].References, 1);
     assert_int_equal(g_testContext.Handles[groupGlobalHandleID].References, 1);
-    assert_int_equal(DestroyHandle(root.Handle), OS_EOK);
+    assert_int_equal(DestroyHandle(root), OS_EOK);
     assert_int_equal(g_testContext.LiveAllocations, 0);
 
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &handle), OS_EOOM);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &handle,
+        &securityGroupID
+    ), OS_EOOM);
     assert_int_equal(g_testContext.VirtualSpaceDestroyCalls, 3);
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
@@ -318,20 +376,34 @@ static void
 __TestGroupAcquireFailure(
     _In_ void** state)
 {
-    MemorySpaceCreateResult_t root;
-    MemorySpaceCreateResult_t child;
+    uuid_t            root;
+    uuid_t            rootSecurityGroupID;
+    uuid_t            child;
+    uuid_t            childSecurityGroupID;
 
     (void)state;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION, &root), OS_EOK);
-    g_testContext.CurrentHandle = root.Handle;
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION,
+        &root,
+        &rootSecurityGroupID
+    ), OS_EOK);
+    g_testContext.CurrentHandle = root;
     g_testContext.FailAcquire = true;
     g_testContext.FailAcquireType = HandleTypeMSContext;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT, &child), OS_ENOENT);
-    assert_int_equal(g_testContext.Handles[root.Handle].References, 1);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT,
+        &child,
+        &childSecurityGroupID
+    ), OS_ENOENT);
+    assert_int_equal(g_testContext.Handles[root].References, 1);
     g_testContext.FailAcquireType = HandleTypeMemorySpace;
-    assert_int_equal(CreateMemorySpace(MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT, &child), OS_ENOENT);
-    assert_int_equal(g_testContext.Handles[root.Handle].References, 1);
-    assert_int_equal(DestroyHandle(root.Handle), OS_EOK);
+    assert_int_equal(CreateMemorySpace(
+        MEMORY_SPACE_APPLICATION | MEMORY_SPACE_INHERIT,
+        &child,
+        &childSecurityGroupID
+    ), OS_ENOENT);
+    assert_int_equal(g_testContext.Handles[root].References, 1);
+    assert_int_equal(DestroyHandle(root), OS_EOK);
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
 

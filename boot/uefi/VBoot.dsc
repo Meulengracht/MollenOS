@@ -18,7 +18,6 @@
 [LibraryClasses]
   BaseLib|MdePkg/Library/BaseLib/BaseLib.inf
   BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
-  DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
   DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf
   IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
@@ -31,15 +30,14 @@
   UefiBootServicesTableLib|MdePkg/Library/UefiBootServicesTableLib/UefiBootServicesTableLib.inf
 
 [LibraryClasses.IA32, LibraryClasses.X64]
+  DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
   CacheMaintenanceLib|MdePkg/Library/BaseCacheMaintenanceLib/BaseCacheMaintenanceLib.inf
   SerialPortLib|PcAtChipsetPkg/Library/SerialIoLib/SerialIoLib.inf
 
 [LibraryClasses.AARCH64]
   ArmLib|MdePkg/Library/ArmLib/ArmBaseLib.inf
   CacheMaintenanceLib|ArmPkg/Library/ArmCacheMaintenanceLib/ArmCacheMaintenanceLib.inf
-  PL011UartClockLib|ArmPlatformPkg/Library/PL011UartClockLib/PL011UartClockLib.inf
-  PL011UartLib|ArmPlatformPkg/Library/PL011UartLib/PL011UartLib.inf
-  SerialPortLib|ArmPlatformPkg/Library/PL011SerialPortLib/PL011SerialPortLib.inf
+  DebugLib|MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf
 
 [PcdsFixedAtBuild]
   gEfiMdePkgTokenSpaceGuid.PcdMaximumUnicodeStringLength|1000000
@@ -52,20 +50,6 @@
 
 [PcdsFixedAtBuild.IA32, PcdsFixedAtBuild.X64]
   gPcAtChipsetPkgTokenSpaceGuid.PcdUartIoPortBaseAddress|0x3F8
-
-[PcdsFixedAtBuild.AARCH64]
-  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultReceiveFifoDepth|1
-  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultBaudRate|115200
-  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultDataBits|8
-  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultParity|1
-  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultStopBits|1
-  gEfiMdeModulePkgTokenSpaceGuid.PcdSerialRegisterBase|0x09000000
-  gEfiMdeModulePkgTokenSpaceGuid.PcdSerialUseHardwareFlowControl|FALSE
-  gEfiMdeModulePkgTokenSpaceGuid.PcdSerialBaudRate|115200
-  gArmPlatformTokenSpaceGuid.PL011UartClkInHz|24000000
-  gArmPlatformTokenSpaceGuid.PL011UartInteger|0
-  gArmPlatformTokenSpaceGuid.PL011UartFractional|0
-  gArmPlatformTokenSpaceGuid.PL011UartRegOffsetVariant|0
 
 [BuildOptions.IA32]
   *_*_*_CC_FLAGS = -D__i386__ -Wno-format -Wno-address-of-packed-member

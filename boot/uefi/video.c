@@ -27,270 +27,235 @@
 
 #include <Protocol/GraphicsOutput.h>
 
-#define MAX_VIDEO_MODE_COUNT 32
-
-struct VideoModeComponent {
-    unsigned int Position;
-    unsigned int Mask;
-};
-
-struct VideoMode {
-    int ModeNumber;
-    int Width;
-    int Height;
-    int BitsPerPixel;
-    int BytesPerScanline;
-
-    struct VideoModeComponent Red;
-    struct VideoModeComponent Green;
-    struct VideoModeComponent Blue;
-    struct VideoModeComponent Reserved;
-};
+#include <Library/BaseMemoryLib.h>
 
 static EFI_GUID gGraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-static EFI_GRAPHICS_OUTPUT_PROTOCOL* gGraphicsOutput = NULL;
 
-static struct PrefferedMode { int Width; int Height; int BitsPerPixel; } gPrefferedModes[] = {
-    //{ 8192, 4320, 32 },
-    //{ 7680, 4320, 32 },
-    //{ 5120, 2880, 32 },
-    //{ 4096, 2160, 32 },
-    //{ 3840, 2160, 32 },
-    //{ 2560, 1440, 32 },
-    //{ 1920, 1080, 32 },
-    //{ 1600, 1200, 32 },
-    { 1280, 1024, 32 },
-    { 1024, 768, 32 },
-    { 640, 480, 32 },
-    { 800, 600, 32 },
-    { 0, 0, 0 }
+static const struct __PreferredMode {
+    UINT32 Width;
+    UINT32 Height;
+} gPreferredModes[] = {
+    { 1280, 1024 },
+    { 1024, 768  },
+    { 640,  480  },
+    { 800,  600  }
 };
 
-void __ConvertColorMask(
-    IN  UINT32                     Value,
-    OUT struct VideoModeComponent* Component)
+static BOOLEAN
+__ConvertColorMask(
+    IN  UINT32  Value,
+    OUT UINT32* Position,
+    OUT UINT32* Mask)
 {
-    UINT32 Index = 0;
-    UINT32 Mask = 1;
-
-    if (!Value) {
-        Component->Position = 0;
-        Component->Mask     = 0;
-        return;
-    }
-
-    while ((Index < 32) && ((Value & Mask) == 0)) {
-        Index++;
-        Mask <<= 1;
-    }
+    *Position = 0;
+    *Mask = 0;
     
-    Component->Position = Index;
-    Component->Mask     = (Mask >> Index);
-}
+    if (!Value) {
+        return TRUE;
+    }
 
-int __GetHighestBitSet(UINT32 Value)
-{
-    int Count = 0;
-    while (Value) {
-        Count++;
+    while (!(Value & 1)) {
+        ++*Position;
         Value >>= 1;
     }
-    return Count;
+
+    *Mask = Value;
+
+    // Shift the channel mask to bit zero, then require contiguous bits.
+    return (Value & (Value + 1U)) == 0;
 }
 
-int __GetPixelBitCount(EFI_PIXEL_BITMASK* Pixel)
+static BOOLEAN
+__ParseVideoFormat(
+    IN  EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info,
+    OUT struct VBootVideo*                    Video)
 {
-    return MAX(
-        __GetHighestBitSet(Pixel->RedMask), 
-        MAX(
-            __GetHighestBitSet(Pixel->GreenMask), 
-            MAX(__GetHighestBitSet(Pixel->BlueMask), 
-                __GetHighestBitSet(Pixel->ReservedMask)
-            )
-        )
-    );
-}
+    EFI_PIXEL_BITMASK pixel;
+    UINT32            bits;
+    UINT32            bytes;
+    UINT32            mask;
 
-EFI_STATUS __ParseVideoFormat(
-    IN EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* GopModeInfo,
-    IN struct VideoMode*                     Mode)
-{
-    Mode->Width = GopModeInfo->HorizontalResolution;
-    Mode->Height = GopModeInfo->VerticalResolution;
+    SetMem(Video, sizeof(*Video), 0);
+    if (!Info->HorizontalResolution || !Info->VerticalResolution ||
+        Info->PixelsPerScanLine < Info->HorizontalResolution) {
+        return FALSE;
+    }
 
-    switch (GopModeInfo->PixelFormat) {
+    switch (Info->PixelFormat) {
         case PixelRedGreenBlueReserved8BitPerColor:
-            Mode->BitsPerPixel = 32;
-            Mode->Red.Position = 16;
-            Mode->Red.Mask = 0xFF;
-            Mode->Green.Position = 8;
-            Mode->Green.Mask = 0xFF;
-            Mode->Blue.Position = 0;
-            Mode->Blue.Mask = 0xFF;
-            Mode->Reserved.Position = 24;
-            Mode->Reserved.Mask = 0xFF;
-            Mode->BytesPerScanline = GopModeInfo->PixelsPerScanLine * 4;
+            pixel = (EFI_PIXEL_BITMASK){0xff, 0xff00, 0xff0000, 0xff000000};
             break;
         case PixelBlueGreenRedReserved8BitPerColor:
-            Mode->BitsPerPixel = 32;
-            Mode->Red.Position = 0;
-            Mode->Red.Mask = 0xFF;
-            Mode->Green.Position = 8;
-            Mode->Green.Mask = 0xFF;
-            Mode->Blue.Position = 16;
-            Mode->Blue.Mask = 0xFF;
-            Mode->Reserved.Position = 24;
-            Mode->Reserved.Mask = 0xFF;
-            Mode->BytesPerScanline = GopModeInfo->PixelsPerScanLine * 4;
+            pixel = (EFI_PIXEL_BITMASK){0xff0000, 0xff00, 0xff, 0xff000000};
             break;
         case PixelBitMask:
-            __ConvertColorMask(GopModeInfo->PixelInformation.RedMask, &Mode->Red);
-            __ConvertColorMask(GopModeInfo->PixelInformation.GreenMask, &Mode->Green);
-            __ConvertColorMask(GopModeInfo->PixelInformation.BlueMask, &Mode->Blue);
-            __ConvertColorMask(GopModeInfo->PixelInformation.ReservedMask, &Mode->Reserved);
-            Mode->BitsPerPixel = __GetPixelBitCount(&GopModeInfo->PixelInformation);
-            Mode->BytesPerScanline = GopModeInfo->PixelsPerScanLine * (Mode->BitsPerPixel / 8);
+            pixel = Info->PixelInformation;
             break;
         default:
-            return EFI_UNSUPPORTED;
+            // BLT-only modes have no framebuffer for the kernel to use.
+            return FALSE;
     }
-    return EFI_SUCCESS;
+
+    if (!pixel.RedMask || !pixel.GreenMask || !pixel.BlueMask) {
+        return FALSE;
+    }
+
+    if ((pixel.RedMask & pixel.GreenMask) || (pixel.RedMask & pixel.BlueMask) ||
+        (pixel.GreenMask & pixel.BlueMask)) {
+        return FALSE;
+    }
+
+    mask = pixel.RedMask | pixel.GreenMask | pixel.BlueMask;
+    if (mask & pixel.ReservedMask) {
+        return FALSE;
+    }
+
+    if (!__ConvertColorMask(pixel.RedMask, &Video->RedPosition, &Video->RedMask) ||
+        !__ConvertColorMask(pixel.GreenMask, &Video->GreenPosition, &Video->GreenMask)) {
+        return FALSE;
+    }
+
+    if (!__ConvertColorMask(pixel.BlueMask, &Video->BluePosition, &Video->BlueMask) ||
+        !__ConvertColorMask(pixel.ReservedMask, &Video->ReservedPosition, &Video->ReservedMask)) {
+        return FALSE;
+    }
+
+    mask |= pixel.ReservedMask;
+    bits = 0;
+    while (mask) {
+        ++bits;
+        mask >>= 1;
+    }
+    
+    // The boot handoff supports 32-bit modes only.
+    bytes = (bits + 7) / 8;
+    if (bytes != 4) {
+        return FALSE;
+    }
+
+    if (Info->PixelsPerScanLine > MAX_UINT32 / bytes) {
+        return FALSE;
+    }
+
+    Video->Width = Info->HorizontalResolution;
+    Video->Height = Info->VerticalResolution;
+    Video->BitsPerPixel = bytes * 8;
+    Video->Pitch = Info->PixelsPerScanLine * bytes;
+    return TRUE;
 }
 
-EFI_STATUS __GetVideoModes(
+static BOOLEAN
+__CurrentMode(
     IN  EFI_GRAPHICS_OUTPUT_PROTOCOL* Gop,
-    IN  struct VideoMode*             Modes,
-    IN  UINT32                        MaxCount,
-    OUT UINT32*                       Count)
+    OUT struct VBootVideo*            Video)
 {
-	EFI_STATUS                            Status;
-    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* GopModeInfo;
-    UINTN                                 SizeOfInfo;
-    UINT32                                i, j;
-    ConsoleWrite(L"__GetVideoModes()\n");
+    UINT64 length;
 
-    for (i = 0, j = 0; j < MaxCount; i++) {
-        Status = Gop->QueryMode(Gop, i, &SizeOfInfo, &GopModeInfo);
-        if (EFI_ERROR(Status)) {
-            break;
-        }
-
-        // Store the mode number so we can set it later
-        Modes[j].ModeNumber = i;
-
-        Status = __ParseVideoFormat(GopModeInfo, &Modes[j]);
-        if (EFI_ERROR(Status)) {
-            continue;
-        }
-        j++;
+    if (!Gop->Mode || !Gop->Mode->Info ||
+        Gop->Mode->SizeOfInfo < sizeof(*Gop->Mode->Info)) {
+        return FALSE;
     }
 
-    *Count = j;
-    return (j != 0) ? EFI_SUCCESS : EFI_UNSUPPORTED;
+    if (!__ParseVideoFormat(Gop->Mode->Info, Video)) {
+        return FALSE;
+    }
+
+    length = (UINT64)Video->Pitch * Video->Height;
+    if (!Gop->Mode->FrameBufferBase || length > Gop->Mode->FrameBufferSize ||
+        Gop->Mode->FrameBufferBase > MAX_UINT64 - length) {
+        return FALSE;
+    }
+
+    Video->FrameBuffer = Gop->Mode->FrameBufferBase;
+    return TRUE;
 }
 
-struct VideoMode* __GetPrefferedMode(
-    struct VideoMode* Modes,
-    UINT32            ModeCount)
+static BOOLEAN
+__TryMode(
+    IN  EFI_GRAPHICS_OUTPUT_PROTOCOL* Gop,
+    IN  UINT32                        Number,
+    IN  const struct __PreferredMode* Preference,
+    OUT struct VBootVideo*            Video)
 {
-    UINT32 i = 0;
-    while (gPrefferedModes[i].Width != 0) {
-        for (UINT32 j = 0; j < ModeCount; j++) {
-            if ((Modes[j].Width == gPrefferedModes[i].Width) &&
-                (Modes[j].Height == gPrefferedModes[i].Height)) {
-                return &Modes[j];
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info = NULL;
+    EFI_STATUS                            status;
+    UINTN                                 size;
+    BOOLEAN                               usable;
+
+    status = Gop->QueryMode(Gop, Number, &size, &info);
+    if (EFI_ERROR(status)) {
+        return FALSE;
+    }
+
+    usable = info && size >= sizeof(*info);
+    if (usable && Preference) {
+        usable = info->HorizontalResolution == Preference->Width &&
+            info->VerticalResolution == Preference->Height;
+    }
+
+    if (usable) {
+        usable = __ParseVideoFormat(info, Video);
+    }
+
+    if (info) {
+        LibraryFreeMemory(info);
+    }
+
+    if (!usable) {
+        return FALSE;
+    }
+
+    if (Gop->Mode->Mode != Number) {
+        status = Gop->SetMode(Gop, Number);
+        if (EFI_ERROR(status)) {
+            return FALSE;
+        }
+    }
+    return __CurrentMode(Gop, Video);
+}
+
+EFI_STATUS
+VideoInitialize(
+    IN struct VBoot* VBoot)
+{
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
+    struct VBootVideo             video;
+    EFI_STATUS                    status;
+    UINTN                         preference;
+    UINT32                        number;
+    UINT32                        maxMode;
+
+    SetMem(&VBoot->Video, sizeof(VBoot->Video), 0);
+    status = gBS->LocateProtocol(&gGraphicsOutputProtocolGuid, NULL, (VOID**)&gop);
+    if (EFI_ERROR(status) || !gop->Mode) {
+        return EFI_SUCCESS;
+    }
+
+    maxMode = gop->Mode->MaxMode;
+    for (preference = 0; preference < ARRAY_SIZE(gPreferredModes); preference++) {
+        for (number = 0; number < maxMode; number++) {
+            if (__TryMode(gop, number, &gPreferredModes[preference], &video)) {
+                goto ready;
             }
         }
     }
-    return NULL;
-}
 
-EFI_STATUS __DefaultToTextMode(
-    IN struct VBoot* VBoot)
-{
-    VBoot->Video.Width = 80;
-    VBoot->Video.Height = 25;
-    VBoot->Video.BitsPerPixel = 8;
-    VBoot->Video.Pitch = VBoot->Video.Width;
-    VBoot->Video.FrameBuffer = 0;
-    VBoot->Video.RedPosition = 0;
-    VBoot->Video.RedMask = 0;
-    VBoot->Video.GreenPosition = 0;
-    VBoot->Video.GreenMask = 0;
-    VBoot->Video.BluePosition = 0;
-    VBoot->Video.BlueMask = 0;
-    VBoot->Video.ReservedPosition = 0;
-    VBoot->Video.ReservedMask = 0;
+    if (__CurrentMode(gop, &video)) {
+        goto ready;
+    }
+
+    for (number = 0; number < maxMode; number++) {
+        if (__TryMode(gop, number, NULL, &video)) {
+            goto ready;
+        }
+    }
 
     return EFI_SUCCESS;
-}
 
-EFI_STATUS VideoInitialize(
-    IN struct VBoot* VBoot)
-{
-	EFI_STATUS        Status;
-    UINT32            ModeCount;
-    struct VideoMode* Modes;
-    struct VideoMode* PrefferedMode;
-    ConsoleWrite(L"VideoInitialize()\n");
-
-    Status = gBS->LocateProtocol(
-        &gGraphicsOutputProtocolGuid,
-        NULL,
-        (VOID**)&gGraphicsOutput
-    );
-    if (EFI_ERROR(Status)) {
-        ConsoleWrite(L"VideoInitialize no gop present, defaulting to text mode\n");
-        return __DefaultToTextMode(VBoot);
-    }
-
-    Status = LibraryAllocateMemory(
-        sizeof(struct VideoMode) * MAX_VIDEO_MODE_COUNT,
-        (VOID**)&Modes
-    );
-    if (EFI_ERROR(Status)) {
-        ConsoleWrite(L"VideoInitialize failed to allocate memory\n");
-        return Status;
-    }
-
-    Status = __GetVideoModes(gGraphicsOutput, Modes, MAX_VIDEO_MODE_COUNT, &ModeCount);
-    if (EFI_ERROR(Status)) {
-        goto exit;
-    }
-
-    // Try list of modes we would like, in order of preference
-    PrefferedMode = __GetPrefferedMode(Modes, ModeCount);
-    if (!PrefferedMode) {
-        // If we can't find a mode, just use the first one
-        goto exit;
-    }
-
-    ConsoleWrite(L"Setting video mode to %dx%dx%d\n", 
-        PrefferedMode->Width, PrefferedMode->Height, PrefferedMode->BitsPerPixel);
-    Status = gGraphicsOutput->SetMode(gGraphicsOutput, PrefferedMode->ModeNumber);
-    if (EFI_ERROR(Status)) {
-        goto exit;
-    }
-
-    // Disable console output now that video mode is enabled
+ready:
+    VBoot->Video = video;
+#if !defined(__aarch64__)
     ConsoleDisable();
-
-    // Update the VBoot structure to the new mode
-    VBoot->Video.Width = PrefferedMode->Width;
-    VBoot->Video.Height = PrefferedMode->Height;
-    VBoot->Video.BitsPerPixel = PrefferedMode->BitsPerPixel;
-    VBoot->Video.FrameBuffer = gGraphicsOutput->Mode->FrameBufferBase;
-    VBoot->Video.Pitch = PrefferedMode->BytesPerScanline;
-    VBoot->Video.RedMask = PrefferedMode->Red.Mask;
-    VBoot->Video.GreenMask = PrefferedMode->Green.Mask;
-    VBoot->Video.BlueMask = PrefferedMode->Blue.Mask;
-    VBoot->Video.ReservedMask = PrefferedMode->Reserved.Mask;
-    VBoot->Video.RedPosition = PrefferedMode->Red.Position;
-    VBoot->Video.GreenPosition = PrefferedMode->Green.Position;
-    VBoot->Video.BluePosition = PrefferedMode->Blue.Position;
-    VBoot->Video.ReservedPosition = PrefferedMode->Reserved.Position;
-
-exit:
-    LibraryFreeMemory(Modes);
-    return Status;
+#endif
+    return EFI_SUCCESS;
 }

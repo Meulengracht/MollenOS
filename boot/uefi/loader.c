@@ -18,6 +18,7 @@
 
 #if defined(__aarch64__)
 #include <platform/arm64.h>
+#include <platform/arm64-image.h>
 #elif defined(__amd64__) || defined(__i386__)
 #include <platform/x86.h>
 #endif
@@ -144,6 +145,16 @@ EFI_STATUS __LoadFile(
         UINT32 DecompressStatus;
         VOID*  DecompressedData;
 
+#if defined(__aarch64__)
+        // Limit decompression before allocating. The image loader also bounds
+        // SizeOfImage, including zero-filled sections.
+        if (DecompressedSize > ARM64_KERNEL_MAX_SIZE) {
+            LibraryFreeMemory(CompressedData);
+            Status = EFI_BAD_BUFFER_SIZE;
+            goto cleanup;
+        }
+#endif
+
         if (!DecompressedSize || DecompressedSize == APLIB_ERROR) {
             ConsoleWrite(L"__LoadFile Compression header was incorrect: %s\n", FileName);
             ConsoleWrite(L"__LoadFile 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
@@ -241,47 +252,30 @@ __LoadKernel(
     EFI_STATUS Status;
     VOID*      Buffer;
     UINTN      BufferSize;
-    ConsoleWrite(L"__LoadKernel()\n");
-
+#if !defined(__aarch64__)
     PE_COFF_LOADER_IMAGE_CONTEXT ImageContext;
+#endif
+
+    ConsoleWrite(L"__LoadKernel()\n");
 
     Status = __LoadFile(L"\\EFI\\VALI\\kernel.mos", 1, &Buffer, &BufferSize);
     if (EFI_ERROR(Status)) {
         return Status;
     }
 
-    // Initialize the image context
+#if defined(__aarch64__)
+    // Load and relocate the kernel into physical memory, then release the input buffer.
+    Status = Arm64LoadKernelImage(Buffer, BufferSize, &VBoot->Kernel);
+    LibraryFreeMemory(Buffer);
+    return Status;
+#else
     SetMem(&ImageContext, sizeof(ImageContext), 0);
-
     ImageContext.Handle = Buffer;
     ImageContext.ImageRead = PeCoffLoaderImageReadFromMemory;
-
-    // Get information about the pe image
     Status = PeCoffLoaderGetImageInfo(&ImageContext);
     if (EFI_ERROR(Status)) {
         return Status;
     }
-
-#if defined(__aarch64__)
-    if (!__IsArm64Image(&ImageContext, Buffer, BufferSize) ||
-        ImageContext.ImageSize > 0x04000000) {
-        return EFI_UNSUPPORTED;
-    }
-    VBoot->Platform.KernelVirtualBase = ImageContext.ImageAddress;
-    /* Bootstrap image is linked for physical execution. Higher-half entry
-       requires a position-independent kernel-owned mapping stub. */
-    if (ImageContext.ImageAddress != LOADER_KERNEL_BASE) {
-        return EFI_UNSUPPORTED;
-    }
-    ImageContext.ImageAddress = LOADER_KERNEL_BASE;
-    Status = gBS->AllocatePages(AllocateAddress, EfiLoaderCode,
-        EFI_SIZE_TO_PAGES(ImageContext.ImageSize), &ImageContext.ImageAddress);
-    if (EFI_ERROR(Status)) {
-        ConsoleWrite(L"ARM64 kernel reservation failed: %r\n", Status);
-        return Status;
-    }
-#endif
-    // The ARM64 physical range is reserved before loading any sections.
     Status = PeCoffLoaderLoadImage(&ImageContext);
     if (EFI_ERROR(Status)) {
         return Status;
@@ -297,9 +291,6 @@ __LoadKernel(
     VBoot->Kernel.Base       = (unsigned long long)ImageContext.ImageAddress;
     VBoot->Kernel.EntryPoint = (unsigned long long)ImageContext.EntryPoint;
     VBoot->Kernel.Length     = ImageContext.ImageSize;
-#if defined(__aarch64__)
-    VBoot->Platform.KernelPhysicalEntry = ImageContext.EntryPoint;
-#endif
     LibraryFreeMemory(Buffer);
 
     // Flush not needed for all architectures. We could have a processor specific
@@ -311,6 +302,7 @@ __LoadKernel(
     ConsoleWrite(L"__LoadKernel loaded at 0x%x, Size=0x%x\n", 
         ImageContext.ImageAddress, ImageContext.ImageSize);
     return EFI_SUCCESS;
+#endif
 }
 
 EFI_STATUS

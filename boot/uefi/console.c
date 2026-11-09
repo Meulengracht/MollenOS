@@ -19,17 +19,22 @@
 #include <console.h>
 #include <Library/PrintLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+
+#if !defined(__aarch64__)
 #include <Library/SerialPortLib.h>
+#endif
 
 static EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* gConsoleOut = NULL;
 static BOOLEAN                          gEnabled = FALSE;
 
-EFI_STATUS ConsoleInitialize(void)
+EFI_STATUS
+ConsoleInitialize(void)
 {
     // Initialize the global variable
     gConsoleOut = gST->ConOut;
+    gEnabled = FALSE;
     
-    // The GOP is optional
+    // Continue without text output when firmware has no console.
     if (gConsoleOut) {
         // Clear screen
         gConsoleOut->ClearScreen(gConsoleOut);
@@ -40,21 +45,24 @@ EFI_STATUS ConsoleInitialize(void)
         // Initialize text color, white on black
         gConsoleOut->SetAttribute(gConsoleOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLACK));
 
-        // Mark the GOP as enabled
         gEnabled = TRUE;
     }
 
-    // Initialize serial port output, we do this always
+#if !defined(__aarch64__)
     SerialPortInitialize();
+#endif
     return EFI_SUCCESS;
 }
 
-void ConsoleDisable(void)
+void
+ConsoleDisable(void)
 {
     gEnabled = FALSE;
+    gConsoleOut = NULL;
 }
 
-void ConsoleWrite(
+void EFIAPI
+ConsoleWrite(
     IN CHAR16* Format,
     IN         ...)
 {
@@ -64,15 +72,23 @@ void ConsoleWrite(
 
     if (gEnabled) {
         VA_START(Marker, Format);
-        Length = UnicodeVSPrint(Buffer, sizeof(Buffer) - 1, Format, Marker);
+        Length = UnicodeVSPrint(Buffer, sizeof(Buffer), Format, Marker);
         VA_END(Marker);
 
         Buffer[Length] = 0;
+#if defined(__aarch64__)
+        if (EFI_ERROR(gConsoleOut->OutputString(gConsoleOut, &Buffer[0]))) {
+            ConsoleDisable();
+        }
+#else
         gConsoleOut->OutputString(gConsoleOut, &Buffer[0]);
+#endif
     }
 
+#if !defined(__aarch64__)
     VA_START(Marker, Format);
-    Length = AsciiVSPrintUnicodeFormat((CHAR8*)&Buffer[0], sizeof(Buffer) - 1, Format, Marker);
+    Length = AsciiVSPrintUnicodeFormat((CHAR8*)&Buffer[0], sizeof(Buffer), Format, Marker);
     VA_END(Marker);
     SerialPortWrite((UINT8*)&Buffer[0], Length);
+#endif
 }

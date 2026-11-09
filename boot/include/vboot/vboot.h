@@ -154,17 +154,22 @@ VBOOT_PACKED(VBootStack, {
 });
 
 /**
- * Native AArch64 entry uses EL1h with physical pointers, MMU/data/instruction
- * caches off, DAIF masked, and no EFI configuration table. x0 points here;
- * x1-x3, x18 and x29 are zero. SP is the aligned exclusive top of Stack.
- * FP/SIMD is disabled; vectors and a non-returning LR target remain reserved
- * in the loader until the kernel establishes its own exception environment.
- * The kernel descriptor identifies a loaded/relocated physical image. Stack
- * describes reserved storage from its bottom, not the current stack pointer.
- * Zero optional descriptors mean absent resources, including during bring-up.
- * Copying this structure does not transfer its pointed-to storage: the producer
- * retains reservations for the map, DTB, stack and payloads until the kernel
- * has established their mappings and completed their use or explicit copying.
+ * AArch64 starts in EL1h with physical pointers, MMU and caches off, and DAIF
+ * masked. UEFI provides a copied EFI configuration table list. Native entry
+ * uses DeviceTree and leaves the EFI table list empty.
+ *
+ * x0 points to this descriptor. x1-x3, x18, and x29 are zero. SP is the
+ * aligned exclusive top of Stack.
+ *
+ * FP/SIMD is disabled. The loader keeps its vectors and non-returning LR
+ * target available until the kernel installs its exception environment. Kernel
+ * describes a loaded and relocated physical image. Stack describes reserved
+ * storage from its base, not the current stack pointer. Zero optional
+ * descriptors mean the resource is absent.
+ *
+ * Copying VBoot copies only the descriptor, not the data it points to. Keep
+ * the map, DTB, stack, and payloads reserved until the kernel has mapped and
+ * finished using them or made its own copies.
  */
 VBOOT_PACKED(VBoot, {
     unsigned int        Magic;

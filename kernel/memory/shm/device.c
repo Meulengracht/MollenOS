@@ -637,13 +637,13 @@ SHMDeviceMap(
         goto release;
     }
 
-    mapping->Access.ReferenceID = source.ReferenceID;
+    mapping->Access.ReferenceID = source.GlobalHandleID;
     mapping->Access.Scope = source.Scope;
     *mappingOut = mapping;
     return OS_EOK;
 
 release:
-    (void)ReleaseGlobalHandle(source.ReferenceID);
+    (void)ReleaseGlobalHandle(source.GlobalHandleID);
     return status;
 }
 

@@ -22,7 +22,13 @@
 #include <Uefi.h>
 #include <vboot/vboot.h>
 
-EFI_STATUS VideoInitialize(
+/**
+ * @brief Selects a usable GOP framebuffer when one is available.
+ * @param VBoot Receives the framebuffer, or a zeroed descriptor when none is usable.
+ * @return EFI_SUCCESS. Boot services must remain available.
+ */
+EFI_STATUS
+VideoInitialize(
     IN struct VBoot* VBoot);
 
 #endif //!__VIDEO_H__

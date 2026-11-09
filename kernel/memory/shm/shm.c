@@ -551,7 +551,7 @@ SHMAttach(
     if (source.Buffer->Flags & SHM_PRIVATE) {
         status = AreMemorySpacesRelated(source.Buffer->Owner, GetCurrentMemorySpace());
         if (status != OS_EOK) {
-            ReleaseGlobalHandle(source.ReferenceID);
+            ReleaseGlobalHandle(source.GlobalHandleID);
             return OS_EPERMISSIONS;
         }
     }
@@ -561,7 +561,7 @@ SHMAttach(
         __ConstructSHMHandle(handle, shmID, source.Length, 0, 0, NULL);
     }
 
-    ReleaseGlobalHandle(source.ReferenceID);
+    ReleaseGlobalHandle(source.GlobalHandleID);
     return status;
 }
 
@@ -841,7 +841,7 @@ SHMMap(
     }
 
     if (source.View != NULL) {
-        oserr = SHMViewMap(source.ReferenceID, source.View, handle, offset, length, flags);
+        oserr = SHMViewMap(source.GlobalHandleID, source.View, handle, offset, length, flags);
         goto exit;
     }
 
@@ -894,7 +894,7 @@ SHMMap(
     oserr = OS_EOK;
 
 exit:
-    ReleaseGlobalHandle(source.ReferenceID);
+    ReleaseGlobalHandle(source.GlobalHandleID);
     return oserr;
 }
 
@@ -918,7 +918,7 @@ SHMUnmap(
     }
 
     if (source.View != NULL) {
-        ReleaseGlobalHandle(source.ReferenceID);
+        ReleaseGlobalHandle(source.GlobalHandleID);
         if (length == 0 || length > SIZE_MAX - offset) {
             return OS_EINVALPARAMS;
         }
@@ -935,7 +935,7 @@ SHMUnmap(
         }
         return oserr;
     }
-    ReleaseGlobalHandle(source.ReferenceID);
+    ReleaseGlobalHandle(source.GlobalHandleID);
 
     return __UnmapBuffer(handle, address, length);
 }
@@ -1000,7 +1000,7 @@ SHMCommit(
     }
 
 exit:
-    ReleaseGlobalHandle(source.ReferenceID);
+    ReleaseGlobalHandle(source.GlobalHandleID);
     return oserr;
 }
 
@@ -1131,7 +1131,7 @@ SHMBuildSG(
     }
     MutexUnlock(&source.Buffer->Mutex);
 
-    ReleaseGlobalHandle(source.ReferenceID);
+    ReleaseGlobalHandle(source.GlobalHandleID);
     return OS_EOK;
 }
 

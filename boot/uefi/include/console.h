@@ -21,12 +21,28 @@
 
 #include <Uefi.h>
 
-EFI_STATUS ConsoleInitialize(void);
+/**
+ * @brief Initializes optional firmware text output and the x86 serial backend.
+ * @return EFI_SUCCESS, including when firmware has no text console.
+ */
+EFI_STATUS
+ConsoleInitialize(void);
 
-void EFIAPI ConsoleWrite(
+/**
+ * @brief Writes a formatted message to active console outputs.
+ * @param Format UEFI Unicode format string and its arguments.
+ *         ARM64 output is silent after ConsoleDisable.
+ */
+void EFIAPI
+ConsoleWrite(
     IN CHAR16* Format,
     IN         ...);
 
-void ConsoleDisable(void);
+/**
+ * @brief Stops firmware console calls before ExitBootServices.
+ *         The x86 serial backend remains available.
+ */
+void
+ConsoleDisable(void);
 
 #endif //!__CONSOLE_H__

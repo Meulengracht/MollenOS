@@ -91,7 +91,7 @@ SHMAccessCreate(
     }
 
     SHMAccessInitialize(access, buffer, source.Offset + offset, length);
-    access->ReferenceID = source.ReferenceID;
+    access->ReferenceID = source.GlobalHandleID;
     access->Scope = source.Scope;
     *accessOut = access;
     return OS_EOK;

@@ -24,6 +24,7 @@
 #include <memoryspace.h>
 #include <machine.h>
 #include <shm/shm.h>
+#include <shm/view.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -57,11 +58,10 @@ __MapFaultingAddress(
     // Otherwise, commit the page and continue without anyone noticing, and handle race-conditions
     // if two different threads have accessed a reserved page. OsExists will be returned.
     if (descriptor->SHMTag != UUID_INVALID) {
-        oserr = SHMCommit(
-                descriptor->SHMTag,
-                (void*)descriptor->StartAddress,
-                (void*)address,
-                pageSize
+        oserr = SHMCommitFault(
+            descriptor->SHMTag,
+            descriptor->StartAddress,
+            address
         );
     } else {
         uintptr_t physicalAddress;

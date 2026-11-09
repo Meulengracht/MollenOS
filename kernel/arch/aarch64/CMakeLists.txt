@@ -38,4 +38,8 @@ else ()
     list (APPEND AARCH64_SOURCES common/platform.c)
 endif ()
 
+if (VALI_BUILD_FEATURE_ACPI)
+    list(APPEND AARCH64_SOURCES acpi/platform.c)
+endif ()
+
 add_kernel_library(vali-aarch64 "" ${AARCH64_SOURCES})

@@ -35,7 +35,7 @@ typedef struct SHMView {
 
 /**
  * @brief Resolved SHM storage and limits protected by one independent reference.
- * Release ReferenceID with ReleaseGlobalHandle. View is NULL for ordinary SHM.
+ * Release GlobalHandleID with ReleaseGlobalHandle. View is NULL for ordinary SHM.
  * Offset and Length identify the permitted logical range within Buffer.
  */
 typedef struct SHMReference {

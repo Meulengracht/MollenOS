@@ -74,7 +74,7 @@ SHMReferenceForExport(
     
     status = __ValidateExportPolicy(options, &source);
     if (status != OS_EOK) {
-        ReleaseGlobalHandle(source.ReferenceID);
+        ReleaseGlobalHandle(source.GlobalHandleID);
         return status;
     }
 
@@ -121,7 +121,7 @@ __ResolveBuffer(
     _Out_ SHMReference_t* reference)
 {
     *reference = (SHMReference_t) {
-        .ReferenceID = buffer->ID,
+        .GlobalHandleID = buffer->ID,
         .Type = HandleTypeSHM,
         .Buffer = buffer,
         .Length = buffer->Length,
@@ -136,7 +136,7 @@ __ResolveView(
     _Out_ SHMReference_t* reference)
 {
     *reference = (SHMReference_t) {
-        .ReferenceID = handle,
+        .GlobalHandleID = handle,
         .Type = HandleTypeSHMView,
         .Buffer = view->Buffer,
         .View = view,

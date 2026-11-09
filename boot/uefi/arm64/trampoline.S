@@ -1,31 +1,23 @@
 /*
- * Transfer control from the firmware environment to the ARM64 kernel.
+ * Transfer control to the ARM64 kernel.
  *
- * x0 contains the boot descriptor, x1 contains the physical kernel entry
- * point, and x2 contains a stack reserved for the kernel. Arm64Prepare has
- * already verified that these objects are identity mapped, which is why this
- * routine can use their physical addresses while it dismantles firmware's
- * address-space setup.
+ * x0 is the boot descriptor, x1 the physical entry, and x2 the kernel stack.
+ * Arm64Prepare verifies these objects are identity mapped before this routine
+ * disables the firmware translation state.
  *
- * This code deliberately avoids stack and data accesses after the final cache
- * maintenance operation. The kernel therefore receives a clean handoff even
- * though firmware's caches, translation tables, and exception vectors are no
- * longer available. The cache loop targets Cortex-A57-class systems without
- * FEAT_CCIDX, matching the platforms supported by this loader.
+ * Do not access the stack or data after cache maintenance. Clean and invalidate
+ * both legacy and FEAT_CCIDX cache layouts before changing translation state.
  */
 .text
 .balign 4096
 .globl Arm64Enter
 Arm64Enter:
-    /* Mask asynchronous exceptions while the firmware state is being replaced. */
+    // Mask asynchronous exceptions during the handoff.
     msr daifset, #15
 
-    /*
-     * Install a private vector table before changing exception levels. Any
-     * exception during the transition must stop safely rather than returning
-     * into firmware through a vector table that is about to become invalid.
-     * CurrentEL is encoded in the upper bits: 4 means EL1 and 8 means EL2.
-     */
+    // Route exceptions to the local wait loop before changing exception levels.
+    // Firmware vectors may become invalid during the transition.
+    // CurrentEL uses 4 for EL1 and 8 for EL2.
     mrs x17, CurrentEL
     adr x16, Arm64Vectors
     cmp x17, #8
@@ -36,41 +28,43 @@ Arm64Enter:
 2:  isb
     dsb sy
 
-    /*
-     * Clean and invalidate every data/unified cache by set and way. The
-     * firmware may have cached boot data or page-table entries using mappings
-     * that the kernel will remove; cleaning first makes modified lines visible
-     * in memory, while invalidating prevents stale lines surviving the switch.
-     */
+    // Clean and invalidate data/unified caches before removing firmware mappings.
+    // This writes back boot data and page tables, then drops stale cache lines.
+    mrs x7, id_aa64mmfr2_el1
+    ubfx x7, x7, #20, #4 // Arm64CheckCpu restricts CCIDX to 0 or 1.
     mrs x9, clidr_el1
     ubfx x10, x9, #24, #3
     mov x11, #0
 3:  cmp x11, x10
     b.ge 8f
-    /* Extract this cache level's type from CLIDR and skip instruction-only levels. */
+    // Skip instruction-only levels reported by CLIDR.
     add x12, x11, x11, lsl #1
     lsr x12, x9, x12
     and x12, x12, #7
     cmp x12, #2
     b.lt 7f
 
-    /* Select the level so CCSIDR describes the cache currently being walked. */
+    // Select the cache level before reading CCSIDR.
     lsl x12, x11, #1
     msr csselr_el1, x12
     isb
     mrs x13, ccsidr_el1
 
-    /*
-     * CCSIDR reports log2(words per line) minus its architectural encoding,
-     * the number of ways minus one, and the number of sets minus one. The
-     * following values turn those fields into shifts and loop bounds for the
-     * DC CISW operand: {way, set, level}.
-     */
+    // CCSIDR reports log2(line size)-4, ways-1, and sets-1 for the DC CISW operand.
     and x14, x13, #7
     add x14, x14, #4
+    cbnz x7, .Lccidx
     ubfx x15, x13, #3, #10
-    clz w16, w15
     ubfx x13, x13, #13, #15
+    b .Lcache_geometry_ready
+
+.Lccidx:
+    // CCIDX moves the ways and sets fields. The legacy fields would miss cache sets.
+    ubfx x15, x13, #3, #21
+    ubfx x13, x13, #32, #24
+
+.Lcache_geometry_ready:
+    clz w16, w15
 4:  mov x3, x15
 5:  lsl x4, x3, x16
     lsl x5, x13, x14
@@ -81,21 +75,19 @@ Arm64Enter:
     b.ge 5b
     subs x13, x13, #1
     b.ge 4b
-7:  add x11, x11, #1
+7:  dsb sy // Finish this cache level before moving to the next.
+    add x11, x11, #1
     b 3b
 8:  msr csselr_el1, xzr
 
-    /* Finish cache maintenance before changing translation or exception state. */
+    // Complete cache maintenance before changing translation state.
     dsb sy
     ic iallu
     dsb sy
     isb
 
-    /*
-     * EL1 firmware path: disable MMU, data caching, and instruction caching,
-     * then invalidate the old EL1 translations. The kernel starts from a
-     * known-off state and is responsible for installing its own mappings.
-     */
+    // EL1 path: disable its MMU and caches, then discard its old translations.
+    // The kernel installs its own mappings.
     cmp x17, #8
     b.eq 9f
     mrs x3, sctlr_el1
@@ -114,8 +106,15 @@ Arm64Enter:
     msr spsel, #1
     mov sp, x2
 
-    /* The kernel entry point is physical and identity mapped at this moment. */
-    br x1
+    // The kernel entry point is physical and identity mapped at this moment.
+    mov x16, x1
+    mov x1, xzr
+    mov x2, xzr
+    mov x3, xzr
+    mov x18, xzr
+    mov x29, xzr
+    adr x30, Arm64Vectors
+    br x16
 9:  mrs x3, sctlr_el2
     bic x3, x3, #1
     bic x3, x3, #4
@@ -126,80 +125,101 @@ Arm64Enter:
     dsb sy
     isb
 
-    /*
-     * EL2 firmware path: make EL1 AArch64, disable the EL2 MMU/caches, and
-     * clear EL2's translation cache before handing execution to EL1. HCR.RW
-     * is the bit that selects AArch64 execution for the lower exception level.
-     */
-    mov x3, #0x80000000
+    // EL2 path: start EL1 in AArch64 and clear firmware's stage-2 and trap settings.
+    // Preserve E2H because some CPUs do not allow it to be cleared.
+    // Synchronize after updating HCR before accessing EL1 state.
+    mrs x8, hcr_el2
+    and x8, x8, #(1 << 34)
+    orr x3, x8, #0x80000000
     msr hcr_el2, x3
-    
-    // x3 is scratch: retain x0 (boot handoff), x1 (kernel entry), x2 (stack).
-    // ID_AA64ISAR2_EL1.MOPS[19:16]=1 advertises CPY*/SET*; 0 means absent.
-    // UBFX extracts four bits to the low end of x3. Skip the optional
-    // hypervisor access unless the CPU actually supplies MOPS instructions.
+    isb
+
+    // Preserve x0-x2, which hold the boot descriptor, entry, and stack.
+    // Skip HCRX access unless ID_AA64ISAR2_EL1 advertises MOPS.
     mrs x3, id_aa64isar2_el1
     ubfx x3, x3, #16, #4
     cmp x3, #1
     b.ne .Lmops_el2_ready
     
-    // ID_AA64MMFR1_EL1.HCX[43:40] reports extended hypervisor controls:
-    // zero means HCRX_EL2 does not exist, so MRS/MSR of it would be undefined.
+    // HCRX_EL2 is undefined when ID_AA64MMFR1_EL1.HCX is zero.
     mrs x3, id_aa64mmfr1_el1
     ubfx x3, x3, #40, #4
     cbz x3, .Lmops_el2_ready
     
-    // HCRX_EL2 = S3_4_C1_C2_2 (op0=3, op1=4, CRn=1, CRm=2, op2=2).
-    // The encoded name works with baseline assembler architecture settings.
-    // Set MSCEn[11]=1 (0x800) to permit memory copy/set at EL1/EL0 and
-    // preserve all unrelated fields. ISB synchronizes the permission change.
-    // Implemented EL3 must permit HCRX access through SCR_EL3.HXEn[38].
-    // EL0 permission in SCTLR_EL1.MSCEn[33] is enabled later by the kernel;
-    // merely detecting MOPS hardware is not sufficient for userspace memcpy.
+    // Use the encoded register name for baseline assembler targets.
+    // Set HCRX_EL2.MSCEn for EL1/EL0 MOPS and preserve the other controls.
+    // EL3 must allow HCRX access through SCR_EL3.HXEn.
+    // The kernel enables SCTLR_EL1.MSCEn before using MOPS in userspace.
     mrs x3, S3_4_C1_C2_2
     orr x3, x3, #0x800
     msr S3_4_C1_C2_2, x3
     isb
+
 .Lmops_el2_ready:
-    mov x3, #0x33ff // Non-VHE CPTR_EL2 RES1, FP traps disabled
+    // Start EL1 with SCTLR_EL1.RES1 set and M/C/I clear. Under VHE, use
+    // SCTLR_EL12 to avoid changing SCTLR_EL2.
+    mov x4, #0x0800
+    movk x4, #0x30d0, lsl #16
+    adr x16, Arm64Vectors
+    cbnz x8, .Lvhe_el1_state
+
+    mov x3, #0x33ff // Non-VHE CPTR_EL2 RES1; FP traps to EL2 disabled.
     msr cptr_el2, x3
-    mov x3, #3
+    mov x3, #3 // Non-VHE EL1PCEN[1] and EL1PCTEN[0].
     msr cnthctl_el2, x3
-    msr cntvoff_el2, xzr
-    msr cnthp_ctl_el2, xzr
     msr cpacr_el1, xzr
     msr cntkctl_el1, xzr
     msr cntp_ctl_el0, xzr
     msr cntv_ctl_el0, xzr
-
-    /*
-     * Establish the minimal EL1 control state expected by the kernel and give
-     * it the same private stack and vector table it would have received from
-     * the direct EL1 path.
-     */
-    mov x3, #0x0800
-    movk x3, #0x30d0, lsl #16
-    msr sctlr_el1, x3
-    adr x16, Arm64Vectors
+    msr sctlr_el1, x4
     msr vbar_el1, x16
+    b .Lel1_state_ready
+
+.Lvhe_el1_state:
+    // With E2H, CPTR_EL2 uses FPEN instead of TFP. Keep EL2 FP traps disabled
+    // so EL1 can enable FP/SIMD later. EL1 starts with access disabled; SVE/SME stay off.
+    mov x3, #0x300000
+    msr cptr_el2, x3
+    mov x3, #0xc00 // VHE EL1PTEN[11] and EL1PCTEN[10].
+    msr cnthctl_el2, x3
+
+    // Use encoded EL12/EL02 names for baseline assembler targets.
+    // This path runs only when firmware has enabled VHE.
+    msr S3_5_C1_C0_2, xzr   // CPACR_EL12
+    msr S3_5_C14_C1_0, xzr  // CNTKCTL_EL12
+    msr S3_5_C14_C2_1, xzr  // CNTP_CTL_EL02
+    msr S3_5_C14_C3_1, xzr  // CNTV_CTL_EL02
+    msr S3_5_C1_C0_0, x4    // SCTLR_EL12
+    msr S3_5_C12_C0_0, x16  // VBAR_EL12
+    msr S3_4_C14_C3_1, xzr  // CNTHV_CTL_EL2 (requires VHE).
+
+.Lel1_state_ready:
+    msr cntvoff_el2, xzr
+    msr cnthp_ctl_el2, xzr
+    // Invalidate EL1 translations after clearing HCR.TGE, including under VHE.
+    isb
+    tlbi vmalls12e1
+    dsb sy
+    isb
     msr sp_el1, x2
     msr elr_el2, x1
 
-    /*
-     * Return from EL2 in EL1h with all asynchronous exceptions masked. EL1h
-     * selects SP_EL1, so the kernel begins with the stack supplied in x2;
-     * eret also loads the physical entry point from ELR_EL2 atomically with
-     * the exception-level transition.
-     */
+    // Enter EL1h with exceptions masked and SP_EL1 set to x2. ERET loads the
+    // physical entry from ELR_EL2 as it changes exception levels.
     mov x3, #0x3c5
     msr spsr_el2, x3
+    mov x1, xzr
+    mov x2, xzr
+    mov x3, xzr
+    mov x18, xzr
+    mov x29, xzr
+    adr x30, Arm64Vectors
     isb
     eret
 
 /*
- * Reserved along with the loader image until the kernel installs its own
- * vectors. Every slot masks exceptions and waits forever so an unexpected
- * fault cannot fall back into firmware after ExitBootServices.
+ * Keep this table available until the kernel installs its vectors. Each slot
+ * stops on an exception instead of returning to firmware after ExitBootServices.
  */
 .balign 2048
 Arm64Vectors:

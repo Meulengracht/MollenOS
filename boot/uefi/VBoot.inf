@@ -21,6 +21,8 @@
   x86/library.c
 
 [Sources.AARCH64]
+  arm64/firmware.c
+  arm64/image.c
   arm64/platform.c
   arm64/library.c
   arm64/trampoline.S
@@ -46,7 +48,9 @@
   PeCoffLib
   PrintLib
   SafeIntLib
-  SerialPortLib
   StackCheckLib
   UefiApplicationEntryPoint
   UefiBootServicesTableLib
+
+[LibraryClasses.IA32, LibraryClasses.X64]
+  SerialPortLib

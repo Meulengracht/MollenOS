@@ -25,7 +25,7 @@
 #include <capabilities.h>
 #include <handles/handle.h>
 #include <memoryspace.h>
-#include "memory/private.h"
+#include "memory/space/private.h"
 
 oserr_t
 CapabilityGrant(

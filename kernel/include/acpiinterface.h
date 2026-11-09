@@ -170,8 +170,15 @@ typedef struct AcpiDevice {
     AcpiDevicePower_t           PowerSettings;
 } AcpiDevice_t;
 
-/* AcpiInitializeEarly
- * Initializes Early Access and enumerates the APIC Table */
+/**
+ * @brief Initializes shared ACPICA table access and discovers the platform.
+ *
+ * Call once after kernel allocation and mapping are ready. Static table setup
+ * precedes ArchAcpiInitialize; AML namespace and event initialization run later.
+ * AcpiAvailable reports table availability independently of the hook's result.
+ *
+ * @return OS_EOK on success, or an ACPICA setup/platform-discovery error.
+ */
 KERNELAPI oserr_t KERNELABI AcpiInitializeEarly(void);
 
 /* Initializes the full access and functionality
