@@ -28,6 +28,7 @@
 #include <ddk/video.h>
 #include <ddk/io.h>
 #include <os/futex.h>
+#include <os/types/grants.h>
 #include <os/types/shm.h>
 #include <os/types/thread.h>
 #include <os/types/memory.h>
@@ -63,7 +64,7 @@ extern oserr_t ScMapRamdisk(void** bufferOut, size_t* lengthOut);
 extern oserr_t ScCapabilityGrant(Capabilities_t capabilities, uuid_t memorySpaceHandle);
 
 // Phoenix system calls
-extern oserr_t ScCreateMemorySpace(unsigned int flags, uuid_t* handleOut);
+extern oserr_t ScCreateMemorySpace(unsigned int flags, MemorySpaceCreateResult_t* resultOut);
 extern oserr_t ScGetThreadMemorySpaceHandle(uuid_t threadHandle, uuid_t* handleOut);
 extern oserr_t ScCreateMemorySpaceMapping(uuid_t handle, struct MemoryMappingParameters* mappingParameters, void** addressOut);
 
@@ -130,8 +131,6 @@ extern oserr_t ScMemoryQueryAllocation(void*, OSMemoryDescriptor_t*);
 extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
 extern oserr_t ScSHMCreate(SHM_t*, SHMHandle_t*);
-extern oserr_t ScSHMExport(void*, SHM_t*, SHMHandle_t*);
-extern oserr_t ScSHMConform(uuid_t, OSSHMConformParameters_t*, SHMHandle_t*);
 extern oserr_t ScSHMAttach(uuid_t, SHMHandle_t*);
 extern oserr_t ScSHMMap(SHMHandle_t*, size_t, size_t, unsigned int);
 extern oserr_t ScSHMCommit(SHMHandle_t*, void*, size_t);
@@ -143,6 +142,9 @@ extern oserr_t ScCreateHandle(uuid_t*);
 extern oserr_t ScDestroyHandle(uuid_t Handle);
 extern oserr_t ScLookupHandle(const char*, uuid_t*);
 extern oserr_t ScSetHandleActivity(uuid_t, unsigned int);
+extern oserr_t ScGrantTokenCreate(uuid_t, const GrantTokenOptions_t*, GrantToken_t*);
+extern oserr_t ScGrantTokenRevoke(uuid_t);
+extern oserr_t ScSHMAttachToken(const GrantToken_t*, SHMHandle_t*);
 
 extern oserr_t ScCreateHandleSet(unsigned int, uuid_t*);
 extern oserr_t ScControlHandleSet(uuid_t, int, uuid_t, struct ioset_event*);
@@ -168,7 +170,8 @@ extern oserr_t ScResourceRelease(uuid_t);
 extern oserr_t ScShmAccessEnd(uuid_t, enum SHMAccessKind, size_t);
 extern oserr_t ScShmAccessBegin(OSAsyncContext_t*, uuid_t, const struct SHMAccessBeginParameters*);
 extern oserr_t ScShmAccessCreate(uuid_t, size_t, size_t, uuid_t*);
-#define SYSTEM_CALL_COUNT 86
+
+#define SYSTEM_CALL_COUNT 87
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -259,45 +262,47 @@ static struct SystemCallDescriptor {
         DefineSyscall(53, ScMemoryQueryAttributes),
     
         DefineSyscall(54, ScSHMCreate),
-        DefineSyscall(55, ScSHMExport),
-        DefineSyscall(56, ScSHMConform),
-        DefineSyscall(57, ScSHMAttach),
-        DefineSyscall(58, ScSHMMap),
-        DefineSyscall(59, ScSHMCommit),
-        DefineSyscall(60, ScSHMUnmap),
-        DefineSyscall(61, ScSHMDetach),
-        DefineSyscall(62, ScSHMMetrics),
+        DefineSyscall(55, ScSHMAttachToken),
+        DefineSyscall(56, ScSHMAttach),
+        DefineSyscall(57, ScSHMMap),
+        DefineSyscall(58, ScSHMCommit),
+        DefineSyscall(59, ScSHMUnmap),
+        DefineSyscall(60, ScSHMDetach),
+        DefineSyscall(61, ScSHMMetrics),
     
-        DefineSyscall(63, ScCreateHandle),
-        DefineSyscall(64, ScDestroyHandle),
-        DefineSyscall(65, ScLookupHandle),
-        DefineSyscall(66, ScSetHandleActivity),
+        DefineSyscall(62, ScCreateHandle),
+        DefineSyscall(63, ScDestroyHandle),
+        DefineSyscall(64, ScLookupHandle),
+        DefineSyscall(65, ScSetHandleActivity),
 
-        DefineSyscall(67, ScCreateHandleSet),
-        DefineSyscall(68, ScControlHandleSet),
-        DefineSyscall(69, ScListenHandleSet),
+        DefineSyscall(66, ScGrantTokenCreate),
+        DefineSyscall(67, ScGrantTokenRevoke),
+
+        DefineSyscall(68, ScCreateHandleSet),
+        DefineSyscall(69, ScControlHandleSet),
+        DefineSyscall(70, ScListenHandleSet),
     
         // Misc interface
-        DefineSyscall(70, ScInstallSignalHandler),
-        DefineSyscall(71, ScFlushHardwareCache),
-        DefineSyscall(72, ScSystemQuery),
+        DefineSyscall(71, ScInstallSignalHandler),
+        DefineSyscall(72, ScFlushHardwareCache),
+        DefineSyscall(73, ScSystemQuery),
 
         // Timing interface
-        DefineSyscall(73, ScSystemClockTick),
-        DefineSyscall(74, ScSystemClockFrequency),
-        DefineSyscall(75, ScSystemTime),
-        DefineSyscall(76, ScTimeSleep),
-        DefineSyscall(77, ScTimeStall),
+        DefineSyscall(74, ScSystemClockTick),
+        DefineSyscall(75, ScSystemClockFrequency),
+        DefineSyscall(76, ScSystemTime),
+        DefineSyscall(77, ScTimeSleep),
+        DefineSyscall(78, ScTimeStall),
 
         // DMA mappings and shared range access
-        DefineSyscall(78, ScDmaOpen),
-        DefineSyscall(79, ScDmaAllocate),
-        DefineSyscall(80, ScDmaMapShm),
-        DefineSyscall(81, ScDmaGetSegments),
-        DefineSyscall(82, ScShmAccessBegin),
-        DefineSyscall(83, ScShmAccessEnd),
-        DefineSyscall(84, ScResourceRelease),
-        DefineSyscall(85, ScShmAccessCreate)
+        DefineSyscall(79, ScDmaOpen),
+        DefineSyscall(80, ScDmaAllocate),
+        DefineSyscall(81, ScDmaMapShm),
+        DefineSyscall(82, ScDmaGetSegments),
+        DefineSyscall(83, ScShmAccessCreate),
+        DefineSyscall(84, ScShmAccessBegin),
+        DefineSyscall(85, ScShmAccessEnd),
+        DefineSyscall(86, ScResourceRelease),
 };
 
 Context_t*

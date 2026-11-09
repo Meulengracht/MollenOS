@@ -21,18 +21,31 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <os/types/syscall.h>
 #include <internal/_syscalls.h>
 #include <ddk/memory.h>
 
 oserr_t
 CreateMemorySpace(
-        _In_  unsigned int Flags,
-        _Out_ uuid_t* Handle)
+    _In_  unsigned int flags,
+    _Out_ uuid_t*      msHandleOut,
+    _Out_ uuid_t*      securityHandleOut)
 {
-    if (Handle == NULL) {
+    MemorySpaceCreateResult_t result;
+    oserr_t                   oserr;
+
+    if (msHandleOut == NULL || securityHandleOut == NULL) {
         return OS_EUNKNOWN;
     }
-    return Syscall_CreateMemorySpace(Flags, Handle);
+
+    oserr = Syscall_CreateMemorySpace(flags, &result);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    *msHandleOut = result.Handle;
+    *securityHandleOut = result.SecurityGroupID;
+    return OS_EOK;
 }
 
 oserr_t

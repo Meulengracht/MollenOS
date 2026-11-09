@@ -31,6 +31,7 @@
 #include <heap.h>
 #include <memoryspace.h>
 #include <shm/shm.h>
+#include <shm/view.h>
 #include <threading.h>
 #include <string.h>
 
@@ -188,9 +189,13 @@ ScMemoryProtect(
     if (!memoryPointer || !length) {
         return OS_EOK;
     }
-    return MemorySpaceChangeProtection(GetCurrentMemorySpace(),
-                                       (uintptr_t)memoryPointer, length,
-                                       flags | MAPPING_USERSPACE, previousFlags);
+    return MemorySpaceChangeProtection(
+        GetCurrentMemorySpace(),
+        (uintptr_t)memoryPointer,
+        length,
+        flags | MAPPING_USERSPACE,
+        previousFlags
+    );
 }
 
 oserr_t
@@ -222,7 +227,7 @@ ScMemoryQueryAttributes(
     MemorySpace_t* memorySpace = GetCurrentMemorySpace();
     int            entries = DIVUP(length, GetMemorySpacePageSize());
     uintptr_t      address = (uintptr_t)memoryPointer;
-    oserr_t     osStatus;
+    oserr_t        osStatus;
     int            i;
 
     if (!address || !entries || !attributesArray) {
@@ -249,58 +254,73 @@ ScSHMCreate(
 }
 
 oserr_t
-ScSHMExport(
-    _In_ void*        buffer,
-    _In_ SHM_t*       shm,
-    _In_ SHMHandle_t* handle)
-{
-    if (shm == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    return SHMExport(
-            buffer,
-            shm->Size,
-            shm->Flags,
-            shm->Access,
-            handle
-    );
-}
-
-oserr_t
-ScSHMConform(
-        _In_ uuid_t                    shmID,
-        _In_ OSSHMConformParameters_t* parameters,
-        _In_ SHMHandle_t*              handle)
-{
-    if (parameters == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    return SHMConform(
-            shmID,
-            parameters->Conformity,
-            parameters->Flags,
-            parameters->Access,
-            parameters->Offset,
-            parameters->Length,
-            handle
-    );
-}
-
-oserr_t
 ScSHMAttach(
         _In_ uuid_t       shmID,
         _In_ SHMHandle_t* handle)
 {
-    return SHMAttach(shmID, handle);
+    SHMHandle_t result;
+    oserr_t     status;
+
+    status = SHMAttach(shmID, &result);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = MemorySpaceCopyUser(handle, &result, sizeof(result), true);
+    if (status != OS_EOK) {
+        DestroyHandle(result.ID);
+    }
+    return status;
+}
+
+oserr_t
+ScSHMAttachToken(
+    _In_  const GrantToken_t* token,
+    _Out_ SHMHandle_t*        handle)
+{
+    GrantToken_t tokenCopy;
+    SHMHandle_t  result;
+    oserr_t      status;
+
+    status = MemorySpaceCopyUser((void*)token, &tokenCopy, sizeof(GrantToken_t), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = SHMAttachToken(&tokenCopy, &result);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = MemorySpaceCopyUser(handle, &result, sizeof(SHMHandle_t), true);
+    if (status != OS_EOK) {
+        DestroyHandle(result.ID);
+    }
+    return status;
 }
 
 oserr_t
 ScSHMDetach(
     _In_ SHMHandle_t* handle)
 {
-    return SHMDetach(handle);
+    SHMHandle_t handleCopy;
+    oserr_t     status;
+    oserr_t     copyStatus;
+
+    status = MemorySpaceCopyUser(handle, &handleCopy, sizeof(SHMHandle_t), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = SHMDetach(&handleCopy);
+    
+    // Preserve partial cleanup progress so a retry does not repeat a drop.
+    copyStatus = MemorySpaceCopyUser(
+        handle,
+        &handleCopy,
+        sizeof(SHMHandle_t),
+        true
+    );
+    return copyStatus == OS_EOK ? status : copyStatus;
 }
 
 oserr_t
@@ -319,12 +339,28 @@ ScSHMMap(
     _In_ size_t       length,
     _In_ unsigned int flags)
 {
-    return SHMMap(
-            handle,
-            offset,
-            length,
-            flags
-    );
+    SHMHandle_t handleCopy;
+    oserr_t     status;
+
+    status = MemorySpaceCopyUser(handle, &handleCopy, sizeof(SHMHandle_t), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = SHMMap(&handleCopy, offset, length, flags);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = MemorySpaceCopyUser(handle, &handleCopy, sizeof(SHMHandle_t), true);
+    if (status != OS_EOK) {
+        (void)SHMUnmap(
+            &handleCopy,
+            (vaddr_t)handleCopy.Buffer,
+            handleCopy.Length
+        );
+    }
+    return status;
 }
 
 oserr_t
@@ -333,14 +369,24 @@ ScSHMCommit(
     _In_ void*        address,
     _In_ size_t       length)
 {
-    if (handle == NULL) {
-        return OS_EINVALPARAMS;
+    SHMHandle_t handleCopy;
+    oserr_t     status;
+
+    status = MemorySpaceCopyUser(
+        handle,
+        &handleCopy,
+        sizeof(SHMHandle_t),
+        false
+    );
+    if (status != OS_EOK) {
+        return status;
     }
+    
     return SHMCommit(
-            handle->ID,
-            handle->Buffer,
-            address,
-            length
+        handleCopy.ID,
+        handleCopy.Buffer,
+        address,
+        length
     );
 }
 
@@ -350,7 +396,29 @@ ScSHMUnmap(
     _In_ void*        address,
     _In_ size_t       length)
 {
-    return SHMUnmap(handle, (vaddr_t)address, length);
+    SHMHandle_t handleCopy;
+    oserr_t     status;
+    oserr_t     copyStatus;
+
+    status = MemorySpaceCopyUser(
+        handle,
+        &handleCopy,
+        sizeof(SHMHandle_t),
+        false
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = SHMUnmap(&handleCopy, (vaddr_t)address, length);
+    
+    copyStatus = MemorySpaceCopyUser(
+        handle,
+        &handleCopy,
+        sizeof(SHMHandle_t),
+        true
+    );
+    return copyStatus == OS_EOK ? status : copyStatus;
 }
 
 oserr_t

@@ -24,7 +24,6 @@ typedef struct thread_storage {
     struct tm          tm_buffer;
     char               asc_buffer[26];
     char               tmpname_buffer[L_tmpnam];
-    OSHandle_t         shm;
     OSAsyncContext_t*  async_context;
     uintptr_t          tls_array[TLS_NUMBER_ENTRIES];
     // Number of registry slots (from index 0) already allocated for this
@@ -76,13 +75,6 @@ CRTDECL(struct thread_storage*, __tls_current(void));
 CRTDECL(void*, __vali_tls_get_block(unsigned int moduleIndex));
 
 
-/**
- * @brief Retrieves the local dma buffer for the current thread. Use this
- * function instead of accessing the dma buffer member manually as it is
- * allocated on demand.
- * @return The current dma buffer for the calling thread
- */
-CRTDECL(OSHandle_t*, __tls_current_dmabuf(void));
 
 /**
  * @brief Registers a new TLS module for the current process. This function

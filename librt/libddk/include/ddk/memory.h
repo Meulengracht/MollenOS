@@ -20,6 +20,7 @@
 #define __DDK_MEMORY_H__
 
 #include <ddk/ddkdefs.h>
+#include <os/types/memory.h>
 
 struct MemoryMappingParameters {
     uintptr_t    VirtualAddress;
@@ -29,11 +30,16 @@ struct MemoryMappingParameters {
 
 /**
  * @brief Creates a new memory space that can be used to create new mappings, and manipulate existing mappings.
+ *
+ * @param flags     Memory-space creation flags.
+ * @param resultOut Receives the handle and security-group ID on success. Unchanged on failure.
+ * @return          Status of the operation.
  */
 DDKDECL(oserr_t,
 CreateMemorySpace(
-    _In_  unsigned int Flags,
-    _Out_ uuid_t*      Handle));
+    _In_  unsigned int flags,
+    _Out_ uuid_t*      msHandleOut,
+    _Out_ uuid_t*      securityHandleOut));
 
 /**
  * @brief Retrieves the memory space that is currently running for the thread handle.

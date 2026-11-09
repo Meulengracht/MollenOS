@@ -550,6 +550,7 @@ static void from_fs_setup_params(const struct ctt_fs_setup_params* in, struct VF
     }
     out->Flags = in->flags;
     out->SectorStart.QuadPart = in->sector;
+    out->SectorSize = 0;
 }
 
 static void to_fs_setup_params(const struct VFSStorageParameters* in, struct ctt_fs_setup_params* out)

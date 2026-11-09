@@ -199,9 +199,9 @@ DMAClose(
     // closing domain, and a provider retry must never repeat kernel close.
     context->Closing = true;
     if (context->Handle != UUID_INVALID) {
-        status = Syscall_DmaClose(context->Handle);
+        status = Syscall_ResourceRelease(context->Handle);
         if (status != OS_EOK) {
-            ERROR("DMAClose: Syscall_DmaClose device %u, context %u failed: %u; context retained",
+            ERROR("DMAClose: Syscall_ResourceRelease device %u, context %u failed: %u; cleanup remains pending",
                   context->Device, context->Handle, status);
             goto exit;
         }
@@ -215,7 +215,7 @@ DMAClose(
         sizeof(context->Session)
     );
     if (status != OS_EOK) {
-        ERROR("DMAClose: OSDeviceIOCtl DMA_RELEASE device %u, session %llu failed: %u; context retained",
+        ERROR("DMAClose: OSDeviceIOCtl DMA_RELEASE device %u, session %llu failed: %u; cleanup remains pending",
               context->Device, (unsigned long long)context->Session, status);
         goto exit;
     }

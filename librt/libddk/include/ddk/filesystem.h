@@ -38,6 +38,10 @@ enum VFSStorageType {
  */
 struct VFSStorageParameters {
     unsigned int StorageType;
+    size_t       SectorSize;
+    unsigned int Flags;
+    UInteger64_t SectorStart;
+    
     union {
         struct {
             uuid_t HandleID;
@@ -48,8 +52,6 @@ struct VFSStorageParameters {
             uuid_t DeviceID;
         } Device;
     } Storage;
-    unsigned int Flags;
-    UInteger64_t SectorStart;
 };
 
 struct VFSDirectoryEntry {

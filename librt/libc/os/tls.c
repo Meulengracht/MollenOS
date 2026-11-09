@@ -21,7 +21,6 @@
 #include <internal/_locale.h>
 #include <internal/_utils.h>
 #include <os/handle.h>
-#include <os/shm.h>
 
 static const char* const*
 __clone_env_block(void)
@@ -103,31 +102,11 @@ int __tls_update_environment(void)
 void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
-    if (SHMBuffer(&tls->shm) != NULL) {
-        OSHandleDestroy(&tls->shm);
-    }
-
     if (tls->env_block != NULL) {
         __destroy_env_block((char**)tls->env_block);
         tls->env_block = NULL;
     }
 }
-
-OSHandle_t* __tls_current_dmabuf(void)
-{
-    struct thread_storage* tls = __tls_current();
-    if (SHMBuffer(&tls->shm) == NULL) {
-        oserr_t oserr = SHMCreate(
-                &(SHM_t) {
-                    .Flags = SHM_COMMIT | SHM_CLEAN,
-                    .Size = BUFSIZ,
-                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            }, &tls->shm
-        );
-        assert(oserr == OS_EOK);
-    }
-    return &tls->shm;
-};
 
 struct thread_storage* __tls_current(void) {
     return (thread_storage_t*)__get_reserved(0);
