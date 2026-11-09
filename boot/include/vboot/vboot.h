@@ -22,9 +22,7 @@
 #include "def.h"
 
 #define VBOOT_MAGIC   0xAEB007AE
-// Version 1.1 defines native physical entry and the DeviceTree tail. All
-// producers, including the BIOS assembly mirror, must use the same layout.
-#define VBOOT_VERSION 0x00010001
+#define VBOOT_VERSION 0x00010002
 
 #define VBOOT_FEATURE_PHYSICAL          1ULL
 #define VBOOT_FEATURE_MMU_OFF           2ULL
@@ -66,7 +64,11 @@ enum VBootFirmware {
 };
 
 enum VBootMemoryType {
+    // Unknown, inaccessible or device memory.
     VBootMemoryType_Reserved,
+    // Normal RAM set aside by the loader or firmware, this includes things that
+    // are still in use, like the kernel and the stack. Can be mapped as RAM
+    // unless NO_MAP is set, but must never be allocated.
     VBootMemoryType_Firmware,
     VBootMemoryType_ACPI,
     VBootMemoryType_NVS,

@@ -272,7 +272,6 @@ Arm64Prepare(
     EFI_STATUS              Status;
     VOID*                   Tables;
     UINTN                   Bytes;
-    UINTN                   Index;
 
     __asm__ volatile("mrs %0, CurrentEL; mrs %1, midr_el1" : "=r"(El), "=r"(Midr));
     ConsoleWrite(L"ARM64 firmware EL%u, MIDR %lx\n", El >> 2, Midr);

@@ -300,9 +300,11 @@ __InsertMemoryRange(
         while (index < count && entries[index].PhysicalBase + entries[index].Length <= cursor) {
             index++;
         }
+
         if (index == count || cursor < entries[index].PhysicalBase) {
             boundary = index < count && entries[index].PhysicalBase < end ?
                 entries[index].PhysicalBase : end;
+
             // Extending an adjacent entry needs no temporary slot. In
             // particular, contiguous RAM banks must fit a one-entry buffer.
             if (index && __MemoryRangesJoinable(&entries[index - 1], &entry)) {
@@ -310,6 +312,7 @@ __InsertMemoryRange(
                 cursor = boundary;
                 continue;
             }
+
             // A matching right neighbour can absorb the gap without another map slot.
             if (index < count && boundary == entries[index].PhysicalBase) {
                 if (entries[index].Type == entry.Type && entries[index].Attributes == entry.Attributes) {
@@ -337,10 +340,25 @@ __InsertMemoryRange(
         if (boundary > end) {
             boundary = end;
         }
-        // Free RAM cannot replace a reservation. Existing reservations can also
-        // stay unchanged when they already carry all requested policy bits.
-        if (!reserved || (original.Type == VBootMemoryType_Reserved &&
-            (original.Attributes & attributes) == attributes)) {
+
+        // A memory node tells us the range is RAM, even if a reservation for it
+        // showed up earlier in the tree. In that case the reserved bytes become
+        // Firmware, so we know they are RAM, but they are still never free. It
+        // also goes the other way, a reservation over known RAM becomes
+        // Firmware. Reservations outside of any RAM stay Reserved, as a
+        // reservation alone does not tell us whether the range is RAM or MMIO.
+        if (reserved) {
+            if (original.Type == VBootMemoryType_Available ||
+                original.Type == VBootMemoryType_Firmware) {
+                entry.Type = VBootMemoryType_Firmware;
+            }
+        } else {
+            entry.Type = original.Type == VBootMemoryType_Reserved ?
+                VBootMemoryType_Firmware : original.Type;
+        }
+        
+        if (entry.Type == original.Type &&
+            (original.Attributes & attributes) == attributes) {
             cursor = boundary;
             continue;
         }

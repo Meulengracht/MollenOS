@@ -18,6 +18,7 @@
 
 #include <platform/x86.h>
 #include <console.h>
+#include <memory.h>
 #include <Library/BaseMemoryLib.h>
 
 EFI_STATUS LibraryInitialize(
@@ -100,35 +101,7 @@ EFI_STATUS __GetMemoryMap(
     return EFI_SUCCESS;
 }
 
-enum VBootMemoryType __ConvertEfiType(
-    IN EFI_MEMORY_TYPE Type)
-{
-    switch (Type) {
-        case EfiLoaderCode:
-        case EfiBootServicesCode:
-            return VBootMemoryType_Reclaim;
 
-        case EfiLoaderData:
-        case EfiBootServicesData:
-            return VBootMemoryType_Available;
-
-        case EfiRuntimeServicesCode:
-        case EfiRuntimeServicesData:
-        case EfiMemoryMappedIO:
-        case EfiPalCode:
-            return VBootMemoryType_Firmware;
-
-        case EfiACPIReclaimMemory:
-            return VBootMemoryType_ACPI;
-        case EfiACPIMemoryNVS:
-            return VBootMemoryType_NVS;
-        case EfiConventionalMemory:
-        case EfiPersistentMemory:
-            return VBootMemoryType_Available;
-        default:
-            return VBootMemoryType_Reserved;
-    }
-}
 
 EFI_STATUS __AllocateVBootMemory(
     IN struct VBoot* VBoot)
@@ -199,7 +172,7 @@ EFI_STATUS __FillMemoryMap(
     Entries = (struct VBootMemoryEntry*)VBoot->Memory.Entries;
     for (i = 0; i < DescriptorCount; i++) {
         EFI_MEMORY_DESCRIPTOR* MemoryDescriptor = (EFI_MEMORY_DESCRIPTOR*)((UINT8*)MemoryMapLocal + (i * DescriptorSize));
-        enum VBootMemoryType Type = __ConvertEfiType(MemoryDescriptor->Type);
+        enum VBootMemoryType Type = __ToVBootMemoryType(MemoryDescriptor->Type);
         
         Entries[VBoot->Memory.NumberOfEntries].Type         = Type;
         Entries[VBoot->Memory.NumberOfEntries].PhysicalBase = MemoryDescriptor->PhysicalStart;
@@ -302,7 +275,7 @@ static void __FixupMemoryMap(
                     (VBoot->Memory.NumberOfEntries - i) * sizeof(struct VBootMemoryEntry));
 
                 // Create the kernel mapping
-                KernelMapping->Type         = VBootMemoryType_Reserved; // Eh firmware?
+                KernelMapping->Type         = VBootMemoryType_Firmware; // Kernel image is in RAM, but is never free
                 KernelMapping->PhysicalBase = KernelAddress;
                 KernelMapping->VirtualBase  = 0;
                 KernelMapping->Length       = VBoot->Kernel.Length;
@@ -333,7 +306,7 @@ static void __FixupMemoryMap(
                 FirstMapping->Attributes   = OriginalMapping->Attributes;
 
                 // Create the kernel mapping
-                KernelMapping->Type         = VBootMemoryType_Reserved; // Eh firmware?
+                KernelMapping->Type         = VBootMemoryType_Firmware; // Kernel image is in RAM, but is never free
                 KernelMapping->PhysicalBase = KernelAddress;
                 KernelMapping->VirtualBase  = 0;
                 KernelMapping->Length       = VBoot->Kernel.Length;

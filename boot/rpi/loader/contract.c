@@ -38,8 +38,8 @@ __ContractRangeReserved(
 
     // A range that is not listed as free RAM is not necessarily ours to use.
     // It might be missing from the memory map, or its addresses might refer to
-    // device registers rather than RAM. Every byte in the requested range must
-    // therefore be covered by entries marked reserved, with no gaps between
+    // device registers rather than RAM. So every byte in the requested range
+    // must be covered by Firmware entries (known RAM), with no gaps between
     // them. This tells the kernel that the memory is already in use and must
     // not be handed out for other purposes when it starts allocating pages.
     for (uint32_t i = 0; i < context->MemoryMapCount; i++) {
@@ -53,7 +53,7 @@ __ContractRangeReserved(
             continue;
         }
         
-        if (entry->PhysicalBase > base || entry->Type != VBootMemoryType_Reserved ||
+        if (entry->PhysicalBase > base || entry->Type != VBootMemoryType_Firmware ||
             (entry->Attributes & VBOOT_MEMORY_NO_MAP)) {
             return 0;
         }
@@ -99,7 +99,7 @@ __ContractMemoryValid(
 
         // Ordered, nonoverlapping ranges and known types make later walks reliable.
         if (entry->PhysicalBase < previousEnd ||
-            (unsigned int)entry->Type > VBootMemoryType_Reclaim) {
+            (unsigned int)entry->Type > VBootMemoryType_DevicePool) {
             return 0;
         }
         

@@ -109,16 +109,20 @@ BITS 16
 %define WHITE		0xF
 
 %define VBOOT_MAGIC   0xAEB007AE
-%define VBOOT_VERSION 0x00010001
+%define VBOOT_VERSION 0x00010002
 
 %define VBOOT_FIRMWARE_BIOS 0
 
-%define VBOOT_MEMORY_TYPE_RESERVED  0x00000000
-%define VBOOT_MEMORY_TYPE_FIRMWARE  0x00000001
-%define VBOOT_MEMORY_TYPE_ACPI      0x00000002
-%define VBOOT_MEMORY_TYPE_NVS       0x00000003
-%define VBOOT_MEMORY_TYPE_AVAILABLE 0x00000004
-%define VBOOT_MEMORY_TYPE_RECLAIM   0x00000005
+; Reserved covers unknown ranges and MMIO, so we can't assume it is RAM.
+; Firmware is RAM we know is used by the loader or firmware, like the kernel
+; and the stack. Those pages are never given out as free memory.
+%define VBOOT_MEMORY_TYPE_RESERVED   0x00000000
+%define VBOOT_MEMORY_TYPE_FIRMWARE   0x00000001
+%define VBOOT_MEMORY_TYPE_ACPI       0x00000002
+%define VBOOT_MEMORY_TYPE_NVS        0x00000003
+%define VBOOT_MEMORY_TYPE_AVAILABLE  0x00000004
+%define VBOOT_MEMORY_TYPE_RECLAIM    0x00000005
+%define VBOOT_MEMORY_TYPE_DEVICEPOOL 0x00000006
 
 ; Temporary type used during booting which will get
 ; marked _AVAILABLE automatically just before jumping to

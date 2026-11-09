@@ -767,68 +767,178 @@ __InstallFirmwareMapping(
     return status;
 }
 
-static oserr_t
-__CreateFirmwareMapping(
-        _In_ MemorySpace_t*           memorySpace,
-        _In_ struct VBootMemoryEntry* entry)
+/**
+ * @brief Finds reserved Normal RAM covering a physical boot resource address.
+ *
+ * Firmware descriptors can be unordered. Do not infer RAM from a Reserved
+ * entry or from a missing descriptor; both can describe device register space.
+ */
+static struct VBootMemoryEntry*
+__BootResourceEntry(
+    _In_ struct VBoot* boot,
+    _In_ uint64_t      physical)
 {
-    vaddr_t    virtualBase;
-    oserr_t osStatus;
-    int        pageCount;
-    TRACE("__CreateFirmwareMapping(physicalBase=0x%" PRIxIN ", length=0x%" PRIxIN ")",
-          entry->PhysicalBase, entry->Length);
+    struct VBootMemoryEntry* entries = (void*)(uintptr_t)boot->Memory.Entries;
 
-    // Allocate a new virtual mapping
-    virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, entry->Length);
-    if (virtualBase == 0) {
-        ERROR("__CreateFirmwareMapping Ran out of memory for allocation 0x%" PRIxIN " (ga-memory)", entry->Length);
+    for (unsigned int i = 0; i < boot->Memory.NumberOfEntries; i++) {
+        struct VBootMemoryEntry* entry = &entries[i];
+        
+        if (physical < entry->PhysicalBase || physical - entry->PhysicalBase >= entry->Length) {
+            continue;
+        }
+
+        if (entry->Type != VBootMemoryType_Firmware ||
+            (entry->Attributes & (VBOOT_MEMORY_NO_MAP | VBOOT_MEMORY_RP))) {
+            return NULL;
+        }
+        return entry;
+    }
+    return NULL;
+}
+
+/**
+ * @brief Maps one live boot resource into the global kernel virtual window.
+ *
+ * The window is finite: reserved RAM is not necessarily needed virtually.
+ * Mapping complete firmware descriptors would make unused boot-services RAM
+ * consume that window, including large descriptors containing small payloads.
+ * Validate the page-rounded resource first, then map only those pages. The
+ * caller is still using the loader mappings and supplies physical addresses.
+ */
+static oserr_t
+__MapBootResource(
+    _In_  MemorySpace_t* memorySpace,
+    _In_  struct VBoot*  boot,
+    _In_  uint64_t       physical,
+    _In_  uint64_t       length,
+    _Out_ vaddr_t*       virtualOut)
+{
+    uint64_t base;
+    uint64_t end;
+    uint64_t current;
+    uint64_t roundedLength;
+    vaddr_t  virtualBase;
+    oserr_t  status;
+
+    // Clear the virtual out, even on errors
+    *virtualOut = 0;
+    
+    if (!length) {
+        return physical ? OS_EINVALPARAMS : OS_EOK;
+    }
+    
+    if (physical > UINTPTR_MAX - (PAGE_SIZE - 1) ||
+        length > UINTPTR_MAX - (PAGE_SIZE - 1) - physical) {
+        return OS_ENOTSUPPORTED;
+    }
+    
+    base = physical & ~(uint64_t)(PAGE_SIZE - 1);
+    end = (physical + length + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
+    roundedLength = end - base;
+
+    // A resource may cross adjacent descriptors. Validate every page, including
+    // the leading/trailing bytes exposed by page rounding, before allocation.
+    current = base;
+    while (current < end) {
+        struct VBootMemoryEntry* entry = __BootResourceEntry(boot, current);
+        uint64_t                 next;
+
+        if (!entry || entry->Length > UINT64_MAX - entry->PhysicalBase) {
+            return OS_EINVALPARAMS;
+        }
+        
+        next = entry->PhysicalBase + entry->Length;
+        if (next > end) {
+            next = end;
+        }
+
+        if (next & (PAGE_SIZE - 1)) {
+            return OS_EINVALPARAMS;
+        }
+        current = next;
+    }
+
+    virtualBase = StaticMemoryPoolAllocate(
+        &GetMachine()->GlobalAccessMemory,
+        (size_t)roundedLength
+    );
+    if (!virtualBase) {
         return OS_EOOM;
     }
 
-    pageCount = DIVUP(entry->Length, PAGE_SIZE);
+    current = base;
+    while (current < end) {
+        struct VBootMemoryEntry* entry = __BootResourceEntry(boot, current);
+        uint64_t                 next;
+        
+        next = entry->PhysicalBase + entry->Length;
+        if (next > end) {
+            next = end;
+        }
 
-    // Create the new mapping in the address space
-    osStatus = __InstallFirmwareMapping(memorySpace,
-                           virtualBase,
-                           entry->PhysicalBase,
-                           pageCount,
-                           __GetBootMappingAttributes(entry->Attributes)
-    );
-    if (osStatus == OS_EOK) {
-        entry->VirtualBase = virtualBase;
+        status = __InstallFirmwareMapping(
+            memorySpace,
+            virtualBase + (uintptr_t)(current - base),
+            (paddr_t)cursor,
+            (int)((next - cursor) / PAGE_SIZE),
+            __GetBootMappingAttributes(entry->Attributes)
+        );
+        if (status != OS_EOK) {
+            // Boot stops on failure. Earlier page-table entries may already
+            // refer to this virtual span, so it cannot be returned to the pool.
+            return status;
+        }
+
+        current = next;
     }
-    return osStatus;
+
+    *virtualOut = virtualBase + (uintptr_t)(physical - base);
+    return OS_EOK;
 }
 
 static oserr_t
-__HandleFirmwareMappings(
-        _In_  MemorySpace_t* memorySpace,
-        _In_  struct VBoot*  bootInformation,
-        _Out_ uintptr_t*     stackMapping)
+__MapBootResources(
+    _In_  MemorySpace_t* memorySpace,
+    _In_  struct VBoot*  boot,
+    _Out_ uintptr_t*     stackMapping)
 {
-    struct VBootMemoryEntry* entries;
-    unsigned int             i;
-    TRACE("__HandleFirmwareMappings()");
+    vaddr_t virtual;
+    oserr_t status;
 
-    entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
-    for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* entry = &entries[i];
-        if (entry->Type == VBootMemoryType_Firmware) {
-            oserr_t osStatus = __CreateFirmwareMapping(memorySpace, entry);
-            if (osStatus != OS_EOK) {
-                return osStatus;
-            }
-
-            // Store the stack mapping
-            if (ISINRANGE(
-                    (uintptr_t)bootInformation->Stack.Base,
-                        entry->PhysicalBase,
-                        entry->PhysicalBase + entry->Length)) {
-                *stackMapping = entry->VirtualBase +
-                    ((uintptr_t)bootInformation->Stack.Base - entry->PhysicalBase);
-            }
-        }
+    // The kernel image and Phoenix have separate mapping paths. Only these
+    // physical pointers must be rewritten before switching from loader tables.
+    status = __MapBootResource(memorySpace, boot, boot->Stack.Base, boot->Stack.Length, stackMapping);
+    if (status != OS_EOK) {
+        return status;
     }
+
+    boot->Stack.Base = *stackMapping;
+
+    status = __MapBootResource(
+        memorySpace,
+        boot,
+        boot->ConfigurationTable,
+        (uint64_t)boot->ConfigurationTableCount * boot->ConfigurationEntrySize,
+        &virtual
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    boot->ConfigurationTable = virtual;
+
+    status = __MapBootResource(
+        memorySpace,
+        boot,
+        boot->Ramdisk.Data,
+        boot->Ramdisk.Length,
+        &virtual
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    boot->Ramdisk.Data = virtual;
     return OS_EOK;
 }
 
@@ -870,53 +980,6 @@ __RemapFramebuffer(
     // Update video address to the new
     VideoGetTerminal()->FrameBufferAddress = virtualBase;
     return osStatus;
-}
-
-static vaddr_t
-__GetVirtualMapping(
-        _In_ struct VBoot* bootInformation,
-        _In_ paddr_t       physicalBase)
-{
-    struct VBootMemoryEntry* entries;
-
-    TRACE("__GetVirtualMapping(physicalBase=0x%" PRIxIN ")", physicalBase);
-    entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
-    for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
-        struct VBootMemoryEntry* entry = &entries[i];
-        if (ISINRANGE(physicalBase, entry->PhysicalBase, entry->PhysicalBase + entry->Length)) {
-            TRACE("__GetVirtualMapping entry->PhysicalBase=0x%" PRIxIN " entry->VirtualBase=0x%" PRIxIN,
-                  entry->PhysicalBase, entry->VirtualBase);
-            TRACE("__GetVirtualMapping return=0x%" PRIxIN,
-                  entry->VirtualBase + (physicalBase - entry->PhysicalBase));
-            return entry->VirtualBase + (physicalBase - entry->PhysicalBase);
-        }
-    }
-    TRACE("__GetVirtualMapping not found");
-    return 0;
-}
-
-static void
-__FixupVBootAddresses(
-        _In_ struct VBoot* bootInformation)
-{
-    TRACE("__FixupVBootAddresses()");
-
-    // Update configuration table and entries if present
-    if (bootInformation->ConfigurationTableCount) {
-        bootInformation->ConfigurationTable = __GetVirtualMapping(
-                bootInformation,
-                (paddr_t)bootInformation->ConfigurationTable);
-    }
-
-    // Update ramdisk
-    bootInformation->Ramdisk.Data = __GetVirtualMapping(
-            bootInformation,
-            (paddr_t)bootInformation->Ramdisk.Data);
-
-    // Update stack
-    bootInformation->Stack.Base = __GetVirtualMapping(
-            bootInformation,
-            (paddr_t)bootInformation->Stack.Base);
 }
 
 static oserr_t
@@ -1003,10 +1066,9 @@ MmuLoadKernel(
         return osStatus;
     }
 
-    // Install any remaining virtual mappings before we enable it. Currently, firmware
-    // mappings still need to be allocated into global access memory. We also need to ensure
-    // that the kernel stack is mapped correctly
-    osStatus = __HandleFirmwareMappings(memorySpace, bootInformation, &stackVirtual);
+    // Map only live boot resources before replacing the loader page tables.
+    // Other Firmware RAM stays reserved without consuming global virtual space.
+    osStatus = __MapBootResources(memorySpace, bootInformation, &stackVirtual);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
@@ -1028,9 +1090,6 @@ MmuLoadKernel(
     if (osStatus != OS_EOK) {
         return osStatus;
     }
-
-    // Update all mappings in vboot to point to virtual ones instead of physical
-    __FixupVBootAddresses(bootInformation);
 
     // initialize paging and swap the stack address to virtual one, so we don't crap out.
     TRACE("MmuLoadKernel: g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,

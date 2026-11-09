@@ -18,6 +18,7 @@
 
 #include <platform/arm64.h>
 #include <platform/arm64-memory.h>
+#include <Library/BaseMemoryLib.h>
 
 EFI_STATUS
 Arm64ReadFirmwareMap(

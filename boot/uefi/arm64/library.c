@@ -20,6 +20,7 @@
 
 #include <platform/arm64.h>
 #include <console.h>
+#include <memory.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/BaseLib.h>
 
@@ -110,21 +111,7 @@ __LoadMemoryMap(
     return EFI_SUCCESS;
 }
 
-static enum VBootMemoryType
-__ToVBootMemoryType(
-    IN UINT8 EfiType)
-{
-    switch (EfiType) {
-        case EfiConventionalMemory:
-            return VBootMemoryType_Available;
-        case EfiACPIReclaimMemory:
-            return VBootMemoryType_ACPI;
-        case EfiACPIMemoryNVS:
-            return VBootMemoryType_NVS;
-        default:
-            return VBootMemoryType_Reserved;
-    }
-}
+
 
 static EFI_STATUS
 __FillMemoryMapEntries(

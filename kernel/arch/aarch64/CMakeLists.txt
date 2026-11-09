@@ -18,6 +18,7 @@ set (AARCH64_SOURCES
     common/secondary.S
     common/thread.c
     common/memory.c
+    common/boot-memory.c
     common/device.c
     common/interrupts.c
     common/timer.c

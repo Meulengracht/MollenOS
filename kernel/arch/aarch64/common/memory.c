@@ -24,7 +24,9 @@
 #include <machine.h>
 #include <memoryspace.h>
 #include <string.h>
+
 #include "private.h"
+#include "boot-memory.h"
 
 // Early translation must precede C atomics: with translation disabled the
 // architecture does not provide the Normal-memory attributes they require.
@@ -512,7 +514,7 @@ __MapBootPieces(
 /**
  * @brief Builds identity mappings for the loader's mappable physical memory.
  *
- * Rounds each range to page boundaries, skips ranges marked NO_MAP, and keeps
+ * Maps only known RAM, skips Reserved and NO_MAP entries, and keeps
  * identity mappings below the userspace code region. Boot table allocation and
  * the identity root must already be initialized. Failure does not roll back
  * ranges that were mapped earlier in the loop.
@@ -525,28 +527,31 @@ static oserr_t
 __MapBootMemory(
     _In_ struct VBoot* boot)
 {
-    struct VBootMemoryEntry* entries = (void*)(uintptr_t)boot->Memory.Entries;
-    oserr_t                  status;
+    const struct VBootMemoryEntry* entries = (const void*)(uintptr_t)boot->Memory.Entries;
 
+    // Validation precedes table allocation, including page-rounded conflicts.
+    // Reserved includes MMIO; only an explicit device mapper may access it.
     for (uint32_t i = 0; i < boot->Memory.NumberOfEntries; i++) {
-        uintptr_t base = entries[i].PhysicalBase & ~(ARM64_PAGE_SIZE - 1ULL);
-        uintptr_t end = (entries[i].PhysicalBase + entries[i].Length + ARM64_PAGE_SIZE - 1) &
-            ~(ARM64_PAGE_SIZE - 1ULL);
+        uintptr_t base;
+        uintptr_t end;
+        oserr_t   status;
 
-        // Firmware can reserve ranges that the kernel must not access through
-        // a normal RAM mapping. Keep such ranges absent from the identity map.
-        if (entries[i].Attributes & VBOOT_MEMORY_NO_MAP) {
+        if (!Arm64BootMemoryIsRam(&entries[i])) {
             continue;
         }
-
-        // Identity storage is confined to TTBR0[0], independently of userspace.
-        // Reject overlap with the process region, and reject an end address
-        // that wrapped below its base rather than mapping an unintended range.
-        if (end > MEMORY_LOCATION_RING3_CODE || end < base) {
-            return OS_ENOTSUPPORTED;
-        }
         
-        status = __MapBootPieces(base, end);
+        base = entries[i].PhysicalBase & ~(ARM64_PAGE_SIZE - 1ULL);
+        end = (entries[i].PhysicalBase + entries[i].Length + ARM64_PAGE_SIZE - 1) &
+            ~(ARM64_PAGE_SIZE - 1ULL);
+
+        if (entries[i].Type == VBootMemoryType_DevicePool) {
+            // Every declared pool is uncached RAM, even if the allocator selects
+            // a different pool. Device attributes would break normal C accesses.
+            status = __MapBootRange(g_identityTable, base, base, end - base, MAPPING_NOCACHE, 1);
+        } else {
+            status = __MapBootPieces(base, end);
+        }
+
         if (status != OS_EOK) {
             return status;
         }
@@ -618,6 +623,13 @@ Arm64BootMemoryInitialize(
 {
     uint64_t features;
     oserr_t  status;
+
+    // Check the contract before any map consumer, including DMA-pool selection.
+    // There is no conversion path for an older memory-type interpretation.
+    status = Arm64ValidateBootMemory(boot, MEMORY_LOCATION_RING3_CODE);
+    if (status != OS_EOK) {
+        return status;
+    }
 
     // The whole table layout assumes 4 KiB pages. Check TGran4 before creating
     // mappings; this port has no alternate table format for other page sizes.
