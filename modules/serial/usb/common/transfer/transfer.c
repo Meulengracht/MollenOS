@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <ddk/convert.h>
+#include <usb/convert.h>
 #include <ddk/utils.h>
 #include <os/handle.h>
 #include <os/shm.h>
@@ -69,15 +70,23 @@ __ConvertFlags(
 oserr_t
 USBTransferCreate(
         _In_  struct gracht_message* message,
-        _In_  USBTransfer_t*         transfer,
+        _In_  const struct ctt_usb_transfer* description,
         _In_  uuid_t                 transferId,
         _In_  uuid_t                 deviceId,
         _Out_ UsbManagerTransfer_t** transferOut)
 {
     UsbManagerController_t* controller;
     UsbManagerTransfer_t*   usbTransfer;
+    USBTransfer_t           metadata;
+    USBTransfer_t*          transfer = &metadata;
+    SHMTransfer_t           buffer;
     oserr_t                 oserr;
-    
+
+    oserr = __FromUSBTransfer(description, transfer, &buffer);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
     TRACE("USBTransferCreate(transfer=0x%" PRIxIN ", message=0x%" PRIxIN ", deviceId=%u)",
         transfer, message, deviceId);
 
@@ -130,7 +139,7 @@ USBTransferCreate(
         usbTransfer->TData.Periodic.BufferSize = transfer->Length;
     }
 
-    oserr = SHMAttach(transfer->BufferHandle, &usbTransfer->SHMHandle);
+    oserr = SHMAttachToken(&buffer.Token, &usbTransfer->SHMHandle);
     if (oserr != OS_EOK) {
         WARNING("USB DMA: transfer %u attach failed (%u)", transferId, oserr);
         __DiscardTransfer(usbTransfer);
@@ -219,8 +228,13 @@ UsbTransferNotify(
     }
 }
 
-void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t deviceId,
-                                  const uuid_t transferId, const uint8_t* transfer, const uint32_t transfer_count)
+void
+ctt_usbhost_queue_invocation(
+    _In_ struct gracht_message*         message,
+    _In_ uuid_t                         processId,
+    _In_ uuid_t                         deviceId,
+    _In_ uuid_t                         transferId,
+    _In_ const struct ctt_usb_transfer* transfer)
 {
     UsbManagerTransfer_t*   usbTransfer;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
@@ -234,11 +248,11 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t p
     controller->State.OperationsInFlight++;
 
     oserr = USBTransferCreate(
-            message,
-            (USBTransfer_t*)transfer,
-            transferId,
-            deviceId,
-            &usbTransfer
+        message,
+        transfer,
+        transferId,
+        deviceId,
+        &usbTransfer
     );
     if (oserr != OS_EOK) {
         controller->State.OperationsInFlight--;
@@ -259,8 +273,13 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t p
     controller->State.OperationsInFlight--;
 }
 
-void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const uuid_t processId,
-                                           const uuid_t deviceId, const uuid_t transferId, const uint8_t* transfer, const uint32_t transfer_count)
+void
+ctt_usbhost_queue_periodic_invocation(
+    _In_ struct gracht_message*         message,
+    _In_ uuid_t                         processId,
+    _In_ uuid_t                         deviceId,
+    _In_ uuid_t                         transferId,
+    _In_ const struct ctt_usb_transfer* transfer)
 {
     UsbManagerTransfer_t*   usbTransfer;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
@@ -274,7 +293,7 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     controller->State.OperationsInFlight++;
     oserr = USBTransferCreate(
             message,
-            (USBTransfer_t*)transfer,
+            transfer,
             transferId,
             deviceId,
             &usbTransfer

@@ -41,7 +41,7 @@ __SelectBounce(
         .Size = pageSize
     };
 
-    unsigned int access = direction == DMAFromDevice ? SHM_ACCESS_WRITE : SHM_ACCESS_READ;
+    unsigned int access = direction == DMAFromDevice ? SHM_ACCESS_READ | SHM_ACCESS_WRITE : SHM_ACCESS_READ;
     oserr_t      status;
 
     if (bounce->Buffer.ID == UUID_INVALID) {

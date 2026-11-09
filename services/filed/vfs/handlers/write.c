@@ -20,7 +20,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeWrite(uuid_t fileHandle, uuid_t bufferHandle, size_t offset, size_t length, size_t* writtenOut)
+oserr_t VFSNodeWrite(uuid_t fileHandle, const SHMTransfer_t* transfer, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
@@ -51,10 +51,7 @@ oserr_t VFSNodeWrite(uuid_t fileHandle, uuid_t bufferHandle, size_t offset, size
             nodeVfs->Interface,
             nodeVfs->Data,
             handle->Data,
-            bufferHandle,
-            NULL, /* No buffer can be supplied on this code path */
-            offset,
-            length,
+            transfer,
             writtenOut
     );
     usched_rwlock_r_unlock(&handle->Node->Lock);
@@ -71,7 +68,7 @@ cleanup:
     return oserr;
 }
 
-oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* writtenOut)
+oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, const SHMTransfer_t* transfer, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
@@ -109,9 +106,8 @@ oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferH
             nodeVfs->Interface,
             nodeVfs->Data,
             handle->Data,
-            bufferHandle,
-            NULL, /* No buffer can be supplied on this code path */
-            offset, length, writtenOut
+            transfer,
+            writtenOut
     );
     if (oserr == OS_EOK) {
         handle->Mode     = MODE_WRITE;

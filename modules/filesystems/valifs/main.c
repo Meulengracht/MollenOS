@@ -25,6 +25,7 @@
 #include <internal/_utils.h>
 #include <os/handle.h>
 #include <os/services/process.h>
+#include <os/services/file.h>
 #include <os/shm.h>
 #include <os/types/file.h>
 #include <stdlib.h>
@@ -658,25 +659,20 @@ static int __ValiFS_ReadAtUnlocked(
 
     if (context->Storage.StorageType == VFSSTORAGE_TYPE_FILE) {
         while (*bytesRead < length) {
-            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
             UInteger64_t             position = { .QuadPart = context->Storage.SectorStart.QuadPart * 512 + offset };
             size_t                   count = MIN(length - *bytesRead, MB(1));
             size_t                   transferred;
             oserr_t                  oserr;
 
-            sys_file_transfer_absolute(
-                GetGrachtClient(), &msg.base,
-                OSProcessCurrentID(),
+            oserr = OSTransferFileAt(
                 context->Storage.Storage.File.HandleID,
-                SYS_TRANSFER_DIRECTION_READ,
-                position.u.LowPart,
-                position.u.HighPart,
+                &position,
                 context->Buffer.ID,
                 0,
-                count
+                false,
+                count,
+                &transferred
             );
-            gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-            sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &oserr, &transferred);
             if (oserr != OS_EOK || !transferred || transferred > count) {
                 errno = oserr == OS_EOK ? EIO : OsErrToErrNo(oserr);
                 return -1;

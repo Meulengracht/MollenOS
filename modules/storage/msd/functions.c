@@ -21,6 +21,8 @@
 //#define __TRACE
 #define __need_minmax
 #include "msd.h"
+#include <internal/_storage.h>
+#include <os/handle.h>
 #include <ddk/utils.h>
 #include <os/handle.h>
 #include <os/shm.h>
@@ -542,10 +544,18 @@ __TransferSectors(
     return OS_EOK;
 }
 
-void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_t deviceId,
-                                     const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
-                                     const uuid_t bufferId, const size_t offset, const size_t sectorCount)
+void
+ctt_storage_transfer_invocation(
+    _In_ struct gracht_message*         message,
+    _In_ uuid_t                         deviceId,
+    _In_ enum sys_transfer_direction    direction,
+    _In_ unsigned int                   sectorLow,
+    _In_ unsigned int                   sectorHigh,
+    _In_ const struct sys_shm_transfer* buffer,
+    _In_ size_t                         sectorCount)
 {
+    OSHandle_t   attachment = { 0 };
+    size_t       offset;
     MSDDevice_t* device = MsdDeviceGet(deviceId);
     oserr_t      status;
     UInteger64_t sector;
@@ -564,16 +574,30 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_
         return;
     }
 
+    status = __StorageAttachTransfer(
+        buffer,
+        device->Descriptor.SectorSize,
+        sectorCount,
+        direction == SYS_TRANSFER_DIRECTION_WRITE,
+        &attachment,
+        &offset
+    );
+    if (status != OS_EOK) {
+        ctt_storage_transfer_response(message, status, 0);
+        return;
+    }
+
     // Protocol directions (0/1) differ from internal storage operations (1/2).
     status = __TransferSectors(
-            device,
-            direction == SYS_TRANSFER_DIRECTION_READ ?
-                __STORAGE_OPERATION_READ : __STORAGE_OPERATION_WRITE,
-            sector.QuadPart,
-            bufferId,
-            offset,
-            sectorCount,
-            &sectorsTransferred
+        device,
+        direction == SYS_TRANSFER_DIRECTION_READ ?
+            __STORAGE_OPERATION_READ : __STORAGE_OPERATION_WRITE,
+        sector.QuadPart,
+        attachment.ID,
+        offset,
+        sectorCount,
+        &sectorsTransferred
     );
+    OSHandleDestroy(&attachment);
     ctt_storage_transfer_response(message, status, sectorsTransferred);
 }

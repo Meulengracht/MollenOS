@@ -20,6 +20,8 @@
  * Integrated Drive Electronics Driver
  */
 
+#include <internal/_storage.h>
+#include <os/handle.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <ioset.h>
@@ -115,15 +117,17 @@ ctt_driver_ioctl_invocation(
 }
 
 void
-ctt_storage_transfer_invocation(struct gracht_message* message,
-                               const uuid_t deviceId,
-                               const enum sys_transfer_direction direction,
-                               const unsigned int sectorLow,
-                               const unsigned int sectorHigh,
-                               const uuid_t bufferId,
-                               const size_t offset,
-                               const size_t sectorCount)
+ctt_storage_transfer_invocation(
+    _In_ struct gracht_message*         message,
+    _In_ uuid_t                         deviceId,
+    _In_ enum sys_transfer_direction    direction,
+    _In_ unsigned int                   sectorLow,
+    _In_ unsigned int                   sectorHigh,
+    _In_ const struct sys_shm_transfer* buffer,
+    _In_ size_t                         sectorCount)
 {
+    OSHandle_t   attachment = { 0 };
+    size_t       offset;
     IdeDevice_t* device = IdeDeviceGet(deviceId);
     UInteger64_t sector;
     oserr_t      status;
@@ -142,16 +146,28 @@ ctt_storage_transfer_invocation(struct gracht_message* message,
         return;
     }
 
-    if (direction == SYS_TRANSFER_DIRECTION_READ) {
-        status = IdeDeviceRead(device, sector.QuadPart, sectorCount, bufferId, offset);
-    }
-    else {
-        status = IdeDeviceWrite(device, sector.QuadPart, sectorCount, bufferId, offset);
-    }
-
+    status = __StorageAttachTransfer(
+        buffer,
+        device->SectorSize,
+        sectorCount,
+        direction == SYS_TRANSFER_DIRECTION_WRITE,
+        &attachment,
+        &offset
+    );
     if (status != OS_EOK) {
         ctt_storage_transfer_response(message, status, 0);
+        return;
     }
+
+    if (direction == SYS_TRANSFER_DIRECTION_READ) {
+        status = IdeDeviceRead(device, sector.QuadPart, sectorCount, attachment.ID, offset);
+    }
+    else {
+        status = IdeDeviceWrite(device, sector.QuadPart, sectorCount, attachment.ID, offset);
+    }
+
+    OSHandleDestroy(&attachment);
+    ctt_storage_transfer_response(message, status, status == OS_EOK ? sectorCount : 0);
 }
 
 void

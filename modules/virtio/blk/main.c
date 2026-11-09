@@ -25,6 +25,8 @@
 #define __TRACE
 #include "private.h"
 
+#include <internal/_storage.h>
+#include <os/handle.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <io.h>
@@ -343,30 +345,46 @@ __ctt_driver_ioctl_invocation(
 
 static void
 __ctt_storage_transfer_invocation(
-    _In_ struct gracht_message* message,
-    _In_ const uuid_t           deviceId,
+    _In_ struct gracht_message*            message,
+    _In_ const uuid_t                      deviceId,
     _In_ const enum sys_transfer_direction direction,
-    _In_ const unsigned int     sectorLow,
-    _In_ const unsigned int     sectorHigh,
-    _In_ const uuid_t           bufferId,
-    _In_ const size_t           offset,
-    _In_ const size_t           sectorCount)
+    _In_ const unsigned int                sectorLow,
+    _In_ const unsigned int                sectorHigh,
+    _In_ const struct sys_shm_transfer*    buffer,
+    _In_ const size_t                      sectorCount)
 {
+    OSHandle_t         attachment = { 0 };
+    size_t             offset;
     VirtioBlkDevice_t* device = __FindStorageDevice(deviceId);
-    UInteger64_t sector;
-    oserr_t oserr;
+    UInteger64_t       sector;
+    oserr_t            oserr;
 
     if (device == NULL) {
         ctt_storage_transfer_response(message, OS_ENOENT, 0);
         return;
     }
+
     if (direction != SYS_TRANSFER_DIRECTION_READ &&
         direction != SYS_TRANSFER_DIRECTION_WRITE) {
         ctt_storage_transfer_response(message, OS_EINVALPARAMS, 0);
         return;
     }
+
     sector.u.LowPart = sectorLow;
     sector.u.HighPart = sectorHigh;
+
+    oserr = __StorageAttachTransfer(
+        buffer,
+        device->Descriptor.SectorSize,
+        sectorCount,
+        direction == SYS_TRANSFER_DIRECTION_WRITE,
+        &attachment,
+        &offset
+    );
+    if (oserr != OS_EOK) {
+        ctt_storage_transfer_response(message, oserr, 0);
+        return;
+    }
 
     // If the request is queued, we send the response after it completes.
     // Respond here only if validation or setup fails.
@@ -376,10 +394,11 @@ __ctt_storage_transfer_invocation(
         direction == SYS_TRANSFER_DIRECTION_READ ?
             __STORAGE_OPERATION_READ : __STORAGE_OPERATION_WRITE,
         sector.QuadPart,
-        bufferId,
+        attachment.ID,
         offset,
         sectorCount
     );
+    OSHandleDestroy(&attachment);
     if (oserr != OS_EOK) {
         ctt_storage_transfer_response(message, oserr, 0);
     }
@@ -465,18 +484,17 @@ ctt_driver_ioctl_invocation(
 
 void
 ctt_storage_transfer_invocation(
-    _In_ struct gracht_message* message,
-    _In_ const uuid_t           deviceId,
+    _In_ struct gracht_message*            message,
+    _In_ const uuid_t                      deviceId,
     _In_ const enum sys_transfer_direction direction,
-    _In_ const unsigned int     sectorLow,
-    _In_ const unsigned int     sectorHigh,
-    _In_ const uuid_t           bufferId,
-    _In_ const size_t           offset,
-    _In_ const size_t           sectorCount)
+    _In_ const unsigned int                sectorLow,
+    _In_ const unsigned int                sectorHigh,
+    _In_ const struct sys_shm_transfer*    buffer,
+    _In_ const size_t                      sectorCount)
 {
     // Service calls can yield. Keep the device and DMA state locked until done.
     usched_mtx_lock(&g_lock);
-    __ctt_storage_transfer_invocation(message, deviceId, direction, sectorLow, sectorHigh, bufferId, offset, sectorCount);
+    __ctt_storage_transfer_invocation(message, deviceId, direction, sectorLow, sectorHigh, buffer, sectorCount);
     usched_mtx_unlock(&g_lock);
 }
 

@@ -21,6 +21,7 @@
 //#define __TRACE
 
 #include <ddk/acpi.h>
+#include <ddk/pci/mcfg.h>
 #include <ddk/firmware.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -158,7 +159,8 @@ PciIsAcpiAvailable(void)
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
 static void
-__EnumerateLegacy(void)
+__EnumerateLegacy(
+    _In_ const struct AcpiPciRoot* root)
 {
     PciHost_t* host;
     oserr_t    status;
@@ -173,6 +175,26 @@ __EnumerateLegacy(void)
         return;
     }
     
+    if (root != NULL) {
+        // The legacy configuration ports can only reach segment 0. We use the
+        // bus range of the ACPI root as it is, and do not try to guess any
+        // additional roots.
+        if (root->Segment != 0) {
+            __DiscardHost(host, NULL);
+            return;
+        }
+        
+        host->Identification.BusStart = root->BusStart;
+        host->Identification.BusEnd = root->BusEnd;
+        
+        status = PciHostLoadAcpiWindows(host, root);
+        if (status != OS_EOK) {
+            __RecordDiscoveryError(status);
+            __DiscardHost(host, NULL);
+            return;
+        }
+    }
+
     status = PciHostAttach(host, NULL);
     if (status != OS_EOK) {
         ERROR("__EnumerateLegacy: failed to attach host (%u)", status);
@@ -181,7 +203,11 @@ __EnumerateLegacy(void)
         return;
     }
     
-    PciScanLegacyRoots(host);
+    if (root != NULL) {
+        PciCheckBus(host->RootDevice, root->BusStart);
+    } else {
+        PciScanLegacyRoots(host);
+    }
 }
 #endif
 
@@ -193,7 +219,8 @@ __EnumerateEcamWindow(
     _In_ uint8_t                   busEnd,
     _In_ uint64_t                  base,
     _In_ const struct FdtPciHost*  firmwareHost,
-    _In_ struct FdtTree*           tree)
+    _In_ struct FdtTree*           tree,
+    _In_ const struct AcpiPciRoot* acpiRoot)
 {
     PciHost_t* host;
     oserr_t    status;
@@ -233,6 +260,15 @@ __EnumerateEcamWindow(
         return;
     }
     
+    if (acpiRoot != NULL) {
+        status = PciHostLoadAcpiWindows(host, acpiRoot);
+        if (status != OS_EOK) {
+            __RecordDiscoveryError(status);
+            __DiscardHost(host, tree);
+            return;
+        }
+    }
+
     status = PciHostAttach(host, tree);
     if (status != OS_EOK) {
         ERROR("__EnumerateEcamWindow: failed to attach segment %u, buses %u-%u (%u)",
@@ -245,52 +281,61 @@ __EnumerateEcamWindow(
 }
 
 static void
-__EnumerateMcfg(void)
+__EnumerateAcpi(void)
 {
-    ACPI_TABLE_HEADER*    header;
-    ACPI_MCFG_ALLOCATION* entry;
-    size_t                count;
-    oserr_t               status;
-
-    TRACE("__EnumerateMcfg()");
+    ACPI_TABLE_HEADER*          header = NULL;
+    const ACPI_MCFG_ALLOCATION* entry;
+    struct AcpiPciQuery         query = { .Type = AcpiPciQueryRoot };
+    union AcpiPciResult         result;
+    struct AcpiPciRoot          root;
+    oserr_t                     status;
 
     status = AcpiQueryTable(ACPI_SIG_MCFG, &header);
-    if (status != OS_EOK) {
-        TRACE("__EnumerateMcfg: MCFG unavailable (%u); legacy fallback may be used", status);
-        __RecordDiscoveryError(status);
-        return;
+    if (status == OS_EOK) {
+        status = __PciValidateMcfg(header, header->Length);
     }
 
-    if (header->Length < sizeof(ACPI_TABLE_MCFG)) {
-        ERROR("__EnumerateMcfg: truncated MCFG, length %u", header->Length);
+    if (status != OS_EOK && status != OS_ENOENT && status != OS_ENOTSUPPORTED) {
+        ERROR("ACPI PCI: MCFG rejected (%u)", status);
+        g_discoveryStatus = status;
         free(header);
         return;
     }
 
-    entry = (ACPI_MCFG_ALLOCATION*)((uint8_t*)header + sizeof(ACPI_TABLE_MCFG));
-    count = (header->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION);
-    for (size_t i = 0; i < count; i++, entry++) {
-        if (entry->EndBusNumber < entry->StartBusNumber) {
-            WARNING("__EnumerateMcfg: ignoring segment %u with inverted bus range %u-%u",
-                entry->PciSegment, entry->StartBusNumber, entry->EndBusNumber);
-            continue;
-        }
-        if (entry->Address > UINT64_MAX - ((uint64_t)entry->StartBusNumber << 20)) {
-            WARNING("__EnumerateMcfg: ECAM base 0x%llx overflows for segment %u, buses %u-%u",
-                (unsigned long long)entry->Address, entry->PciSegment,
-                entry->StartBusNumber, entry->EndBusNumber);
-            continue;
+    for (query.Index = 0; ; query.Index++) {
+        status = AcpiQueryPci(&query, &result);
+        if (status == OS_ENOENT) {
+            break;
         }
 
-        // MCFG gives the address of bus 0. Advance to the first described bus.
-        __EnumerateEcamWindow(
-            entry->PciSegment,
-            entry->StartBusNumber,
-            entry->EndBusNumber,
-            entry->Address + ((uint64_t)entry->StartBusNumber << 20),
-            NULL,
-            NULL
-        );
+        if (status != OS_EOK) {
+            ERROR("ACPI PCI: root query failed (%u)", status);
+            g_discoveryStatus = status;
+            break;
+        }
+
+        root = result.Root;
+        if (__HostExists(root.Segment, root.BusStart, root.BusEnd)) {
+            continue;
+        }
+        
+        // MCFG only describes where configuration space is. Several roots can
+        // share one MCFG entry with separate bus ranges, so _CRS is what decides
+        // which buses and CPU windows belong to this host.
+        entry = header != NULL ? __PciFindMcfg(header, root.Segment, root.BusStart, root.BusEnd) : NULL;
+        if (entry != NULL) {
+            __EnumerateEcamWindow(root.Segment, root.BusStart, root.BusEnd,
+                entry->Address + ((uint64_t)root.BusStart << 20), NULL, NULL, &root);
+        } else {
+#ifdef __OSCONFIG_HAS_LEGACY_PCI
+            if (root.Segment == 0) {
+                __EnumerateLegacy(&root);
+                continue;
+            }
+#endif
+            WARNING("ACPI PCI: no configuration coverage for segment %u buses %u-%u",
+                root.Segment, root.BusStart, root.BusEnd);
+        }
     }
     free(header);
 }
@@ -319,7 +364,8 @@ __OnFdtPciHost(
             host->BusEnd,
             host->EcamBase,
             host,
-            context
+            context,
+            NULL
         );
         return;
     }
@@ -436,7 +482,7 @@ __DiscoverHosts(void)
     }
     switch (firmware.Primary) {
         case OSFIRMWARE_ACPI:
-            __EnumerateMcfg();
+            __EnumerateAcpi();
             break;
         case OSFIRMWARE_DEVICETREE:
             __EnumerateDeviceTree();
@@ -447,8 +493,8 @@ __DiscoverHosts(void)
     }
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
-    if (g_pciRoots.head == NULL && g_discoveryStatus == OS_EOK) {
-        __EnumerateLegacy();
+    if (firmware.Primary != OSFIRMWARE_ACPI && g_pciRoots.head == NULL && g_discoveryStatus == OS_EOK) {
+        __EnumerateLegacy(NULL);
     }
 #endif
 

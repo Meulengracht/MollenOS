@@ -26,6 +26,7 @@
 // Forward declarations
 typedef struct PciHost PciHost_t;
 struct BusDevice;
+struct PciDevice;
 struct FdtPciHost;
 
 enum PciBarState {
@@ -37,15 +38,15 @@ enum PciBarState {
 };
 
 /**
- * @brief One PCI address range, its CPU address, and its current usability state.
+ * @brief A PCI address range, its CPU address and whether it can be used.
  */
 struct PciBar {
     uint64_t         BusAddress; // PCI bus address decoded by this BAR.
-    uint64_t         CpuAddress; // Host CPU address corresponding to BusAddress, if translatable.
+    uint64_t         CpuAddress; // CPU address for BusAddress, if translation succeeds.
     uint64_t         Size;       // Size of the resource in bytes.
     uint32_t         Space;      // Resource type: PCI I/O (1), 32-bit memory (2), or 64-bit memory (3).
     uint32_t         Attributes; // PCI BAR flags and other attributes describing the resource.
-    enum PciBarState State;      // Whether the BAR is absent, unassigned, usable, outside the host window, or invalid.
+    enum PciBarState State;      // Whether this range can be used, or why it cannot.
 };
 
 /**
@@ -57,13 +58,12 @@ struct PciFunctionResources {
 };
 
 /**
- * @brief Determine the size, type, and current assignment of a device's BARs.
+ * @brief Reads the size, type and current address of each BAR.
  *
- * Temporarily disables memory and I/O decoding while it probes BAR masks, then
- * restores the device's original BAR values and command setting. The resulting
- * descriptions are written to all six entries in @p bars. Unused entries remain
- * absent. Call this for a device or bridge header before registering device I/O
- * resources. Existing BAR addresses are preserved.
+ * Call this for a device or bridge header before registering its I/O resources.
+ * Probing disables memory and I/O decoding while reading the size masks, then
+ * restores the BAR values and command register. All six entries in bars are
+ * filled in. Unused entries are marked absent.
  *
  * @param host PCI host that provides configuration access and address translation.
  * @param device PCI device whose BARs are being examined.
@@ -79,22 +79,20 @@ PciProbeBars(
     _Out_ struct PciBar           bars[6]);
 
 /**
- * @brief Turn an existing address range into a BAR description.
+ * @brief Describes a BAR's bus range and translates it to a CPU address.
  *
- * Copies the supplied type, attributes, bus address, and size into @p bar, then
- * asks the host to translate the bus address for CPU access when translation is
- * available. The state records whether the range is absent, unassigned,
- * successfully assigned, outside the host's address windows, or invalid due to
- * an overflowing bus or CPU range. If the host has no translation operation,
- * the bus address is used as the CPU address. The original bus address is kept
- * even if translation fails. The device's BAR is unchanged.
+ * If firmware described the host windows, the range must fit one of them.
+ * Otherwise, the bus address is also used as the CPU address. State records
+ * whether the BAR can be used, including absent, unassigned and invalid ranges.
+ * The description keeps the original bus address even when translation fails.
+ * The device's BAR is unchanged.
  *
- * @param host PCI host used to translate the address, if it supports translation.
+ * @param host PCI host whose windows are used for translation.
  * @param space Resource type: PCI I/O, 32-bit memory, or 64-bit memory.
  * @param attributes PCI BAR flags associated with the range.
  * @param address Existing address assigned to the resource on the PCI bus.
  * @param size Length of the resource in bytes.
- * @param bar Output structure receiving the description and usability state.
+ * @param bar Receives the range, CPU address and state.
  * @return None.
  */
 __EXTERN void
@@ -107,17 +105,15 @@ PciDescribeBar(
     _Out_ struct PciBar*  bar);
 
 /**
- * @brief Log warnings for BAR descriptions that cannot currently be used.
+ * @brief Logs warnings for BARs that cannot be used.
  *
- * Checks all six descriptions and warns when a BAR is unassigned, outside the
- * host's address windows, or invalid. Absent and successfully assigned BARs do
- * not produce warnings. This function only reports problems; it does not modify
- * the descriptions, assign BAR addresses, or register device resources.
+ * Checks all six entries. Unassigned, invalid and out-of-window BARs produce
+ * warnings. Absent and assigned BARs are skipped. The descriptions and device
+ * resources are left unchanged.
  *
  * @param host PCI host used to identify the segment in diagnostic messages.
  * @param device PCI device used to identify the function in diagnostic messages.
- * @param bars Six BAR descriptions to check, typically produced by
- *             PciProbeBars.
+ * @param bars The six BAR descriptions to check.
  * @return None.
  */
 __EXTERN void
@@ -127,20 +123,19 @@ PciDiagnoseBars(
     _In_ const struct PciBar     bars[6]);
 
 /**
- * @brief Create device I/O resource entries for usable BAR descriptions.
+ * @brief Creates device I/O resources for assigned BARs.
  *
- * Checks all six descriptions and creates an entry in the matching device I/O
- * slot only for assigned BARs whose address range fits the platform's address
- * limits. Memory BARs become memory resources. PCI I/O BARs are represented as
- * port I/O resources when the host policy supports ports; otherwise they are
- * represented as memory resources. This prepares resources for device use but
- * does not assign or rewrite BAR addresses in PCI configuration space.
- * Registration is best effort. Unsupported ranges and I/O creation failures
- * are logged, then processing continues with the remaining BARs.
+ * Each range must fit the platform's address limits. Memory BARs become memory
+ * resources. I/O BARs become port or memory resources according to the host's
+ * I/O policy. Entries use the same slots as the BAR descriptions.
+ * BAR addresses in configuration space stay unchanged.
+ *
+ * If a range is unsupported or resource creation fails, log the error and
+ * continue with the remaining BARs.
  *
  * @param host PCI host whose I/O resource policy determines how BARs are exposed.
  * @param device Device whose I/O resource entries are populated.
- * @param bars Six BAR descriptions, typically produced by PciProbeBars.
+ * @param bars The six BAR descriptions to register.
  * @return None.
  */
 __EXTERN void
@@ -165,5 +160,26 @@ PciReadBars(
     _In_ PciHost_t*        bus,
     _In_ struct BusDevice* device,
     _In_ uint32_t          headerType);
+
+/**
+ * @brief Assigns addresses to BARs that have not been assigned yet. This must be
+ * called after the host has been fully scanned, and before anything on it is
+ * published.
+ *
+ * Addresses are taken from the firmware windows of the host and from the ranges
+ * that bridges already forward. Ranges used by already assigned BARs and by
+ * sibling bridge windows are left out, so new addresses never overlap them. If
+ * an assignment fails, the ones that succeeded before it stay in the inventory,
+ * which makes it safe for startup to retry. Hosts with no firmware description
+ * keep their existing resource policy.
+ *
+ * @param root The root device of the host. The device tree below it must be fully
+ *             scanned and stable, and no drivers can be bound yet.
+ * @return OS_EOK on success, or an error from allocation, address translation or
+ *         writing to configuration space.
+ */
+__EXTERN oserr_t
+PciAssignHostBars(
+    _In_ struct PciDevice* root);
 
 #endif //!__PCI_BARS_INTERFACE__

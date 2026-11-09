@@ -24,6 +24,7 @@
 #include <bus/pci/host.h>
 #include <bus/pci/publish.h>
 #include <ddk/io.h>
+#include <ddk/pci/acpi.h>
 #include <ds/list.h>
 
 struct PciDevice;
@@ -101,23 +102,6 @@ struct PciHostOperations {
         _In_ struct PciHost* host);
 
     /**
-     * @brief Translate a PCI address to a physical address.
-     *
-     * @param host The PCI host to use for translation.
-     * @param space PCI address-space kind from enum FdtPciSpace.
-     * @param address The PCI address to translate.
-     * @param length Number of bytes in the address range.
-     * @param physicalOut The output physical address.
-     * @return An error code indicating success or failure.
-     */
-    oserr_t (*Translate)(
-        _In_  struct PciHost* host,
-        _In_  uint32_t        space,
-        _In_  uint64_t        address,
-        _In_  uint64_t        length,
-        _Out_ uint64_t*       physicalOut);
-
-    /**
      * @brief Resolve the interrupt for a PCI device.
      *
      * @param host The PCI host to use for resolution.
@@ -137,6 +121,19 @@ struct PciHostOperations {
         _In_  unsigned int   pin,
         _Out_ int*           lineOut,
         _Out_ unsigned int*  flagsOut);
+};
+
+/**
+ * @brief Host windows copied from firmware and permission to assign BARs.
+ * When Present is set, BARs must fit the listed windows. An empty list means no
+ * BARs can be mapped. Legacy hosts without a firmware description leave Present
+ * clear. DMA ranges are separate because they describe RAM accessed by devices.
+ */
+struct PciHostResources {
+    struct PciAddressWindow* Windows;
+    size_t                   Count;
+    int                      Present;
+    int                      AssignBars;
 };
 
 /**
@@ -163,6 +160,8 @@ typedef struct PciHost {
     const struct PciHostOperations* Operations;
     void*                           OpContext;
 
+    struct PciHostResources    Resources;
+    uint32_t                   AcpiRootId;
     const struct FdtPciHost*   Firmware;
     uuid_t                     InterruptControllerId;
     // One bit per bus number, covering all 256 PCI buses.
@@ -172,6 +171,36 @@ typedef struct PciHost {
     struct PciPublication      Publication;
     struct FdtTree*            FirmwareTree;
 } PciHost_t;
+
+/**
+ * @brief Copies the ACPI windows of a root into the host. This must be called
+ * before the host is registered, and the host must not have any windows yet.
+ *
+ * @param host The unregistered host. The copied windows are freed when the host
+ *             is torn down.
+ * @param root The root information from the kernel. Its Id is used to query the
+ *             windows.
+ * @return OS_EOK once all windows have been copied. On failure the host is left
+ *         unchanged.
+ */
+__EXTERN oserr_t
+PciHostLoadAcpiWindows(
+    _In_ PciHost_t*                host,
+    _In_ const struct AcpiPciRoot* root);
+
+/**
+ * @brief Converts the device-tree windows of the host into the common window
+ * format. This must be called before the host is registered. If the host
+ * already has windows, they are left as they are.
+ *
+ * @param host The host to load windows into. The windows are read from the
+ *             device-tree description in Firmware.
+ * @return OS_EOK on success, or an error if a window is invalid or memory could
+ *         not be allocated.
+ */
+__EXTERN oserr_t
+PciHostLoadDtWindows(
+    _In_ PciHost_t* host);
 
 extern list_t g_pciDevices;
 extern list_t g_pciRoots;

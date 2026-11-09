@@ -62,7 +62,8 @@ FSStorageWrite(
         _Out_ size_t*                      written);
 
 /**
- * @brief Gets the storage geometry and identification details.
+ * @brief Gets the storage details, and stores the sector size in
+ * storageParameters so later reads and writes can use it.
  *
  * @param storageParameters Device or file used for storage.
  * @param stat Receives the storage descriptor on success.
@@ -70,7 +71,7 @@ FSStorageWrite(
  */
 extern oserr_t
 FSStorageStat(
-        _In_ struct VFSStorageParameters* storageParameters,
-        _In_ StorageDescriptor_t*         stat);
+        _InOut_ struct VFSStorageParameters* storageParameters,
+        _Out_   StorageDescriptor_t*         stat);
 
 #endif //!__FS_COMMON_H__

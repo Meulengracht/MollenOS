@@ -19,6 +19,7 @@
  */
 
 #include <ddk/utils.h>
+#include <ddk/convert/grants.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,8 +32,8 @@ __SamePool(
     _In_ const struct ctt_netadapter_pool* left,
     _In_ const struct ctt_netadapter_pool* right)
 {
-    return left->direction == right->direction && left->buffer_handle == right->buffer_handle &&
-           left->region_offset == right->region_offset && left->region_size == right->region_size &&
+    return left->direction == right->direction &&
+           __SameSysSHMTransfer(&left->buffer, &right->buffer) &&
            left->slot_size == right->slot_size && left->slot_count == right->slot_count;
 }
 
@@ -54,6 +55,26 @@ static oserr_t
 __ValidateDescription(
     _In_ const struct ctt_netadapter_pool* description)
 {
+    SHMTransfer_t transfer;
+    size_t        length;
+    unsigned int  scope = GrantTokenScopeRead;
+    oserr_t       status;
+
+    status = __FromSysSHMTransfer(&description->buffer, &transfer);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    length = transfer.RangeMode == SHMTransferRangeFull ?
+        transfer.Token.Options.Data.SHM.Length : transfer.RequestedLength;
+    if (description->direction == CTT_NETADAPTER_DIRECTION_RX) {
+        scope |= GrantTokenScopeWrite;
+    }
+
+    if ((transfer.Token.Options.Scope & scope) != scope) {
+        return OS_EPERMISSIONS;
+    }
+
     if (description->direction != CTT_NETADAPTER_DIRECTION_TX &&
         description->direction != CTT_NETADAPTER_DIRECTION_RX) {
         return OS_EINVALPARAMS;
@@ -64,11 +85,10 @@ __ValidateDescription(
     if (description->slot_size < VIRTIO_NET_FRAME_SIZE) {
         return OS_EINVALPARAMS;
     }
-    if (description->region_size > VIRTIO_NET_POOL_BYTES ||
-        description->region_offset > VIRTIO_NET_POOL_BYTES) {
+    if (length > VIRTIO_NET_POOL_BYTES) {
         return OS_EINVALPARAMS;
     }
-    if ((uint64_t)description->slot_count * description->slot_size > description->region_size) {
+    if ((uint64_t)description->slot_count * description->slot_size > length) {
         return OS_EINVALPARAMS;
     }
     return OS_EOK;
@@ -158,9 +178,10 @@ __PreparePool(
     _In_    const struct ctt_netadapter_pool* description,
     _InOut_ VirtioNetPool_t*                  pool)
 {
-    size_t  capacity;
-    oserr_t status;
-    oserr_t cleanupStatus;
+    SHMTransfer_t transfer;
+    size_t        capacity;
+    oserr_t       status;
+    oserr_t       cleanupStatus;
 
     // A failed registration may have left resources in this slot without
     // increasing PoolCount. Finish releasing them before reusing the slot.
@@ -169,14 +190,21 @@ __PreparePool(
         return status;
     }
 
-    status = SHMAttach(description->buffer_handle, &pool->Memory);
+    status = __FromSysSHMTransfer(&description->buffer, &transfer);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    pool->BufferOffset = transfer.RangeMode == SHMTransferRangeFull 
+        ? 0 : transfer.RelativeOffset;
+    
+    status = SHMAttachToken(&transfer.Token, &pool->Memory);
     if (status != OS_EOK) {
         return status;
     }
 
     capacity = SHMBufferCapacity(&pool->Memory);
-    if (capacity > VIRTIO_NET_POOL_BYTES || description->region_offset > capacity ||
-        description->region_size > capacity - description->region_offset) {
+    if (capacity > VIRTIO_NET_POOL_BYTES) {
         status = OS_EINVALPARAMS;
         goto error;
     }
@@ -213,7 +241,7 @@ __PreparePool(
         status = DMAMapSHM(
             device->Transport.DmaContext,
             &pool->Memory,
-            description->region_offset + (size_t)i * description->slot_size,
+            pool->BufferOffset + ((size_t)i * description->slot_size),
             description->slot_size,
             description->direction == CTT_NETADAPTER_DIRECTION_RX ? DMAFromDevice : DMAToDevice,
             NULL,
@@ -278,7 +306,7 @@ VirtioNetPoolRegister(
             continue;
         }
         if (pool->Description.direction == description->direction ||
-            pool->Description.buffer_handle == description->buffer_handle) {
+            pool->Description.buffer.token.export_id == description->buffer.token.export_id) {
             return OS_EINVALPARAMS;
         }
     }
@@ -364,7 +392,7 @@ VirtioNetPacketBytes(
     // DMA must have ended before RX filtering reads the packet. The returned
     // address is valid only while the pool remains attached.
     return (char*)SHMBuffer(&slot->Pool->Memory) 
-        + slot->Pool->Description.region_offset
+        + slot->Pool->BufferOffset
         + (size_t)slot->Packet.id.slot_id * slot->Pool->Description.slot_size
         + slot->Packet.data_offset;
 }

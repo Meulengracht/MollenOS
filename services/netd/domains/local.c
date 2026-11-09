@@ -65,8 +65,8 @@ typedef struct AcceptRequest {
     struct gracht_message Response[];
 } AcceptRequest_t;
 
-// Accessed only within the manager socket execution lock, including destruction.
-// Address lookups borrow sockets for the duration of that operation.
+// Hold the manager socket execution lock for address lookups and destruction.
+// Socket pointers from these lookups are valid only until the operation ends.
 // TODO: should be hashtable
 static list_t AddressRegister = LIST_INIT_CMP(list_cmp_string);
 
@@ -348,8 +348,8 @@ HandleSocketPacketData(
                 return OS_EOK;
             }
             
-            // Only rewrite after reserving space: queued packets must retain
-            // their destination address for a later retry.
+            // Reserve space before replacing the address. If the packet must
+            // wait, we still need its destination address for the next attempt.
             uint8_t* address = (uint8_t*)buffer + sizeof(*packet);
             memmove(address + sizeof(sourceAddress), address + packet->addresslen,
                     bytesRead - sizeof(*packet) - (size_t)packet->addresslen);
@@ -523,9 +523,11 @@ AcceptConnectionRequest(
     _In_ Socket_t*              connectSocket,
     _In_ struct gracht_message* connectMessage)
 {
-    uuid_t handle = UUID_INVALID, recv_handle = UUID_INVALID, send_handle = UUID_INVALID;
+    uuid_t                  handle = UUID_INVALID;
+    struct sys_shm_transfer recvBuffer = { 0 };
+    struct sys_shm_transfer sendBuffer = { 0 };
     struct sockaddr_storage address = {0};
-    oserr_t              status;
+    oserr_t                 status;
     
     TRACE("[net_manager] [accept_request]");
     
@@ -534,9 +536,14 @@ AcceptConnectionRequest(
     
     // Create a new socket for the acceptor. This socket will be paired with
     // the connector socket.
-    status = NetworkManagerSocketCreate(connectSocket->DomainType,
-        connectSocket->Type, connectSocket->Protocol, &handle,
-        &recv_handle, &send_handle);
+    status = NetworkManagerSocketCreate(
+        connectSocket->DomainType,
+        connectSocket->Type,
+        connectSocket->Protocol,
+        &handle,
+        &recvBuffer,
+        &sendBuffer
+    );
     if (status == OS_EOK) {
         NetworkManagerSocketPair(handle, (uuid_t)(uintptr_t)connectSocket->Header.key);
     }
@@ -545,8 +552,15 @@ AcceptConnectionRequest(
     sys_socket_connect_response(connectMessage, status);
     
     // Reply to the accepter (the thread that called accept())
-    sys_socket_accept_response(acceptMessage, status, (uint8_t*)&address, status == OS_EOK ? address.__ss_len : 0,
-        handle, recv_handle, send_handle);
+    sys_socket_accept_response(
+        acceptMessage,
+        status,
+        (uint8_t*)&address,
+        status == OS_EOK ? address.__ss_len : 0,
+        handle,
+        &recvBuffer,
+        &sendBuffer
+    );
 }
 
 static oserr_t

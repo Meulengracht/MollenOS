@@ -47,9 +47,8 @@ static int __module_cmp(const void* element1, const void* element2)
 {
     _CRT_UNUSED(element1);
     _CRT_UNUSED(element2);
-    // Make the assumption that the primary key (hashed name) is safe enough,
-    // and that we do not need a secondary ID. So if this is called, the hashes
-    // match, and thus we just assume OK.
+    // The hashes already match here. We assume the name hash is unique and
+    // do not compare the names themselves.
     return 0;
 }
 
@@ -67,7 +66,7 @@ PEImageLoadContextNew(
     }
     memset(loadContext, 0, sizeof(struct PEImageLoadContext));
 
-    oserr = CreateMemorySpace(0, &loadContext->MemorySpace);
+    oserr = CreateMemorySpace(0, &loadContext->MemorySpace, &loadContext->SecurityGroupID);
     if (oserr != OS_EOK) {
         free(loadContext);
         return NULL;
@@ -125,9 +124,9 @@ PEImageLoadContextDelete(
     PEImageUnload(loadContext, loadContext->RootModule, true);
     hashtable_enumerate(&loadContext->ModuleMap, __module_cleanup_enum, NULL);
     hashtable_destroy(&loadContext->ModuleMap);
-    // Release the loader's initial reference after unloading. Each started
-    // thread retains its own reference until kernel thread teardown completes.
-    // This also releases the space when loading fails before a thread exists.
+    // Release the loader's reference after unloading. Started threads keep
+    // their references until kernel thread cleanup finishes. If loading failed
+    // before any thread started, this also frees the memory space.
     Syscall_DestroyHandle(loadContext->MemorySpace);
     free(loadContext->Paths);
     free(loadContext);

@@ -27,6 +27,7 @@
 #include <os/handle.h>
 #include <ddk/utils.h>
 #include <os/shm.h>
+#include <internal/_shm_transfer.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -56,6 +57,7 @@ CreateSocketPipe(
     oserr = SHMCreate(
             &(SHM_t) {
                 .Size = SOCKET_SYSMAX_BUFFER_SIZE,
+                .Flags = SHM_COMMIT | SHM_CLEAN,
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
             &Pipe->SHM
@@ -66,13 +68,25 @@ CreateSocketPipe(
     
     Pipe->Stream = SHMBuffer(&Pipe->SHM);
     InitializeStreambuffer(Pipe->Stream);
-    return OS_EOK;
+    
+    oserr = __SHMTransferCreate(
+        Pipe->SHM.ID,
+        0,
+        SOCKET_SYSMAX_BUFFER_SIZE,
+        GrantTokenScopeRead | GrantTokenScopeWrite,
+        &Pipe->Transfer
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&Pipe->SHM);
+    }
+    return oserr;
 }
 
 static void
 __SocketPipeDestroy(
     _In_ SocketPipe_t* socketPipe)
 {
+    OSGrantTokenRevoke(socketPipe->Transfer.Token.ControlHandleID);
     OSHandleDestroy(&socketPipe->SHM);
 }
 

@@ -26,6 +26,8 @@
 
 #include "buffers.h"
 #include <os/handle.h>
+#include <internal/_shm_transfer.h>
+#include <ddk/convert/grants.h>
 #include <os/memory.h>
 #include <os/shm.h>
 #include <stdlib.h>
@@ -57,7 +59,7 @@ enum __SlotState {
 };
 
 /**
- * @brief Tracks ownership and completion data for one shared-memory slot.
+ * @brief Current use and completion data for one shared-memory slot.
  */
 struct __BufferSlot {
     enum __SlotState State;
@@ -65,10 +67,10 @@ struct __BufferSlot {
     uint64_t         Sequence;
     uint32_t         SubmittedLength;
 
-    // Set when prepared; a lease is submitted at most once, even if rejected.
+    // Set before submission. A rejected lease cannot be submitted again.
     bool Used;
 
-    // Admission reply not applied yet; the completion may arrive first.
+    // Waiting for the admission reply. The completion may arrive first.
     bool    AwaitingAdmission;
     bool    AdmissionKnown;
     oserr_t AdmissionStatus;
@@ -78,24 +80,25 @@ struct __BufferSlot {
 };
 
 /**
- * @brief Holds one direction's shared-memory region and slot ownership state.
+ * @brief Shared memory and slot state for one transfer direction.
  */
 struct __BufferPool {
     // The handle to the shared memory region for this pool
-    OSHandle_t Handle;
-    void*      Base;
+    OSHandle_t   Handle;
+    GrantToken_t Token;
+    void*        Base;
 
     struct ctt_netadapter_pool Description;
 
     struct __BufferSlot* Slots;
-    enum __PoolState       State;
+    enum __PoolState     State;
 
     uint32_t             Id;
     uint32_t             FreeHead;
     uint32_t             FreeCount;
 
-    // PENDING plus DRIVER slots. A completion arriving before its
-    // admission reply decrements this; the reply then does not.
+    // PENDING plus DRIVER slots. If a completion arrives before its admission
+    // reply, only the completion decreases this count.
     uint32_t Outstanding;
 };
 
@@ -103,9 +106,8 @@ struct __BufferPool {
  * @brief Stores a completion until all earlier completion sequences are present.
  */
 struct __CompletionEntry {
-    // A zero sequence marks an empty entry. The table has a fixed size (the driver's
-    // max_unacked_completions) and is indexed by completion sequence, so completions
-    // that arrive out of order can be stored until the missing earlier ones arrive.
+    // Sequence 0 marks an empty entry. The table has max_unacked_completions
+    // entries, indexed by sequence, so later completions can wait for missing ones.
     struct ctt_netadapter_completion Record;
 };
 
@@ -132,8 +134,8 @@ struct NetBufferManager {
     uint32_t                  DataOffset;
     uint32_t                  OutstandingLimit[__POOL_COUNT];
 
-    // Completions not yet acknowledged; the driver must keep
-    // room for each of them until we acknowledge it.
+    // Completions we have received but not acknowledged. The driver must
+    // keep space for them until we acknowledge them.
     uint32_t UnackedCount;     
 
     uint64_t Processed;
@@ -164,7 +166,7 @@ __SameSession(
         return false;
     }
 
-    // A session matches if bothe the ID and generation are the same.
+    // Both the ID and generation must match.
     return manager->Session.id == session->id &&
            manager->Session.generation == session->generation;
 }
@@ -190,7 +192,7 @@ __RoundUpAligned(
     return true;
 }
 
-// Returns true if allocation happened.
+// Returns true if the amount fits and has been added to the total.
 static bool
 __AllocateBudget(
     _InOut_ uint64_t* total,
@@ -214,9 +216,14 @@ __FreeManager(
     // Only called when Create fails, or from Destroy after it has checked that the
     // driver no longer uses the pools and that every lease has been released.
     for (i = 0; i < __POOL_COUNT; ++i) {
+        if (manager->Pools[i].Token.Version != 0) {
+            OSGrantTokenRevoke(manager->Pools[i].Token.ControlHandleID);
+        }
+
         if (manager->Pools[i].Handle.ID != UUID_INVALID) {
             OSHandleDestroy(&manager->Pools[i].Handle);
         }
+
         free(manager->Pools[i].Slots);
     }
     free(manager->Window);
@@ -288,17 +295,15 @@ __CalculateBufferLayout(
     bool     valid;
     int      i;
 
-    // Leave the requested headroom before the frame data, then round that offset up so
-    // the data begins at the alignment required by the device. The shared-memory base
-    // is page-aligned, so alignments up to one page work here; the driver still checks
-    // any additional rules it has for accessing memory.
+    // Leave headroom before the frame and align the data offset for the device.
+    // SHM is page-aligned, so this works for alignments up to one page. The driver
+    // checks any other memory requirements.
     valid = __RoundUpAligned(info->required_headroom, info->buffer_alignment, &offset);
     if (!valid) {
         return OS_EOVERFLOW;
     }
     
-    // Each slot also needs room for the frame and any required space after it. Round
-    // the full slot size up so the next slot starts at the required alignment too.
+    // Include the frame and tailroom, then round up so the next slot is aligned too.
     valid = __RoundUpAligned(
         offset + config->FrameCapacity + info->required_tailroom,
         info->buffer_alignment,
@@ -308,14 +313,13 @@ __CalculateBufferLayout(
         return OS_EOVERFLOW;
     }
     
-    // The pool description stores the slot size in 32 bits, so a larger value cannot
-    // be represented even if the calculations above succeeded.
+    // The slot size must fit in the protocol's 32-bit field.
     if (stride > UINT32_MAX) {
         return OS_EOVERFLOW;
     }
 
-    // Work out both pool sizes before allocating anything. This lets us reject an
-    // oversized request up front, without having to undo a partly created setup.
+    // Check both pool sizes before allocating memory, so a request that exceeds
+    // the limits needs no cleanup.
     layout->SlotCounts[0] = config->TxSlots;
     layout->SlotCounts[1] = config->RxSlots;
     for (i = 0; i < __POOL_COUNT; ++i) {
@@ -324,20 +328,17 @@ __CalculateBufferLayout(
             return OS_EOVERFLOW;
         }
 
-        // Make the shared-memory region large enough for every slot, then round the
-        // region size to whole pages because shared memory is allocated page by page.
+        // SHM requires whole pages.
         if (!__RoundUpAligned(stride * layout->SlotCounts[i], pageSize, &layout->PoolBytes[i])) {
             return OS_EOVERFLOW;
         }
 
-        // The region must fit both in this process's size type and within the device's
-        // per-pool limit.
+        // The pool must fit in size_t and within the device's per-pool limit.
         if (layout->PoolBytes[i] > SIZE_MAX || layout->PoolBytes[i] > info->max_pool_bytes) {
             return OS_EOVERFLOW;
         }
 
-        // Alongside the shared bytes, each slot needs a local record for its state and
-        // ownership information. Count these records in the overall memory budget too.
+        // Count the local slot records in the memory budget too.
         slotBytes = (uint64_t)layout->SlotCounts[i] * sizeof(struct __BufferSlot);
         if (slotBytes > SIZE_MAX) {
             return OS_EOVERFLOW;
@@ -350,8 +351,7 @@ __CalculateBufferLayout(
         }
     }
     
-    // The device limits the combined shared-memory size of the registered TX and RX
-    // pools, not just each pool on its own.
+    // The combined TX and RX pool size must also fit the device's limit.
     if (layout->PoolBytes[0] > info->max_registered_bytes) {
         return OS_EOVERFLOW;
     }
@@ -360,9 +360,8 @@ __CalculateBufferLayout(
         return OS_EOVERFLOW;
     }
 
-    // Keep one tracking record for each completion the device may leave unacknowledged.
-    // This memory is local bookkeeping, so it counts toward our budget but not the
-    // device's registered shared-memory limit.
+    // Each unacknowledged completion needs a local record. Count these against
+    // our memory budget, separately from the device's shared-memory limit.
     windowBytes = (uint64_t)info->max_unacked_completions * sizeof(struct __CompletionEntry);
     if (windowBytes > SIZE_MAX) {
         return OS_EOVERFLOW;
@@ -380,15 +379,16 @@ __CalculateBufferLayout(
 
 static oserr_t
 __InitializePool(
-    _InOut_ struct __BufferPool*             pool,
+    _InOut_ struct __BufferPool*              pool,
     _In_    const struct ctt_netadapter_info* info,
     _In_    const struct __BufferLayout*      layout,
-    _In_    int                              index)
+    _In_    int                               index)
 {
-    uint32_t slot;
-    uint32_t count = layout->SlotCounts[index];
-    uint64_t bytes = layout->PoolBytes[index];
-    oserr_t  status;
+    SHMTransfer_t transfer;
+    uint32_t      slot;
+    uint32_t      count = layout->SlotCounts[index];
+    uint64_t      bytes = layout->PoolBytes[index];
+    oserr_t       status;
 
     pool->Slots = calloc(count, sizeof(*pool->Slots));
     if (!pool->Slots) {
@@ -415,12 +415,27 @@ __InitializePool(
 
     pool->Description = (struct ctt_netadapter_pool) {
         .direction = index == 0 ? CTT_NETADAPTER_DIRECTION_TX : CTT_NETADAPTER_DIRECTION_RX,
-        .buffer_handle = pool->Handle.ID,
-        .region_offset = 0,
-        .region_size = bytes,
         .slot_size = layout->SlotSize,
         .slot_count = count
     };
+    
+    status = __SHMTransferCreate(
+        pool->Handle.ID,
+        0,
+        (size_t)bytes,
+        index == 0 ? GrantTokenScopeRead : GrantTokenScopeRead | GrantTokenScopeWrite,
+        &transfer
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    pool->Token = transfer.Token;
+    status = __ToSysSHMTransfer(&transfer, &pool->Description.buffer);
+    if (status != OS_EOK) {
+        return status;
+    }
+
     pool->FreeHead = 0;
     pool->FreeCount = count;
     for (slot = 0; slot < count; ++slot) {
@@ -482,9 +497,8 @@ NetBuffersCreate(
     manager->OutstandingLimit[0] = info->max_outstanding_tx;
     manager->OutstandingLimit[1] = info->max_outstanding_rx;
     
-    // If receive buffers could fill every unacknowledged-completion space in the driver,
-    // no TX could be sent, not even the TX (ARP, for example) needed to get any traffic
-    // coming in. Post at most one less RX so there is always room for a TX.
+    // Leave room for one TX completion. If RX uses every completion entry, we
+    // cannot send the ARP packets needed to get traffic flowing.
     if (manager->OutstandingLimit[1] >= info->max_unacked_completions) {
         manager->OutstandingLimit[1] = info->max_unacked_completions - 1;
     }
@@ -552,9 +566,8 @@ NetBuffersBeginRegistration(
         return OS_ENOENT;
     }
     
-    // We mark that the pool is in the process of being registered, in
-    // case something goes wrong after the RPC to indicate that we already
-    // have access to the shared memory.
+    // Mark registration before the RPC. If the reply is lost, the driver may
+    // already be using the shared memory.
     if (pool->State == POOL_LOCAL) {
         pool->State = POOL_REGISTERING;
     }
@@ -858,8 +871,8 @@ NetBuffersPrepare(
         return status;
     }
 
-    // Reserve the slot and its completion capacity before the caller sends the RPC;
-    // from that point, a missing reply cannot prove that the driver did not receive it.
+    // Reserve the slot and completion space before sending the RPC, because the
+    // driver may accept the packet even if we never receive the reply to it.
     *packetOut = (struct ctt_netadapter_packet) {
         .id = {
             .queue_id = 0,
@@ -923,50 +936,44 @@ NetBuffersValidateAdmission(
     struct __BufferPool* pool;
     struct __BufferSlot* slot;
 
-    // An admission reply is useful only for this session and when it contains a
-    // message to check. Reject unrelated or incomplete replies before looking up a slot.
+    // The reply must be present and belong to this session.
     if (!__SameSession(manager, session) || !admission) {
         return OS_EINVALPARAMS;
     }
     
-    // The reply's status must be one of the OS results this program understands.
+    // Only accept known OS results.
     if (admission->status < OS_EOK || admission->status >= __OS_ECOUNT) {
         return OS_EPROTOCOL;
     }
     
-    // Do not apply replies after shutdown has started; the session's slots are being
-    // retired and must no longer be changed by delayed messages.
+    // After shutdown starts, delayed replies must leave the slots unchanged.
     if (manager->Closed) {
         return OS_ENOENT;
     }
     
-    // Find the exact submitted slot named by the reply. If it cannot be found, the
-    // reply does not match any packet this session currently has in progress.
+    // Match the reply to the submitted slot.
     slot = __LookupPacket(manager, &admission->id, &pool);
     if (!slot) {
         return OS_EPROTOCOL;
     }
     
-    // A repeated reply with the same result is a harmless duplicate. A different
-    // result for the same submission conflicts with the reply already accepted.
+    // Repeated replies must agree with the first result.
     if (slot->AdmissionKnown) {
         return slot->AdmissionStatus == admission->status ? OS_EEXISTS : OS_EPROTOCOL;
     }
     
-    // Only a slot still waiting for its first admission reply may be updated here.
-    // This also rejects an unsolicited reply for a slot that was never submitted.
+    // The slot must still be waiting for its first admission reply.
     if (!slot->AwaitingAdmission) {
         return OS_EPROTOCOL;
     }
     
-    // The completion can arrive before the admission reply. In that case the slot is
-    // already ready; otherwise it must still be pending or owned by the driver.
+    // A completion can arrive first and make the slot READY. Otherwise, it must
+    // still be PENDING.
     if (slot->State != SLOT_PENDING && slot->State != SLOT_READY) {
         return OS_EPROTOCOL;
     }
 
-    // A completion proves the driver accepted this packet. A later rejection would
-    // disagree with that proof, so refuse it and leave the completed slot unchanged.
+    // A completed packet was accepted. Reject a conflicting admission reply.
     if (slot->State == SLOT_READY && admission->status != OS_EOK) {
         return OS_EPROTOCOL;
     }
@@ -994,8 +1001,7 @@ NetBuffersAdmission(
         return validation;
     }
     
-    // We make sure that any validation effort done here does not
-    // affect the actual state of the slot.
+    // Validation must finish before we change the slot.
     slot = __LookupPacket(manager, &admission->id, &pool);
     if (slot->State == SLOT_PENDING) {
         slot->State = admission->status == OS_EOK ? SLOT_DRIVER : SLOT_HELD;
@@ -1018,8 +1024,7 @@ __SameCompletion(
     _In_ const struct ctt_netadapter_completion* a,
     _In_ const struct ctt_netadapter_completion* b)
 {
-    // Compare field by field instead of with memcmp: the padding bytes in the struct
-    // may differ and are not part of the message.
+    // Compare fields separately. Struct padding may differ between messages.
     if (a->completion_sequence != b->completion_sequence || a->direction != b->direction) {
         return false;
     }
@@ -1041,20 +1046,17 @@ __ValidateCompletionResult(
     _In_ const struct ctt_netadapter_completion* completion)
 {
     if (completion->status == CTT_NETADAPTER_COMPLETION_STATUS_SUCCESS) {
-        // A successful result must not also carry an error code; OS_EOK means there
-        // was no error to report.
+        // Success requires OS_EOK.
         if (completion->detail != OS_EOK) {
             return OS_EPROTOCOL;
         }
         
-        // A successful Ethernet frame must include its full header, and it cannot be
-        // longer than the data that was submitted in this slot.
+        // The frame must include an Ethernet header and fit in the submitted range.
         if (completion->length < NET_ADAPTER_ETHERNET_HEADER_SIZE || completion->length > slot->SubmittedLength) {
             return OS_EPROTOCOL;
         }
         
-        // A sent frame is either sent in full or reported as a failure. For received
-        // frames, a shorter length is valid because the buffer may have spare capacity.
+        // TX must send the whole frame. An RX frame may use less than the buffer.
         if (completion->direction == CTT_NETADAPTER_DIRECTION_TX &&
             completion->length != slot->SubmittedLength) {
             return OS_EPROTOCOL;
@@ -1062,15 +1064,13 @@ __ValidateCompletionResult(
         return OS_EOK;
     }
 
-    // These are the only supported results that mean the operation did not succeed.
-    // Unknown status values could have a different meaning, so do not accept them.
+    // The remaining supported results are ERROR and CANCELLED.
     if (completion->status != CTT_NETADAPTER_COMPLETION_STATUS_ERROR &&
         completion->status != CTT_NETADAPTER_COMPLETION_STATUS_CANCELLED) {
         return OS_EPROTOCOL;
     }
     
-    // No frame bytes are valid when the operation fails or is cancelled, and a failed
-    // result must include a reason instead of claiming there was no error.
+    // Failed or cancelled transfers have no valid bytes and must report an error.
     if (completion->length || completion->detail == OS_EOK) {
         return OS_EPROTOCOL;
     }
@@ -1111,58 +1111,49 @@ NetBuffersValidateCompletion(
     struct __BufferSlot* slot;
     oserr_t              status;
 
-    // A completion must belong to this session and include a real completion number.
-    // The session check keeps messages from another or older connection out, while
-    // zero is reserved to mean "no sequence" in the completion tracking table.
+    // Require the current session and a nonzero sequence. Sequence 0 marks an
+    // empty completion entry.
     if (!__SameSession(manager, session) || !completion ||
         !completion->completion_sequence) {
         return OS_EINVALPARAMS;
     }
 
-    // Once the session is closed, its pools and pending work are being retired, so a
-    // late driver message must not change their state.
+    // Late completions must leave a closed session unchanged.
     if (manager->Closed) {
         return OS_ENOENT;
     }
 
-    // The detail field carries an OS error value. Reject values outside the known
-    // range so later code never has to interpret an unknown result.
+    // The detail must be a known OS result.
     if (completion->detail < OS_EOK || completion->detail >= __OS_ECOUNT) {
         return OS_EPROTOCOL;
     }
 
-    // Check that this number is still within the range we can track. This also catches
-    // old or repeated completions and prevents a far-ahead number from replacing an
-    // entry that is still needed for an earlier completion.
+    // Check for duplicates and sequences outside the window before writing an
+    // entry, so a later completion cannot overwrite one that we still need to keep.
     status = __ValidateCompletionSequence(manager, completion);
     if (status != OS_EOK) {
         return status;
     }
 
-    // Match the completion to the exact submitted slot, including its submission
-    // number. This prevents a delayed message for an earlier use of a slot from being
-    // mistaken for the slot's current use.
+    // The submission number must match too. A delayed completion must not finish
+    // a newer packet that happens to use the same slot.
     slot = __LookupPacket(manager, &completion->id, &pool);
     if (!slot) {
         return OS_EPROTOCOL;
     }
 
-    // The pool determines whether the slot is for sending or receiving. The message
-    // must agree, so a completion for one direction cannot finish the other direction's
-    // work by mistake.
+    // The direction must match the pool.
     if (completion->direction != pool->Description.direction) {
         return OS_EPROTOCOL;
     }
 
-    // The completion may arrive before or after the separate admission reply, so both
-    // pending and driver-owned slots are valid here. Any other state means this slot was
-    // not waiting for a completion, or has already completed.
+    // Accept PENDING and DRIVER slots because the completion may arrive before
+    // the admission reply.
     if (slot->State != SLOT_PENDING && slot->State != SLOT_DRIVER) {
         return OS_EPROTOCOL;
     }
 
-    // Finally, check that the reported status, error detail, and byte count agree with
-    // the submitted packet and the rules for this direction.
+    // Check the result and byte count against the submitted packet.
     return __ValidateCompletionResult(slot, completion);
 }
 
@@ -1173,9 +1164,9 @@ __AdvanceCompletionWindow(
     struct __CompletionEntry* entry;
     uint64_t                  next;
 
-    // Move Processed forward only while the next sequence has arrived, stopping at the
-    // first gap. We acknowledge up to Processed, so skipping a gap could make the driver
-    // discard an earlier RX or TX completion that we have not seen yet.
+    // Stop at the first missing sequence. We acknowledge everything up to
+    // Processed, so skipping a gap would let the driver discard a result we
+    // have not received.
     while (manager->Processed < UINT64_MAX) {
         next = manager->Processed + 1;
         entry = &manager->Window[next % manager->WindowSize];
@@ -1205,34 +1196,26 @@ NetBuffersComplete(
         return OS_EINVALPARAMS;
     }
     
-    // Check the session, sequence number, and submitted slot before changing anything.
-    // A completion can arrive more than once or out of order, so accepting only a
-    // completion that still matches a live submission keeps an old message from
-    // changing a slot that has since been reused.
+    // Validate before changing the slot. Repeated or delayed completions must
+    // leave a newer submission unchanged.
     validation = NetBuffersValidateCompletion(manager, session, completion);
     if (validation != OS_EOK) {
         return validation;
     }
     
-    // Validation has already proved that this packet identifies a slot still owned by
-    // the driver. Keep the completion on that slot so the caller can read its result
-    // through the lease returned below.
+    // Validation found a submitted slot. Save the result there for the caller
+    // to read through the returned lease.
     slot = __LookupPacket(manager, &completion->id, &pool);
     sequence = completion->completion_sequence;
     
     slot->Completion = *completion;
     slot->State = SLOT_READY;
 
-    // The driver no longer has this slot in progress, but its completion still needs
-    // acknowledging. Move one item from the in-progress count to the unacknowledged
-    // count so both limits continue to describe the work the driver is holding for us.
+    // The packet is finished. Its completion still needs an acknowledgement.
     pool->Outstanding--;
     manager->UnackedCount++;
     
-    // Completions may arrive in a different order from the order they were produced.
-    // Keep each one in its sequence-numbered place until every earlier completion has
-    // arrived; otherwise acknowledging a later one could make the driver forget a
-    // completion that we have not received yet.
+    // Keep out-of-order completions in the window until the earlier ones arrive.
     entry = &manager->Window[sequence % manager->WindowSize];
     entry->Record = *completion;
     if (sequence > manager->Highest) {
@@ -1240,9 +1223,7 @@ NetBuffersComplete(
         manager->Highest = sequence;
     }
 
-    // Advance only through the consecutive completions now present in the window.
-    // The helper clears entries as they become part of the complete sequence, leaving
-    // any later completion in place while there is still a gap before it.
+    // Clear consecutive entries and leave those beyond a gap in the window.
     __AdvanceCompletionWindow(manager);
 
     *leaseOut = __MakeLease(manager, pool, completion->id.slot_id);
@@ -1332,8 +1313,7 @@ NetBuffersClosed(
     manager->Closed = true;
     manager->UnackedCount = 0;
     
-    // Retire all buffer pools to ensure that any 
-    // pending slots are properly handled.
+    // Cancel pending packets before making the closed pools available for cleanup.
     for (int i = 0; i < __POOL_COUNT; ++i) {
         __RetirePool(&manager->Pools[i]);
     }

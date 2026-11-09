@@ -123,6 +123,8 @@ struct VirtioNetPool {
     SHMSGTable_t               AliasGeometry;
     // Fixed direction and layout supplied at registration.
     struct ctt_netadapter_pool Description;
+    // Offset into the imported token range where the pool buffer starts.
+    size_t                     BufferOffset;
     // Client key kept reserved until the session closes.
     uint64_t                   Registration;
     // Whether Memory and slot mappings are ready for packet use.

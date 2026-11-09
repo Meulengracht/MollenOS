@@ -2,6 +2,8 @@
 add_subdirectory(hosts)
 
 add_library(deviced-pci STATIC
+    windows.c
+    assignment.c
     bars.c
     device.c
     discovery.c

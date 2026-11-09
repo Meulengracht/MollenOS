@@ -23,6 +23,7 @@
 #include <os/types/file.h>
 #include <os/handle.h>
 #include <os/shm.h>
+#include <os/memory.h>
 #include <stdlib.h>
 #include <string.h>
 #include "mfs.h"
@@ -388,12 +389,12 @@ __FileSystemMFSNew(
 
     // Create a generic transfer buffer for us to use
     oserr = SHMCreate(
-            &(SHM_t) {
-                .Flags = SHM_COMMIT,
-                .Size = storageStats->SectorSize,
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            &mfs->TransferBuffer
+        &(SHM_t) {
+            .Flags = SHM_COMMIT | SHM_CLEAN,
+            .Size = ((storageStats->SectorSize + MemoryPageSize() - 1) / MemoryPageSize()) * MemoryPageSize(),
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+        },
+        &mfs->TransferBuffer
     );
     if (oserr != OS_EOK) {
         free(mfs);
@@ -442,12 +443,13 @@ __ResizeTransferBuffer(
 
     // Create the transfer buffer used for subsequent filesystem operations.
     return SHMCreate(
-            &(SHM_t) {
-                    .Flags = SHM_COMMIT,
-                    .Size = mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE,
-                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            &mfs->TransferBuffer
+        &(SHM_t) {
+                .Flags = SHM_COMMIT | SHM_CLEAN,
+                .Size = (((size_t)mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE +
+                            MemoryPageSize() - 1) / MemoryPageSize()) * MemoryPageSize(),
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+        },
+        &mfs->TransferBuffer
     );
 }
 
@@ -600,7 +602,10 @@ FsInitialize(
 
     // Get the geometry of the disk, we need to it to calculate various offsets on
     // the storage medium.
-    FSStorageStat(storageParameters, &storageStats);
+    oserr = FSStorageStat(storageParameters, &storageStats);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     mfs = __FileSystemMFSNew(storageParameters, &storageStats);
     if (mfs == NULL) {

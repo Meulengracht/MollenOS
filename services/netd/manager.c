@@ -25,6 +25,7 @@
 
 //#define __TRACE
 
+#include <ddk/convert/grants.h>
 #include <internal/_tls.h>
 #include <os/notification_queue.h>
 #include <ddk/utils.h>
@@ -37,12 +38,12 @@
 
 #include "sys_socket_service_server.h"
 
-// Owns the complete socket operation, from lookup through last use, including
-// peer/address lookups and destruction. Always acquired before SyncObject.
-// Recursive because domain accept calls back into create/pair. Domain callbacks
-// may defer replies, but must not retain socket pointers after the operation.
+// Hold this lock from socket lookup through last use, including peer/address
+// lookups and destruction. Take it before SyncObject. It must be recursive
+// because domain accept calls back into create/pair. Callbacks may defer replies,
+// but socket pointers are only valid until the operation ends.
 static mtx_t      g_socketExecution = MUTEX_INIT(mtx_recursive);
-// Local system sockets; remote sockets are maintained by the domains.
+// Local system sockets. The domains keep track of remote sockets.
 static rb_tree_t  g_sockets;
 static OSHandle_t g_socketSet;
 static thrd_t     g_socketMonitorHandle;
@@ -138,8 +139,8 @@ static void RunSocketWorkLocked(void)
         }
         mtx_unlock(&socket->SyncObject);
     }
-    // Preserve progress after the finite send's last notification, while still
-    // returning to the event queue between bounded batches.
+    // Schedule another batch if work remains, even if no more send events arrive.
+    // Return to the event queue between batches.
     NotifyRunnableSockets();
 }
 
@@ -225,12 +226,12 @@ NetworkManagerInitialize(void)
 
 static oserr_t
 NetworkManagerSocketCreateLocked(
-        _In_  int     Domain,
-        _In_  int     Type,
-        _In_  int     Protocol,
-        _Out_ uuid_t* HandleOut,
-        _Out_ uuid_t* RecvBufferHandleOut,
-        _Out_ uuid_t* SendBufferHandleOut)
+    _In_  int                      Domain,
+    _In_  int                      Type,
+    _In_  int                      Protocol,
+    _Out_ uuid_t*                  HandleOut,
+    _Out_ struct sys_shm_transfer* RecvBufferOut,
+    _Out_ struct sys_shm_transfer* SendBufferOut)
 {
     Socket_t*          socket;
     oserr_t            oserr;
@@ -262,8 +263,8 @@ NetworkManagerSocketCreateLocked(
     
     rb_tree_append(&g_sockets, &socket->Header);
     *HandleOut           = (uuid_t)(uintptr_t)socket->Header.key;
-    *SendBufferHandleOut = socket->Send.SHM.ID;
-    *RecvBufferHandleOut = socket->Receive.SHM.ID;
+    __ToSysSHMTransfer(&socket->Send.Transfer, SendBufferOut);
+    __ToSysSHMTransfer(&socket->Receive.Transfer, RecvBufferOut);
     TRACE("[net_manager] [create] => %u", *HandleOut);
     return oserr;
 }
@@ -274,8 +275,8 @@ NetworkManagerSocketCreate(
         _In_  int     Type,
         _In_  int     Protocol,
         _Out_ uuid_t* HandleOut,
-        _Out_ uuid_t* RecvBufferHandleOut,
-        _Out_ uuid_t* SendBufferHandleOut)
+        _Out_ struct sys_shm_transfer* RecvBufferOut,
+        _Out_ struct sys_shm_transfer* SendBufferOut)
 {
     oserr_t status;
 
@@ -283,17 +284,27 @@ NetworkManagerSocketCreate(
         return OS_EUNKNOWN;
     }
     status = NetworkManagerSocketCreateLocked(Domain, Type, Protocol,
-                                             HandleOut, RecvBufferHandleOut, SendBufferHandleOut);
+                                             HandleOut, RecvBufferOut, SendBufferOut);
     mtx_unlock(&g_socketExecution);
     return status;
 }
 
 void sys_socket_create_invocation(struct gracht_message* message, const int domain, const int type, const int protocol)
 {
-    uuid_t handle = UUID_INVALID, recv_handle = UUID_INVALID, send_handle = UUID_INVALID;
-    oserr_t status = NetworkManagerSocketCreate(domain, type, protocol,
-                                                &handle, &recv_handle, &send_handle);
-    sys_socket_create_response(message, status, handle, recv_handle, send_handle);
+    uuid_t                  handle = UUID_INVALID;
+    struct sys_shm_transfer recvBuffer = { 0 };
+    struct sys_shm_transfer sendBuffer = { 0 };
+    oserr_t                 status;
+
+    status = NetworkManagerSocketCreate(
+        domain,
+        type,
+        protocol,
+        &handle,
+        &recvBuffer,
+        &sendBuffer
+    );
+    sys_socket_create_response(message, status, handle, &recvBuffer, &sendBuffer);
 }
 
 static oserr_t
@@ -314,8 +325,8 @@ NetworkManagerSocketShutdownLocked(
     
     // Before initiating the actual destruction, remove it from our handle list.
     if (Options == SYS_CLOSE_OPTIONS_DESTROY) {
-        // The execution lock keeps removal and destruction atomic with respect
-        // to every socket operation, including borrowed peer/address lookups.
+        // The execution lock prevents other socket operations from using this
+        // socket during removal and destruction, including through peer lookups.
         if (!rb_tree_remove(&g_sockets, (void*)(uintptr_t)Handle)) {
             return OS_ENOENT;
         }
@@ -410,8 +421,7 @@ void sys_socket_bind_invocation(struct gracht_message* message, const uuid_t han
     sys_socket_bind_response(message, status);
 }
 
-// Asynchronous operation, does not send a reply on success, but instead a reply will
-// be sent by Domain 
+// On success, the domain sends the reply when the operation completes.
 static oserr_t
 NetworkManagerSocketConnectLocked(
         _In_ struct gracht_message* message,
@@ -434,10 +444,9 @@ NetworkManagerSocketConnectLocked(
         return OS_ENOTSUPPORTED;
     }
     
-    /* Generally, connection-based protocol sockets may successfully connect() only once; 
-     * connectionless protocol sockets may use connect() multiple times to change their association. 
-     * Connectionless sockets may dissolve the association by connecting to an address with the 
-     * sa_family member of sockaddr set to AF_UNSPEC. */
+    // Connection-based sockets can connect only once. Connectionless protocols
+    // allow repeated connect calls to change the peer, or AF_UNSPEC to clear it,
+    // but that is not supported here yet.
     if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
         if (socket->Configuration.Connecting) {
             return OS_EINPROGRESS;
@@ -489,8 +498,7 @@ void sys_socket_connect_invocation(struct gracht_message* message, const uuid_t 
     }
 }
 
-// Asynchronous operation, does not send a reply on success, but instead a reply will
-// be sent by Domain. 
+// On success, the domain sends the reply when the operation completes.
 static oserr_t
 NetworkManagerSocketAcceptLocked(
         _In_ struct gracht_message* message,
@@ -531,7 +539,7 @@ void sys_socket_accept_invocation(struct gracht_message* message, const uuid_t h
 {
     oserr_t status = NetworkManagerSocketAccept(message, handle);
     if (status != OS_EOK) {
-        sys_socket_accept_response(message, status, NULL, 0, UUID_INVALID, UUID_INVALID, UUID_INVALID);
+        sys_socket_accept_response(message, status, NULL, 0, UUID_INVALID, &(struct sys_shm_transfer){0}, &(struct sys_shm_transfer){0});
     }
 }
 

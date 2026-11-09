@@ -42,6 +42,7 @@ struct __TopologyCommand {
     struct __TopologyCommand* Next;
     struct usched_cnd         Completion;
     bool                      Done;
+    oserr_t                   Status;
     enum __TopologyOperation  Operation;
     struct gracht_message*    Message;
     union {
@@ -118,7 +119,7 @@ __ExecuteCommand(
             }
             break;
         case TOPOLOGY_REGISTER_HUB:
-            UsbCoreHubsRegisterAndConfigure(
+            command->Status = UsbCoreHubsRegisterAndConfigure(
                 command->Data.Hub.ParentId,
                 command->Data.Hub.DeviceId,
                 command->Data.Hub.DriverId,
@@ -334,8 +335,11 @@ sys_usb_register_hub_invocation(
         .Operation = TOPOLOGY_REGISTER_HUB,
         .Data.Hub = { parentHubDeviceId, deviceId, driverId, portCount, characteristics }
     };
-    _CRT_UNUSED(message);
-    (void)__SubmitCommand(&command);
+    
+    if (!__SubmitCommand(&command)) {
+        command.Status = OS_EBUSY;
+    }
+    sys_usb_register_hub_response(message, command.Status);
 }
 
 void

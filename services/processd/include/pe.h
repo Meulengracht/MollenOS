@@ -42,6 +42,7 @@
 struct PEImageLoadContext {
     uuid_t     Scope;
     uuid_t     MemorySpace;
+    uuid_t     SecurityGroupID;
     uintptr_t  LoadAddress;
     char*      Paths;
     mstring_t* RootModule;
@@ -49,9 +50,7 @@ struct PEImageLoadContext {
     // IDBitmap is a bitmap tracking used loader IDs.
     uint8_t IDBitmap[PROCESS_MAXMODULES/sizeof(uint8_t)];
 
-    // ModuleMap is the map of loaded modules for
-    // this process context. It's constructed with the following
-    // format: <string, ModuleMapEntry>
+    // Loaded modules indexed by name: <string, ModuleMapEntry>.
     hashtable_t ModuleMap;
 };
 
@@ -228,8 +227,7 @@ PEModuleEntryPoints(
         _Out_ int*                       moduleCountOut);
 
 /**
- * @brief Validates a file-buffer of the given length, does initial header checks and
- * performs a checksum validation.
+ * @brief Checks the image headers and checksum in a file buffer of the given length.
  * @param buffer
  * @param length
  * @param checksumOut

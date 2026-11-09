@@ -20,7 +20,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeRead(uuid_t fileHandle, uuid_t bufferHandle, size_t offset, size_t length, size_t* readOut)
+oserr_t VFSNodeRead(uuid_t fileHandle, const SHMTransfer_t* transfer, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
@@ -43,10 +43,7 @@ oserr_t VFSNodeRead(uuid_t fileHandle, uuid_t bufferHandle, size_t offset, size_
     usched_rwlock_r_lock(&handle->Node->Lock);
     oserr = nodeVfs->Interface->Operations.Read(
             nodeVfs->Interface, nodeVfs->Data, handle->Data,
-            bufferHandle,
-            NULL, /* No buffer can be supplied on this code path */
-            offset,
-            length,
+            transfer,
             readOut);
     usched_rwlock_r_unlock(&handle->Node->Lock);
     if (oserr == OS_EOK) {
@@ -59,7 +56,7 @@ cleanup:
     return oserr;
 }
 
-oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* readOut)
+oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, const SHMTransfer_t* transfer, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
@@ -80,7 +77,6 @@ oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHa
 
     nodeVfs = handle->Node->FileSystem;
 
-            NULL, /* No buffer can be supplied on this code path */
     usched_rwlock_r_lock(&handle->Node->Lock);
     oserr = nodeVfs->Interface->Operations.Seek(
             nodeVfs->Interface,
@@ -98,9 +94,8 @@ oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHa
             nodeVfs->Interface,
             nodeVfs->Data,
             handle->Data,
-            bufferHandle,
-            NULL, /* No buffer can be supplied on this code path */
-            offset, length, readOut
+            transfer,
+            readOut
     );
     if (oserr == OS_EOK) {
         handle->Mode     = MODE_READ;

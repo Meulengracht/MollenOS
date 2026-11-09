@@ -97,10 +97,12 @@ PciDescribeBar(
     }
     
     bar->CpuAddress = address;
-    if (host->Operations->Translate != NULL) {
-        oserr = host->Operations->Translate(
-            host,
+    if (host->Resources.Present) {
+        oserr = __PciTranslateWindow(
+            host->Resources.Windows,
+            host->Resources.Count,
             space,
+            attributes,
             address,
             size,
             &bar->CpuAddress

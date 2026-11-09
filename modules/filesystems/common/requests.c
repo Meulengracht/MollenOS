@@ -19,6 +19,7 @@
 
 #include <ioset.h>
 #include <ddk/convert.h>
+#include <ddk/convert/grants.h>
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <os/handle.h>
@@ -249,123 +250,134 @@ FsRead(
 
 static oserr_t
 __MapUserBuffer(
-    _In_  uuid_t       handle,
-    _In_  size_t       offset,
-    _In_  uint64_t     length,
-    _In_  unsigned int access,
-    _Out_ OSHandle_t*  shm)
+    _In_  const struct sys_shm_transfer* description,
+    _In_  unsigned int                  access,
+    _Out_ OSHandle_t*                   shm,
+    _Out_ size_t*                       offset,
+    _Out_ size_t*                       length)
 {
-    size_t  capacity;
-    oserr_t status;
+    SHMTransfer_t transfer;
+    oserr_t       status;
 
-    status = SHMAttach(handle, shm);
+    status = __FromSysSHMTransfer(description, &transfer);
     if (status != OS_EOK) {
         return status;
     }
 
-    // The IPC length must fit in the buffer before we convert it to size_t.
-    // Compare against the remaining capacity to avoid offset + length overflow.
-    capacity = SHMBufferCapacity(shm);
-    if (offset > capacity || length > capacity - offset) {
-        OSHandleDestroy(shm);
-        return OS_EINVALPARAMS;
+    *offset = transfer.RangeMode == SHMTransferRangeFull ? 0 : transfer.RelativeOffset;
+    *length = transfer.RangeMode == SHMTransferRangeFull
+        ? transfer.Token.Options.Data.SHM.Length : transfer.RequestedLength;
+    
+    status = SHMAttachToken(&transfer.Token, shm);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Map from zero. Filesystem helpers add the offset when copying data,
-    // and storage requests use the same offset with the caller's buffer ID.
-    // The storage driver handles device address limits and alignment through DMA.
-    status = SHMMap(shm, 0, offset + (size_t)length, access);
+
+    // Map from the start of the token range. The filesystem helpers use offsets
+    // relative to the token, both when copying data and when passing the buffer
+    // on to the storage driver.
+    status = SHMMap(shm, 0, *offset + *length, access);
     if (status != OS_EOK) {
         OSHandleDestroy(shm);
     }
     return status;
 }
 
-void ctt_filesystem_read_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx,
-        const struct ctt_fs_transfer_params* params)
+void
+ctt_filesystem_read_invocation(
+    _In_ struct gracht_message*               message,
+    _In_ uintptr_t                            fsctx,
+    _In_ uintptr_t                            fctx,
+    _In_ const struct ctt_fs_transfer_params* params)
 {
-    oserr_t    oserr;
     OSHandle_t shm;
-    size_t     read = 0;
-    TRACE("ctt_filesystem_read_invocation()");
+    size_t     offset;
+    size_t     length;
+    size_t     completed = 0;
+    oserr_t    status;
 
-    // Return before mapping or changing the file position for an empty request.
-    if (params->count == 0) {
-        ctt_filesystem_read_response(message, OS_EOK, 0);
+    status = __MapUserBuffer(
+        &params->buffer,
+        SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+        &shm,
+        &offset,
+        &length
+    );
+    if (status != OS_EOK) {
+        ctt_filesystem_read_response(message, status, 0);
         return;
     }
 
-    oserr = __MapUserBuffer(
-            params->buffer_id,
-            (size_t)params->offset,
-            params->count,
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-            &shm
+    status = FsRead(
+        (void*)fsctx,
+        (void*)fctx,
+        shm.ID,
+        SHMBuffer(&shm),
+        offset,
+        length,
+        &completed
     );
-    if (oserr != OS_EOK) {
-        ctt_filesystem_read_response(message, oserr, 0);
-        return;
+    if (completed > length) {
+        status = OS_EPROTOCOL;
+        completed = 0;
     }
 
-    oserr = FsRead(
-            (void*)fsctx,
-            (void*)fctx,
-            shm.ID,
-            SHMBuffer(&shm),
-            (size_t)params->offset,
-            (size_t)params->count,
-            &read
-    );
-    ctt_filesystem_read_response(message, oserr, read);
     OSHandleDestroy(&shm);
+    ctt_filesystem_read_response(message, status, completed);
 }
 
 extern oserr_t
 FsWrite(
-        _In_  void*   instanceData,
-        _In_  void*   data,
-        _In_  uuid_t  bufferHandle,
-        _In_  void*   buffer,
-        _In_  size_t  bufferOffset,
-        _In_  size_t  unitCount,
-        _Out_ size_t* unitsWritten);
+    _In_  void*   instanceData,
+    _In_  void*   data,
+    _In_  uuid_t  bufferHandle,
+    _In_  void*   buffer,
+    _In_  size_t  bufferOffset,
+    _In_  size_t  unitCount,
+    _Out_ size_t* unitsWritten);
 
-void ctt_filesystem_write_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const struct ctt_fs_transfer_params* params)
+void
+ctt_filesystem_write_invocation(
+    _In_ struct gracht_message*               message,
+    _In_ uintptr_t                            fsctx,
+    _In_ uintptr_t                            fctx,
+    _In_ const struct ctt_fs_transfer_params* params)
 {
-    oserr_t    oserr;
     OSHandle_t shm;
-    size_t     written = 0;
-    TRACE("ctt_filesystem_write_invocation()");
+    size_t     offset;
+    size_t     length;
+    size_t     completed = 0;
+    oserr_t    status;
 
-    // Return before mapping or changing the file position for an empty request.
-    if (params->count == 0) {
-        ctt_filesystem_write_response(message, OS_EOK, 0);
+    status = __MapUserBuffer(
+        &params->buffer,
+        SHM_ACCESS_READ,
+        &shm,
+        &offset,
+        &length
+    );
+    if (status != OS_EOK) {
+        ctt_filesystem_write_response(message, status, 0);
         return;
     }
 
-    oserr = __MapUserBuffer(
-            params->buffer_id,
-            (size_t)params->offset,
-            params->count,
-            SHM_ACCESS_READ,
-            &shm
+    status = FsWrite(
+        (void*)fsctx,
+        (void*)fctx,
+        shm.ID,
+        SHMBuffer(&shm),
+        offset,
+        length,
+        &completed
     );
-    if (oserr != OS_EOK) {
-        ctt_filesystem_write_response(message, oserr, 0);
-        return;
+    if (completed > length) {
+        status = OS_EPROTOCOL;
+        completed = 0;
     }
 
-    oserr = FsWrite(
-            (void*)fsctx,
-            (void*)fctx,
-            shm.ID,
-            SHMBuffer(&shm),
-            (size_t)params->offset,
-            (size_t)params->count,
-            &written
-    );
-    ctt_filesystem_write_response(message, oserr, written);
     OSHandleDestroy(&shm);
+    ctt_filesystem_write_response(message, status, completed);
 }
 
 extern oserr_t

@@ -40,7 +40,7 @@ OSSystemLog(
     // During early startup phase, the syslog service has not yet
     // started up and migrated logs, and we resort to the kernel log
     // which only outputs on serial.
-    if (msg.address.Data.Handle == UUID_INVALID) {
+    if (msg.address.Data.GlobalHandleID == UUID_INVALID) {
         (void)Syscall_Debug(level, &buffer[0]);
         return;
     }

@@ -26,9 +26,7 @@
 
 #include <ddk/ddkdefs.h>
 
-/* Values for description table header signatures for tables defined in this
- * file. Useful because they make it more difficult to inadvertently type in
- * the wrong signature. */
+// ACPI table definitions and signature constants.
 #ifndef __ACPI_EXCLUDE_TABLES
 #include <ddk/acpi/acsetup.h>
 #include <ddk/acpi/actypes.h>
@@ -38,10 +36,11 @@
 #include <ddk/acpi/actbl3.h>
 #endif
 
-/* The ACPI system descriptor structure
- * It contains basic information about the
- * acpi-availability on the current system
- * together with a small subset of frequently used data */
+#include <ddk/pci/acpi.h>
+
+/**
+ * @brief ACPI version, RTC century register and boot flags for this system.
+ */
 typedef struct AcpiDescriptor {
 	uint8_t			Version;		/* Version of the ACPI on the current platform */
 	uint8_t			Century;		/* Index to century in RTC CMOS RAM */
@@ -49,8 +48,7 @@ typedef struct AcpiDescriptor {
 	uint16_t		ArmBootFlags;	/* ARM-Specific Boot Flags (ACPI 5.1) */
 } AcpiDescriptor_t;
 
-/* Version definitions for the version field
- * in the above structure */
+// Values for AcpiDescriptor.Version.
 #define ACPI_VERSION_1_0			(0x10)
 #define ACPI_VERSION_2_0			(0x20)
 #define ACPI_VERSION_3_0			(0x30)
@@ -73,22 +71,24 @@ typedef struct AcpiDescriptor {
 #define ACPI_ARM_PSCI_COMPLIANT		(1)         /* 00: [V5+] PSCI 0.2+ is implemented */
 #define ACPI_ARM_PSCI_USE_HVC		(1<<1)      /* 01: [V5+] HVC must be used instead of SMC as the PSCI conduit */
 
-/* AcpiQueryStatus
- * Queries basic acpi information and returns either OS_EOK
- * or OS_EUNKNOWN if Acpi is not supported on the running platform */
+/**
+ * @brief Gets the ACPI version and boot information for this system.
+ *
+ * @param AcpiDescriptor Receives the system's ACPI information.
+ * @return OS_EOK on success, OS_ENOTSUPPORTED if ACPI is unavailable, or an error
+ *         from the firmware query.
+ */
 DDKDECL(oserr_t, AcpiQueryStatus(AcpiDescriptor_t * AcpiDescriptor));
 
-/* AcpiQueryTable
- * Queries the full table information of the table that matches
- * the given signature, and copies the information to the supplied pointer
- * the buffer is automatically allocated, and should be cleaned up afterwards  */
+/**
+ * @brief Copies the ACPI table with the given signature into an allocated buffer.
+ * The caller must free the buffer after use.
+ *
+ * @param signature The four-character table signature, followed by a null byte.
+ * @param tableOut Receives the allocated table on success.
+ * @return OS_EOK on success, or an error if the table cannot be read or allocated.
+ */
 DDKDECL(oserr_t, AcpiQueryTable(const char*signature, ACPI_TABLE_HEADER **tableOut));
 
-/* AcpiQueryInterrupt
- * Queries the interrupt-line for the given bus, device and
- * pin combination. The pin must be zero indexed. Conform flags
- * are returned in the <AcpiConform> */
-DDKDECL(oserr_t, AcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin,
-	int *Interrupt, unsigned int *AcpiConform));
 
 #endif //!_ACPI_INTEFACE_H_

@@ -30,6 +30,7 @@
 #include <gracht/link/vali.h>
 #include <inet/socket.h>
 
+struct sys_shm_transfer;
 typedef struct Socket Socket_t;
 typedef struct SocketDescriptor SocketDescriptor_t;
 
@@ -44,71 +45,76 @@ NetworkManagerInitialize(void);
 
 oserr_t
 NetworkManagerSocketCreate(
-        _In_  int     Domain,
-        _In_  int     Type,
-        _In_  int     Protocol,
-        _Out_ uuid_t* HandleOut,
-        _Out_ uuid_t* SendBufferHandleOut,
-        _Out_ uuid_t* RecvBufferHandleOut);
+    _In_  int                      Domain,
+    _In_  int                      Type,
+    _In_  int                      Protocol,
+    _Out_ uuid_t*                  HandleOut,
+    _Out_ struct sys_shm_transfer* RecvBufferOut,
+    _Out_ struct sys_shm_transfer* SendBufferOut);
 
 oserr_t
 NetworkManagerSocketShutdown(
-        _In_ uuid_t Handle,
-        _In_ int    Options);
+    _In_ uuid_t Handle,
+    _In_ int    Options);
 
 oserr_t
 NetworkManagerSocketBind(
-        _In_ uuid_t                 Handle,
-        _In_ const struct sockaddr* Address);
+    _In_ uuid_t                 Handle,
+    _In_ const struct sockaddr* Address);
 
 oserr_t
 NetworkManagerSocketConnect(
-        _In_ struct gracht_message* message,
-        _In_ uuid_t                 handle,
-        _In_ const struct sockaddr* address);
+    _In_ struct gracht_message* message,
+    _In_ uuid_t                 handle,
+    _In_ const struct sockaddr* address);
 
 oserr_t
 NetworkManagerSocketAccept(
-        _In_ struct gracht_message* message,
-        _In_ uuid_t                 handle);
+    _In_ struct gracht_message* message,
+    _In_ uuid_t                 handle);
 
 oserr_t
 NetworkManagerSocketPair(
-        _In_ uuid_t Handle1,
-        _In_ uuid_t Handle2);
+    _In_ uuid_t Handle1,
+    _In_ uuid_t Handle2);
 
 oserr_t
 NetworkManagerSocketListen(
-        _In_ uuid_t Handle,
-        _In_ int    ConnectionCount);
+    _In_ uuid_t Handle,
+    _In_ int    ConnectionCount);
 
 oserr_t
 NetworkManagerSocketSetOption(
-        _In_ uuid_t           Handle,
-        _In_ int              Protocol,
-        _In_ unsigned int     Option,
-        _In_ const void*      Data,
-        _In_ socklen_t        DataLength);
+    _In_ uuid_t           Handle,
+    _In_ int              Protocol,
+    _In_ unsigned int     Option,
+    _In_ const void*      Data,
+    _In_ socklen_t        DataLength);
 
 oserr_t
 NetworkManagerSocketGetOption(
-        _In_  uuid_t           Handle,
-        _In_  int              Protocol,
-        _In_  unsigned int     Option,
-        _In_  void*            Data,
-        _Out_ socklen_t*       DataLengthOut);
+    _In_  uuid_t           Handle,
+    _In_  int              Protocol,
+    _In_  unsigned int     Option,
+    _In_  void*            Data,
+    _Out_ socklen_t*       DataLengthOut);
 
 oserr_t
 NetworkManagerSocketGetAddress(
-        _In_ uuid_t           Handle,
-        _In_ int              Source,
-        _In_ struct sockaddr* Address);
+    _In_ uuid_t           Handle,
+    _In_ int              Source,
+    _In_ struct sockaddr* Address);
 
-// Internal domain API: caller must be inside a serialized manager operation.
-// The returned pointer (including peers) is borrowed until that operation ends.
-// Never retain it in deferred work; retain the handle and look it up again.
+/**
+ * @brief Finds a socket while the caller holds the manager execution lock.
+ * The pointer, including any peer pointers, is valid only until the operation
+ * ends. Deferred work must save the handle and look up the socket again.
+ *
+ * @param Handle The socket handle to look up.
+ * @return The socket, or NULL if the handle is not registered.
+ */
 Socket_t*
 NetworkManagerSocketGetUnsafe(
-        _In_ uuid_t Handle);
+    _In_ uuid_t Handle);
 
 #endif //!__NET_MANAGER_H__

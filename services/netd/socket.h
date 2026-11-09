@@ -33,6 +33,7 @@
 #include <inet/socket.h>
 #include <os/types/handle.h>
 #include <os/types/shm.h>
+#include <os/types/grants.h>
 
 #define SOCKET_DEFAULT_BUFFER_SIZE (16 * 4096)
 #define SOCKET_SYSMAX_BUFFER_SIZE  (256 * 4096)
@@ -54,6 +55,7 @@ typedef struct QueuedPacket {
 
 typedef struct SocketPipe {
     OSHandle_t      SHM;
+    SHMTransfer_t   Transfer;
     streambuffer_t* Stream;
 } SocketPipe_t;
 
@@ -78,7 +80,7 @@ typedef struct Socket {
     SocketPipe_t          Receive;
     QueuedPacket_t        QueuedPacket;
     
-    // Intrusive scheduling: at most one runnable or receive-credit wait entry.
+    // A socket can be queued once, for work or to wait for receive space.
     SocketWorkQueue_t*    WorkQueue;
     struct Socket*        WorkPrevious;
     struct Socket*        WorkNext;
@@ -91,9 +93,15 @@ typedef struct Socket {
 // Implementation entry points require the manager socket execution lock.
 // This protects socket and domain lifetimes in addition to per-socket state.
 
-/* SocketCreateImpl
- * Creates and initializes a new socket of default options. The socket
- * will be assigned an temporary address, and resource will be allocated. */
+/**
+ * @brief Creates a socket with default options, buffers and a temporary address.
+ *
+ * @param Domain The socket domain.
+ * @param Type The socket type.
+ * @param Protocol The protocol within the domain.
+ * @param SocketOut Receives the socket on success.
+ * @return OS_EOK on success, or an error from socket setup.
+ */
 oserr_t
 SocketCreateImpl(
     _In_  int              Domain,
@@ -101,26 +109,42 @@ SocketCreateImpl(
     _In_  int              Protocol,
     _Out_ Socket_t**       SocketOut);
 
-/* SocketShutdownImpl
- * Shutsdown or closes certain aspects (or all) of a socket. This will also
- * close down any active connections, and notify of disconnect. */
+/**
+ * @brief Disconnects and frees a socket when Options is SYS_CLOSE_OPTIONS_DESTROY.
+ * Closing only the read or write side is not supported yet.
+ *
+ * @param Socket The socket to close.
+ * @param Options The requested close operation.
+ * @return OS_EOK if destroyed, OS_ENOTSUPPORTED for a partial close, or
+ *         OS_EINVALPARAMS if Options is invalid.
+ */
 oserr_t
 SocketShutdownImpl(
     _In_ Socket_t* Socket,
     _In_ int       Options);
 
-/* SocketListenImpl
- * Marks the socket as passive, and enables the use of accept operation. The
- * ConnectionCount parameter controls the number of connection requests that can
- * be queued up. */
+/**
+ * @brief Marks a socket as passive so it can accept connections.
+ *
+ * @param Socket The socket to listen on.
+ * @param ConnectionCount Maximum queued connection requests. Must be nonnegative.
+ * @return OS_EOK on success, or OS_EINVALPARAMS if ConnectionCount is negative.
+ */
 oserr_t
 SocketListenImpl(
     _In_ Socket_t* Socket,
     _In_ int       ConnectionCount);
 
-/* SetSocketOptionImpl
- * Sets the option given for the protocol given. The option data and length must
- * be specified. */
+/**
+ * @brief Sets a protocol option. Not implemented yet.
+ *
+ * @param Socket The socket to configure.
+ * @param Protocol The protocol the option belongs to.
+ * @param Option The option to set.
+ * @param Data The option value.
+ * @param DataLength Number of bytes in Data.
+ * @return OS_ENOTSUPPORTED.
+ */
 oserr_t
 SetSocketOptionImpl(
     _In_ Socket_t*        Socket,
@@ -129,9 +153,16 @@ SetSocketOptionImpl(
     _In_ const void*      Data,
     _In_ socklen_t        DataLength);
 
-/* GetSocketOptionImpl
- * Retrieves the option of the specified protocol for the socket handle given. The
- * data will be returned in the provided buffer, and the length specified. */
+/**
+ * @brief Reads a protocol option. Not implemented yet.
+ *
+ * @param Socket The socket to query.
+ * @param Protocol The protocol the option belongs to.
+ * @param Option The option to read.
+ * @param Data Buffer for the option value.
+ * @param DataLengthOut Receives the value's length when supported.
+ * @return OS_ENOTSUPPORTED. The output arguments are unchanged.
+ */
 oserr_t
 GetSocketOptionImpl(
     _In_ Socket_t*         Socket,

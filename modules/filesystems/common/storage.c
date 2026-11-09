@@ -23,63 +23,13 @@
 #include <fs/common.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
+#include <internal/_storage.h>
 #include <os/services/process.h>
+#include <os/services/file.h>
 #include <stdio.h>
 
 #include <ctt_storage_service_client.h>
 #include <sys_file_service_client.h>
-
-static oserr_t
-__ReadDevice(
-        _In_  uuid_t        driverID,
-        _In_  uuid_t        deviceID,
-        _In_  uuid_t        buffer,
-        _In_  size_t        offset,
-        _In_  UInteger64_t* sector,
-        _In_  size_t        count,
-        _Out_ size_t*       read)
-{
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(driverID);
-    oserr_t                  status;
-    TRACE("__ReadDevice(dev=0x%x,drv=0x%x,bufID=0x%x)", deviceID, driverID, buffer);
-    TRACE("__ReadDevice: offset=0x%llx, sector=0x%llx, count=0x%llx", offset, sector->QuadPart, count);
-
-    ctt_storage_transfer(
-            GetGrachtClient(), &msg.base,
-            deviceID, SYS_TRANSFER_DIRECTION_READ,
-            sector->u.LowPart, sector->u.HighPart,
-            buffer, offset, count
-    );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, read);
-    return status;
-}
-
-static oserr_t
-__WriteDevice(
-        _In_  uuid_t        driverID,
-        _In_  uuid_t        deviceID,
-        _In_  uuid_t        buffer,
-        _In_  size_t        offset,
-        _In_  UInteger64_t* sector,
-        _In_  size_t        count,
-        _Out_ size_t*       written)
-{
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(driverID);
-    oserr_t                  status;
-    TRACE("__WriteDevice(dev=0x%x,drv=0x%x,bufID=0x%x)", deviceID, driverID, buffer);
-    TRACE("__WriteDevice: offset=0x%llx, sector=0x%llx, count=0x%llx", offset, sector->QuadPart, count);
-
-    ctt_storage_transfer(
-            GetGrachtClient(), &msg.base,
-            deviceID, SYS_TRANSFER_DIRECTION_WRITE,
-            sector->u.LowPart, sector->u.HighPart,
-            buffer, offset, count
-    );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, written);
-    return status;
-}
 
 static oserr_t
 __StatDevice(
@@ -91,9 +41,19 @@ __StatDevice(
     oserr_t                    osStatus;
     struct sys_disk_descriptor gdescriptor;
 
-    ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
+    if (ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID) != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
+        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
+        gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+
+    if (ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor) != 0) {
+        return OS_EPROTOCOL;
+    }
     if (osStatus == OS_EOK) {
         from_sys_disk_descriptor_dkk(&gdescriptor, stats);
     }
@@ -102,75 +62,71 @@ __StatDevice(
 
 static oserr_t
 __ReadFile(
-        _In_  uuid_t        handleID,
-        _In_  uuid_t        buffer,
-        _In_  size_t        offset,
-        _In_  UInteger64_t* sector,
-        _In_  size_t        count,
-        _Out_ size_t*       read)
+    _In_  uuid_t        handleID,
+    _In_  uuid_t        buffer,
+    _In_  size_t        offset,
+    _In_  UInteger64_t* sector,
+    _In_  size_t        count,
+    _Out_ size_t*       completed)
 {
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                  status;
-    UInteger64_t             seek = { .QuadPart = sector->QuadPart };
-    size_t                   transferred;
+    UInteger64_t position;
+    size_t       bytes = 0;
+    oserr_t      status;
 
-    // File storage uses 512-byte sectors.
-    seek.QuadPart *= 512;
-    sys_file_transfer_absolute(
-            GetGrachtClient(),
-            &msg.base,
-            OSProcessCurrentID(),
-            handleID,
-            SYS_TRANSFER_DIRECTION_READ,
-            seek.u.LowPart,
-            seek.u.HighPart,
-            buffer,
-            offset,
-            count*512
+    // reset the result in any case
+    *completed = 0;
+
+    if (sector->QuadPart > UINT64_MAX / 512 || count > SIZE_MAX / 512) {
+        return OS_EINVALPARAMS;
+    }
+
+    position.QuadPart = sector->QuadPart * 512;
+    
+    status = OSTransferFileAt(
+        handleID,
+        &position,
+        buffer,
+        offset,
+        false,
+        count * 512,
+        &bytes
     );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &status, &transferred);
-
-    // convert result from bytes to sectors
-    transferred /= 512;
-    *read = transferred;
+    *completed = bytes / 512;
     return status;
 }
 
 static oserr_t
 __WriteFile(
-        _In_  uuid_t        handleID,
-        _In_  uuid_t        buffer,
-        _In_  size_t        offset,
-        _In_  UInteger64_t* sector,
-        _In_  size_t        count,
-        _Out_ size_t*       written)
+    _In_  uuid_t        handleID,
+    _In_  uuid_t        buffer,
+    _In_  size_t        offset,
+    _In_  UInteger64_t* sector,
+    _In_  size_t        count,
+    _Out_ size_t*       completed)
 {
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                  status;
-    UInteger64_t             seek = { .QuadPart = sector->QuadPart };
-    size_t                   transferred;
+    UInteger64_t position;
+    size_t       bytes = 0;
+    oserr_t      status;
 
-    // File storage uses 512-byte sectors.
-    seek.QuadPart *= 512;
-    sys_file_transfer_absolute(
-            GetGrachtClient(),
-            &msg.base,
-            OSProcessCurrentID(),
-            handleID,
-            SYS_TRANSFER_DIRECTION_WRITE,
-            seek.u.LowPart,
-            seek.u.HighPart,
-            buffer,
-            offset,
-            count*512
+    // reset the result in any case
+    *completed = 0;
+
+    if (sector->QuadPart > UINT64_MAX / 512 || count > SIZE_MAX / 512) {
+        return OS_EINVALPARAMS;
+    }
+
+    position.QuadPart = sector->QuadPart * 512;
+
+    status = OSTransferFileAt(
+        handleID,
+        &position,
+        buffer,
+        offset,
+        true,
+        count * 512,
+        &bytes
     );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &status, &transferred);
-
-    // convert result from bytes to sectors
-    transferred /= 512;
-    *written = transferred;
+    *completed = bytes / 512;
     return status;
 }
 
@@ -183,14 +139,24 @@ __StatFile(
     oserr_t                    osStatus;
     struct sys_file_descriptor fstats;
 
-    sys_file_fstat(
+    if (sys_file_fstat(
             GetGrachtClient(),
             &msg.base,
             OSProcessCurrentID(),
             handleID
-    );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_fstat_result(GetGrachtClient(), &msg.base, &osStatus, &fstats);
+    ) != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
+        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
+        gracht_client_abandon(GetGrachtClient(), &msg.base);
+        return OS_EUNKNOWN;
+    }
+
+    if (sys_file_fstat_result(GetGrachtClient(), &msg.base, &osStatus, &fstats) != 0) {
+        return OS_EPROTOCOL;
+    }
     if (osStatus != OS_EOK) {
         return osStatus;
     }
@@ -225,15 +191,23 @@ FSStorageRead(
         _In_  size_t                       count,
         _Out_ size_t*                      read)
 {
+    // reset the result in any case
+    *read = 0;
+
+    if (sector->QuadPart > UINT64_MAX - storageParameters->SectorStart.QuadPart) {
+        return OS_EINVALPARAMS;
+    }
+
+
     switch (storageParameters->StorageType) {
         case VFSSTORAGE_TYPE_DEVICE: {
-            return __ReadDevice(
+            return __StorageTransfer(
                     storageParameters->Storage.Device.DriverID,
                     storageParameters->Storage.Device.DeviceID,
                     buffer,
                     offset,
                     &(UInteger64_t) { .QuadPart = storageParameters->SectorStart.QuadPart + sector->QuadPart },
-                    count,
+                    storageParameters->SectorSize, count, false,
                     read
             );
         } break;
@@ -242,7 +216,7 @@ FSStorageRead(
                     storageParameters->Storage.File.HandleID,
                     buffer,
                     offset,
-                    sector,
+                    &(UInteger64_t) { .QuadPart = storageParameters->SectorStart.QuadPart + sector->QuadPart },
                     count,
                     read
             );
@@ -260,15 +234,23 @@ FSStorageWrite(
         _In_  size_t                       count,
         _Out_ size_t*                      written)
 {
+    // reset the result in any case
+    *written = 0;
+
+    if (sector->QuadPart > UINT64_MAX - storageParameters->SectorStart.QuadPart) {
+        return OS_EINVALPARAMS;
+    }
+
+
     switch (storageParameters->StorageType) {
         case VFSSTORAGE_TYPE_DEVICE: {
-            return __WriteDevice(
+            return __StorageTransfer(
                     storageParameters->Storage.Device.DriverID,
                     storageParameters->Storage.Device.DeviceID,
                     buffer,
                     offset,
                     &(UInteger64_t) { .QuadPart = storageParameters->SectorStart.QuadPart + sector->QuadPart },
-                    count,
+                    storageParameters->SectorSize, count, true,
                     written
             );
         } break;
@@ -288,25 +270,35 @@ FSStorageWrite(
 
 oserr_t
 FSStorageStat(
-        _In_ struct VFSStorageParameters* storageParameters,
-        _In_ StorageDescriptor_t*         stat)
+    _InOut_ struct VFSStorageParameters* storageParameters,
+    _Out_   StorageDescriptor_t*         stat)
 {
+    oserr_t status;
+
+    storageParameters->SectorSize = 0;
+
     switch (storageParameters->StorageType) {
-        case VFSSTORAGE_TYPE_DEVICE: {
-            return __StatDevice(
-                    storageParameters->Storage.Device.DriverID,
-                    storageParameters->Storage.Device.DeviceID,
-                    stat
+        case VFSSTORAGE_TYPE_DEVICE:
+            status = __StatDevice(
+                storageParameters->Storage.Device.DriverID,
+                storageParameters->Storage.Device.DeviceID,
+                stat
             );
-        } break;
-        case VFSSTORAGE_TYPE_FILE: {
-            return __StatFile(
-                    storageParameters->Storage.File.HandleID,
-                    stat
-            );
-        } break;
+            break;
+        case VFSSTORAGE_TYPE_FILE:
+            status = __StatFile(storageParameters->Storage.File.HandleID, stat);
+            break;
+        default:
+            return OS_ENOTSUPPORTED;
     }
-    return OS_ENOTSUPPORTED;
+    
+    if (status == OS_EOK) {
+        if (stat->SectorSize == 0 || stat->SectorSize > UINT32_MAX) {
+            return OS_EINVALPARAMS;
+        }
+        storageParameters->SectorSize = stat->SectorSize;
+    }
+    return status;
 }
 
 // The file client requires this event handler even though we do not use it.
