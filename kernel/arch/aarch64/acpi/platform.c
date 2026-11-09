@@ -19,16 +19,95 @@
 #define __MODULE "ACPI-ARM64"
 
 #include <arch/acpi.h>
+#include <component/cpu.h>
+#include <component/ic.h>
+#include <machine.h>
 #include <debug.h>
+#include "spcr.h"
+#include "tables.h"
+
+static void
+__PublishCores(
+    _In_ const struct __AcpiPlatformDescription* description)
+{
+    PlatformCpuCoreBlock_t* core;
+    unsigned int            logicalId = 1;
+
+    // Logical core 0 is the CPU we are running on, and its TLS and scheduler
+    // state is already set up. MADT order and ACPI UIDs don't tell which CPU
+    // booted, so it was found by its affinity (BootIndex). The other enabled
+    // CPUs are registered in table order and numbered from 1 without gaps.
+    GetMachine()->Processor.NumberOfCores = description->Count;
+    
+    for (unsigned int i = 0; i < description->Count; i++) {
+        if (i == description->BootIndex) {
+            core = CpuCorePlatformBlock(GetMachine()->Processor.Cores);
+        } else {
+            CpuCoreRegister(&GetMachine()->Processor, logicalId, CpuStateShutdown, 0);
+            core = CpuCorePlatformBlock(GetProcessorCore(logicalId));
+            logicalId++;
+        }
+        core->Affinity = description->Cpus[i].Affinity;
+        core->ReleaseAddress = 0;
+        core->EnableMethod = ARM64_CPU_ENABLE_PSCI;
+    }
+
+    // NUMA (SRAT) and CPU hotplug are not handled yet. For now all enabled
+    // CPUs share one memory domain.
+    SetMachineUmaMode();
+}
 
 oserr_t
 ArchAcpiInitialize(void)
 {
-    // Table discovery alone cannot initialize this platform. ARM MADT entries
-    // must describe the CPUs and GIC, GTDT must describe the timer interrupt,
-    // and FADT must supply the PSCI conduit before later startup can proceed.
-    // Until those consumers are connected, fail here instead of reporting an
-    // empty platform as ready and later accessing zero-valued device addresses.
-    ERROR("ARM64 ACPI platform discovery is not implemented");
-    return OS_ENOTSUPPORTED;
+    struct __AcpiPlatformDescription description = {0};
+    oserr_t                          status;
+
+    // Set up the SPCR console first. It does not depend on the other tables,
+    // so if FADT, MADT or GTDT is rejected below, the error still shows up on
+    // the console.
+    Arm64AcpiInitializeConsole();
+
+    status = Arm64AcpiReadFadt(&description.Platform);
+    if (status != OS_EOK) {
+        ERROR("ARM64 FADT discovery failed: %u", status);
+        return status;
+    }
+
+    status = Arm64AcpiReadMadt(&description);
+    if (status != OS_EOK) {
+        ERROR("ARM64 MADT discovery failed: %u", status);
+        return status;
+    }
+
+    status = Arm64AcpiReadGtdt(&description.Platform);
+    if (status != OS_EOK) {
+        ERROR("ARM64 GTDT discovery failed: %u", status);
+        return status;
+    }
+
+    // All required tables have been checked and released at this point. The
+    // interrupt controller is registered before any CPU records are created,
+    // so a failure here can't leave us with CPUs that have no interrupt
+    // controller. CpuCoreRegister can't return an error. It asserts if the
+    // allocation fails, and the boot stops there.
+    status = CreateInterruptController(
+        description.GicId,
+        0,
+        INTERRUPT_PHYSICAL_END,
+        description.Platform.Distributor
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    description.Platform.Uart = g_arm64Platform.Uart;
+    description.Platform.UartLength = g_arm64Platform.UartLength;
+    
+    g_arm64Platform = description.Platform;
+    __PublishCores(&description);
+    
+    DEBUG("ARM64 ACPI platform: %u CPUs, GICv2, timer PPI %u, PSCI %u",
+        description.Count, description.Platform.TimerInterrupt, description.Platform.PsciConduit);
+    return OS_EOK;
 }

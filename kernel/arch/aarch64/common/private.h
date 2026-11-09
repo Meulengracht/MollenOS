@@ -292,7 +292,7 @@ struct Arm64Platform {
     uint64_t     Uart;
     uint64_t     UartLength;
     unsigned int TimerInterrupt;
-    unsigned int TimerFlags;
+    unsigned int TimerFlags; // INTERRUPT_ACPICONFORM_* flags
     unsigned int PsciConduit;
 };
 

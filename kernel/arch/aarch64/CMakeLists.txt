@@ -11,6 +11,7 @@ set (AARCH64_SOURCES
     common/entry.S
     common/vectors.S
     common/fp.S
+    common/cache.S
     common/exceptions.c
     common/cpu.c
     common/io.c
@@ -40,7 +41,14 @@ else ()
 endif ()
 
 if (VALI_BUILD_FEATURE_ACPI)
-    list(APPEND AARCH64_SOURCES acpi/platform.c)
+    list(APPEND AARCH64_SOURCES acpi/platform.c
+        acpi/memory.c
+        acpi/spcr.c
+        acpi/tables.c
+        acpi/madt.c
+        acpi/gtdt.c
+        acpi/fadt.c
+    )
 endif ()
 
 add_kernel_library(vali-aarch64 "" ${AARCH64_SOURCES})

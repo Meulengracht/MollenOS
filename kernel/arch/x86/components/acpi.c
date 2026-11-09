@@ -28,6 +28,7 @@
 #include <component/cpu.h>
 #include <acpiinterface.h>
 #include <machine.h>
+#include <memoryspace.h>
 #include <heap.h>
 #include <debug.h>
 #include <assert.h>
@@ -498,4 +499,19 @@ ArchAcpiInitialize(void)
     // Return the table reference to ACPICA
     AcpiPutTable(header);
     return status;
+}
+
+oserr_t
+ArchAcpiGetMappingFlags(
+    _In_  uint64_t      physical,
+    _In_  size_t        length,
+    _Out_ unsigned int* flags)
+{
+    (void)physical;
+    (void)length;
+
+    // On x86 we use the non-cacheable mapping for any 
+    // given physical range related to ACPI for now.
+    *flags = MAPPING_NOCACHE;
+    return OS_EOK;
 }

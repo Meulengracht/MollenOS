@@ -144,7 +144,9 @@ PlatformTimersInitialize(void)
     interrupt.Line = g_arm64Platform.TimerInterrupt;
     interrupt.Pin = INTERRUPT_NONE;
     interrupt.Vectors[0] = INTERRUPT_NONE;
-    interrupt.AcpiConform = INTERRUPT_ACPICONFORM_PRESENT | INTERRUPT_ACPICONFORM_TRIGGERMODE;
+    // Both the ACPI and the device-tree code store the timer flags in the
+    // kernel's interrupt flag format.
+    interrupt.AcpiConform = g_arm64Platform.TimerFlags;
     interrupt.ResourceTable.Handler = __TimerInterrupt;
     
     id = InterruptRegister(&interrupt, INTERRUPT_KERNEL | INTERRUPT_EXCLUSIVE);

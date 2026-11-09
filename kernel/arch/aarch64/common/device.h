@@ -22,15 +22,19 @@
 #include <arch/aarch64/arch.h>
 
 /**
- * @brief Maps physical device registers for access by the kernel.
+ * @brief Maps physical device registers so the kernel can access them.
  *
- * Creates a persistent, shared kernel mapping with device memory settings,
- * without user access or instruction execution. Covers the pages containing
- * the requested range and preserves the starting offset within the first page.
+ * Memory initialization must have completed. A range that overlaps RAM in the
+ * identity map is rejected, as the same RAM must never be mapped as both
+ * Normal and Device memory. The mapping is shared, persistent and uses device
+ * memory settings, and it can't be accessed from user mode or executed. All
+ * pages that contain the range are mapped, and the offset into the first page
+ * is kept in the returned address.
  *
- * @param physical Physical address of the first device byte to access.
- * @param length Number of bytes in the device range to map.
- * @return Kernel virtual address of the requested first byte, or zero if mapping fails.
+ * @param physical The physical address of the first device byte to access.
+ * @param length The number of bytes in the device range to map.
+ * @return The kernel virtual address of the first requested byte, or zero if
+ *         the range can't be mapped.
  */
 __EXTERN uintptr_t
 Arm64MapDevice(

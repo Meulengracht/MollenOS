@@ -17,6 +17,7 @@
  */
 
 #include <arch/utils.h>
+#include <ddk/types/interrupt.h>
 #include <arch/output.h>
 #include <component/cpu.h>
 #include <component/ic.h>
@@ -188,7 +189,13 @@ __ReadTimer(
     }
 
     platform->TimerInterrupt = interrupt.Cells[1] + ARM64_GIC_PPI_BASE;
-    platform->TimerFlags = interrupt.Cells[2];
+    // Convert the DT cells to the kernel's interrupt flags, so the timer code
+    // gets the same format as when booting with ACPI. The PPI polarity is
+    // wired by the platform, and the GIC driver never programs it.
+    platform->TimerFlags = INTERRUPT_ACPICONFORM_PRESENT | INTERRUPT_ACPICONFORM_TRIGGERMODE;
+    if (trigger == ARM64_DT_GIC_LEVEL_LOW) {
+        platform->TimerFlags |= INTERRUPT_ACPICONFORM_POLARITY;
+    }
     return OS_EOK;
 }
 

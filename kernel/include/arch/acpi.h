@@ -38,4 +38,27 @@
 __EXTERN oserr_t
 ArchAcpiInitialize(void);
 
+/**
+ * @brief Selects the cache attributes to use when ACPICA maps a physical range.
+ *
+ * Memory initialization must have completed. The range must not be empty, must
+ * be page aligned, and the OSL must already have checked it for overflow. Only
+ * cache and device flags are returned, and the OSL adds the allocation and
+ * lifetime flags itself. If this fails, the range must be left unmapped.
+ *
+ * On ARM64, only RAM from the boot identity map that has the same cache
+ * settings across the whole range is accepted for now. AML that accesses MMIO
+ * in general needs its own rules before it can go through here.
+ *
+ * @param physical The physical address of the first page.
+ * @param length The number of bytes, rounded up to whole pages.
+ * @param flags Receives the MAPPING_* cache flags for this architecture.
+ * @return OS_EOK, or an error if the range can't be mapped safely.
+ */
+__EXTERN oserr_t
+ArchAcpiGetMappingFlags(
+    _In_  uint64_t      physical,
+    _In_  size_t        length,
+    _Out_ unsigned int* flags);
+
 #endif //!__VALI_ARCH_ACPI_H__

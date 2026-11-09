@@ -23,6 +23,14 @@
 
 static BootTerminal_t     g_terminal;
 static volatile uint32_t* g_uart;
+static int                g_uartStalled;
+
+// There is no timer or scheduler yet when the early console is set up, so
+// polling is limited by a number of attempts instead of by time. The limit
+// only makes sure we can't hang forever, and it does not match any specific
+// amount of time. Once a write gives up, output is turned off, so we don't
+// wait the same amount of time again for every byte left in the boot log.
+#define UART_TX_POLL_LIMIT 1000000U
 
 oserr_t
 SerialPortInitialize(void)
@@ -51,18 +59,34 @@ void
 SerialPutCharacter(
     _In_ int character)
 {
-    if (!g_uart) {
+    unsigned int attempts;
+
+    // The kernel log holds its lock while it writes to us. So a transmit
+    // failure can't be logged from here, as that would enter the log again
+    // with its lock already held.
+    if (!g_uart || g_uartStalled) {
         return;
     }
 
     // Serial terminals need a carriage return to start the next line at column zero.
     if (character == '\n') {
         SerialPutCharacter('\r');
+        if (g_uartStalled) {
+            return;
+        }
     }
     
     // Do not write DR until FR.TXFF clears: a full FIFO cannot accept a byte.
-    while (g_uart[ARM64_UART_FLAGS / ARM64_MMIO_REGISTER_SIZE] & ARM64_UART_TX_FULL) {
+    for (attempts = 0; attempts < UART_TX_POLL_LIMIT; attempts++) {
+        if (!(g_uart[ARM64_UART_FLAGS / ARM64_MMIO_REGISTER_SIZE] & ARM64_UART_TX_FULL)) {
+            break;
+        }
         __asm__ volatile("yield");
+    }
+    
+    if (attempts == UART_TX_POLL_LIMIT) {
+        g_uartStalled = 1;
+        return;
     }
     
     g_uart[ARM64_UART_DATA / ARM64_MMIO_REGISTER_SIZE] = (unsigned char)character;

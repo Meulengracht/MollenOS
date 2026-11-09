@@ -17,6 +17,12 @@
  */
 
 #include "platform.h"
+#include "private.h"
+
+// The ACPI code fills this in once all the required tables have been checked.
+// Only the UART fields are set earlier, when the SPCR console is set up. RPi
+// builds use devicetree/platform.c instead, which defines its own copy.
+struct Arm64Platform g_arm64Platform;
 
 oserr_t
 Arm64PlatformInterruptInitialize(
