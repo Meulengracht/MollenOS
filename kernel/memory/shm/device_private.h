@@ -19,13 +19,16 @@
 #define __MS_SHM_DEVICE_PRIVATE_H__
 
 #include <shm/device.h>
+#include <dma/address.h>
 #include <mutex.h>
 #include <stdatomic.h>
 
 /**
- * @brief Device address rules, reference count and mappings awaiting a hardware stop.
- * CachePolicy, AddressLimit, Count and Ranges are fixed after creation.
- * QuarantineLock protects the list managed by the mapping lifecycle code.
+ * @brief Device address rules, cache policy and mappings waiting for cleanup.
+ *
+ * CachePolicy, AddressLimit and AddressSpace are fixed after creation.
+ * Quarantine holds mappings that need a confirmed device stop or another
+ * release attempt. QuarantineLock protects that list.
  */
 struct SHMDeviceContext {
     _Atomic(unsigned int)     References;
@@ -33,28 +36,27 @@ struct SHMDeviceContext {
     struct SHMDeviceMapping*  Quarantine;
     enum SHMDeviceCachePolicy CachePolicy;
     uint64_t                  AddressLimit;
-    uint32_t                  Count;
-    struct SHMDeviceRange     Ranges[];
+    struct DMAAddressSpace*   AddressSpace;
 };
 
 /**
- * @brief Translates physical extents and counts or writes the joined device segments.
+ * @brief Convert physical byte ranges into a count or list of device segments.
  *
- * The caller must hold a context reference throughout the call. Extents must
- * contain at least one entry. The mapping caller must validate requirements
- * before calling.
- * Before writing, count with the same extents and requirements and provide
- * room for every segment. Keep those inputs unchanged between the two calls.
+ * Hold a context reference until the call returns. The caller must check
+ * requirements before calling. First count the segments, then provide enough
+ * room for every entry. Keep extents and requirements unchanged while counting
+ * and filling.
  *
  * @param context Valid context with fixed address rules.
- * @param extents Physical bytes in buffer order.
- * @param extentCount Number of extents, at least one.
- * @param requirements Optional alignment constraints on completed segments.
+ * @param extents Physical byte ranges in buffer order.
+ * @param extentCount Number of entries in extents, at least one.
+ * @param requirements Optional alignment requirements for completed segments.
  * @param segmentsOut NULL to count only, otherwise room for every segment.
  * @param countOut Receives the number of segments on success.
- * @return OS_EOK on success. OS_EINVALPARAMS for an empty or wrapping extent.
- *         OS_ENOENT for unreachable bytes. OS_ENOTSUPPORTED for unmet alignment
- *         or a segment count that does not fit. A failed write may be partial.
+ * @return OS_EOK on success. OS_EINVALPARAMS for an empty or overflowing range.
+ *         OS_ENOENT if a byte has no device address. OS_ENOTSUPPORTED for unmet
+ *         alignment or a segment count that does not fit in uint32_t.
+ *         Discard partial output on failure.
  */
 oserr_t
 SHMDeviceContextWalkSegments(

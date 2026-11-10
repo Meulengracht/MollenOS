@@ -21,6 +21,8 @@
 #include <os/osdefs.h>
 #include <os/types/shm.h>
 
+#define DMA_MAX_RANGES 64
+
 // Which way data moves during a transfer. Cache handling and bounce copies use
 // this to skip work that cannot matter for that direction.
 enum DMADirection {
@@ -75,6 +77,25 @@ struct DMARequirements {
     uint64_t Boundary;
     // The device must see the whole allocation as a single segment.
     bool     Contiguous;
+};
+
+enum SHMDeviceCachePolicy {
+    SHMDeviceCacheUnknown,
+    SHMDeviceCacheNonCoherent,
+    SHMDeviceCacheCoherent
+};
+
+struct SHMDeviceRange {
+    uint64_t PhysicalBase;
+    uint64_t DeviceBase;
+    uint64_t Length;
+};
+
+struct OSDmaConfiguration {
+    uint64_t                  Session;
+    uint32_t                  Count;
+    enum SHMDeviceCachePolicy CachePolicy;
+    struct SHMDeviceRange     Ranges[DMA_MAX_RANGES];
 };
 
 #endif //!__OS_TYPES_DMA_H__

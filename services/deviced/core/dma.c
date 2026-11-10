@@ -20,7 +20,6 @@
 
 #include <ddk/utils.h>
 #include <os/types/dma.h>
-#include <os/types/dma_config.h>
 #include <os/types/device.h>
 #include <os/usched/mutex.h>
 #include <stdlib.h>

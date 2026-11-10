@@ -32,6 +32,10 @@ add_kernel_library (vali-core-memory ""
     space/usercopy.c
     space/utils.c
 
+    # Physical-to-device address conversion and mapping cleanup.
+    dma/address.c
+    dma/direct.c
+
     # Shared buffers, restricted views and device access.
     shm/shm.c
     shm/view.c

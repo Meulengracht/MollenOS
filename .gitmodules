@@ -1,18 +1,21 @@
 [submodule "librt/libacpi"]
 	path = librt/libacpi
-	url = ../acpica
+	url = ../../meulengracht/acpica
 [submodule "librt/libgracht"]
 	path = librt/libgracht
-	url = ../libgracht
+	url = ../../meulengracht/libgracht
+[submodule "librt/mesa"]
+	path = librt/mesa
+	url = ../../meulengracht/mesa
 [submodule "tools/rd"]
 	path = tools/rd
-	url = ../vali-rofs
+	url = ../../meulengracht/vali-rofs
 [submodule "librt/zstd"]
 	path = librt/zstd
 	url = ../../umbrella-c/zstd
 [submodule "tools/cmake-data"]
 	path = tools/cmake-data
-	url = ../vali-cmake.git
+	url = ../../meulengracht/vali-cmake.git
 [submodule "testing"]
 	path = testing
 	url = ../../vali-os/kernel-testing

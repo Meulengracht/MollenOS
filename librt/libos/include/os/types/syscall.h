@@ -22,7 +22,6 @@
 #include <os/types/syslog.h>
 #include <os/types/shm.h>
 #include <os/types/dma.h>
-#include <os/types/dma_config.h>
 #include <os/types/time.h>
 #include <time.h> // for clock_t
 
@@ -68,6 +67,11 @@ struct OSDmaMappingResult {
 struct OSDmaAllocationResult {
     SHMHandle_t               Buffer;
     struct OSDmaMappingResult Mapping;
+};
+
+struct OSDmaOpenParameters {
+    uint64_t                  AddressLimit;
+    struct OSDmaConfiguration Configuration;
 };
 
 typedef struct MemorySpaceCreateResult {
