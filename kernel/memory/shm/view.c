@@ -266,7 +266,13 @@ SHMAttachToken(
 
     tokenCopy = *token;
 
-    status = GrantTokenVerify(&tokenCopy, GrantTokenResourceTypeSHM, tokenCopy.Options.Scope, &sourceID);
+    // A single-use token is used up here, even if creating the view fails.
+    status = GrantTokenImport(
+        &tokenCopy,
+        GrantTokenResourceTypeSHM,
+        tokenCopy.Options.Scope,
+        &sourceID
+    );
     if (status != OS_EOK) {
         return status;
     }
@@ -280,6 +286,7 @@ SHMAttachToken(
         handle
     );
     ReleaseGlobalHandle(sourceID);
+
     return status;
 }
 

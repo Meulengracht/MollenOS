@@ -64,12 +64,6 @@ MSContextNew(void)
         return UUID_INVALID;
     }
 
-    groupGlobalHandleID = CreateGlobalHandle(HandleTypeMSContext, __MSContextDelete, context);
-    if (groupGlobalHandleID == UUID_INVALID) {
-        kfree(context);
-        return UUID_INVALID;
-    }
-
     MutexConstruct(&context->SyncObject, MUTEX_FLAG_PLAIN);
     MutexConstruct(&context->UserCopyLock, MUTEX_FLAG_PLAIN);
     DynamicMemoryPoolConstruct(
@@ -80,13 +74,24 @@ MSContextNew(void)
     );
     list_construct(&context->Allocations);
     context->SignalHandler = 0;
-    context->Security.GlobalHandleID = groupGlobalHandleID;
+    context->Security.GlobalHandleID = UUID_INVALID;
     context->Security.Capabilities = 0;
     context->Security.HandleTable = CreateHandleGrantsTable();
     if (context->Security.HandleTable == NULL) {
-        ReleaseGlobalHandle(groupGlobalHandleID);
+        __MSContextDelete(context);
         return UUID_INVALID;
     }
+
+    // Handle services can look up a group by its global ID when they validate
+    // a reference. So the grant table must be set up before the ID is published,
+    // otherwise a lookup that races with the group creation could see a half
+    // initialized security context.
+    groupGlobalHandleID = CreateGlobalHandle(HandleTypeMSContext, __MSContextDelete, context);
+    if (groupGlobalHandleID == UUID_INVALID) {
+        __MSContextDelete(context);
+        return UUID_INVALID;
+    }
+    context->Security.GlobalHandleID = groupGlobalHandleID;
     return groupGlobalHandleID;
 }
 
@@ -112,4 +117,25 @@ MemorySpaceGetSecurityContext(void)
 
     context = __MSContextGet(memorySpace);
     return context != NULL ? &context->Security : NULL;
+}
+
+oserr_t
+MSContextAcquireSecurity(
+    _In_  uint64_t              groupID,
+    _Out_ MSContextSecurity_t** securityOut)
+{
+    struct MSContext* context;
+    oserr_t           status;
+
+    // Reject group IDs that do not fit in a handle ID. Otherwise a truncated
+    // value could match another valid group.
+    if (groupID == 0 || groupID > UINT32_MAX || (uuid_t)groupID == UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = AcquireGlobalHandle((uuid_t)groupID, HandleTypeMSContext, (void**)&context);
+    if (status == OS_EOK) {
+        *securityOut = &context->Security;
+    }
+    return status;
 }

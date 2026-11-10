@@ -103,4 +103,28 @@ KERNELAPI oserr_t KERNELABI
 ReleaseGlobalHandle(
     _In_ uuid_t handleId);
 
+DECL_STRUCT(MSContextSecurity);
+
+/**
+ * @brief Checks that the given group has a grant for a handle, and if so adds a
+ * global reference to it. Release the reference again with ReleaseGlobalHandle.
+ * The caller must keep the security context and its grant table valid for the
+ * whole call. With a NULL context the grant check is skipped, and the handle is
+ * looked up directly in the global table. This is only meant for the kernel
+ * itself.
+ *
+ * @param context     Security context of the group to check, or NULL.
+ * @param handleId    Handle ID in the group's grant table. For service handles this
+ *                    is the reference ID, which can differ from the service's resource ID.
+ * @param handleType  Required kernel handle type.
+ * @param resourceOut Receives the resource on success. May be NULL.
+ * @return OS_EOK, or a grant, type or reference-count error.
+ */
+oserr_t
+AcquireHandleReferenceInContext(
+    _In_ MSContextSecurity_t* context,
+    _In_ uuid_t handleId,
+    _In_ HandleType_t handleType,
+    _Out_ void** resourceOut);
+
 #endif //! __HANDLES_GLOBAL_H__

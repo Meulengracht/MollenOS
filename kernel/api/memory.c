@@ -265,7 +265,7 @@ ScSHMAttach(
     if (status != OS_EOK) {
         return status;
     }
-    status = MemorySpaceCopyUser(handle, &result, sizeof(result), true);
+    status = MemorySpaceCopyToUser(handle, &result, sizeof(SHMHandle_t));
     if (status != OS_EOK) {
         DestroyHandle(result.ID);
     }
@@ -281,7 +281,7 @@ ScSHMAttachToken(
     SHMHandle_t  result;
     oserr_t      status;
 
-    status = MemorySpaceCopyUser((void*)token, &tokenCopy, sizeof(GrantToken_t), false);
+    status = MemorySpaceCopyFromUser(&tokenCopy, token, sizeof(GrantToken_t));
     if (status != OS_EOK) {
         return status;
     }
@@ -291,7 +291,7 @@ ScSHMAttachToken(
         return status;
     }
 
-    status = MemorySpaceCopyUser(handle, &result, sizeof(SHMHandle_t), true);
+    status = MemorySpaceCopyToUser(handle, &result, sizeof(SHMHandle_t));
     if (status != OS_EOK) {
         DestroyHandle(result.ID);
     }
@@ -306,7 +306,7 @@ ScSHMDetach(
     oserr_t     status;
     oserr_t     copyStatus;
 
-    status = MemorySpaceCopyUser(handle, &handleCopy, sizeof(SHMHandle_t), false);
+    status = MemorySpaceCopyFromUser(&handleCopy, handle, sizeof(SHMHandle_t));
     if (status != OS_EOK) {
         return status;
     }
@@ -314,11 +314,10 @@ ScSHMDetach(
     status = SHMDetach(&handleCopy);
     
     // Preserve partial cleanup progress so a retry does not repeat a drop.
-    copyStatus = MemorySpaceCopyUser(
+    copyStatus = MemorySpaceCopyToUser(
         handle,
         &handleCopy,
-        sizeof(SHMHandle_t),
-        true
+        sizeof(SHMHandle_t)
     );
     return copyStatus == OS_EOK ? status : copyStatus;
 }
@@ -342,7 +341,7 @@ ScSHMMap(
     SHMHandle_t handleCopy;
     oserr_t     status;
 
-    status = MemorySpaceCopyUser(handle, &handleCopy, sizeof(SHMHandle_t), false);
+    status = MemorySpaceCopyFromUser(&handleCopy, handle, sizeof(SHMHandle_t));
     if (status != OS_EOK) {
         return status;
     }
@@ -352,7 +351,7 @@ ScSHMMap(
         return status;
     }
 
-    status = MemorySpaceCopyUser(handle, &handleCopy, sizeof(SHMHandle_t), true);
+    status = MemorySpaceCopyToUser(handle, &handleCopy, sizeof(SHMHandle_t));
     if (status != OS_EOK) {
         (void)SHMUnmap(
             &handleCopy,
@@ -372,11 +371,10 @@ ScSHMCommit(
     SHMHandle_t handleCopy;
     oserr_t     status;
 
-    status = MemorySpaceCopyUser(
-        handle,
+    status = MemorySpaceCopyFromUser(
         &handleCopy,
-        sizeof(SHMHandle_t),
-        false
+        handle,
+        sizeof(SHMHandle_t)
     );
     if (status != OS_EOK) {
         return status;
@@ -400,11 +398,10 @@ ScSHMUnmap(
     oserr_t     status;
     oserr_t     copyStatus;
 
-    status = MemorySpaceCopyUser(
-        handle,
+    status = MemorySpaceCopyFromUser(
         &handleCopy,
-        sizeof(SHMHandle_t),
-        false
+        handle,
+        sizeof(SHMHandle_t)
     );
     if (status != OS_EOK) {
         return status;
@@ -412,11 +409,10 @@ ScSHMUnmap(
 
     status = SHMUnmap(&handleCopy, (vaddr_t)address, length);
     
-    copyStatus = MemorySpaceCopyUser(
+    copyStatus = MemorySpaceCopyToUser(
         handle,
         &handleCopy,
-        sizeof(SHMHandle_t),
-        true
+        sizeof(SHMHandle_t)
     );
     return copyStatus == OS_EOK ? status : copyStatus;
 }
@@ -447,7 +443,7 @@ ScCreateMemorySpace(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser(resultOut, &result, sizeof(result), true);
+    oserr = MemorySpaceCopyToUser(resultOut, &result, sizeof(result));
     if (oserr != OS_EOK) {
         DestroyHandle(result.Handle);
     }

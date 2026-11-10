@@ -1125,38 +1125,6 @@ SystemMachine_t* GetMachine(void) {
     return &g_testContext.Machine;
 }
 
-// Mocks for MemorySpaceCopyUser, which is not exercised by these tests
-MemorySpace_t* GetCurrentMemorySpace(void) {
-    return NULL;
-}
-
-MemorySpace_t* GetDomainMemorySpace(void) {
-    return NULL;
-}
-
-oserr_t GetMemorySpaceAttributes(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         length,
-        _In_ unsigned int*  attributesArray) {
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t GetMemorySpaceMapping(
-        _In_  MemorySpace_t* memorySpace,
-        _In_  vaddr_t        address,
-        _In_  int            pageCount,
-        _Out_ uintptr_t*     dmaVectorOut) {
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t MemorySpaceUnmap(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         size) {
-    return OS_ENOTSUPPORTED;
-}
-
 void MutexLock(
         _In_ Mutex_t* mutex) {
 }

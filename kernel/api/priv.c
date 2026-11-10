@@ -76,7 +76,11 @@ ScInterruptMessageControllerResolve(
         return status;
     }
 
-    status = MemorySpaceCopyUser((void*)userQuery, &query, sizeof(query), false);
+    status = MemorySpaceCopyFromUser(
+        &query,
+        userQuery,
+        sizeof(InterruptMessageControllerIdentity_t)
+    );
     if (status != OS_EOK) {
         return status;
     }
@@ -86,7 +90,7 @@ ScInterruptMessageControllerResolve(
         return status;
     }
 
-    return MemorySpaceCopyUser(userDomain, &domain, sizeof(domain), true);
+    return MemorySpaceCopyToUser(userDomain, &domain, sizeof(uuid_t));
 }
 
 oserr_t
@@ -109,7 +113,11 @@ ScInterruptLineSourceResolve(
 
     // Copy the query before validation so userspace cannot change the firmware
     // controller or line while we check it. This call reserves no source.
-    status = MemorySpaceCopyUser((void*)userQuery, &query, sizeof(query), false);
+    status = MemorySpaceCopyFromUser(
+        &query,
+        userQuery,
+        sizeof(InterruptLineSourceIdentity_t)
+    );
     if (status != OS_EOK) {
         return status;
     }
@@ -121,7 +129,7 @@ ScInterruptLineSourceResolve(
 
     // This query allocates no resources. If copying the result fails, the bus
     // can retry the same query without cleanup.
-    return MemorySpaceCopyUser(userController, &controller, sizeof(controller), true);
+    return MemorySpaceCopyToUser(userController, &controller, sizeof(uuid_t));
 }
 
 oserr_t
@@ -140,7 +148,7 @@ ScFirmwareQuery(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return MemorySpaceCopyUser(infoOut, &info, sizeof(info), true);
+    return MemorySpaceCopyToUser(infoOut, &info, sizeof(OSFirmwareInfo_t));
 }
 
 static oserr_t
@@ -157,7 +165,7 @@ __LocateFirmwareTable(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser((void*)userKey, &key, sizeof(key), false);
+    oserr = MemorySpaceCopyFromUser(&key, userKey, sizeof(OSFirmwareTableKey_t));
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -184,7 +192,11 @@ ScFirmwareTableLocate(
 
     oserr = __LocateFirmwareTable(key, &data, &table);
     if (oserr == OS_EOK) {
-        oserr = MemorySpaceCopyUser(tableOut, &table, sizeof(table), true);
+        oserr = MemorySpaceCopyToUser(
+            tableOut,
+            &table,
+            sizeof(OSFirmwareTable_t)
+        );
     }
     return oserr;
 }
@@ -214,14 +226,14 @@ ScFirmwareTableRead(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser(lengthOut, &table.Length, sizeof(table.Length), true);
+    oserr = MemorySpaceCopyToUser(lengthOut, &table.Length, sizeof(table.Length));
     if (oserr != OS_EOK) {
         return oserr;
     }
     if (buffer == NULL || size < table.Length) {
         return OS_EBUFFER;
     }
-    return MemorySpaceCopyUser(buffer, (void*)data, table.Length, true);
+    return MemorySpaceCopyToUser(buffer, data, table.Length);
 }
 
 oserr_t
@@ -275,7 +287,7 @@ ScFirmwareTableMap(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser((void*)mapping, (void*)data, table.Length, true);
+    oserr = MemorySpaceCopyToUser((void*)mapping, data, table.Length);
     if (oserr != OS_EOK) {
         (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
         return oserr;
@@ -291,9 +303,9 @@ ScFirmwareTableMap(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser(lengthOut, &table.Length, sizeof(table.Length), true);
+    oserr = MemorySpaceCopyToUser(lengthOut, &table.Length, sizeof(table.Length));
     if (oserr == OS_EOK) {
-        oserr = MemorySpaceCopyUser(mappingOut, &mapping, sizeof(mapping), true);
+        oserr = MemorySpaceCopyToUser(mappingOut, &mapping, sizeof(mapping));
     }
     if (oserr != OS_EOK) {
         (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
@@ -318,7 +330,7 @@ ScAcpiQueryPci(
     // Copy the request once before running any AML. Userspace can change the
     // memory at any time, and the validation and namespace lookups must all see
     // the same request.
-    status = MemorySpaceCopyUser(&request, (void*)query, sizeof(request), false);
+    status = MemorySpaceCopyFromUser(&request, query, sizeof(request));
     if (status != OS_EOK) {
         return status;
     }
@@ -327,11 +339,10 @@ ScAcpiQueryPci(
     status = AcpiPciQuery(&request, &response);
     if (status == OS_EOK) {
         // The union was zeroed, so unused bytes never leak kernel stack data.
-        status = MemorySpaceCopyUser(
+        status = MemorySpaceCopyToUser(
             result,
             &response,
-            sizeof(union AcpiPciResult),
-            true
+            sizeof(union AcpiPciResult)
         );
     }
     return status;
@@ -440,7 +451,7 @@ ScIoSpaceMap(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser(userMapping, &mapping, sizeof(mapping), true);
+    oserr = MemorySpaceCopyToUser(userMapping, &mapping, sizeof(mapping));
     if (oserr != OS_EOK) {
         pageOffset = mapping % GetMemorySpacePageSize();
         MemorySpaceUnmap(GetCurrentMemorySpace(), mapping - pageOffset, length + pageOffset);
@@ -455,11 +466,10 @@ __CopyAndVerifyGroupRequest(
 {
     oserr_t status;
 
-    status = MemorySpaceCopyUser(
-        userRequest,
+    status = MemorySpaceCopyFromUser(
         kernelRequest,
-        sizeof(InterruptGroupRequest_t),
-        false
+        userRequest,
+        sizeof(InterruptGroupRequest_t)
     );
     if (status != OS_EOK) {
         return status;
@@ -511,11 +521,10 @@ ScInterruptAllocate(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser(
+    oserr = MemorySpaceCopyToUser(
         userResult,
         &result,
-        sizeof(InterruptGroupResult_t),
-        true
+        sizeof(InterruptGroupResult_t)
     );
     if (oserr != OS_EOK) {
         // No resources have been bound yet, so we can release the group here.
@@ -562,7 +571,7 @@ ScInterruptGetMessage(
     result.AddressLow = (uint32_t)message.Address;
     result.AddressHigh = (uint32_t)(message.Address >> 32U);
     result.Data = message.Data;
-    return MemorySpaceCopyUser(userMessage, &result, sizeof(result), true);
+    return MemorySpaceCopyToUser(userMessage, &result, sizeof(result));
 }
 
 oserr_t
@@ -587,11 +596,10 @@ ScInterruptBind(
         return OS_EINVALPARAMS;
     }
 
-    oserr = MemorySpaceCopyUser(
-        userRequest,
+    oserr = MemorySpaceCopyFromUser(
         &request,
-        sizeof(InterruptBindRequest_t),
-        false
+        userRequest,
+        sizeof(InterruptBindRequest_t)
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -754,7 +762,7 @@ ScInterruptBusHandlerCreate(
         return status;
     }
 
-    status = MemorySpaceCopyUser(userHandle, &handle, sizeof(uuid_t), true);
+    status = MemorySpaceCopyToUser(userHandle, &handle, sizeof(uuid_t));
     if (status != OS_EOK) {
         // The caller did not receive the handle, so we must release it here.
         // No resources have been mapped yet. Cleanup cannot fail on an unmap.
@@ -781,7 +789,7 @@ ScInterruptBusHandlerBind(
         return status;
     }
 
-    status = MemorySpaceCopyUser((void*)userResources, &resources, sizeof(resources), false);
+    status = MemorySpaceCopyFromUser(&resources, userResources, sizeof(resources));
     if (status != OS_EOK) {
         return status;
     }
@@ -791,7 +799,7 @@ ScInterruptBusHandlerBind(
     // another bus thread changes the original data.
     for (unsigned int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (resources.IoResources[i] != NULL) {
-            status = MemorySpaceCopyUser(resources.IoResources[i], &io[i], sizeof(io[i]), false);
+            status = MemorySpaceCopyFromUser(&io[i], resources.IoResources[i], sizeof(io[i]));
             if (status != OS_EOK) {
                 return status;
             }
@@ -836,7 +844,7 @@ ScInterruptBusAttach(
         return status;
     }
 
-    status = MemorySpaceCopyUser((void*)userRequest, &request, sizeof(request), false);
+    status = MemorySpaceCopyFromUser(&request, userRequest, sizeof(request));
     if (status != OS_EOK) {
         return status;
     }
@@ -858,7 +866,7 @@ ScInterruptBusAttach(
         return OS_EOOM;
     }
 
-    status = MemorySpaceCopyUser(userVectors, vectors, length, false);
+    status = MemorySpaceCopyFromUser(vectors, userVectors, length);
     if (status != OS_EOK) {
         kfree(vectors);
         return status;
@@ -870,7 +878,7 @@ ScInterruptBusAttach(
         // The vectors are attached even if copying the messages back fails.
         // The caller can retry the same request to get the messages without
         // adding another reference to each bus handler.
-        status = MemorySpaceCopyUser(userVectors, vectors, length, true);
+        status = MemorySpaceCopyToUser(userVectors, vectors, length);
     }
     // The group stores its own handler references and messages. We can free
     // this temporary array on both success and failure.

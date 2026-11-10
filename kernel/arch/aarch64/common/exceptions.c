@@ -151,9 +151,9 @@ __ReturnFromSignal(
     uintptr_t stack = context->Sp;
     oserr_t   status;
 
-    // Copy through the shared userspace mapping lock and a kernel alias. This
-    // also prevents concurrent unmap/protection changes during frame retrieval.
-    status = MemorySpaceCopyUser((void*)source, &restored, sizeof(restored), false);
+    // Copy the frame while holding the userspace mapping lock. This way the
+    // stack cannot be unmapped, or have its protection changed, while we read it.
+    status = MemorySpaceCopyFromUser(&restored, (const void*)source, sizeof(Context_t));
     if (status != OS_EOK) {
         return NULL;
     }

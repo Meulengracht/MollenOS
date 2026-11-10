@@ -44,8 +44,8 @@ DestroyHandleGrantsTable(
  * The caller must keep both security contexts valid and prevent the destination
  * handle table from being destroyed during this call. If the destination already
  * has a grant, the call succeeds without adding a reference.
- * CPU sessions, DMA access resources and token control handles cannot be granted
- * to another context.
+ * Service registrations, CPU sessions, DMA access resources and token control
+ * handles cannot be granted to another context.
  *
  * @param securityContext [In] The security context to grant the handle to.
  * @param handleId        [In] The handle to grant.
@@ -57,8 +57,8 @@ GrantHandle(
 
 /**
  * @brief Creates a typed resource grant token from the caller's grant table.
- * The caller must have a current security context. Only the SHM resource type is
- * supported. SHM_PRIVATE buffers cannot be shared.
+ * The caller must have a current security context. Only GrantTokenResourceTypeSHM
+ * and GrantTokenResourceTypeProvider are supported. SHM_PRIVATE buffers cannot be shared.
  * options and tokenOut must point to kernel memory. Only use tokenOut on success.
  * The fixed secret is temporary and must be replaced before production use.
  *
@@ -76,8 +76,8 @@ GrantTokenCreate(
 
 /**
  * @brief Disables an export and closes the caller's control handle.
- * The caller must have a grant for the control handle. References added by
- * successful verification calls remain valid until released.
+ * The caller must have a grant for the control handle. Source references handed
+ * out by successful GrantTokenImport calls stay valid until they are released.
  *
  * @param controlHandleID Control handle returned by GrantTokenCreate.
  * @return OS_EOK on success, or a handle validation error.
@@ -87,26 +87,38 @@ GrantTokenRevoke(
     _In_ uuid_t controlHandleID);
 
 /**
- * @brief Verify a typed token and add an independent reference to its resource.
+ * @brief Checks a typed token and imports it, giving the caller a reference to
+ * its resource.
  * token and handleIDOut must point to kernel memory. The current security group
- * is the receiver. The resource type must match expectedType, and scope must be
- * nonzero with every requested flag permitted by the authenticated policy.
- * The consuming resource module must enforce the policy restrictions before
- * exposing access, then release the reference with ReleaseGlobalHandle.
- * This call creates no process grant or mapping.
+ * is the receiver. The resource type must match expectedType, and every
+ * requested scope flag must be allowed by the authenticated policy. SHM tokens
+ * require a nonzero scope, while GrantTokenResourceTypeProvider tokens also
+ * accept a zero scope (identity checks only).
+ * The export status is checked and the import is done under the export lock,
+ * so a revoke or a second import of a single-use token cannot happen in between.
+ * A reusable token adds a new reference to the resource. A single-use token is
+ * revoked by this call, and the export's own resource reference is handed to
+ * the caller. In this case the token stays used up, even if the caller fails to
+ * create its receiving handle afterwards.
+ * The calling resource module must enforce the policy restrictions before it
+ * exposes any access, and then release the reference with ReleaseGlobalHandle.
+ * The reference to the export record is released before returning. This call
+ * creates no process grant or mapping.
  *
- * @param token Token to snapshot and authenticate.
- * @param expectedType Public resource category required by the consuming operation.
- * @param scope Requested permission flags for that resource category.
- * @param handleIDOut Receives the source handle with one added reference on success.
- *                    Unchanged on failure.
- * @return OS_EOK; OS_EINVALPARAMS for invalid tokens or a resource-type mismatch;
- *         OS_EPERMISSIONS for receiver/scope failures; OS_ECANCELLED after revoke;
- *         OS_ENOTSUPPORTED without a current security context; or a reference error.
- *         Type, receiver, scope and revoke checks follow token authentication.
+ * @param token        Kernel token to copy and authenticate.
+ * @param expectedType Resource type required by the caller.
+ * @param scope        Requested access flags for that resource type.
+ * @param handleIDOut  Receives the source handle with one reference for the
+ *                     caller on success. Unchanged on failure.
+ * @return OS_EOK on success. Invalid tokens and resource-type mismatches return
+ *         OS_EINVALPARAMS. Receiver or scope failures return OS_EPERMISSIONS.
+ *         Revoked or used-up exports return OS_ECANCELLED. A missing security
+ *         context returns OS_ENOTSUPPORTED. Resource reference errors are passed
+ *         through. Type, receiver, scope and revoke checks are only done after
+ *         the token has been authenticated.
  */
 __EXTERN oserr_t
-GrantTokenVerify(
+GrantTokenImport(
     _In_  const GrantToken_t*      token,
     _In_  GrantTokenResourceType_t expectedType,
     _In_  GrantTokenScope_t        scope,

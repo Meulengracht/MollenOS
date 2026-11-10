@@ -289,16 +289,42 @@ MemorySpaceCloneMapping(
     _In_    unsigned int   placementFlags);
 
 /**
- * @brief Copies between kernel storage and stable, permission-checked userspace pages.
- * 
- * @return OS_EINVALPARAMS for inaccessible, overflowing, or non-userspace ranges.
+ * @brief Copies readable userspace memory into kernel memory.
+ *
+ * The caller must run in the memory space of the source thread, and all user
+ * pages in the range must be committed RAM. Mapping changes are blocked until
+ * the copy is done. Other threads can still write to the source while it is
+ * being copied.
+ *
+ * @param kernelBuffer Kernel destination with room for length bytes.
+ * @param userBuffer Userspace source in the current memory space.
+ * @param length Nonzero number of bytes to copy.
+ * @return OS_EOK, OS_EINVALPARAMS for an invalid range, or a page lookup error.
  */
 KERNELAPI oserr_t KERNELABI
-MemorySpaceCopyUser(
-    _In_ void*  userBuffer,
-    _In_ void*  kernelBuffer,
-    _In_ size_t length,
-    _In_ bool   toUser);
+MemorySpaceCopyFromUser(
+    _Out_ void*       kernelBuffer,
+    _In_  const void* userBuffer,
+    _In_  size_t      length);
+
+/**
+ * @brief Copies kernel memory into writable userspace memory.
+ *
+ * The caller must run in the memory space of the destination thread, and all
+ * user pages in the range must be committed RAM. The whole range is checked
+ * before anything is written, and mapping changes are blocked until the copy
+ * is done.
+ *
+ * @param userBuffer Userspace destination in the current memory space.
+ * @param kernelBuffer Kernel source containing length bytes.
+ * @param length Nonzero number of bytes to copy.
+ * @return OS_EOK, OS_EINVALPARAMS for an invalid range, or a page lookup error.
+ */
+KERNELAPI oserr_t KERNELABI
+MemorySpaceCopyToUser(
+    _Out_ void*       userBuffer,
+    _In_  const void* kernelBuffer,
+    _In_  size_t      length);
 
 /**
  * @brief Converts a virtual address range into the mapped physical range.
@@ -366,5 +392,22 @@ MemorySpaceSetSignalHandler(
 KERNELAPI vaddr_t KERNELABI
 MemorySpaceSignalHandler(
     _In_ MemorySpace_t* memorySpace);
+
+/**
+ * @brief Adds a reference to a security group, so its security state stays
+ * valid while the caller checks its grants. Release the reference again with
+ * ReleaseGlobalHandle(groupID).
+ *
+ * @param groupID     Full group ID from the IPC message. Values that do not fit
+ *                    in a handle ID are rejected.
+ * @param securityOut Receives the security state of the group. It stays valid
+ *                    until the reference is released.
+ * @return OS_EOK, OS_EINVALPARAMS for an invalid group ID, or a lookup error if
+ *         the group does not exist.
+ */
+oserr_t
+MSContextAcquireSecurity(
+    _In_  uint64_t              groupID,
+    _Out_ MSContextSecurity_t** securityOut);
 
 #endif //!__MEMORY_SPACE_INTERFACE__

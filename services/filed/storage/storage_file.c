@@ -16,6 +16,8 @@
  */
 
 #include <vfs/storage.h>
+#include <os/grants.h>
+#include <os/memory.h>
 #include <vfs/stat.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>
@@ -87,50 +89,115 @@ VFSStorageCreateFileBacked(
     return storage;
 }
 
-static oserr_t __ReadFile(
-        _In_ struct VFSStorage* storage,
-        _In_ uuid_t             buffer,
-        _In_ size_t             offset,
-        _In_ UInteger64_t*      sector,
-        _In_ size_t             count,
-        _In_ size_t*            read)
+static oserr_t
+__TransferFile(
+    _In_  struct VFSStorage* storage,
+    _In_  uuid_t             buffer,
+    _In_  size_t             offset,
+    _In_  UInteger64_t*      sector,
+    _In_  size_t             count,
+    _In_  bool               write,
+    _Out_ size_t*            completed)
 {
-    size_t  bytesRead;
-    oserr_t oserr = VFSNodeReadAt(
-            storage->Protocol.Storage.File.HandleID,
-            &(UInteger64_t) { .QuadPart = sector->QuadPart * 512 },
-            buffer,
-            offset,
-            count * 512,
-            &bytesRead
-    );
-    if (oserr != OS_EOK) {
-        return oserr;
+    SHMTransfer_t transfer = { .RangeMode = SHMTransferRangeSubrange };
+    UInteger64_t  position;
+    size_t        pageSize = MemoryPageSize();
+    size_t        start;
+    size_t        extent;
+    size_t        bytes = 0;
+    oserr_t       status;
+
+    // always reset the completed count before starting the transfer
+    *completed = 0;
+    
+    if (count == 0) {
+        return OS_EOK;
     }
-    *read = bytesRead / 512;
-    return OS_EOK;
+    
+    if (sector->QuadPart > UINT64_MAX / 512 || count > UINT32_MAX / 512 || offset > UINT32_MAX) {
+        return OS_EINVALPARAMS;
+    }
+    
+    position.QuadPart = sector->QuadPart * 512;
+    start = offset - offset % pageSize;
+    if (count * 512 > UINT32_MAX - (offset - start) ||
+        count * 512 + offset - start > SIZE_MAX - (pageSize - 1)) {
+        return OS_EINVALPARAMS;
+    }
+
+    extent = ((count * 512 + offset - start + pageSize - 1) / pageSize) * pageSize;
+    if (extent > UINT32_MAX) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = OSGrantTokenCreate(
+        buffer,
+        &(GrantTokenOptions_t) {
+            .ResourceType = GrantTokenResourceTypeSHM,
+            .TargetType = GrantTokenTargetTypeAny,
+            .TargetGlobalHandleID = UUID_INVALID,
+            .Scope = write ? GrantTokenScopeRead : GrantTokenScopeRead | GrantTokenScopeWrite,
+            .Data.SHM = { .Offset = (uint32_t)start, .Length = (uint32_t)extent }
+        },
+        &transfer.Token
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    transfer.RelativeOffset = (uint32_t)(offset - start);
+    transfer.RequestedLength = (uint32_t)(count * 512);
+    
+    if (write) {
+        status = VFSNodeWriteAt(storage->Protocol.Storage.File.HandleID, &position, &transfer, &bytes);
+    } else {
+        status = VFSNodeReadAt(storage->Protocol.Storage.File.HandleID, &position, &transfer, &bytes);
+    }
+
+    OSGrantTokenRevoke(transfer.Token.ControlHandleID);
+    
+    *completed = bytes / 512;
+    return status;
 }
 
-static oserr_t __WriteFile(
-        _In_ struct VFSStorage* storage,
-        _In_ uuid_t             buffer,
-        _In_ size_t             offset,
-        _In_ UInteger64_t*      sector,
-        _In_ size_t             count,
-        _In_ size_t*            written)
+static oserr_t
+__ReadFile(
+    _In_  struct VFSStorage* storage,
+    _In_  uuid_t             buffer,
+    _In_  size_t             offset,
+    _In_  UInteger64_t*      sector,
+    _In_  size_t             count,
+    _Out_ size_t*            read)
 {
-    size_t  bytesWritten;
-    oserr_t oserr = VFSNodeWriteAt(
-            storage->Protocol.Storage.File.HandleID,
-            &(UInteger64_t) { .QuadPart = sector->QuadPart * 512 },
-            buffer,
-            offset,
-            count * 512,
-            &bytesWritten
+    bool write = false;
+    return __TransferFile(
+        storage,
+        buffer,
+        offset,
+        sector,
+        count,
+        write,
+        read
     );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    *written = bytesWritten / 512;
-    return OS_EOK;
+}
+
+static oserr_t
+__WriteFile(
+    _In_  struct VFSStorage* storage,
+    _In_  uuid_t             buffer,
+    _In_  size_t             offset,
+    _In_  UInteger64_t*      sector,
+    _In_  size_t             count,
+    _Out_ size_t*            written)
+{
+    bool write = true;
+    return __TransferFile(
+        storage,
+        buffer,
+        offset,
+        sector,
+        count,
+        write,
+        written
+    );
 }

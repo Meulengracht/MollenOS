@@ -61,7 +61,7 @@ OSNotificationQueueCreate(
             handleOut
     );
     if (oserr != OS_EOK) {
-        Syscall_DestroyHandle(handleID);
+        Syscall_HandleDestroy(handleID);
     }
     return oserr;
 }
@@ -119,5 +119,5 @@ OSNotificationQueuePost(
 static void
 __QueueDestroy(struct OSHandle* handle)
 {
-    (void)Syscall_DestroyHandle(handle->ID);
+    (void)Syscall_HandleDestroy(handle->ID);
 }

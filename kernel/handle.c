@@ -560,7 +560,8 @@ GrantHandle(
         return OS_ENOENT;
     }
 
-    if (handle->Type == HandleTypeSHMAccess || handle->Type == HandleTypeGrantToken) {
+    if (handle->Type == HandleTypeSHMAccess || handle->Type == HandleTypeGrantToken ||
+        handle->Type == HandleTypeProvider) {
         SpinlockReleaseIrq(&currentContext->HandleTable->Lock);
         return OS_EPERMISSIONS;
     }
@@ -581,12 +582,12 @@ GrantHandle(
 }
 
 oserr_t
-AcquireHandleReference(
-    _In_  uuid_t       handleId,
-    _In_  HandleType_t handleType,
-    _Out_ void**       resourceOut)
+AcquireHandleReferenceInContext(
+    _In_  MSContextSecurity_t* context,
+    _In_  uuid_t               handleId,
+    _In_  HandleType_t         handleType,
+    _Out_ void**               resourceOut)
 {
-    MSContextSecurity_t*   context = MemorySpaceGetSecurityContext();
     struct ResourceHandle* handle = NULL;
     oserr_t                status = OS_EOK;
 
@@ -611,7 +612,9 @@ AcquireHandleReference(
         status = OS_EOVERFLOW;
     } else {
         handle->References++;
-        *resourceOut = handle->Resource;
+        if (resourceOut != NULL) {
+            *resourceOut = handle->Resource;
+        }
     }
     SpinlockReleaseIrq(&g_handlesLock);
 
@@ -619,6 +622,17 @@ AcquireHandleReference(
         SpinlockReleaseIrq(&context->HandleTable->Lock);
     }
     return status;
+}
+
+oserr_t
+AcquireHandleReference(
+    _In_  uuid_t handleId,
+    _In_  HandleType_t handleType,
+    _Out_ void** resourceOut)
+{
+    return AcquireHandleReferenceInContext(
+        MemorySpaceGetSecurityContext(), handleId, handleType, resourceOut
+    );
 }
 
 oserr_t

@@ -77,7 +77,7 @@ PEImageLoadContextNew(
             sizeof(struct ModuleMapEntry),
             __module_hash, __module_cmp
     ) != 0) {
-        Syscall_DestroyHandle(loadContext->MemorySpace);
+        Syscall_HandleDestroy(loadContext->MemorySpace);
         free(loadContext);
         return NULL;
     }
@@ -127,7 +127,7 @@ PEImageLoadContextDelete(
     // Release the loader's reference after unloading. Started threads keep
     // their references until kernel thread cleanup finishes. If loading failed
     // before any thread started, this also frees the memory space.
-    Syscall_DestroyHandle(loadContext->MemorySpace);
+    Syscall_HandleDestroy(loadContext->MemorySpace);
     free(loadContext->Paths);
     free(loadContext);
 }

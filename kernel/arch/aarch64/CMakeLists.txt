@@ -12,6 +12,7 @@ set (AARCH64_SOURCES
     common/vectors.S
     common/fp.S
     common/cache.S
+    common/usercopy.S
     common/exceptions.c
     common/cpu.c
     common/io.c

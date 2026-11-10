@@ -20,14 +20,17 @@
 
 #include <os/osdefs.h>
 
-#define GRANT_TOKEN_VERSION 2
+#define GRANT_TOKEN_VERSION 3
 
 // Public resource types for grant tokens. The values must not change, and they are
 // separate from the kernel handle types.
 typedef enum GrantTokenResourceType {
     GrantTokenResourceTypeInvalid = 0,
     // SHM: used for both ordinary buffers and restricted SHM views.
-    GrantTokenResourceTypeSHM = 1
+    GrantTokenResourceTypeSHM = 1,
+    // Handle service: Scope is the access mask of the reference, and both data
+    // words must be zero.
+    GrantTokenResourceTypeProvider = 2
 } GrantTokenResourceType_t;
 
 typedef enum GrantTokenTargetType {
@@ -44,6 +47,12 @@ typedef enum GrantTokenScope {
     // SHM: allows writing the buffer range of the token.
     GrantTokenScopeWrite = 0x2
 } GrantTokenScope_t;
+
+typedef enum GrantTokenFlags {
+    // The token can only be imported once. The first import uses it up, even
+    // if the receiver then fails to create its handle.
+    GrantTokenFlagsSingleUse = 0x1
+} GrantTokenFlags_t;
 
 /**
  * @brief Export limits for the resource, selected by ResourceType.
@@ -63,8 +72,11 @@ typedef union GrantTokenData {
  * @brief Resource type, allowed receiver and export limits of a token.
  * With GrantTokenTargetTypeAny, TargetGlobalHandleID must be UUID_INVALID.
  * With GrantTokenTargetTypeSpecific, it must be the security group of the receiver.
- * ResourceType decides the meaning of Scope and Data. Only SHM is supported right
- * now, with Read, Write or both, and a nonempty byte range.
+ * ResourceType decides the meaning of Scope and Data. SHM requires Read, Write
+ * or both, and a nonempty byte range. Handle service resources take a 32-bit
+ * access mask in Scope (zero is allowed), and both data words must be zero.
+ * Flags is either zero for a reusable token, or GrantTokenFlagsSingleUse for a
+ * token that can only be imported once.
  */
 typedef struct GrantTokenOptions {
     GrantTokenResourceType_t ResourceType;
@@ -73,6 +85,7 @@ typedef struct GrantTokenOptions {
     GrantTokenScope_t        Scope;
 
     GrantTokenData_t         Data;
+    uint32_t                 Flags;
 } GrantTokenOptions_t;
 
 /**

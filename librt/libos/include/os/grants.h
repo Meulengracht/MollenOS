@@ -22,8 +22,14 @@
 
 /**
  * @brief Creates a grant token for a resource handle in the caller's grant table.
- * Only the SHM resource type is supported, and the buffer must not have
+ * SHM and handle service tokens are supported. SHM buffers must not have
  * SHM_PRIVATE set. Do not share the token before this call has succeeded.
+ * Options.Flags selects a reusable (zero) or a single-use token. A single-use
+ * token is used up by the first import, even if the receiver then fails to
+ * create its handle or to copy back the result.
+ * The creator must always close the control handle with OSGrantTokenRevoke.
+ * The handle is not closed automatically when the token is used up, or when the
+ * receiver exits.
  * The fixed secret must be replaced before production use.
  *
  * @param handleID Handle of the resource in the caller's grant table.
@@ -44,6 +50,9 @@ OSGrantTokenCreate(
  * @brief Revokes an export and closes the caller's control handle.
  * The caller must have a grant for the control handle. A copy of the token
  * does not give that grant. Existing imported references and mappings remain valid.
+ * An import that has already passed its checks is allowed to finish. Revoking a
+ * single-use token that has been used up also succeeds, and closes the control
+ * handle.
  *
  * @param controlHandleID ControlHandleID returned by OSGrantTokenCreate.
  * @return OS_EOK on success, or a handle validation error.

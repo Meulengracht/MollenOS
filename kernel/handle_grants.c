@@ -19,6 +19,7 @@
  */
 
 #include <handles/global.h>
+#include <handles/provider.h>
 #include <handles/grants.h>
 #include <handles/handle.h>
 #include <heap.h>
@@ -72,6 +73,8 @@ __GrantTokenReferenceResource(
     switch (options->ResourceType) {
         case GrantTokenResourceTypeSHM:
             return SHMReferenceForExport(handleID, options, handleTypeOut);
+        case GrantTokenResourceTypeProvider:
+            return HandleProviderReferenceForExport(handleID, options, handleTypeOut);
         default:
             return OS_ENOTSUPPORTED;
     }
@@ -94,7 +97,7 @@ __GrantTokenMatches(
         return false;
     }
 
-    // Check each field to avoid comparing structure padding. GrantTokenVerify
+    // Check each field to avoid comparing structure padding. GrantTokenImport
     // returns OS_EINVALPARAMS for any mismatch here.
     if (token->Version != GRANT_TOKEN_VERSION ||
         token->ControlHandleID != token->ExportGlobalHandleID) {
@@ -107,7 +110,8 @@ __GrantTokenMatches(
     }
 
     if (token->Options.ResourceType != record->Options.ResourceType ||
-        token->Options.Scope != record->Options.Scope) {
+        token->Options.Scope != record->Options.Scope ||
+        token->Options.Flags != record->Options.Flags) {
         return false;
     }
 
@@ -122,9 +126,8 @@ __GrantTokenDisable(
     struct __GrantTokenRecord* record = resource;
     uuid_t                     handleID = UUID_INVALID;
 
-    // Update the status under the same lock that verification takes. Only the
-    // first revoke sees the export as active, so the resource reference is
-    // released exactly once.
+    // Take the same lock as GrantTokenImport, so a source reference cannot be
+    // handed out while we revoke an active export.
     SpinlockAcquireIrq(&record->Lock);
     if (record->Status == GrantTokenStatusActive) {
         record->Status = GrantTokenStatusRevoked;
@@ -132,8 +135,10 @@ __GrantTokenDisable(
     }
     SpinlockReleaseIrq(&record->Lock);
 
-    // Release the resource outside the export lock. References added by earlier
-    // verification calls remain valid.
+    // Release the resource outside of the export lock. References handed out
+    // by earlier imports stay valid. A used-up single-use export is no longer
+    // active, as its reference was handed to the importer. So in this case
+    // there is nothing to release here.
     if (handleID != UUID_INVALID) {
         ReleaseGlobalHandle(handleID);
     }
@@ -172,6 +177,10 @@ GrantTokenCreate(
     // Copy the options into the token first. All the checks below run on
     // that copy.
     token.Options = *options;
+    
+    if (token.Options.Flags & ~(uint32_t)GrantTokenFlagsSingleUse) {
+        return OS_EINVALPARAMS;
+    }
 
     oserr = __GrantTokenValidateTarget(&token.Options);
     if (oserr != OS_EOK) {
@@ -248,7 +257,7 @@ GrantTokenRevoke(
 }
 
 oserr_t
-GrantTokenVerify(
+GrantTokenImport(
     _In_  const GrantToken_t*      token,
     _In_  GrantTokenResourceType_t expectedType,
     _In_  GrantTokenScope_t        scope,
@@ -300,18 +309,26 @@ GrantTokenVerify(
         goto exit;
     }
 
-    if (scope == 0 || (scope & record->Options.Scope) != scope) {
+    if ((scope == 0 && expectedType == GrantTokenResourceTypeSHM) ||
+        (scope & record->Options.Scope) != scope) {
         goto exit;
     }
 
-    // Hold the export lock while we check the status and add the resource
-    // reference, so a revoke cannot happen in between. A revoke after this
-    // point leaves our reference valid.
+    // Hold the export lock while we check the status and hand out the resource
+    // reference, so a revoke or a second import cannot happen in between. If a
+    // revoke happens after this point, our reference stays valid.
     SpinlockAcquireIrq(&record->Lock);
     oserr = OS_ECANCELLED;
     if (record->Status == GrantTokenStatusActive) {
         resourceHandleID = record->ResourceHandleID;
-        oserr = AcquireGlobalHandle(resourceHandleID, record->ResourceHandleType, NULL);
+        if (record->Options.Flags & GrantTokenFlagsSingleUse) {
+            // The export ends here. Instead of releasing its resource reference
+            // we hand it to the caller, so no new reference is needed.
+            record->Status = GrantTokenStatusRevoked;
+            oserr = OS_EOK;
+        } else {
+            oserr = AcquireGlobalHandle(resourceHandleID, record->ResourceHandleType, NULL);
+        }
     }
     SpinlockReleaseIrq(&record->Lock);
     if (oserr == OS_EOK) {

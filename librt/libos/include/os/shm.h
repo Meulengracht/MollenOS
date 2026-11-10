@@ -146,6 +146,12 @@ SHMAttach(
  * The kernel creates a separate restricted handle. Later SHM offsets are relative
  * to the token range. Existing mappings stay valid if the token is revoked.
  *
+ * A single-use token is used up when the kernel imports it, which happens before
+ * the attachment is created and before anything is mapped. So the token stays
+ * used up even if creating the attachment fails. If the result cannot be copied
+ * back, the attachment is closed but the token is not restored.
+ * A token that has been revoked or used up returns OS_ECANCELLED.
+ *
  * @param token Token to verify for the current security group.
  * @param handleOut Receives the attachment on success. Unchanged on failure.
  * @return OS_EOK, or a token validation, permission, copy or allocation error.

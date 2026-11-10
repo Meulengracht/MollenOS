@@ -56,7 +56,7 @@ static struct usched_scheduler_queue* __usched_scheduler_queue_new(struct usched
 
     queue->ready = job;
     MutexInitialize(&queue->mutex, MUTEX_PLAIN);
-    if (OSHandleCreate(OSHANDLE_NULL, NULL, &queue->notification_handle) != OS_EOK) {
+    if (OSHandleCreate(NULL, 0, &queue->notification_handle) != OS_EOK) {
         free(queue);
         return NULL;
     }
@@ -72,7 +72,7 @@ static oserr_t __usched_init_notification_queue(struct usched_scheduler* sched)
         return oserr;
     }
 
-    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &sched->syscall_handle);
+    oserr = OSHandleCreate(NULL, 0, &sched->syscall_handle);
     if (oserr != OS_EOK) {
         OSHandleDestroy(&sched->notification_queue);
         return oserr;
@@ -129,7 +129,7 @@ extern void __usched_startup(void)
 
     // Create the handle for the global queue. This will be added to all
     // scheduler's notification queue, so they can track new job postings.
-    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &g_globalQueue.notification_handle);
+    oserr = OSHandleCreate(NULL, 0, &g_globalQueue.notification_handle);
     if (oserr != OS_EOK) {
         exit(-1);
     }

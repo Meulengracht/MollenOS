@@ -51,6 +51,26 @@ extern void memory_paging_init(uintptr_t pda, paddr_t stackPhysicalBase, vaddr_t
 extern uintptr_t g_kernelcr3;
 extern uintptr_t g_kernelpd;
 
+void
+ArchCopyFromUser(
+    _Out_ void*       destination,
+    _In_  const void* source,
+    _In_  size_t      length)
+{
+    // We do not enable CR4.SMAP, so a plain copy is enough. The caller must
+    // still have checked the user permissions for the whole range.
+    memcpy(destination, source, length);
+}
+
+void
+ArchCopyToUser(
+    _Out_ void*       destination,
+    _In_  const void* source,
+    _In_  size_t      length)
+{
+    memcpy(destination, source, length);
+}
+
 // Disable the atomic wrong alignment, as they are aligned and are sanitized
 // in the arch-specific layer
 #if defined(__clang__)
@@ -184,7 +204,7 @@ ArchMmuGetPageAttributes(
     unsigned int       x86Attributes;
     int                index;
     int                pagesRetrieved = 0;
-    oserr_t         osStatus       = OS_EOK;
+    oserr_t            osStatus       = OS_EOK;
 
     if (!attributeValues || !pagesRetrievedOut) {
         return OS_EINVALPARAMS;
@@ -193,6 +213,10 @@ ArchMmuGetPageAttributes(
     directory = MmVirtualGetMasterTable(memorySpace, startAddress, &parentDirectory, &isCurrent);
     while (pageCount) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 0, &update);
+        if (update) {
+            memory_reload_cr3();
+        }
+        
         if (pageTable == NULL) {
             osStatus = (pagesRetrieved == 0) ? OS_ENOENT : OS_EINCOMPLETE;
             break;

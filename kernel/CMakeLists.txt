@@ -56,6 +56,7 @@ add_executable (vali-core
     firmware.c
     handle.c
     handle_grants.c
+    handle_provider.c
     handle_set.c
     ipc.c
     machine.c

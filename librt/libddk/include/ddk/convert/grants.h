@@ -55,11 +55,17 @@ __GrantTokenPolicyValid(
 {
     unsigned int knownFlags = GrantTokenScopeRead | GrantTokenScopeWrite;
 
+    if (options->Flags & ~(uint32_t)GrantTokenFlagsSingleUse) {
+        return false;
+    }
+
     switch (options->ResourceType) {
         case GrantTokenResourceTypeSHM:
             return options->Scope != 0 &&
                    ((unsigned int)options->Scope & ~knownFlags) == 0 &&
                    options->Data.SHM.Length != 0;
+        case GrantTokenResourceTypeProvider:
+            return options->Data.Words[0] == 0 && options->Data.Words[1] == 0;
         default:
             return false;
     }
@@ -85,6 +91,7 @@ __GrantTokenFieldsValid(
     if (token->Options.TargetType == GrantTokenTargetTypeAny) {
         return token->Options.TargetGlobalHandleID == UUID_INVALID;
     }
+    
     if (token->Options.TargetType == GrantTokenTargetTypeSpecific) {
         return token->Options.TargetGlobalHandleID != UUID_INVALID;
     }
@@ -150,6 +157,7 @@ __ToSysGrantToken(
     token.target_id = in->Options.TargetGlobalHandleID;
     token.scope = (uint32_t)in->Options.Scope;
     token.target_type = (uint32_t)in->Options.TargetType;
+    token.flags = in->Options.Flags;
     token.secret0 = __GrantSecretWord(in->Secret);
     token.secret1 = __GrantSecretWord(in->Secret + 4);
     token.secret2 = __GrantSecretWord(in->Secret + 8);
@@ -190,6 +198,7 @@ __FromSysGrantToken(
     token.Options.TargetGlobalHandleID = in->target_id;
     token.Options.Scope = (GrantTokenScope_t)in->scope;
     token.Options.TargetType = (GrantTokenTargetType_t)in->target_type;
+    token.Options.Flags = in->flags;
     __GrantSecretBytes(in->secret0, token.Secret);
     __GrantSecretBytes(in->secret1, token.Secret + 4);
     __GrantSecretBytes(in->secret2, token.Secret + 8);
@@ -305,6 +314,7 @@ __SameSysSHMTransfer(
            left->token.target_id == right->token.target_id &&
            left->token.scope == right->token.scope &&
            left->token.target_type == right->token.target_type &&
+           left->token.flags == right->token.flags &&
            left->token.secret0 == right->token.secret0 &&
            left->token.secret1 == right->token.secret1 &&
            left->token.secret2 == right->token.secret2 &&

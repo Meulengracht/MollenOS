@@ -176,9 +176,13 @@ ScDmaOpen(
         return OS_EINVALPARAMS;
     }
 
-    status = MemorySpaceCopyUser((void*)userParameters, &parameters, sizeof(parameters), false);
+    status = MemorySpaceCopyFromUser(
+        &parameters,
+        userParameters,
+        sizeof(struct OSDmaOpenParameters)
+    );
     if (status != OS_EOK) {
-        ERROR("ScDmaOpen: MemorySpaceCopyUser parameters for device %u failed: %u", device, status);
+        ERROR("ScDmaOpen: MemorySpaceCopyFromUser parameters for device %u failed: %u", device, status);
         return status;
     }
 
@@ -203,14 +207,13 @@ ScDmaOpen(
 
     record->Object = context;
 
-    status = MemorySpaceCopyUser(
+    status = MemorySpaceCopyToUser(
         contextOut,
         &record->Handle,
-        sizeof(record->Handle),
-        true
+        sizeof(record->Handle)
     );
     if (status != OS_EOK) {
-        ERROR("ScDmaOpen: MemorySpaceCopyUser context %u result failed: %u", record->Handle, status);
+        ERROR("ScDmaOpen: MemorySpaceCopyToUser context %u result failed: %u", record->Handle, status);
         goto error;
     }
 
@@ -278,9 +281,9 @@ __PublishMapping(
 {
     oserr_t status;
 
-    status = MemorySpaceCopyUser(userOut, (void*)result, size, true);
+    status = MemorySpaceCopyToUser(userOut, result, size);
     if (status != OS_EOK) {
-        ERROR("__PublishMapping: MemorySpaceCopyUser mapping %u result failed: %u",
+        ERROR("__PublishMapping: MemorySpaceCopyToUser mapping %u result failed: %u",
               record->Handle, status);
         return status;
     }
@@ -337,9 +340,14 @@ ScDmaAllocate(
     oserr_t                      status;
 
     TRACE("ScDmaAllocate(context=%u)", context);
-    status = MemorySpaceCopyUser((void*)userRequirements, &requirements, sizeof(requirements), false);
+    
+    status = MemorySpaceCopyFromUser(
+        &requirements,
+        userRequirements,
+        sizeof(struct DMARequirements)
+    );
     if (status != OS_EOK) {
-        ERROR("ScDmaAllocate: MemorySpaceCopyUser requirements for context %u failed: %u", context, status);
+        ERROR("ScDmaAllocate: MemorySpaceCopyFromUser requirements for context %u failed: %u", context, status);
         return status;
     }
 
@@ -384,9 +392,9 @@ ScDmaMapShm(
 
     TRACE("ScDmaMapShm(context=%u, shm=%u)", context, shm);
    
-    status = MemorySpaceCopyUser((void*)userParameters, &parameters, sizeof(parameters), false);
+    status = MemorySpaceCopyFromUser(&parameters, userParameters, sizeof(parameters));
     if (status != OS_EOK) {
-        ERROR("ScDmaMapShm: MemorySpaceCopyUser parameters for context %u, SHM %u failed: %u",
+        ERROR("ScDmaMapShm: MemorySpaceCopyFromUser parameters for context %u, SHM %u failed: %u",
               context, shm, status);
         return status;
     }
@@ -457,10 +465,17 @@ ScDmaGetSegments(
     }
 
     segments = SHMDeviceMappingSegments(record->Object, &count);
+    if (segments == NULL) {
+        // An earlier release may have stopped halfway through removing the
+        // device addresses. In this case we keep the handle so the cleanup can
+        // be retried, but the segments must not be handed out again.
+        status = OS_EBUSY;
+        goto exit;
+    }
 
-    status = MemorySpaceCopyUser(countOut, &count, sizeof(count), true);
+    status = MemorySpaceCopyToUser(countOut, &count, sizeof(count));
     if (status != OS_EOK) {
-        ERROR("ScDmaGetSegments: MemorySpaceCopyUser count for mapping %u failed: %u", mapping, status);
+        ERROR("ScDmaGetSegments: MemorySpaceCopyToUser count for mapping %u failed: %u", mapping, status);
         goto exit;
     }
     
@@ -474,9 +489,9 @@ ScDmaGetSegments(
         goto exit;
     }
 
-    status = MemorySpaceCopyUser(entries, (void*)segments, count * sizeof(*segments), true);
+    status = MemorySpaceCopyToUser(entries, segments, count * sizeof(*segments));
     if (status != OS_EOK) {
-        ERROR("ScDmaGetSegments: MemorySpaceCopyUser %u segments for mapping %u failed: %u", count, mapping, status);
+        ERROR("ScDmaGetSegments: MemorySpaceCopyToUser %u segments for mapping %u failed: %u", count, mapping, status);
         goto exit;
     }
 

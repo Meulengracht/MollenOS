@@ -33,7 +33,9 @@ typedef enum HandleType {
     HandleTypeSHM,
     HandleTypeSHMAccess,
     HandleTypeGrantToken,
-    HandleTypeSHMView
+    HandleTypeSHMView,
+    HandleTypeProvider,
+    HandleTypeProviderReference
 } HandleType_t;
 
 typedef void (*HandleDestructorFn)(void*);

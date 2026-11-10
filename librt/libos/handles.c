@@ -104,26 +104,26 @@ __InsertHandle(
 
 oserr_t
 OSHandleCreate(
-    _In_ enum OSHandleType type,
-    _In_ void*             payload,
-    _In_ struct OSHandle*  handle)
+    _In_  OSHandle_t* registration,
+    _In_  uint32_t    accessMask,
+    _Out_ OSHandle_t* resourceOut)
 {
-    oserr_t oserr;
+    uuid_t  id;
+    oserr_t status;
 
-    if (handle == NULL) {
+    if (resourceOut == NULL) {
         return OS_EINVALPARAMS;
     }
-
-    oserr = Syscall_CreateHandle(&handle->ID);
-    if (oserr != OS_EOK) {
-        return oserr;
+    
+    status = Syscall_HandleCreate(
+        registration != NULL ? registration->ID : UUID_INVALID,
+        accessMask,
+        &id
+    );
+    if (status != OS_EOK) {
+        return status;
     }
-
-    handle->Type = type;
-    handle->Flags = OSHANDLE_FLAG_OWNERSHIP;
-    handle->Payload = payload;
-    __InsertHandle(handle);
-    return OS_EOK;
+    return OSHandleWrap(id, OSHANDLE_NULL, NULL, true, resourceOut);
 }
 
 oserr_t
@@ -202,7 +202,7 @@ OSHandleRelease(
     } else if (handlers->Destroy != NULL) {
         handlers->Destroy(&owned);
     } else if (owned.Flags & OSHANDLE_FLAG_OWNERSHIP) {
-        status = Syscall_DestroyHandle(owned.ID);
+        status = Syscall_HandleDestroy(owned.ID);
         // The kernel dropped our reference even when other references remain.
         if (status == OS_EINCOMPLETE) {
             status = OS_EOK;

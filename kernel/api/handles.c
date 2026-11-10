@@ -23,20 +23,138 @@
 #include <debug.h>
 #include <handles/grants.h>
 #include <handles/handle.h>
+#include <handles/provider.h>
 #include <handles/paths.h>
 #include <handles/set.h>
+#include <ioset.h>
 #include <os/types/syscall.h>
 #include <memoryspace.h>
 
 oserr_t
 ScCreateHandle(
-        _Out_ uuid_t* HandleOut)
+    _In_  uuid_t   registrationID,
+    _In_  uint32_t accessMask,
+    _Out_ uuid_t*  handleOut)
 {
-    *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL, NULL);
-    if (*HandleOut != UUID_INVALID) {
-        return OS_EOK;
+    uuid_t handle;
+    oserr_t status;
+
+    status = HandleProviderCreate(registrationID, accessMask, &handle);
+    if (status != OS_EOK) {
+        return status;
     }
-    return OS_EOOM;
+
+    status = MemorySpaceCopyToUser(handleOut, &handle, sizeof(handle));
+    if (status != OS_EOK) {
+        // The creator never got the handle, so the service has nothing to clean
+        // up for it. Cancel the cleanup notification before we drop the grant.
+        HandleProviderCancelCreate(handle);
+        DestroyHandle(handle);
+    }
+    return status;
+}
+
+oserr_t
+ScHandleRegisterProvider(
+    _In_  uuid_t  notificationQueueID,
+    _Out_ uuid_t* registrationOut)
+{
+    uuid_t  registration;
+    oserr_t cleanupStatus;
+    oserr_t status;
+
+    status = HandleProviderRegister(notificationQueueID, &registration);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = MemorySpaceCopyToUser(registrationOut, &registration, sizeof(registration));
+    if (status != OS_EOK) {
+        cleanupStatus = ControlHandleSet(
+            notificationQueueID,
+            IOSET_DEL,
+            registration,
+            NULL
+        );
+        if (cleanupStatus != OS_EOK && cleanupStatus != OS_ENOENT) {
+            ERROR("Failed to remove unpublished provider registration event: %d", cleanupStatus);
+        }
+        DestroyHandle(registration);
+    }
+    return status;
+}
+
+oserr_t
+ScHandleImport(
+    _In_  const GrantToken_t* userToken,
+    _Out_ uuid_t*             referenceOut)
+{
+    GrantToken_t token;
+    uuid_t       reference;
+    oserr_t      status;
+
+    status = MemorySpaceCopyFromUser(&token, userToken, sizeof(GrantToken_t));
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = HandleProviderImport(&token, &reference);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = MemorySpaceCopyToUser(referenceOut, &reference, sizeof(uuid_t));
+    if (status != OS_EOK) {
+        DestroyHandle(reference);
+    }
+    return status;
+}
+
+oserr_t
+ScHandleValidate(
+    _In_  uuid_t          registrationID,
+    _In_  const uint64_t* userGroupID,
+    _In_  uuid_t          referenceID,
+    _In_  uint32_t        accessMask,
+    _Out_ uuid_t*         resourceOut)
+{
+    uint64_t groupID;
+    uuid_t   resource;
+    oserr_t  status;
+
+    // The 64-bit group ID is passed by pointer, so the syscall ABI is the same
+    // on i386 and 64-bit targets. We copy it once, before any grant table is read.
+    status = MemorySpaceCopyFromUser(&groupID, userGroupID, sizeof(uint64_t));
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = HandleProviderValidate(
+        registrationID,
+        groupID,
+        referenceID,
+        accessMask,
+        &resource
+    );
+    if (status == OS_EOK) {
+        status = MemorySpaceCopyToUser(resourceOut, &resource, sizeof(uuid_t));
+    }
+    return status;
+}
+
+oserr_t
+ScHandleProviderGetEvents(
+    _In_  uuid_t    registrationID,
+    _Out_ uuid_t*   resourceIDs,
+    _In_  uint32_t  capacity,
+    _Out_ uint32_t* countOut)
+{
+    return HandleProviderGetEvents(
+        registrationID,
+        resourceIDs,
+        capacity,
+        countOut
+    );
 }
 
 oserr_t
@@ -84,7 +202,7 @@ ScGrantTokenCreate(
 
     // Copy the options once so the caller cannot change them during validation
     // or export creation.
-    oserr = MemorySpaceCopyUser((void*)userOptions, &options, sizeof(options), false);
+    oserr = MemorySpaceCopyFromUser(&options, userOptions, sizeof(GrantTokenOptions_t));
     if (oserr != OS_EOK) {
         ERROR("ScGrantTokenCreate: options copy for handle %u failed: %u", handleID, oserr);
         return oserr;
@@ -95,7 +213,7 @@ ScGrantTokenCreate(
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser(tokenOut, &token, sizeof(token), true);
+    oserr = MemorySpaceCopyToUser(tokenOut, &token, sizeof(GrantToken_t));
     if (oserr != OS_EOK) {
         ERROR("ScGrantTokenCreate: token copy for control %u failed: %u",
               token.ControlHandleID, oserr);

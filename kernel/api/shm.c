@@ -262,7 +262,11 @@ ScShmAccessBegin(
     struct SHMRecord*               record;
     oserr_t                         status;
 
-    status = MemorySpaceCopyUser((void*)userParameters, &parameters, sizeof(parameters), false);
+    status = MemorySpaceCopyFromUser(
+        &parameters,
+        userParameters,
+        sizeof(struct SHMAccessBeginParameters)
+    );
     if (status != OS_EOK) {
         return status;
     }
@@ -362,7 +366,11 @@ ScShmAccessCreate(
 
     record->Object = access;
     
-    status = MemorySpaceCopyUser(handleOut, &record->Handle, sizeof(record->Handle), true);
+    status = MemorySpaceCopyToUser(
+        handleOut,
+        &record->Handle,
+        sizeof(record->Handle)
+    );
     if (status != OS_EOK) {
         SHMRecordRemove(record);
         return status;

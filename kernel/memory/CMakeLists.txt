@@ -29,6 +29,7 @@ add_kernel_library (vali-core-memory ""
     space/struct.c
     space/sync.c
     space/unmap.c
+    space/usercopy.c
     space/utils.c
 
     # Shared buffers, restricted views and device access.

@@ -278,4 +278,36 @@ ArchMmuVirtualToPhysical(
         _In_  paddr_t*,
         _Out_ int*);
 
+/**
+ * @brief Copies user memory from the active memory space into kernel memory.
+ *
+ * The caller must hold UserCopyLock and must have checked that the whole range
+ * is committed and readable user RAM. Faults are not handled here.
+ *
+ * @param destination Kernel buffer to copy into.
+ * @param source      User address to copy from. Must already be checked.
+ * @param length      Number of bytes to copy.
+ */
+KERNELAPI void KERNELABI
+ArchCopyFromUser(
+    _Out_ void*       destination,
+    _In_  const void* source,
+    _In_  size_t      length);
+
+/**
+ * @brief Copies kernel memory into user memory in the active memory space.
+ *
+ * The caller must hold UserCopyLock and must have checked that the whole range
+ * is committed and writable user RAM. Faults are not handled here.
+ *
+ * @param destination User address to copy into. Must already be checked.
+ * @param source      Kernel buffer to copy from.
+ * @param length      Number of bytes to copy.
+ */
+KERNELAPI void KERNELABI
+ArchCopyToUser(
+    _Out_ void*       destination,
+    _In_  const void* source,
+    _In_  size_t      length);
+
 #endif //!__SYSTEM_MMU_INTEFACE_H__

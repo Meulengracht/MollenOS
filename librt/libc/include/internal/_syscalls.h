@@ -1,3 +1,20 @@
+/**
+ * Copyright, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef __INTERNAL_CRT_SYSCALLS__
 #define __INTERNAL_CRT_SYSCALLS__
 
@@ -87,7 +104,7 @@ _CODE_END
 #define Syscall_MemoryQueryAttributes(MemoryPointer, Length, Attributes)   (oserr_t)syscall3(53, SCPARAM(MemoryPointer), SCPARAM(Length), SCPARAM(Attributes))
 
 #define Syscall_SHMCreate(_shm, _handle)                                   (oserr_t)syscall2(54, SCPARAM(_shm), SCPARAM(_handle))
-#define Syscall_SHMAttachToken(Token, HandleOut)                           (oserr_t)syscall2(55, SCPARAM(Token), SCPARAM(HandleOut))
+#define Syscall_SHMAttachToken(_token, _handleOut)                         (oserr_t)syscall2(55, SCPARAM(_token), SCPARAM(_handleOut))
 #define Syscall_SHMAttach(_key, _handle)                                   (oserr_t)syscall2(56, SCPARAM(_key), SCPARAM(_handle))
 #define Syscall_SHMMap(_handle, _offset, _length, _flags)                  (oserr_t)syscall4(57, SCPARAM(_handle), SCPARAM(_offset), SCPARAM(_length), SCPARAM(_flags))
 #define Syscall_SHMCommit(_handle, _address, _length)                      (oserr_t)syscall3(58, SCPARAM(_handle), SCPARAM(_address), SCPARAM(_length))
@@ -95,34 +112,38 @@ _CODE_END
 #define Syscall_SHMDetach(_handle)                                         (oserr_t)syscall1(60, SCPARAM(_handle))
 #define Syscall_SHMMetrics(_handle, _sizeOut, _vectorsOut)                 (oserr_t)syscall3(61, SCPARAM(_handle), SCPARAM(_sizeOut), SCPARAM(_vectorsOut))
 
-#define Syscall_CreateHandle(HandleOut)                                    (oserr_t)syscall1(62, SCPARAM(HandleOut))
-#define Syscall_DestroyHandle(Handle)                                      (oserr_t)syscall1(63, SCPARAM(Handle))
-#define Syscall_LookupHandle(Path, HandleOut)                              (oserr_t)syscall2(64, SCPARAM(Path), SCPARAM(HandleOut))
-#define Syscall_HandleSetActivity(Handle, Flags)                           (oserr_t)syscall2(65, SCPARAM(Handle), SCPARAM(Flags))
+#define Syscall_HandleCreate(Registration, Access, HandleOut)                    (oserr_t)syscall3(62, SCPARAM(Registration), SCPARAM(Access), SCPARAM(HandleOut))
+#define Syscall_HandleImport(_token, _out)                                       (oserr_t)syscall2(63, SCPARAM(_token), SCPARAM(_out))
+#define Syscall_HandleDestroy(_handle)                                           (oserr_t)syscall1(64, SCPARAM(_handle))
+#define Syscall_HandleLookup(_path, _handleOut)                                  (oserr_t)syscall2(65, SCPARAM(_path), SCPARAM(_handleOut))
+#define Syscall_HandleSetActivity(_handle, _flags)                               (oserr_t)syscall2(66, SCPARAM(_handle), SCPARAM(_flags))
+#define Syscall_HandleProviderRegister(_queue, _out)                             (oserr_t)syscall2(67, SCPARAM(_queue), SCPARAM(_out))
+#define Syscall_HandleValidate(_registration, _group, _reference, _access, _out) (oserr_t)syscall5(68, SCPARAM(_registration), SCPARAM(_group), SCPARAM(_reference), SCPARAM(_access), SCPARAM(_out))
+#define Syscall_HandleProviderGetEvents(_registration, _ids, _capacity, _count)  (oserr_t)syscall4(69, SCPARAM(_registration), SCPARAM(_ids), SCPARAM(_capacity), SCPARAM(_count))
 
-#define Syscall_GrantTokenCreate(Handle, Options, TokenOut)                (oserr_t)syscall3(66, SCPARAM(Handle), SCPARAM(Options), SCPARAM(TokenOut))
-#define Syscall_GrantTokenRevoke(ControlHandle)                            (oserr_t)syscall1(67, SCPARAM(ControlHandle))
+#define Syscall_GrantTokenCreate(Handle, Options, TokenOut)                (oserr_t)syscall3(70, SCPARAM(Handle), SCPARAM(Options), SCPARAM(TokenOut))
+#define Syscall_GrantTokenRevoke(ControlHandle)                            (oserr_t)syscall1(71, SCPARAM(ControlHandle))
 
-#define Syscall_CreateHandleSet(Flags, HandleOut)                          (oserr_t)syscall2(68, SCPARAM(Flags), SCPARAM(HandleOut))
-#define Syscall_ControlHandleSet(SetHandle, Operation, Handle, Event)      (oserr_t)syscall4(69, SCPARAM(SetHandle), SCPARAM(Operation), SCPARAM(Handle), SCPARAM(Event))
-#define Syscall_ListenHandleSet(handle, context, params, eventsOut)        (oserr_t)syscall4(70, SCPARAM(handle), SCPARAM(context), SCPARAM(params), SCPARAM(eventsOut))
+#define Syscall_CreateHandleSet(Flags, HandleOut)                          (oserr_t)syscall2(72, SCPARAM(Flags), SCPARAM(HandleOut))
+#define Syscall_ControlHandleSet(SetHandle, Operation, Handle, Event)      (oserr_t)syscall4(73, SCPARAM(SetHandle), SCPARAM(Operation), SCPARAM(Handle), SCPARAM(Event))
+#define Syscall_ListenHandleSet(handle, context, params, eventsOut)        (oserr_t)syscall4(74, SCPARAM(handle), SCPARAM(context), SCPARAM(params), SCPARAM(eventsOut))
 
-#define Syscall_InstallSignalHandler(HandlerAddress)                       (oserr_t)syscall1(71, SCPARAM(HandlerAddress))
-#define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (oserr_t)syscall3(72, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
-#define Syscall_SystemQuery(_req, _buffer, _size, _sizeOut)                (oserr_t)syscall4(73, SCPARAM(_req), SCPARAM(_buffer), SCPARAM(_size), SCPARAM(_sizeOut))
-#define Syscall_ClockTick(Source, TickOut)                                 (oserr_t)syscall2(74, SCPARAM(Source), SCPARAM(TickOut))
-#define Syscall_ClockFrequency(Source, FrequencyOut)                       (oserr_t)syscall2(75, SCPARAM(Source), SCPARAM(FrequencyOut))
-#define Syscall_Time(source, timeOut)                                      (oserr_t)syscall2(76, SCPARAM(source), SCPARAM(timeOut))
-#define Syscall_Sleep(DurationNs, RemainingNs)                             (oserr_t)syscall2(77, SCPARAM(DurationNs), SCPARAM(RemainingNs))
-#define Syscall_Stall(DurationNs)                                          (oserr_t)syscall1(78, SCPARAM(DurationNs))
+#define Syscall_InstallSignalHandler(HandlerAddress)                       (oserr_t)syscall1(75, SCPARAM(HandlerAddress))
+#define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (oserr_t)syscall3(76, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))
+#define Syscall_SystemQuery(_req, _buffer, _size, _sizeOut)                (oserr_t)syscall4(77, SCPARAM(_req), SCPARAM(_buffer), SCPARAM(_size), SCPARAM(_sizeOut))
+#define Syscall_ClockTick(Source, TickOut)                                 (oserr_t)syscall2(78, SCPARAM(Source), SCPARAM(TickOut))
+#define Syscall_ClockFrequency(Source, FrequencyOut)                       (oserr_t)syscall2(79, SCPARAM(Source), SCPARAM(FrequencyOut))
+#define Syscall_Time(source, timeOut)                                      (oserr_t)syscall2(80, SCPARAM(source), SCPARAM(timeOut))
+#define Syscall_Sleep(DurationNs, RemainingNs)                             (oserr_t)syscall2(81, SCPARAM(DurationNs), SCPARAM(RemainingNs))
+#define Syscall_Stall(DurationNs)                                          (oserr_t)syscall1(82, SCPARAM(DurationNs))
 
-#define Syscall_DmaOpen(Device, Parameters, ContextOut)                    (oserr_t)syscall3(79, SCPARAM(Device), SCPARAM(Parameters), SCPARAM(ContextOut))
-#define Syscall_DmaAllocate(Context, Requirements, ResultOut)              (oserr_t)syscall3(80, SCPARAM(Context), SCPARAM(Requirements), SCPARAM(ResultOut))
-#define Syscall_DmaMapShm(Context, Shm, Parameters, ResultOut)             (oserr_t)syscall4(81, SCPARAM(Context), SCPARAM(Shm), SCPARAM(Parameters), SCPARAM(ResultOut))
-#define Syscall_DmaGetSegments(Mapping, Entries, Capacity, CountOut)       (oserr_t)syscall4(82, SCPARAM(Mapping), SCPARAM(Entries), SCPARAM(Capacity), SCPARAM(CountOut))
-#define Syscall_ShmAccessCreate(Shm, Offset, Length, Handle)               (oserr_t)syscall4(83, SCPARAM(Shm), SCPARAM(Offset), SCPARAM(Length), SCPARAM(Handle))
-#define Syscall_ShmAccessBegin(Async, Handle, Parameters)                  (oserr_t)syscall3(84, SCPARAM(Async), SCPARAM(Handle), SCPARAM(Parameters))
-#define Syscall_ShmAccessEnd(Handle, Kind, CompletedLength)                (oserr_t)syscall3(85, SCPARAM(Handle), SCPARAM(Kind), SCPARAM(CompletedLength))
-#define Syscall_ResourceRelease(Handle)                                    (oserr_t)syscall1(86, SCPARAM(Handle))
+#define Syscall_DmaOpen(Device, Parameters, ContextOut)                    (oserr_t)syscall3(83, SCPARAM(Device), SCPARAM(Parameters), SCPARAM(ContextOut))
+#define Syscall_DmaAllocate(Context, Requirements, ResultOut)              (oserr_t)syscall3(84, SCPARAM(Context), SCPARAM(Requirements), SCPARAM(ResultOut))
+#define Syscall_DmaMapShm(Context, Shm, Parameters, ResultOut)             (oserr_t)syscall4(85, SCPARAM(Context), SCPARAM(Shm), SCPARAM(Parameters), SCPARAM(ResultOut))
+#define Syscall_DmaGetSegments(Mapping, Entries, Capacity, CountOut)       (oserr_t)syscall4(86, SCPARAM(Mapping), SCPARAM(Entries), SCPARAM(Capacity), SCPARAM(CountOut))
+#define Syscall_ShmAccessCreate(Shm, Offset, Length, Handle)               (oserr_t)syscall4(87, SCPARAM(Shm), SCPARAM(Offset), SCPARAM(Length), SCPARAM(Handle))
+#define Syscall_ShmAccessBegin(Async, Handle, Parameters)                  (oserr_t)syscall3(88, SCPARAM(Async), SCPARAM(Handle), SCPARAM(Parameters))
+#define Syscall_ShmAccessEnd(Handle, Kind, CompletedLength)                (oserr_t)syscall3(89, SCPARAM(Handle), SCPARAM(Kind), SCPARAM(CompletedLength))
+#define Syscall_ResourceRelease(Handle)                                    (oserr_t)syscall1(90, SCPARAM(Handle))
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

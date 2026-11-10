@@ -22,6 +22,7 @@ struct grant_token {
     uint32 target_id;
     uint32 scope;
     uint32 target_type;
+    uint32 flags;
     uint32 secret0;
     uint32 secret1;
     uint32 secret2;

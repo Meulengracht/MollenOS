@@ -36,7 +36,7 @@ __GetHandleFromPath(
     _In_ const char* Path)
 {
     uuid_t Handle;
-    if (Syscall_LookupHandle(Path, &Handle) != OS_EOK) {
+    if (Syscall_HandleLookup(Path, &Handle) != OS_EOK) {
         return UUID_INVALID;
     }
     return Handle;
