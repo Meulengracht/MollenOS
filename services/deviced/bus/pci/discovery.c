@@ -540,9 +540,10 @@ recover_hosts:
     // startup error must not be restarted on later attempts.
     _foreach(element, &g_pciRoots) {
         host = ((struct PciDevice*)element->value)->Host;
-        if (host->StartupFailure != OS_EOK) {
+        if (host->Status.State == PciHostFailed ||
+            host->Status.State == PciHostConfigurationUnknown) {
             next = (DmStartupResult_t) {
-                .Status = host->StartupFailure,
+                .Status = host->Status.Error,
                 .Outcome = DmStartupFailed
             };
         } else {
@@ -566,7 +567,7 @@ recover_hosts:
             }
             
             if (next.Outcome == DmStartupFailed) {
-                host->StartupFailure = next.Status;
+                __PciHostSetState(host, PciHostFailed, next.Status);
             }
         }
         __DmStartupMerge(result, &next);

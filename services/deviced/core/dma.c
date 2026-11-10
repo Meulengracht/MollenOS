@@ -29,10 +29,10 @@
 
 struct __DmaSession {
     struct __DmaSession* Next;
-    uuid_t Device;
-    uuid_t Principal;
-    uint64_t Token;
-    struct DmDmaLease* Lease;
+    uuid_t               Device;
+    uuid_t               Principal;
+    uint64_t             Token;
+    struct DmDmaLease*   Lease;
 };
 
 static struct usched_mtx    g_dmaSessionsLock;
@@ -79,8 +79,8 @@ DmDmaControl(
         return OS_EINVALPARAMS;
     }
 
-    // This mutex is separate from the device registry lock. DMA preparation may
-    // block and must not call back into the DMA session protocol.
+    // DMA preparation can block, so keep this lock separate from the device
+    // registry lock. It must not call DmDmaControl again while this lock is held.
     usched_mtx_lock(&g_dmaSessionsLock);
     
     for (link = &g_dmaSessions; *link != NULL; link = &(*link)->Next) {

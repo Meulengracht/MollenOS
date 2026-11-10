@@ -469,9 +469,12 @@ PciUnpublishDevice(
         return status;
     }
 
-    // Both the registry entries and I/O handles have been removed.
+    // Both the registry entries and I/O handles have been removed, so a failed
+    // host may start again. Unknown configuration stays until host teardown.
     publication->CleanupPending = 0;
-    device->Host->StartupFailure = OS_EOK;
+    if (device->Host->Status.State == PciHostFailed) {
+        __PciHostSetState(device->Host, PciHostReady, OS_EOK);
+    }
     return OS_EOK;
 }
 
@@ -492,17 +495,17 @@ PciPublishDevice(
 
     TRACE("PciPublishDevice(host=%u)", device->Host->Identification.HostId);
 
-    if (device->Host->Removing) {
+    if (device->Host->Status.State == PciHostRemoving) {
         TRACE("PciPublishDevice: host %u segment %u removal pending (%u)",
             device->Host->Identification.HostId, device->Host->Identification.Segment, OS_EBUSY);
         __DmStartupRetryResult(OS_EBUSY, result);
         return;
     }
-    if (device->Host->ScanStatus != OS_EOK) {
+    if (device->Host->Status.State == PciHostScanIncomplete) {
         ERROR("PciPublishDevice: scan failed for host %u segment %u (%u)",
             device->Host->Identification.HostId, device->Host->Identification.Segment,
-            device->Host->ScanStatus);
-        __DmStartupFromStatus(device->Host->ScanStatus, result);
+            device->Host->Status.Error);
+        __DmStartupFromStatus(device->Host->Status.Error, result);
         return;
     }
 

@@ -237,7 +237,7 @@ PciCheckDevice(
 
     status = __PciCheckFunction(parent, bus, slot, function);
     if (status != OS_EOK) {
-        parent->Host->ScanStatus = status;
+        __PciHostSetState(parent->Host, PciHostScanIncomplete, status);
     }
 
     // Header bit 7 must be set before probing functions 1 through 7.
@@ -257,7 +257,7 @@ PciCheckDevice(
 
             status = __PciCheckFunction(parent, bus, slot, function);
             if (status != OS_EOK) {
-                parent->Host->ScanStatus = status;
+                __PciHostSetState(parent->Host, PciHostScanIncomplete, status);
             }
         }
     }
@@ -302,17 +302,17 @@ oserr_t
 PciRecoverScan(
     _In_ PciHost_t* host)
 {
-    if (host->Removing) {
+    if (host->Status.State == PciHostRemoving) {
         WARNING("PciRecoverScan: host %u segment %u is being removed (%u)",
             host->Identification.HostId, host->Identification.Segment, OS_EBUSY);
         return OS_EBUSY;
     }
-    if (host->ScanStatus == OS_EOK) {
+    if (host->Status.State != PciHostScanIncomplete) {
         return OS_EOK;
     }
 
     memset(host->ScannedBuses, 0, sizeof(host->ScannedBuses));
-    host->ScanStatus = OS_EOK;
+    __PciHostSetState(host, PciHostReady, OS_EOK);
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
     if (host->LegacyScan) {
@@ -323,7 +323,7 @@ PciRecoverScan(
 #else
     PciCheckBus(host->RootDevice, host->Identification.BusStart);
 #endif
-    return host->ScanStatus;
+    return host->Status.Error;
 }
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI

@@ -176,7 +176,7 @@ PciHostDestroy(
     // Callers must stop this host's clients before teardown. Removing device
     // manager entries can cancel pending discovery requests, so the PCI lookup
     // lock must be released while those callbacks run.
-    if (bus->RootDevice != NULL && !bus->Removing) {
+    if (bus->RootDevice != NULL && bus->Status.State != PciHostRemoving) {
         status = PciUnpublishDevice(bus->RootDevice);
         if (status != OS_EOK) {
             WARNING("PciHostDestroy: host %u segment %u buses %u-%u remains published (%u)",
@@ -184,7 +184,7 @@ PciHostDestroy(
                 bus->Identification.BusStart, bus->Identification.BusEnd, status);
             return status;
         }
-        bus->Removing = 1;
+        __PciHostSetState(bus, PciHostRemoving, OS_EOK);
     }
 
     PciCriticalSectionEnter();

@@ -171,12 +171,15 @@ PciReadBars(
  * sibling bridge windows are left out, so new addresses never overlap them. If
  * an assignment fails, the ones that succeeded before it stay in the inventory,
  * which makes it safe for startup to retry. Hosts with no firmware description
- * keep their existing resource policy.
+ * keep their existing resource policy. If a failed write cannot be rolled back,
+ * later calls return OS_ENOTSUPPORTED without touching configuration space
+ * until the host is torn down.
  *
  * @param root The root device of the host. The device tree below it must be fully
  *             scanned and stable, and no drivers can be bound yet.
- * @return OS_EOK on success, or an error from allocation, address translation or
- *         writing to configuration space.
+ * @return OS_EOK on success, OS_ENOTSUPPORTED after a failed rollback, or an
+ *         error from allocation, address translation or writing to configuration
+ *         space.
  */
 __EXTERN oserr_t
 PciAssignHostBars(

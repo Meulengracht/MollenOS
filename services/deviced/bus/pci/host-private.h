@@ -136,6 +136,27 @@ struct PciHostResources {
     int                      AssignBars;
 };
 
+enum PciHostState {
+    // No error is recorded. Startup may scan and publish the host.
+    PciHostReady,
+    // The last scan missed functions. The next startup attempt scans the host
+    // again before publishing it.
+    PciHostScanIncomplete,
+    // Startup cannot finish with the current description. Unpublishing the host
+    // allows a new attempt.
+    PciHostFailed,
+    // A failed BAR write could not be rolled back, so the configuration of a
+    // function is unknown. Startup stays blocked until host teardown.
+    PciHostConfigurationUnknown,
+    // Teardown has started. Startup attempts return OS_EBUSY.
+    PciHostRemoving
+};
+
+struct PciHostStatus {
+    enum PciHostState State;
+    oserr_t           Error;
+};
+
 /**
  * @brief Represents one PCI controller, its segment and bus range, and any
  * firmware data used to describe its devices. Configuration access is provided
@@ -145,13 +166,9 @@ typedef struct PciHost {
     DeviceIo_t                   IoSpace;
     // Keep completed teardown stages separate from unfinished mapping cleanup.
     int                          IoAcquired;
-    int                          Removing;
     // Links unfinished constructor cleanup owned by discovery.
     struct PciHost*              CleanupNext;
-    // A failed startup scan retries missing functions before publication.
-    oserr_t                      ScanStatus;
-    // Terminal startup errors keep this host blocked without repeating its setup.
-    oserr_t                      StartupFailure;
+    struct PciHostStatus         Status;
     int                          LegacyScan;
     enum PciIoResourcePolicy     IoResourcePolicy;
     int                          IsExtended;
@@ -171,6 +188,16 @@ typedef struct PciHost {
     struct PciPublication      Publication;
     struct FdtTree*            FirmwareTree;
 } PciHost_t;
+
+static inline void
+__PciHostSetState(
+    _In_ PciHost_t*        host,
+    _In_ enum PciHostState state,
+    _In_ oserr_t           error)
+{
+    host->Status.State = state;
+    host->Status.Error = error;
+}
 
 /**
  * @brief Copies the ACPI windows of a root into the host. This must be called
