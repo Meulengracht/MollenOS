@@ -54,11 +54,17 @@ typedef void(*ThreadEntry_t)(void*);
 
 #define THREADING_CONFIGDATA_COUNT   4
 #define THREADING_MAX_QUEUED_SIGNALS 32
+
 #if defined(__aarch64__)
 // Address-space setup uses page arrays on the kernel stack. Leave room for
 // those arrays, nested C calls and the complete AArch64 exception frame.
 #define THREADING_KERNEL_STACK_SIZE  0x8000
+#elif defined(__amd64__) || defined(__i386__)
+// In general, for amd64/i386, with ACPICA in kernel, let's provide a
+// generous 16 KB stack for kernel threads
+#define THREADING_KERNEL_STACK_SIZE  0x4000
 #else
+// I don't know what to put here
 #define THREADING_KERNEL_STACK_SIZE  0x1000
 #endif
 

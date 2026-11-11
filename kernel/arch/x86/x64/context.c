@@ -26,6 +26,7 @@
 #include <arch/x86/memory.h>
 #include <arch/x86/x64/gdt.h>
 #include <debug.h>
+#include <heap.h>
 #include <log.h>
 #include <memoryspace.h>
 #include <string.h>
@@ -212,40 +213,63 @@ __AllocateStackInMemory(
 {
     MemorySpace_t* memorySpace = GetCurrentMemorySpace();
     vaddr_t        contextAddress;
-    paddr_t        contextPhysicalAddress;
+    paddr_t*       contextPhysicalAddresses;
     oserr_t        oserr;
 
-    // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
+    if (contextReservedSize == 0 || contextReservedSize % PAGE_SIZE != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (contextComittedSize == 0 || contextComittedSize > contextReservedSize) {
+        return OS_EINVALPARAMS;
+    }
+
+    // The reservation is page aligned, so rounding cannot exceed it.
+    contextComittedSize = (contextComittedSize + PAGE_SIZE - 1) & PAGE_MASK;
+
+    // Stack mappings return the top and reserve an unmapped guard page below.
     oserr = MemorySpaceMap(
-            memorySpace,
-            &(struct MemorySpaceMapOptions) {
-                .Length = contextReservedSize,
-                .Flags = memoryFlags,
-                .PlacementFlags = placementFlags
-            },
-            &contextAddress
+        memorySpace,
+        &(struct MemorySpaceMapOptions) {
+            .Length = contextReservedSize,
+            .Flags = memoryFlags,
+            .PlacementFlags = placementFlags
+        },
+        &contextAddress
     );
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    // Adjust pointer to top of stack and then commit the first stack page
-    oserr = MemorySpaceCommit(
-            memorySpace,
-            contextAddress - contextComittedSize,
-            &contextPhysicalAddress,
-            contextComittedSize,
-            0,
-            0
-    );
-    if (oserr != OS_EOK) {
-        MemorySpaceUnmap(
-                memorySpace,
-                contextAddress - contextReservedSize,
-                contextReservedSize
-        );
+    // Allocate enough space to store physical addresses
+    contextPhysicalAddresses = kmalloc((contextComittedSize / PAGE_SIZE) * sizeof(paddr_t));
+    if (contextPhysicalAddresses == NULL) {
+        oserr = OS_EOOM;
+        goto error;
     }
+
+    oserr = MemorySpaceCommit(
+        memorySpace,
+        contextAddress - contextComittedSize,
+        contextPhysicalAddresses,
+        contextComittedSize,
+        0,
+        0
+    );
+    kfree(contextPhysicalAddresses);
+    if (oserr != OS_EOK) {
+        goto error;
+    }
+
     *contextAddressOut = contextAddress;
+    return OS_EOK;
+
+error:
+    MemorySpaceUnmap(
+        memorySpace,
+        contextAddress - contextReservedSize,
+        contextReservedSize
+    );
     return oserr;
 }
 
@@ -274,13 +298,21 @@ ArchThreadContextCreate(
     uintptr_t    contextAddress;
     unsigned int placementFlags;
     unsigned int memoryFlags;
+    size_t       committedSize = PAGE_SIZE;
 
     __GetContextFlags(contextType, &placementFlags, &memoryFlags);
+
+    // Kernel stacks must be fully committed as we use the kernel
+    // stacks for dealing with page-faults.
+    if (contextType == THREADING_CONTEXT_LEVEL0) {
+        committedSize = contextSize;
+    }
+
     oserr = __AllocateStackInMemory(
             placementFlags,
             memoryFlags,
             contextSize,
-            PAGE_SIZE,
+            committedSize,
             &contextAddress
     );
     if (oserr != OS_EOK) {
@@ -320,18 +352,36 @@ ArchThreadContextFork(
     size_t       stackUsage = stackTop - stack;
     unsigned int placementFlags;
     unsigned int memoryFlags;
+    size_t       committedSize;
+
     TRACE("ArchThreadContextFork(stackTop=0x%llx, stack=0x%llx, stackUsage=0x%llx)",
           stackTop, stack, stackUsage);
 
-    __GetContextFlags(contextType, &placementFlags, &memoryFlags);
+    if (contextSize < sizeof(Context_t)) {
+        return OS_EINVALPARAMS;
+    }
 
-    // Commit enough space for the extra Context_t we add below
+    if (stack > stackTop || stackUsage > contextSize - sizeof(Context_t)) {
+        return OS_EINVALPARAMS;
+    }
+
+    __GetContextFlags(contextType, &placementFlags, &memoryFlags);
+    
+    if (contextType == THREADING_CONTEXT_LEVEL0) {
+        // Kernel stacks must be fully committed as we use the kernel
+        // stacks for dealing with page-faults.
+        committedSize = contextSize;
+    } else {
+        // Take extra space for the new context if needed
+        committedSize = stackUsage + sizeof(Context_t);
+    }
+
     oserr = __AllocateStackInMemory(
-            placementFlags,
-            memoryFlags,
-            contextSize,
-            (stackUsage + sizeof(Context_t)),
-            &contextAddress
+        placementFlags,
+        memoryFlags,
+        contextSize,
+        committedSize,
+        &contextAddress
     );
     if (oserr != OS_EOK) {
         return oserr;

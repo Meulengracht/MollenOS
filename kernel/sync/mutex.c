@@ -100,6 +100,7 @@ __SlowLock(
 {
     irqstate_t intStatus;
     uuid_t     owner;
+    oserr_t    oserr;
 
     // TODO: Detect mutex locking during IRQs
 
@@ -119,11 +120,13 @@ __SlowLock(
         goto exit;
     }
 
-    // mark us having waiters
-    __SetFlags(mutex, MUTEX_FLAG_PENDING);
     for (;;) {
+        // Waking the last waiter clears this flag. Set it again if another
+        // thread took the mutex before this waiter could lock it.
+        __SetFlags(mutex, MUTEX_FLAG_PENDING);
+
         // block task and then reenable interrupts
-        oserr_t oserr = SchedulerBlock(&mutex->BlockQueue, deadline);
+        oserr = SchedulerBlock(&mutex->BlockQueue, deadline);
         if (oserr == OS_EOK) {
             SpinlockRelease(&mutex->Lock);
             InterruptRestoreState(intStatus);
