@@ -27,7 +27,7 @@
 #include <ddk/capabilities.h>
 #include <ddk/utils.h>
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
-#include <os/internal/_process.h>
+#include <internal/_process.h>
 #include <ddk/convert/inheritance.h>
 #include <os/threads.h>
 #include <os/usched/cond.h>

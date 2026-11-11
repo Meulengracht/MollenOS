@@ -21,6 +21,7 @@
  */
 
 #include <futex.h>
+#include <handles/global.h>
 #include <handles/handle.h>
 #include <handles/set.h>
 #include <heap.h>
@@ -160,7 +161,7 @@ oserr_t
 UserEventSignal(
     _In_ uuid_t handle)
 {
-    UserEvent_t* event  = LookupHandle(handle, HandleTypeUserEvent);
+    UserEvent_t* event  = LookupGlobalHandle(handle, HandleTypeUserEvent);
     oserr_t      status = OS_EOK;
     int          currentValue;
     int          result;

@@ -18,7 +18,7 @@
 #include <process.h>
 #include <ddk/convert/inheritance.h>
 #include <internal/_syscalls.h>
-#include <os/internal/_process.h>
+#include <internal/_process.h>
 #include <sys_process_service_server.h>
 #include <string.h>
 #include <stdlib.h>

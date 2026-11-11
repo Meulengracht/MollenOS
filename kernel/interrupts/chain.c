@@ -150,7 +150,6 @@ InterruptBusHandlerBind(
         // Bus callbacks use the same mapping rules as device handlers.
         // Keep any remaining mappings in Resources so cleanup can be retried.
         // Allow attachment only after all mappings succeed.
-        handler->Resources.HandleResource = resources->HandleResource;
         status = InterruptResolveResources(handle, resources, &handler->Resources);
         handler->Ready = status == OS_EOK;
     }

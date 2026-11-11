@@ -35,10 +35,12 @@ InterruptValidateResources(
 
 /**
  * @brief Map a fast handler and its resources for use during interrupts.
+ * A nonzero event handle must be accessible to the current process and have
+ * type HandleTypeUserEvent. Keep a kernel reference until resources are released.
  *
  * @param id Binding identity for diagnostics.
  * @param Source Handler resources in the current process.
- * @param Destination Zeroed table that records each mapping. Keep it until
+ * @param Destination Zeroed table that records each mapping and event reference. Keep it until
  *        InterruptReleaseResources succeeds.
  * @return OS_EOK on success, or an error. If cleanup leaves mappings behind,
  *         Destination records them so the caller can retry the release.
@@ -50,7 +52,7 @@ InterruptResolveResources(
     _InOut_ InterruptResourceTable_t* Destination);
 
 /**
- * @brief Release mappings after handlers have stopped and finished running.
+ * @brief Release mappings and the event reference after handlers have stopped and finished running.
  *
  * @param id Binding identity for diagnostics.
  * @param Resources Mappings to release. Failed releases stay recorded for retry.

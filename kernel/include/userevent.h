@@ -51,12 +51,16 @@ UserEventCreate(
         _Out_ atomic_int** syncAddressOut);
 
 /**
- * Signals a userevent handle, based on the type of userevent a notification is also raised on the handle.
- * @param handle The handle to signal the event on. Must be an user-event handle.
- * @return       Status of the signal operation.
+ * @brief Signal an event from kernel or interrupt context and post its notification.
+ * The caller must hold a kernel reference for the entire call. Interrupt binding
+ * validates the driver's grant and keeps this reference until callbacks stop.
+ * This function does not check the interrupted process's grants.
+ *
+ * @param handle Referenced user-event handle to signal.
+ * @return Status of the signal operation, or OS_EINVALPARAMS for an invalid event.
  */
 KERNELAPI oserr_t KERNELABI
 UserEventSignal(
-        _In_ uuid_t handle);
+    _In_ uuid_t handle);
 
 #endif //!__VALI_MUTEX_H__

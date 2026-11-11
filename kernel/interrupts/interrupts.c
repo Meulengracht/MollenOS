@@ -153,12 +153,10 @@ InterruptReclaimRetired(void)
 
     while (reclaimable != NULL) {
         next = reclaimable->RetiredLink;
-        if (reclaimable->Owner != UUID_INVALID) {
-            status = InterruptReleaseResources(reclaimable->Id, &reclaimable->KernelResources);
-            if (status != OS_EOK) {
-                ERROR("InterruptReclaimRetired: InterruptReleaseResources id %u failed: %u",
-                      reclaimable->Id, status);
-            }
+        status = InterruptReleaseResources(reclaimable->Id, &reclaimable->KernelResources);
+        if (status != OS_EOK) {
+            ERROR("InterruptReclaimRetired: InterruptReleaseResources id %u failed: %u",
+                  reclaimable->Id, status);
         }
         kfree(reclaimable);
         reclaimable = next;
@@ -425,6 +423,16 @@ InterruptResolveResources(
     TRACE("InterruptResolveResources(id=%u, handler=0x%" PRIxIN ")",
           id, (uintptr_t)Source->Handler);
 
+    // Validate access while the driver is current. The reference keeps the
+    // event alive when interrupts arrive in another process or during cleanup.
+    if (Source->HandleResource != UUID_INVALID) {
+        Status = AcquireHandleReference(Source->HandleResource, HandleTypeUserEvent, NULL);
+        if (Status != OS_EOK) {
+            return Status;
+        }
+        Destination->HandleResource = Source->HandleResource;
+    }
+
     // Device handlers and bus callbacks must fit within this code window and
     // use the supplied function table for external calls. Preserve the entry
     // point's page offset when mapping the code.
@@ -445,7 +453,7 @@ InterruptResolveResources(
     if (Status != OS_EOK) {
         ERROR("InterruptResolveResources: MemorySpaceCloneMapping handler 0x%" PRIxIN ", length %zu failed: %u",
               (uintptr_t)Source->Handler, Length, Status);
-        return Status;
+        goto error;
     }
     Virtual += Offset;
 
@@ -481,7 +489,17 @@ error:
     return Status;
 }
 
-// Release mappings used by a device handler or bus callback.
+static void
+__InterruptReleaseEvent(
+    _InOut_ InterruptResourceTable_t* resources)
+{
+    if (resources->HandleResource != UUID_INVALID) {
+        ReleaseGlobalHandle(resources->HandleResource);
+        resources->HandleResource = UUID_INVALID;
+    }
+}
+
+// Release mappings and the event used by a device handler or bus callback.
 oserr_t
 InterruptReleaseResources(
     _In_    uuid_t                    id,
@@ -493,9 +511,9 @@ InterruptReleaseResources(
     size_t                    Length;
 
     TRACE("InterruptReleaseResources(id=%u)", id);
-    // Code is mapped first and released last, so a cleared Handler means this
-    // table has nothing left to release, including on repeated cleanup calls.
+    // A kernel handler or a failed code mapping can leave only the event.
     if ((uintptr_t)resources->Handler == 0) {
+        __InterruptReleaseEvent(resources);
         return OS_EOK;
     }
 
@@ -523,6 +541,7 @@ InterruptReleaseResources(
     }
     
     resources->Handler = NULL;
+    __InterruptReleaseEvent(resources);
     return OS_EOK;
 }
 
@@ -933,8 +952,14 @@ InterruptBind(
         return OS_EBUSY;
     }
     
-    mapped.HandleResource = resources->HandleResource;
-    
+    // Kernel handlers receive their context, not the resource table, so they
+    // cannot use an event handle.
+    if ((entry->Flags & INTERRUPT_KERNEL) && resources->HandleResource != UUID_INVALID) {
+        WARNING("InterruptBind: id %u is a kernel handler and cannot use an event handle", id);
+        __EndInterruptUpdate(entry);
+        return OS_EINVALPARAMS;
+    }
+
     if (!(entry->Flags & INTERRUPT_KERNEL)) {
         status = InterruptResolveResources(id, resources, &mapped);
         if (status != OS_EOK) {
@@ -1074,7 +1099,7 @@ InterruptUnbind(
     // The group may share a callback with other vectors. Wait for this entry's
     // device handler and bus callback before clearing pointers or mappings.
     __SynchronizeInterrupts();
-    if (entry->Bound && !(entry->Flags & INTERRUPT_KERNEL)) {
+    if (entry->Bound) {
         // A failed unmap can leave only part of the table valid. Allow cleanup
         // retries, but prevent enabling until all mappings have been released.
         entry->Unbinding = 1;

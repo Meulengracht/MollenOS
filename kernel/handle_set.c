@@ -146,17 +146,17 @@ static atomic_bool g_handleSetsInitialized;
 /**
  * @brief Finds the resource ID that the events of a handle are posted on.
  * Service references are resolved to the ID the service uses for the resource,
- * and SHM views to the ID of the SHM buffer they are a view of. Plain SHM
- * buffers and service registrations use their own ID. For these four types a
- * temporary global reference is taken on the handle, which the caller must
- * release with ReleaseGlobalHandle(source->Reference).
- * Any other handle, or a number that is not a handle at all, is used as it is,
- * and no reference is taken (source->Reference is UUID_INVALID).
+ * and SHM views to the ID of the SHM buffer they are a view of. Other handles
+ * use their own ID. If the handle allows an independent reference, a temporary
+ * global reference is taken and recorded in source->Reference. The caller must
+ * release it with ReleaseGlobalHandle(source->Reference).
+ * A number that is not a handle is used as it is, without a reference.
+ * If taking a reference fails, source->Reference stays UUID_INVALID.
  * This must be safe to call from interrupt handlers, see MarkHandle.
  *
  * @param handle The handle, or number, to resolve.
  * @param source Receives the result.
- * @return OS_EOK, or an error if the reference could not be taken (OS_EOVERFLOW).
+ * @return OS_EOK, or an error if the reference was denied or its count overflowed.
  */
 static oserr_t
 __ResolveHandleSource(
@@ -181,15 +181,16 @@ __ResolveHandleSource(
     // fields that never change once the resource has been created.
     status = AcquireGlobalHandleUntyped(handle, &source->Type, (void**)&payload);
 
-    // default to handle as the resource
-    source->Reference = handle;
-
     // The handle does not exist at all. This is also what keeps the
     // resource ID of a service working after the service has closed the first
     // reference to the resource.
     if (status != OS_EOK) {
         return status == OS_ENOENT || status == OS_EUNKNOWN ? OS_EOK : status;
     }
+
+    // Cleanup may run after a failed lookup, so only put the handle if
+    // we managed to acquire it.
+    source->Reference = handle;
 
     // Otherwise we dereference the handle to find the actual resource it refers to.
     switch (source->Type) {

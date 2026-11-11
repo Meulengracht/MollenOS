@@ -159,6 +159,12 @@ InterruptCurrentOwner(void);
 
 /**
  * @brief Map a handler's resources to an interrupt that is already reserved.
+ * Kernel reservations must leave HandleResource as UUID_INVALID because kernel
+ * handlers receive their Context instead of the resource table.
+ *
+ * @param id Interrupt reservation identity.
+ * @param resources Handler resource table to bind.
+ * @return OS_EOK, or OS_EINVALPARAMS if a kernel handler specifies an event.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptBind(
