@@ -24,9 +24,12 @@
 #define __IO_PIPE           0x00002000U
 #define __IO_TTY            0x00004000U
 #define __IO_OPEN           0x00001000U
-#define __IO_INHERITTED     0x00002000U
+#define __IO_NONBLOCK       0x00002000U
 #define __IO_PERSISTANT     0x00004000U
 #define __IO_PRIORITY       0x00008000U
+
+// File mode bits permitted in an inheritance descriptor.
+#define __IO_INHERIT_FLAGS (__IO_RW | __IO_APPEND | __IO_NOINHERIT | __IO_TEXTMASK)
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
@@ -36,22 +39,12 @@ typedef struct StdioDescriptor stdio_handle_t;
 #define STDIO_CLOSE_FULL    1
 #define STDIO_CLOSE_DELETE  2
 
+/**
+ * @brief Operations for one descriptor signature. Process inheritance does not
+ * use these operations. It uses the type table in stdio/core/inheritance.c,
+ * and only accepts descriptors which have Shared set.
+ */
 typedef struct StdioOperations {
-    // serialize, if provided, indicates support for exporting the
-    // specific stdio descriptor. The function must serialize any
-    // required data needed to reconstruct it in another process.
-    // Serialize/Deserialize is optional, but if one of these are provided
-    // the other must also be provided.
-    size_t (*serialize)(void* context, void* out);
-
-    // deserialize, if provided, indicates support for importing
-    // a stdio descriptor which was serialized in another process using
-    // the <serialize> function.
-    // Serialize/Deserialize is optional, but if one of these are provided
-    // the other must also be provided.
-    size_t (*deserialize)(const void* in, void** contextOut);
-
-    oserr_t (*clone)(const void* context, void** contextOut);
     oserr_t (*read)(stdio_handle_t*, void*, size_t, size_t*);
     oserr_t (*write)(stdio_handle_t*, const void*, size_t, size_t*);
     oserr_t (*resize)(stdio_handle_t*, long long);
@@ -60,34 +53,26 @@ typedef struct StdioOperations {
     void    (*close)(stdio_handle_t*, int);
 } stdio_ops_t;
 
-// Local to application handle that also handles state, stream and buffer
-// support for a handle.
+/**
+ * @brief Local to application handle that also handles state, stream and buffer
+ * support for a handle.
+ *
+ * Shared is set by the code that creates the descriptor. When set, copies of
+ * the descriptor share one registered OS handle. Each copy holds a local handle
+ * reference, and close releases that reference instead of closing the operation
+ * context. Copies of descriptors without Shared are marked __IO_PERSISTANT.
+ */
 typedef struct StdioDescriptor {
     int          IOD;
     unsigned int Signature;
     unsigned int XTFlags;
+    bool         Shared;
     OSHandle_t   OSHandle;
     stdio_ops_t* Ops;
     void*        OpsContext;
     char         Peek[3];
     FILE*        Stream;
 } stdio_handle_t;
-
-/**
- * @brief The inheritation header consists of the minimum
- * information we can get away with. Any per-handle data
- * must be serialized by each subsystem.
- */
-struct InheritationHeader {
-    int IOD;
-    unsigned int Signature;
-    unsigned int XTFlags;
-};
-
-struct InheritationBlock {
-    int     Count;
-    uint8_t Data[];
-};
 
 struct stdio_object_entry {
     int             id;
@@ -140,10 +125,11 @@ stdio_handle_delete(
         _In_ stdio_handle_t* handle);
 
 /**
- * @brief
- * @param handle
- * @param handleOut
- * @return
+ * @brief Creates a new descriptor for the same OS handle. The operation context
+ * is not copied, so the new descriptor starts with a NULL context.
+ * @param handle The descriptor to duplicate.
+ * @param handleOut Receives the new descriptor.
+ * @return 0 on success, otherwise -1 with errno set.
  */
 extern int
 stdio_handle_clone(
@@ -160,6 +146,13 @@ extern int
 stdio_handle_set_handle(
         _In_ stdio_handle_t* handle,
         _In_ OSHandle_t*     osHandle);
+
+/**
+ * @brief Marks the stdio handle as shared, indicating that
+ * it can be safely duplicated and used across multiple references.
+ */
+extern void stdio_handle_set_shared(
+    _In_ stdio_handle_t* handle);
 
 /**
  * @brief
@@ -262,10 +255,53 @@ struct InheritanceOptions {
     int          StdErrHandle;
 };
 
-extern void
+/**
+ * @brief Temporary export controls for one spawn operation. The serialized block
+ * carries tokens, while this local list keeps the controls available for cleanup.
+ */
+struct inheritance_export {
+    uuid_t*  controls;
+    uint32_t count;
+    uint32_t length;
+};
+
+/**
+ * @brief Serializes selected files, pipes and sockets. Keep the descriptor table
+ * unchanged during this call. Release the export after the spawn RPC finishes.
+ *
+ * @param options Descriptor selection and standard descriptor remapping.
+ * @param buffer Destination for the bounded contract payload.
+ * @param capacity Available bytes in buffer.
+ * @param exportOut Receives controls and encoded length. Empty on failure.
+ * @return OS_EOK, or a selection, capacity, allocation or token error.
+ */
+extern oserr_t
 CRTWriteInheritanceBlock(
-	_In_  struct InheritanceOptions* options,
-    _In_  void*                      buffer,
-    _Out_ uint32_t*                  lengthWrittenOut);
+    _In_  const struct InheritanceOptions* options,
+    _Out_ void*                            buffer,
+    _In_  uint32_t                         capacity,
+    _Out_ struct inheritance_export*       exportOut);
+
+/**
+ * @brief Revokes temporary export controls and clears the local export state.
+ * @param exported State returned by CRTWriteInheritanceBlock, or zeroed state.
+ */
+extern void
+CRTReleaseInheritanceBlock(
+    _InOut_ struct inheritance_export* exported);
+
+/**
+ * @brief Adopts installed child references and constructs selected descriptors.
+ * Must run once before application constructors. On failure the caller exits;
+ * process cleanup releases any installed grants not registered locally.
+ *
+ * @param buffer Private startup output section. May be NULL when empty.
+ * @param length Exact byte length of the section.
+ * @return OS_EOK, or a payload, occupied descriptor or allocation error.
+ */
+extern oserr_t
+CRTReadInheritanceBlock(
+    _In_ const void* buffer,
+    _In_ uint32_t    length);
 
 #endif //!__INTERNAL_IO_H__

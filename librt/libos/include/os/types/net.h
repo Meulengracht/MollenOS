@@ -20,6 +20,10 @@
 
 #include <os/osdefs.h>
 
+// A socket reference permits its control operations and both shared rings.
+// The rings require CPU read/write access even when only receiving data.
+#define OS_SOCKET_ACCESS 0x1U
+
 /**
  * Socket types. These are defined to be compatable with the default
  * C networking types that posix implements.
@@ -94,8 +98,14 @@ struct sockaddr_storage {
 #define	PF_BLUETOOTH	AF_BLUETOOTH
 #define	PF_MAX		    AF_MAX
 
+/**
+ * Metadata for a message in a socket ring. The address, control data and
+ * payload follow this header. An explicit send address takes precedence over
+ * destination, which identifies the peer selected when the packet was queued.
+ */
 struct packethdr {
     int      flags;
+    uuid_t   destination;
     intmax_t controllen;
     intmax_t addresslen;
     intmax_t payloadlen;

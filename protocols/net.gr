@@ -20,7 +20,8 @@ enum address_type {
 }
 
 // All socket construction paths return the same immutable type information
-// and the existing reusable ring transfers. Connection state stays in netd.
+// and the existing reusable ring transfers. The send mapping starts with the
+// shared peer state described by internal/_socket.h, followed by its ring.
 struct socket_info {
     int          domain;
     int          type;

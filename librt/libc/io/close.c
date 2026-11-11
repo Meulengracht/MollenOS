@@ -21,11 +21,15 @@
 #include <internal/_io.h>
 #include <internal/_file.h>
 #include <os/handle.h>
+#include <os/mollenos.h>
 
-int close(int fd)
+int
+close(
+    _In_ int fd)
 {
     stdio_handle_t* handle;
     int             options = 0;
+    oserr_t         status;
 
     handle = stdio_handle_get(fd);
     if (!handle) {
@@ -33,9 +37,21 @@ int close(int fd)
         return -1;
     }
 
-    // The cases where we close is when the handle is
-    // not inheritted or the handle is not persistant
-    if (!(handle->XTFlags & (__IO_INHERITTED | __IO_PERSISTANT))) {
+    // Shared descriptors use a registered handle across local aliases. A
+    // failed final release keeps the descriptor available for a close retry;
+    // in particular, a failed SHM unmap must not discard the attachment state.
+    if (handle->Shared) {
+        status = OSHandleRelease(&handle->OSHandle);
+        if (status != OS_EOK) {
+            return OsErrToErrNo(status);
+        }
+        stdio_handle_delete(handle);
+        return 0;
+    }
+
+    // Persistent descriptors must not release their operation context, so
+    // only request a full close for other descriptors.
+    if (!(handle->XTFlags & __IO_PERSISTANT)) {
         options |= STDIO_CLOSE_FULL;
     }
 

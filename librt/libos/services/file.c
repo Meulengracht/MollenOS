@@ -17,42 +17,15 @@
 
 #include <ddk/service.h>
 #include <ddk/convert.h>
+#include <ddk/convert/grants.h>
 #include <gracht/link/vali.h>
+#include <internal/_gracht.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <io.h>
 #include <os/services/file.h>
 #include <os/handle.h>
 #include <sys_file_service_client.h>
-
-static void __FileDestroy(struct OSHandle*);
-
-const OSHandleOps_t g_osFileOps = {
-        .Destroy = __FileDestroy
-};
-
-static oserr_t
-__CloseHandle(
-        _In_ uuid_t handleID)
-{
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                  oserr;
-    int                      status;
-
-    // Try to open the file by directly communicating with the file-service
-    status = sys_file_close(
-            GetGrachtClient(),
-            &msg.base,
-            __crt_process_id(),
-            handleID
-    );
-    if (status) {
-        return OS_EPROTOCOL;
-    }
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_close_result(GetGrachtClient(), &msg.base, &oserr);
-    return oserr;
-}
 
 oserr_t
 OSOpenPath(
@@ -64,7 +37,8 @@ OSOpenPath(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
     int                      status;
-    uuid_t                   handleID;
+    struct sys_grant_token   wireToken;
+    GrantToken_t             token;
 
     if (path == NULL || handleOut == NULL) {
         return OS_EINVALPARAMS;
@@ -82,32 +56,29 @@ OSOpenPath(
     if (status) {
         return OS_EPROTOCOL;
     }
-    gracht_client_await(
-            GetGrachtClient(),
-            &msg.base,
-            GRACHT_AWAIT_ASYNC
-    );
-    sys_file_open_result(
-            GetGrachtClient(),
-            &msg.base,
-            &oserr,
-            &handleID
-    );
+
+    oserr = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    oserr = OSHandleWrap(
-            handleID,
-            OSHANDLE_FILE,
-            NULL,
-            false,
-            handleOut
-    );
-    if (oserr != OS_EOK) {
-        (void)__CloseHandle(handleID);
+    status = sys_file_open_result(GetGrachtClient(), &msg.base, &oserr, &wireToken);
+    if (status != 0) {
+        return OS_EPROTOCOL;
     }
-    return oserr;
+
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = __FromSysGrantToken(&wireToken, &token);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Import supplies the local reference. Closing its last local alias releases
+    // the kernel grant; filed closes the filesystem state asynchronously.
+    return OSHandleImport(&token, handleOut);
 }
 
 oserr_t
@@ -294,30 +265,6 @@ OSLinkPath(
     return oserr;
 }
 
-
-oserr_t
-OSTransferFile(
-        _In_  uuid_t handle,
-        _In_  uuid_t bufferID,
-        _In_  size_t bufferOffset,
-        _In_  bool   write,
-        _In_  size_t length,
-        _Out_ size_t* bytesTransferred)
-{
-    struct vali_link_message msg       = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                  status;
-
-    sys_file_transfer(GetGrachtClient(), &msg.base, __crt_process_id(),
-                      handle,
-                      (int)write,
-                      bufferID,
-                      bufferOffset,
-                      length
-    );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_transfer_result(GetGrachtClient(), &msg.base, &status, bytesTransferred);
-    return status;
-}
 
 oserr_t
 OSGetFilePosition(
@@ -774,15 +721,6 @@ GetFileInformationFromFd(
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
     return oserr;
-}
-
-static void
-__FileDestroy(struct OSHandle* handle)
-{
-    if (handle == NULL) {
-        return;
-    }
-    (void)__CloseHandle(handle->ID);
 }
 
 // add default event handlers

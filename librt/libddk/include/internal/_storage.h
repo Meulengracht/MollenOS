@@ -68,19 +68,14 @@ __StorageAttachTransfer(
         return OS_EINVALPARAMS;
     }
     
-    length = transfer.RangeMode == SHMTransferRangeFull
-        ? transfer.Token.Options.Data.SHM.Length : transfer.RequestedLength;
+    length = __SHMTransferLength(&transfer);
     if (length != count * sectorSize) {
         return OS_EINVALPARAMS;
     }
 
-    if ((transfer.Token.Options.Scope & scope) != scope) {
-        return OS_EPERMISSIONS;
-    }
-
-    status = SHMAttachToken(&transfer.Token, buffer);
+    status = __SHMTransferAttach(&transfer, scope, buffer);
     if (status == OS_EOK) {
-        *offsetOut = transfer.RangeMode == SHMTransferRangeFull ? 0 : transfer.RelativeOffset;
+        *offsetOut = transfer.RelativeOffset;
     }
     return status;
 }

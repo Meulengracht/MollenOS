@@ -66,6 +66,7 @@ add_library(libddk
     debug.c
     device.c
     deviceio.c
+    storage.c
     resources.c
     firmware.c
     io.c

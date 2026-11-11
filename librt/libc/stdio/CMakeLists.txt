@@ -88,4 +88,4 @@ set(SRCS
         core/file_stream.c
 )
 add_libk_target(libk-stdio ${SRCS_COMMON} core/corek.c)
-add_libc_target(libc-stdio ${SRCS} core/core.c core/export.c core/import.c)
+add_libc_target(libc-stdio ${SRCS} core/core.c core/export.c core/import.c core/inheritance.c)

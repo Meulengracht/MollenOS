@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -56,5 +55,17 @@ typedef struct ProcessStartupInformation {
     uint32_t LibraryEntriesLength;
     uint32_t EnvironmentBlockLength;
 } ProcessStartupInformation_t;
+
+// ProcessStartupSections is used internally by the startup code. 
+// The sections follow the header in this order: 
+// arguments, inheritance block, library entries and environment block. 
+// Each pointer points into the payload, and Header holds the lengths.
+struct ProcessStartupSections {
+    ProcessStartupInformation_t Header;
+    char*                       Arguments;
+    char*                       Inheritance;
+    char*                       LibraryEntries;
+    char*                       Environment;
+};
 
 #endif //!__TYPES_PROCESS_H__

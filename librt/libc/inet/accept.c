@@ -79,22 +79,22 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
     }
 
     oserr = OSSocketAccept(
-            &source->OSHandle,
-            address,
-            address_length,
-            &osHandle
+        &source->OSHandle,
+        address,
+        address_length,
+        &osHandle
     );
     if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);
     }
 
     status = stdio_handle_create(
-            -1,
-            0,
-            0,
-            NET_SIGNATURE,
-            NULL,
-            &handle
+        -1,
+        0,
+        0,
+        NET_SIGNATURE,
+        NULL,
+        &handle
     );
     if (status) {
         OSHandleDestroy(&osHandle);
@@ -108,6 +108,7 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
         *address_length = (socklen_t)(uint32_t)address->sa_len;
     }
     
+    stdio_handle_set_shared(handle);
     stdio_handle_set_handle(handle, &osHandle);
     return stdio_handle_iod(handle);
 }

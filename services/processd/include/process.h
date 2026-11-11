@@ -22,13 +22,18 @@
 #include <ds/mstring.h>
 #include <gracht/server.h>
 #include <ddk/types/capabilities.h>
+#include <internal/_service.h>
 #include <os/services/process.h>
 #include <os/types/handle.h>
 #include <os/types/shm.h>
+#include <os/types/grants.h>
 #include <os/usched/cond.h>
 #include <os/usched/mutex.h>
 #include <time.h>
 #include <pe.h>
+
+// forward declarations
+struct sys_process_inheritance_input;
 
 enum ProcessState {
     ProcessState_RUNNING,
@@ -42,12 +47,12 @@ struct ProcessOptions {
     const char*    WorkingDirectory;
     uint32_t       InheritationBlockLength;
     uint32_t       EnvironmentBlockLength;
-    OSHandle_t     DataBufferHandle;
-    
-    // DataBuffer is set if it should used instead of the
-    // DataBufferHandle. This is needed when doing internal
-    // spawning.
     const void*    DataBuffer;
+};
+
+struct ProcessStartupData {
+    void*    Buffer;
+    uint32_t Length;
 };
 
 typedef struct Process {
@@ -61,17 +66,11 @@ typedef struct Process {
     int                        references;
     struct PEImageLoadContext* load_context;
     int                        exit_code;
+    struct ProcessStartupData  startup_data;
 
     mstring_t* name;
     mstring_t* working_directory;
     mstring_t* assembly_directory;
-
-    const char* arguments;
-    size_t      arguments_length;
-    void*       inheritation_block;
-    size_t      inheritation_block_length;
-    char*       environment_block;
-    size_t      environment_block_length;
 } Process_t;
 
 /**
@@ -146,6 +145,68 @@ PmCreateServiceProcess(
     _In_  const char*            args,
     _In_  struct ProcessOptions* procOpts,
     _Out_ uuid_t*                handleOut);
+
+/**
+ * @brief Copies startup data to a token-authorized destination.
+ * The decoded transfer must have valid selector fields. The authenticated caller
+ * must belong to the selected process's security group before the token is imported.
+ *
+ * @param caller Transport-authenticated request context.
+ * @param threadHandle Primary thread identifying the process.
+ * @param destination Validated transfer description.
+ * @param processHandleOut Receives the process handle on success.
+ * @param bytesWrittenOut Receives the complete payload length on success.
+ * @return Transfer or authorization status.
+ */
+extern oserr_t
+PmGetProcessStartupInformation(
+    _In_  const struct gracht_security_context* caller,
+    _In_  uuid_t                                threadHandle,
+    _In_  const SHMTransfer_t*                   destination,
+    _Out_ uuid_t*                               processHandleOut,
+    _Out_ uint32_t*                             bytesWrittenOut);
+
+/**
+ * @brief Builds the immutable startup payload before publishing the process.
+ * Call once after loading initial modules and validating the private input.
+ *
+ * @param process Unpublished process to prepare.
+ * @param environment Validated environment block. May be NULL when environmentLength is 0.
+ * @param environmentLength Environment block bytes, including the final empty string.
+ * @param arguments Complete argument string.
+ * @param argumentsLength Argument bytes, including the terminator.
+ * @param input Decoded and contract-validated inheritance. Not consumed.
+ * @return OS_EOK, or a size, allocation, module-list or import error.
+ */
+extern oserr_t
+PmPrepareStartupInformation(
+    _In_ Process_t*                                 process,
+    _In_ const char*                                environment,
+    _In_ size_t                                     environmentLength,
+    _In_ const char*                                arguments,
+    _In_ size_t                                     argumentsLength,
+    _In_ const struct sys_process_inheritance_input* input);
+
+/**
+ * @brief Finds a process by its primary thread and adds a reference under the registry lock.
+ * This lookup does not authorize the caller. Release a successful result with PmReleaseProcess.
+ * @param threadHandle Primary thread identifying the process.
+ * @param processOut Receives the referenced process.
+ * @return OS_EOK, OS_ENOENT or OS_EOVERFLOW.
+ */
+extern oserr_t
+PmReferenceProcessByThread(
+    _In_  uuid_t      threadHandle,
+    _Out_ Process_t** processOut);
+
+/**
+ * @brief Releases a process reference and destroys the process after the last release.
+ * The caller must not hold the process mutex.
+ * @param process Referenced process.
+ */
+extern void
+PmReleaseProcess(
+    _In_ Process_t* process);
 
 /**
  * @brief Retrieves the process associated by the handle.

@@ -31,50 +31,28 @@
 #include <string.h>
 #include <stdlib.h>
 
-struct Pipe {
-    unsigned int Options;
-};
-
-static size_t __pipe_serialize(void* context, void* out);
-static size_t __pipe_deserialize(const void* in, void** contextOut);
-static oserr_t __pipe_clone(const void* context, void** contextOut);
 static oserr_t __pipe_read(stdio_handle_t*, void*, size_t, size_t*);
 static oserr_t __pipe_write(stdio_handle_t*, const void*, size_t, size_t*);
 static oserr_t __pipe_ioctl(stdio_handle_t*, int, va_list);
-static void    __pipe_close(stdio_handle_t*, int);
 
 stdio_ops_t g_pipeOps = {
-        .serialize = __pipe_serialize,
-        .deserialize = __pipe_deserialize,
-        .clone = __pipe_clone,
-        .read = __pipe_read,
-        .write = __pipe_write,
-        .ioctl = __pipe_ioctl,
-        .close = __pipe_close
+    .read = __pipe_read,
+    .write = __pipe_write,
+    .ioctl = __pipe_ioctl
 };
 
-static struct Pipe*
-__pipe_new(void)
+static unsigned int
+__pipe_options(
+    _In_ const stdio_handle_t* handle)
 {
-    struct Pipe* pipe;
+    unsigned int options = STREAMBUFFER_ALLOW_PARTIAL;
 
-    pipe = malloc(sizeof(struct Pipe));
-    if (pipe == NULL) {
-        return NULL;
+    // Nonblocking mode belongs to the descriptor. Keeping it in XTFlags lets
+    // duplicates and inherited descriptors reconstruct it without a payload.
+    if (handle->XTFlags & __IO_NONBLOCK) {
+        options |= STREAMBUFFER_NO_BLOCK;
     }
-
-    pipe->Options = STREAMBUFFER_ALLOW_PARTIAL;
-    return pipe;
-}
-
-static void
-__pipe_delete(
-        _In_ struct Pipe* pipe)
-{
-    if (pipe == NULL) {
-        return;
-    }
-    free(pipe);
+    return options;
 }
 
 static int __check_unsupported(int flags)
@@ -101,22 +79,22 @@ __CreatePipeArea(
     oserr_t oserr;
 
     oserr = SHMCreate(
-            &(SHM_t) {
-                    .Key = NULL,
-                    .Flags = SHM_COMMIT,
-                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                    .Size = size
-            },
-            handle
+        &(SHM_t) {
+            .Key = NULL,
+            .Flags = SHM_COMMIT,
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+            .Size = size
+        },
+        handle
     );
     if (oserr != OS_EOK) {
         return oserr;
     }
 
     streambuffer_construct(
-            SHMBuffer(handle),
-            size - sizeof(struct streambuffer),
-            STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL
+        SHMBuffer(handle),
+        size - sizeof(struct streambuffer),
+        STREAMBUFFER_MULTIPLE_READERS | STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL
     );
     return oserr;
 }
@@ -127,7 +105,6 @@ int pipe(long size, int flags)
     OSHandle_t      osHandle;
     oserr_t         oserr;
     int             status;
-    struct Pipe*    pipe;
     
     if (__check_unsupported(flags)) {
         return -1;
@@ -138,64 +115,30 @@ int pipe(long size, int flags)
         return OsErrToErrNo(oserr);
     }
 
-    pipe = __pipe_new();
-    if (pipe == NULL) {
+    status = stdio_handle_create(
+        -1,
+        flags,
+        __IO_PIPE | __IO_APPEND,
+        PIPE_SIGNATURE,
+        NULL,
+        &object
+    );
+    if (status) {
         OSHandleDestroy(&osHandle);
         return -1;
     }
 
-    status = stdio_handle_create(
-            -1,
-            flags,
-            __IO_PIPE | __IO_APPEND,
-            PIPE_SIGNATURE,
-            pipe,
-            &object
-    );
-    if (status) {
-        __pipe_delete(pipe);
-        return -1;
-    }
-
+    stdio_handle_set_shared(object);
     stdio_handle_set_handle(object, &osHandle);
     return stdio_handle_iod(object);
-}
-
-static streambuffer_t*
-__stream_safe(
-        _In_ stdio_handle_t* handle)
-{
-    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
-    oserr_t         oserr;
-
-    if (stream != NULL) {
-        return stream;
-    }
-
-    // We expect this to happen after being imported, but it's only valid
-    // to be NULL in this exact case, so we need to check for import
-    if (!(handle->XTFlags & __IO_INHERITTED)) {
-        return NULL;
-    }
-
-    oserr = SHMMap(
-            &handle->OSHandle,
-            0,
-            SHMBufferCapacity(&handle->OSHandle),
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
-    );
-    if (oserr != OS_EOK) {
-        return NULL;
-    }
-    return SHMBuffer(&handle->OSHandle);
 }
 
 static oserr_t
 __pipe_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    struct Pipe*    pipe = handle->OpsContext;
-    streambuffer_t* stream = __stream_safe(handle);
+    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
     size_t          bytesRead;
+    
     TRACE("stdio_pipe_op_read(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
 
@@ -204,15 +147,16 @@ __pipe_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_r
     }
 
     bytesRead = streambuffer_stream_in(
-            stream,
-            buffer,
-            length,
-            &(streambuffer_rw_options_t) {
-                    .flags = pipe->Options,
-                    .async_context = __tls_current()->async_context,
-                    .deadline = NULL
-            }
+        stream,
+        buffer,
+        length,
+        &(streambuffer_rw_options_t) {
+            .flags = __pipe_options(handle),
+            .async_context = __tls_current()->async_context,
+            .deadline = NULL
+        }
     );
+
     *bytes_read = bytesRead;
     TRACE("stdio_pipe_op_read returns %" PRIuIN, bytesRead);
     return OS_EOK;
@@ -221,9 +165,9 @@ __pipe_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_r
 static oserr_t
 __pipe_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    struct Pipe*    pipe = handle->OpsContext;
-    streambuffer_t* stream = __stream_safe(handle);
+    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
     size_t          bytesWritten;
+    
     TRACE("stdio_pipe_op_write(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
 
@@ -232,14 +176,14 @@ __pipe_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* 
     }
 
     bytesWritten = streambuffer_stream_out(
-            stream,
-            (void*)buffer,
-            length,
-            &(streambuffer_rw_options_t) {
-                    .flags = pipe->Options,
-                    .async_context = __tls_current()->async_context,
-                    .deadline = NULL
-            }
+        stream,
+        (void*)buffer,
+        length,
+        &(streambuffer_rw_options_t) {
+            .flags = __pipe_options(handle),
+            .async_context = __tls_current()->async_context,
+            .deadline = NULL
+        }
     );
     stdio_handle_activity(handle, IOSETIN); // Mark pipe for recieved data
 
@@ -248,64 +192,13 @@ __pipe_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* 
     return OS_EOK;
 }
 
-static void
-__pipe_close(
-        _In_ stdio_handle_t* handle,
-        _In_ int             options)
-{
-    if (options & STDIO_CLOSE_FULL) {
-        __pipe_delete(handle->OpsContext);
-    }
-}
-
-static size_t
-__pipe_serialize(void* context, void* out)
-{
-    struct Pipe* pipe = context;
-    uint8_t*     out8 = out;
-
-    *((unsigned int*)&out8[0]) = pipe->Options;
-
-    return sizeof(unsigned int);
-}
-
-static size_t
-__pipe_deserialize(const void* in, void** contextOut)
-{
-    const uint8_t* in8 = in;
-    struct Pipe*   pipe = __pipe_new();
-    assert(pipe != NULL);
-
-    pipe->Options = *((unsigned int*)&in8[0]);
-
-    *contextOut = pipe;
-    return sizeof(unsigned int);
-}
-
-static oserr_t
-__pipe_clone(const void* context, void** contextOut)
-{
-    const struct Pipe* original = context;
-    struct Pipe*       clone;
-
-    // allocate a new structure for the clone
-    clone = malloc(sizeof(struct Pipe));
-    if (clone == NULL) {
-        return OS_EOOM;
-    }
-    memcpy(clone, original, sizeof(struct Pipe));
-    *contextOut = clone;
-    return OS_EOK;
-}
-
 static oserr_t
 __pipe_ioctl(
-        _In_ stdio_handle_t* handle,
-        _In_ int             request,
-        _In_ va_list         args)
+    _In_ stdio_handle_t* handle,
+    _In_ int             request,
+    _In_ va_list         args)
 {
-    struct Pipe*    pipe = handle->OpsContext;
-    streambuffer_t* stream = __stream_safe(handle);
+    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
 
     if (stream == NULL) {
         return OS_EDEVFAULT;
@@ -315,9 +208,9 @@ __pipe_ioctl(
         int* nonBlocking = va_arg(args, int*);
         if (nonBlocking) {
             if (*nonBlocking) {
-                pipe->Options |= STREAMBUFFER_NO_BLOCK;
+                handle->XTFlags |= __IO_NONBLOCK;
             } else {
-                pipe->Options &= ~(STREAMBUFFER_NO_BLOCK);
+                handle->XTFlags &= ~__IO_NONBLOCK;
             }
         }
         return OS_EOK;

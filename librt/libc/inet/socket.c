@@ -28,9 +28,9 @@ static oserr_t __net_write(stdio_handle_t*, const void*, size_t, size_t*);
 static oserr_t __net_ioctl(stdio_handle_t*, int, va_list);
 
 stdio_ops_t g_netOps = {
-        .read = __net_read,
-        .write = __net_write,
-        .ioctl = __net_ioctl
+    .read = __net_read,
+    .write = __net_write,
+    .ioctl = __net_ioctl
 };
 
 int socket(int domain, int type, int protocol)
@@ -46,17 +46,19 @@ int socket(int domain, int type, int protocol)
     }
 
     status = stdio_handle_create(
-            -1,
-            0,
-            0,
-            NET_SIGNATURE,
-            NULL,
-            &handle
+        -1,
+        0,
+        0,
+        NET_SIGNATURE,
+        NULL,
+        &handle
     );
     if (status) {
         OSHandleDestroy(&osHandle);
         return status;
     }
+    
+    stdio_handle_set_shared(handle);
     stdio_handle_set_handle(handle, &osHandle);
     return stdio_handle_iod(handle);
 }

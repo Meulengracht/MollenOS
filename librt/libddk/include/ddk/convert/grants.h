@@ -20,6 +20,9 @@
 #define __DDK_CONVERT_GRANTS_H__
 
 #include <os/types/grants.h>
+#include <os/handle.h>
+#include <os/shm.h>
+#include <string.h>
 #include <sys_process_service.h>
 
 // Gracht writes scalar fields in host byte order. Grant contracts require
@@ -122,6 +125,137 @@ __SHMTransferSelectorValid(
     // Subtract before comparing so that offset + length cannot wrap.
     return transfer->RequestedLength <=
            transfer->Token.Options.Data.SHM.Length - transfer->RelativeOffset;
+}
+
+/**
+ * @brief Returns the selected byte length. Selector fields must be valid.
+ * @param transfer Validated transfer description.
+ * @return Selected byte length.
+ */
+static inline size_t
+__SHMTransferLength(
+    _In_ const SHMTransfer_t* transfer)
+{
+    return transfer->RangeMode == SHMTransferRangeFull ?
+        transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+}
+
+/**
+ * @brief Checks required access before attaching a validated transfer.
+ * @param transfer Validated transfer description.
+ * @param scope Required token access.
+ * @param buffer Receives the attachment on success.
+ * @return OS_EOK, OS_EPERMISSIONS, or an attachment error.
+ */
+static inline oserr_t
+__SHMTransferAttach(
+    _In_  const SHMTransfer_t* transfer,
+    _In_  GrantTokenScope_t   scope,
+    _Out_ OSHandle_t*         buffer)
+{
+    if ((transfer->Token.Options.Scope & scope) != scope) {
+        return OS_EPERMISSIONS;
+    }
+    return SHMAttachToken(&transfer->Token, buffer);
+}
+
+/**
+ * @brief Attaches and maps the selected bytes of a validated transfer.
+ * @param transfer Validated transfer description.
+ * @param access SHM_ACCESS_READ and/or SHM_ACCESS_WRITE.
+ * @param buffer Receives the mapped attachment. Destroy it after use.
+ * @return OS_EOK or an access, attachment or mapping error.
+ */
+static inline oserr_t
+__SHMTransferMap(
+    _In_  const SHMTransfer_t* transfer,
+    _In_  unsigned int         access,
+    _Out_ OSHandle_t*          buffer)
+{
+    OSHandle_t        mapping;
+    GrantTokenScope_t scope = 0;
+    oserr_t           status;
+
+    if (access & SHM_ACCESS_READ) {
+        scope |= GrantTokenScopeRead;
+    }
+
+    if (access & SHM_ACCESS_WRITE) {
+        scope |= GrantTokenScopeWrite;
+    }
+
+    status = __SHMTransferAttach(transfer, scope, &mapping);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = SHMMap(
+        &mapping,
+        transfer->RelativeOffset,
+        __SHMTransferLength(transfer),
+        access
+    );
+    if (status != OS_EOK) {
+        OSHandleDestroy(&mapping);
+        return status;
+    }
+
+    *buffer = mapping;
+    return OS_EOK;
+}
+
+/**
+ * @brief Copies the first bytes of a validated transfer into local memory.
+ * The transfer is mapped for reading only while the bytes are copied.
+ * @param transfer Validated transfer description.
+ * @param buffer Receives the copied bytes.
+ * @param length Number of bytes to copy. Must not exceed __SHMTransferLength(transfer).
+ * @return OS_EOK or an access, attachment or mapping error.
+ */
+static inline oserr_t
+__SHMTransferRead(
+    _In_  const SHMTransfer_t* transfer,
+    _Out_ void*                buffer,
+    _In_  size_t               length)
+{
+    OSHandle_t mapping;
+    oserr_t    status;
+
+    status = __SHMTransferMap(transfer, SHM_ACCESS_READ, &mapping);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    memcpy(buffer, SHMBuffer(&mapping), length);
+    OSHandleDestroy(&mapping);
+    return OS_EOK;
+}
+
+/**
+ * @brief Copies local memory into the first bytes of a validated transfer.
+ * The transfer is mapped for reading and writing only while the bytes are copied.
+ * @param transfer Validated transfer description.
+ * @param buffer The bytes to copy.
+ * @param length Number of bytes to copy. Must not exceed __SHMTransferLength(transfer).
+ * @return OS_EOK or an access, attachment or mapping error.
+ */
+static inline oserr_t
+__SHMTransferWrite(
+    _In_ const SHMTransfer_t* transfer,
+    _In_ const void*          buffer,
+    _In_ size_t               length)
+{
+    OSHandle_t mapping;
+    oserr_t    status;
+
+    status = __SHMTransferMap(transfer, SHM_ACCESS_READ | SHM_ACCESS_WRITE, &mapping);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    memcpy(SHMBuffer(&mapping), buffer, length);
+    OSHandleDestroy(&mapping);
+    return OS_EOK;
 }
 
 /**

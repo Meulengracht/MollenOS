@@ -20,9 +20,10 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
-#include <internal/_tls.h>
+#include <internal/_shm_transfer.h>
 #include <io.h>
 #include <os/handle.h>
+#include <os/grants.h>
 #include <os/services/file.h>
 #include <os/memory.h>
 #include <os/shm.h>
@@ -42,19 +43,20 @@ static const struct bom_mode {
     unsigned int  flags;
     unsigned char identifier[BOM_MAX_LEN];
 } supported_bom_modes[] = {
-        { "UTF32BE", 4, __IO_UTF32 | __IO_BIGENDIAN, {0x00, 0x00, 0xFE, 0xFF } },
-        { "UTF32LE", 4, __IO_UTF32, {0xFF, 0xFE, 0x00, 0x00 } },
-        { "UTF16BE", 2, __IO_UTF16 | __IO_BIGENDIAN, {0xFE, 0xFF } },
-        { "UTF16LE", 2, __IO_UTF16, {0xFF, 0xFE } },
-        { "UTF8", 3,    __IO_UTF,   {0xEF, 0xBB, 0xBF } },
-        { NULL, 0, 0,               {0 }}
+    { "UTF32BE", 4, __IO_UTF32 | __IO_BIGENDIAN, { 0x00, 0x00, 0xFE, 0xFF } },
+    { "UTF32LE", 4, __IO_UTF32, { 0xFF, 0xFE, 0x00, 0x00 } },
+    { "UTF16BE", 2, __IO_UTF16 | __IO_BIGENDIAN, { 0xFE, 0xFF } },
+    { "UTF16LE", 2, __IO_UTF16, { 0xFF, 0xFE } },
+    { "UTF8", 3,    __IO_UTF,   { 0xEF, 0xBB, 0xBF } },
+    { NULL, 0, 0,               { 0 }}
 };
+
 stdio_ops_t g_fileOps = {
-        .read = __file_read,
-        .write = __file_write,
-        .resize = __file_resize,
-        .seek = __file_seek,
-        .ioctl = __file_ioctl
+    .read = __file_read,
+    .write = __file_write,
+    .resize = __file_resize,
+    .seek = __file_seek,
+    .ioctl = __file_ioctl
 };
 
 static unsigned int __detect_filemode(int iod)
@@ -106,27 +108,29 @@ int open(const char* file, int flags, ...)
 
     // Try to open the file by directly communicating with the file-service
     osStatus = OSOpenPath(
-            file,
-            _fopts(flags) | _faccess(flags),
-            _fperms(mode),
-            &handle
+        file,
+        _fopts(flags) | _faccess(flags),
+        _fperms(mode),
+        &handle
     );
     if (osStatus != OS_EOK) {
         return OsErrToErrNo(osStatus);
     }
 
     status = stdio_handle_create(
-            -1,
-            flags,
-            0,
-            FILE_SIGNATURE,
-            NULL,
-            &object
+        -1,
+        flags,
+        0,
+        FILE_SIGNATURE,
+        NULL,
+        &object
     );
     if (status) {
         OSHandleDestroy(&handle);
         return status;
     }
+    
+    stdio_handle_set_shared(object);
     stdio_handle_set_handle(object, &handle);
 
     // detect filemode automatically
@@ -144,186 +148,132 @@ int open(const char* file, int flags, ...)
     return stdio_handle_iod(object);
 }
 
-static inline oserr_t
-__transfer(
-        _In_  uuid_t  fileID,
-        _In_  uuid_t  bufferID,
-        _In_  bool    write,
-        _In_  size_t  chunkSize,
-        _In_  size_t  offset,
-        _In_  size_t  length,
-        _Out_ size_t* bytesTransferedOut)
+// Bound temporary storage independently of the application's request size.
+#define FILE_TRANSFER_BUFFER_SIZE (64 * 1024)
+
+static oserr_t
+__file_transfer(
+    _In_  stdio_handle_t* handle,
+    _In_  void*           buffer,
+    _In_  size_t          length,
+    _In_  bool            write,
+    _Out_ size_t*         transferredOut)
 {
-    size_t  bytesLeft = length;
-    oserr_t oserr;
-    TRACE("__transfer(write=%i, length=%" PRIuIN ")", write, length);
+    OSHandle_t    shm;
+    SHMTransfer_t transfer;
+    size_t        pageSize;
+    size_t        capacity;
+    size_t        completed = 0;
+    size_t        requested;
+    size_t        transferred;
+    void*         shared;
+    oserr_t       status;
 
-    // Keep reading chunks untill we've read all requested
-    while (bytesLeft > 0) {
-        size_t bytesToTransfer = MIN(chunkSize, bytesLeft);
-        size_t bytesTransferred;
+    *transferredOut = 0;
+    if (length == 0) {
+        return OS_EOK;
+    }
 
-        TRACE("__transfer: chunk size %" PRIuIN ", offset %" PRIuIN,
-              bytesToTransfer, offset);
-        oserr = OSTransferFile(
-                fileID,
-                bufferID,
-                offset,
-                write,
-                bytesToTransfer,
-                &bytesTransferred
+    pageSize = MemoryPageSize();
+    capacity = MIN(length, FILE_TRANSFER_BUFFER_SIZE);
+    capacity = ((capacity + pageSize - 1) / pageSize) * pageSize;
+    status = SHMCreate(
+        &(SHM_t) {
+            .Flags = SHM_COMMIT | SHM_CLEAN,
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+            .Size = capacity
+        },
+        &shm
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = __SHMTransferCreate(
+        shm.ID,
+        0,
+        capacity,
+        write ? GrantTokenScopeRead : GrantTokenScopeRead | GrantTokenScopeWrite,
+        &transfer
+    );
+    if (status != OS_EOK) {
+        OSHandleDestroy(&shm);
+        return status;
+    }
+    
+    shared = SHMBuffer(&shm);
+
+    while (completed < length) {
+        requested = MIN(capacity, length - completed);
+        
+        // Each request can expose the complete shared pages. Clear padding and
+        // previous results before sharing this storage for the next chunk.
+        memset(shared, 0, capacity);
+        if (write) {
+            memcpy(shared, (const char*)buffer + completed, requested);
+        }
+
+        transferred = 0;
+        transfer.RequestedLength = (uint32_t)requested;
+        status = OSTransferFileBuffer(
+            handle->OSHandle.ID,
+            &transfer,
+            write,
+            &transferred
         );
-        TRACE("__transfer: bytes transferred %" PRIuIN ", status %u", bytesTransferred, oserr);
-        if (oserr != OS_EOK || bytesTransferred == 0) {
+        if (transferred > requested) {
+            status = OS_EPROTOCOL;
             break;
         }
 
-        bytesLeft -= bytesTransferred;
-        offset    += bytesTransferred;
+        if (!write && transferred != 0) {
+            memcpy((char*)buffer + completed, shared, transferred);
+        }
+
+        completed += transferred;
+        if (status != OS_EOK || transferred < requested) {
+            break;
+        }
     }
 
-    *bytesTransferedOut = length - bytesLeft;
-    return oserr;
-}
-
-static oserr_t
-__read_large(
-        _In_  stdio_handle_t* handle,
-        _In_  void*           buffer,
-        _In_  size_t          length,
-        _Out_ size_t*         bytesReadOut)
-{
-    OSHandle_t shm;
-    oserr_t    oserr;
-    TRACE("__read_large(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
-
-    oserr = SHMExport(
-            buffer,
-            &(SHM_t) {
-                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                    .Size = length
-            },
-            &shm
-    );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    // Pass the callers pointer directly here
-    oserr = __transfer(
-            handle->OSHandle.ID,
-            shm.ID,
-            false,
-            length,
-            0,
-            length,
-            bytesReadOut
-    );
+    OSGrantTokenRevoke(transfer.Token.ControlHandleID);
     OSHandleDestroy(&shm);
-    return oserr;
+    *transferredOut = completed;
+    return status;
 }
 
 static oserr_t
 __file_read(
-        _In_  stdio_handle_t* handle,
-        _In_  void*           buffer,
-        _In_  size_t          length,
-        _Out_ size_t*         bytesReadOut)
+    _In_  stdio_handle_t* handle,
+    _In_  void*           buffer,
+    _In_  size_t          length,
+    _Out_ size_t*         bytesReadOut)
 {
-    OSHandle_t* shmHandle = __tls_current_dmabuf();
-    uuid_t      builtinHandle = shmHandle->ID;
-    size_t      builtinLength = SHMBufferLength(shmHandle);
-    size_t      bytesRead;
-    oserr_t     oserr;
-    TRACE("__file_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
-
-    // There is a time when reading more than a couple of times is considerably slower
-    // than just reading the entire thing at once.
-    if (length > builtinLength) {
-        return __read_large(handle, buffer, length, bytesReadOut);
-    }
-
-    oserr = __transfer(
-            handle->OSHandle.ID,
-            builtinHandle,
-            false,
-            builtinLength,
-            0,
-            length,
-            &bytesRead
+    bool write = false;
+    return __file_transfer(
+        handle,
+        buffer,
+        length,
+        write,
+        bytesReadOut
     );
-    if (oserr == OS_EOK && bytesRead > 0) {
-        memcpy(buffer, SHMBuffer(shmHandle), bytesRead);
-    }
-
-    *bytesReadOut = bytesRead;
-    return oserr;
-}
-
-static oserr_t
-__write_large(
-        _In_  stdio_handle_t* handle,
-        _In_  const void*     buffer,
-        _In_  size_t          length,
-        _Out_ size_t*         bytesWrittenOut)
-{
-    OSHandle_t shm;
-    oserr_t    oserr;
-    TRACE("__write_large(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
-    oserr = SHMExport(
-            (void*)buffer,
-            &(SHM_t) {
-                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                    .Size = length
-            },
-            &shm
-    );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = __transfer(
-            handle->OSHandle.ID, shm.ID,
-            true,
-            length,
-            0,
-            length,
-            bytesWrittenOut
-    );
-    OSHandleDestroy(&shm);
-    return oserr;
 }
 
 static oserr_t
 __file_write(
-        _In_  stdio_handle_t* handle,
-        _In_  const void*     buffer,
-        _In_  size_t          length,
-        _Out_ size_t*         bytesWrittenOut)
+    _In_  stdio_handle_t* handle,
+    _In_  const void*     buffer,
+    _In_  size_t          length,
+    _Out_ size_t*         bytesWrittenOut)
 {
-    OSHandle_t* shmHandle = __tls_current_dmabuf();
-    uuid_t      builtinHandle = shmHandle->ID;
-    size_t      builtinLength = SHMBufferLength(shmHandle);
-    oserr_t     oserr;
-    TRACE("__file_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
-
-    // There is a time when reading more than a couple of times is considerably slower
-    // than just reading the entire thing at once.
-    if (length > builtinLength) {
-        return __write_large(handle, buffer, length, bytesWrittenOut);
-    }
-
-    memcpy(SHMBuffer(shmHandle), buffer, length);
-    oserr = __transfer(
-            handle->OSHandle.ID,
-            builtinHandle,
-            true,
-            builtinLength,
-            0,
-            length,
-            bytesWrittenOut
+    bool write = true;
+    return __file_transfer(
+        handle,
+        (void*)buffer,
+        length,
+        write,
+        bytesWrittenOut
     );
-    return oserr;
 }
 
 static oserr_t
@@ -331,6 +281,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
 {
     oserr_t      status;
     UInteger64_t seekFinal;
+    
     TRACE("stdio_file_op_seek(origin=%i, offset=%" PRIiIN ")", origin, offset);
 
     // If we search from SEEK_SET, just build offset directly

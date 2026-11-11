@@ -162,6 +162,21 @@ SHMAttachToken(
     _Out_ OSHandle_t*         handleOut));
 
 /**
+ * @brief Builds a local attachment for an installed startup reference.
+ * The caller must have one unregistered reference, installed before startup.
+ * Success transfers that reference to the returned attachment. Failure leaves
+ * the startup reference for the caller or process cleanup to release.
+ *
+ * @param referenceID Installed SHM reference. Its range and access stay unchanged.
+ * @param handleOut Receives an unmapped attachment. Unchanged on failure.
+ * @return OS_EOK, or an attachment, allocation or close error.
+ */
+CRTDECL(oserr_t,
+SHMAdopt(
+    _In_  uuid_t      referenceID,
+    _Out_ OSHandle_t* handleOut));
+
+/**
  * @brief Maps an SHM buffer or updates its current CPU mapping.
  * For ordinary attachments, changing only the length keeps the buffer address.
  * Changing the offset replaces the mapping and invalidates the old pointer.

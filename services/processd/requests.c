@@ -17,7 +17,7 @@
 
 //#define __TRACE
 
-#include <ddk/convert.h>
+#include <ddk/convert/grants.h>
 #include <ddk/utils.h>
 #include <os/context.h>
 #include <os/handle.h>
@@ -29,7 +29,6 @@
 #include "sys_library_service_server.h"
 #include "sys_process_service_server.h"
 
-extern oserr_t PmGetProcessStartupInformation(uuid_t threadHandle, uuid_t bufferHandle, size_t bufferOffset, uuid_t* processHandleOut);
 extern oserr_t PmJoinProcess(uuid_t processHandle, unsigned int timeout, int* exitCodeOut);
 extern oserr_t PmTerminateProcess(uuid_t processHandle, int exitCode);
 extern oserr_t PmSignalProcess(uuid_t processHandle, uuid_t victimHandle, int signal);
@@ -58,7 +57,56 @@ __from_sys_process_configuration(
     out->DataBuffer = NULL;
 }
 
-void sys_process_spawn_invocation(
+static oserr_t
+__CopySpawnInput(
+    _In_  const struct sys_process_configuration* configuration,
+    _Out_ void**                                  inputCopyOut)
+{
+    SHMTransfer_t transfer;
+    void*         copy;
+    size_t        capacity;
+    size_t        length;
+    oserr_t       oserr;
+
+    length = configuration->inherit_block_length;
+    if (length > PROCESS_STARTUP_MAX_SIZE ||
+        configuration->environ_block_length > PROCESS_STARTUP_MAX_SIZE - length) {
+        return OS_EBUFFER;
+    }
+   
+    length += configuration->environ_block_length;
+    
+    oserr = __FromSysSHMTransfer(&configuration->data_buffer, &transfer);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    capacity = __SHMTransferLength(&transfer);
+    if (capacity > PROCESS_STARTUP_MAX_SIZE) {
+        return OS_EBUFFER;
+    }
+
+    if (length > capacity) {
+        return OS_EINVALPARAMS;
+    }
+
+    copy = malloc(length == 0 ? 1 : length);
+    if (copy == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = __SHMTransferRead(&transfer, copy, length);
+    if (oserr != OS_EOK) {
+        free(copy);
+        return oserr;
+    }
+
+    *inputCopyOut = copy;
+    return OS_EOK;
+}
+
+void
+sys_process_spawn_invocation(
     struct gracht_message*                  message,
     const char*                             path,
     const char*                             arguments,
@@ -66,16 +114,17 @@ void sys_process_spawn_invocation(
 {
     struct ProcessOptions                 options = { 0 };
     const struct gracht_security_context* caller;
+    void*                                 inputCopy;
     uuid_t                                handle = UUID_INVALID;
     oserr_t                               oserr;
-    TRACE("void sys_process_spawn_invocation(()");
 
-    if (path == NULL || !strlen(path)) {
+    if (path == NULL || path[0] == '\0') {
         sys_process_spawn_response(message, OS_EINVALPARAMS, UUID_INVALID);
         return;
     }
-    __from_sys_process_configuration(configuration, &options);
 
+    __from_sys_process_configuration(configuration, &options);
+    
     caller = gracht_server_get_security_context(message);
     oserr = PmAuthorizeSpawn(caller, options.Capabilities);
     if (oserr != OS_EOK) {
@@ -83,42 +132,17 @@ void sys_process_spawn_invocation(
         return;
     }
 
-    oserr = SHMAttach(configuration->data_buffer, &options.DataBufferHandle);
+    oserr = __CopySpawnInput(configuration, &inputCopy);
     if (oserr != OS_EOK) {
         sys_process_spawn_response(message, oserr, UUID_INVALID);
         return;
     }
 
-    // We only need read access to the buffer
-    oserr = SHMMap(
-        &options.DataBufferHandle,
-        0,
-        SHMBufferCapacity(&options.DataBufferHandle),
-        SHM_ACCESS_READ
-    );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&options.DataBufferHandle);
-        sys_process_spawn_response(message, oserr, UUID_INVALID);
-        return;
-    }
-
+    options.DataBuffer = inputCopy;
+   
     oserr = PmCreateProcess(caller, path, arguments, &options, &handle);
-    OSHandleDestroy(&options.DataBufferHandle);
+    free(inputCopy);
     sys_process_spawn_response(message, oserr, handle);
-}
-
-void sys_process_get_startup_information_invocation(struct gracht_message* message, const uuid_t handle,
-                                                    const uuid_t bufferHandle, const size_t offset)
-{
-    TRACE("sys_process_get_startup_information_invocation()");
-    uuid_t  processHandle = UUID_INVALID;
-    oserr_t oserr = PmGetProcessStartupInformation(
-        handle,
-        bufferHandle,
-        offset,
-        &processHandle
-    );
-    sys_process_get_startup_information_response(message, oserr, processHandle);
 }
 
 void sys_process_join_invocation(struct gracht_message* message, const uuid_t handle, const unsigned int timeout)
@@ -174,6 +198,7 @@ void sys_process_get_modules_invocation(struct gracht_message* message, const uu
     int      moduleCount = PROCESS_MAXMODULES;
     Handle_t buffer[PROCESS_MAXMODULES];
     oserr_t  oserr = PmGetModules(handle, &buffer[0], &moduleCount);
+    
     if (oserr != OS_EOK) {
         sys_process_get_modules_response(message, NULL, 0, 0);
         return;
@@ -195,10 +220,12 @@ void sys_process_get_assembly_directory_invocation(struct gracht_message* messag
     mstring_t* directory;
     oserr_t    oserr = PmGetAssemblyDirectory(handle, &directory);
     char*      cdirectory;
+    
     if (oserr != OS_EOK) {
         sys_process_get_assembly_directory_response(message, oserr, "");
         return;
     }
+
     cdirectory = mstr_u8(directory);
     if (cdirectory == NULL) {
         sys_process_get_assembly_directory_response(message, OS_EOOM, "");
@@ -214,10 +241,12 @@ void sys_process_get_working_directory_invocation(struct gracht_message* message
     mstring_t* directory;
     oserr_t    oserr = PmGetWorkingDirectory(handle, &directory);
     char*      cdirectory;
+    
     if (oserr != OS_EOK) {
         sys_process_get_working_directory_response(message, oserr, "");
         return;
     }
+    
     cdirectory = mstr_u8(directory);
     if (cdirectory == NULL) {
         sys_process_get_working_directory_response(message, OS_EOOM, "");
@@ -240,10 +269,12 @@ void sys_process_get_name_invocation(struct gracht_message* message, const uuid_
     mstring_t* name;
     oserr_t    oserr = PmGetName(handle, &name);
     char*      cname;
+    
     if (oserr != OS_EOK) {
         sys_process_get_name_response(message, oserr, "");
         return;
     }
+    
     cname = mstr_u8(name);
     if (cname == NULL) {
         sys_process_get_name_response(message, OS_EOOM, "");
@@ -261,6 +292,7 @@ void sys_process_report_crash_invocation(struct gracht_message* message, const u
     oserr_t    oserr;
 
     TRACE("sys_process_report_crash_invocation(crashContext_count=%u)", crashContext_count);
+    
     process = PmGetProcessByHandle(processId);
     if (!process) {
         // what the *?

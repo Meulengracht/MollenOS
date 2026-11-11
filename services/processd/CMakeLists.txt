@@ -34,6 +34,7 @@ add_executable (phoenix
         main.c
         process.c
         requests.c
+        startup.c
 )
 
 target_include_directories(phoenix PRIVATE include)

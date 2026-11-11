@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,65 +15,229 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
+#include <ddk/convert/inheritance.h>
 #include <internal/_io.h>
+#include <os/handle.h>
+#include <os/types/file.h>
+#include <stdlib.h>
+
 #include "private.h"
 
-size_t
-OSHandleDeserialize(
-        _In_ struct OSHandle* handle,
-        _In_ const void*      buffer);
+struct __import_resource {
+    unsigned int Signature;
+    OSHandle_t   Handle;
+};
 
-static size_t
-__ParseInheritationHeader(
-        _In_ uint8_t* headerData)
+static oserr_t
+__RecordResourceSignature(
+    _InOut_ struct __import_resource* resource,
+    _In_    unsigned int              signature)
 {
-    struct InheritationHeader* header = (struct InheritationHeader*)&headerData[0];
-    int                        status;
-    stdio_handle_t*            handle;
-    size_t                     bytesParsed = 0;
+    // Zero is never a supported signature, so it marks an unseen resource.
+    if (resource->Signature == 0) {
+        resource->Signature = signature;
+        return OS_EOK;
+    }
 
-    // First we create the stdio handle, for this we only need what we can read
-    // in the header. The payload will then be parsed, and last, the OS handle
-    status = stdio_handle_create(
-            header->IOD,
-            0,
-            header->XTFlags | __IO_PERSISTANT | __IO_INHERITTED,
-            header->Signature,
-            NULL,
-            &handle
+    if (resource->Signature != signature) {
+        return OS_EINVALPARAMS;
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__ValidateStdioDescriptors(
+    _In_    const struct sys_inherited_descriptor* descriptors,
+    _In_    uint32_t                               descriptorCount,
+    _InOut_ struct __import_resource*              resources)
+{
+    if (descriptorCount > INTERNAL_MAXFILES) {
+        return OS_EINVALPARAMS;
+    }
+
+    for (uint32_t i = 0; i < descriptorCount; i++) {
+        oserr_t status;
+
+        if (descriptors[i].descriptor >= INTERNAL_MAXFILES) {
+            return OS_EINVALPARAMS;
+        }
+
+        status = CRTValidateInheritedDescriptor(
+            descriptors[i].signature,
+            descriptors[i].flags
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        // The layout check bounded resource_index.
+        status = __RecordResourceSignature(
+            &resources[descriptors[i].resource_index],
+            descriptors[i].signature
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__ValidateChildInheritance(
+    _In_    const struct sys_process_inheritance_output* output,
+    _InOut_ struct __import_resource*                    resources)
+{
+    OSHandle_t existing;
+    oserr_t    status;
+
+    status = __ValidateStdioDescriptors(
+        output->descriptors,
+        output->descriptors_count,
+        resources
     );
-    assert(status == 0);
-    bytesParsed += sizeof(struct InheritationHeader);
-
-    // We've parsed the initial data required to set up a new io object.
-    // Now we import the OS handle stuff
-    bytesParsed += OSHandleDeserialize(&handle->OSHandle, &headerData[bytesParsed]);
-
-    // Handle any implementation specific importation
-    if (handle->Ops->deserialize) {
-        bytesParsed += handle->Ops->deserialize(&headerData[bytesParsed], &handle->OpsContext);
+    if (status != OS_EOK) {
+        return status;
     }
-    return bytesParsed;
+
+    // Check all collisions before changing either local table. Internal startup
+    // descriptors keep their numbers; inheritance must not silently replace them.
+    for (uint32_t i = 0; i < output->descriptors_count; i++) {
+        if (stdio_handle_get((int)output->descriptors[i].descriptor) != NULL) {
+            return OS_EEXISTS;
+        }
+    }
+
+    for (uint32_t i = 0; i < output->resources_count; i++) {
+        if (output->resources[i] == UUID_INVALID) {
+            return OS_EINVALPARAMS;
+        }
+
+        for (uint32_t j = 0; j < i; j++) {
+            if (output->resources[j] == output->resources[i]) {
+                return OS_EINVALPARAMS;
+            }
+        }
+
+        status = OSHandlesFind(output->resources[i], &existing);
+        if (status != OS_ENOENT) {
+            return status == OS_EOK ? OS_EEXISTS : status;
+        }
+    }
+    return OS_EOK;
 }
 
-static void
-__ParseInheritationBlock(
-        _In_ void* inheritanceBlock)
-{
-    struct InheritationBlock* block = inheritanceBlock;
-    size_t                    bytesConsumed = 0;
-
-    for (int i = 0; i < block->Count; i++) {
-        bytesConsumed += __ParseInheritationHeader(&block->Data[bytesConsumed]);
-    }
-}
-
-void
+oserr_t
 CRTReadInheritanceBlock(
-        _In_ void* inheritanceBlock)
+    _In_ const void* buffer,
+    _In_ uint32_t    length)
 {
-    if (inheritanceBlock != NULL) {
-        __ParseInheritationBlock(inheritanceBlock);
+    struct sys_process_inheritance_output output = { 0 };
+    gracht_buffer_t                       wire = { .data = (char*)buffer, .limit = length };
+    struct __import_resource*             resources = NULL;
+    stdio_handle_t*                       descriptor;
+    uint32_t                              wrapped = 0;
+    uint32_t                              created = 0;
+    uint32_t                              resource;
+    oserr_t                               status;
+
+    if (length == 0) {
+        return OS_EOK;
     }
+
+    if (length > PROCESS_STARTUP_MAX_SIZE) {
+        return OS_EBUFFER;
+    }
+
+    if (buffer == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    deserialize_sys_process_inheritance_output(&wire, &output);
+    if (wire.error || wire.index != length) {
+        status = wire.error == ENOMEM ? OS_EOOM : OS_EINVALPARAMS;
+        goto cleanup;
+    }
+
+    // The layout check bounds the resource count before it sizes the table.
+    status = __ValidateInheritanceLayout(&output);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    resources = calloc(output.resources_count, sizeof(*resources));
+    if (resources == NULL) {
+        status = OS_EOOM;
+        goto cleanup;
+    }
+
+    status = __ValidateChildInheritance(&output, resources);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    for (uint32_t i = 0; i < output.resources_count; i++) {
+        status = CRTAdoptInheritedHandle(
+            resources[i].Signature,
+            output.resources[i],
+            &resources[i].Handle
+        );
+        if (status != OS_EOK) {
+            goto cleanup;
+        }
+        wrapped++;
+    }
+
+    for (uint32_t i = 0; i < output.descriptors_count; i++) {
+        int code = stdio_handle_create(
+            (int)output.descriptors[i].descriptor,
+            0,
+            output.descriptors[i].flags,
+            output.descriptors[i].signature,
+            NULL,
+            &descriptor
+        );
+        if (code) {
+            status = OS_EOOM;
+            goto cleanup;
+        }
+
+        // The general constructor derives read mode from open flags. Here the
+        // validated descriptor mode is already complete, including write-only.
+        descriptor->XTFlags = CRTInheritedLocalFlags(
+            output.descriptors[i].signature,
+            output.descriptors[i].flags
+        );
+
+        stdio_handle_set_shared(descriptor);
+        resource = output.descriptors[i].resource_index;
+
+        status = OSHandlesAcquire(&resources[resource].Handle);
+        if (status != OS_EOK) {
+            stdio_handle_delete(descriptor);
+            goto cleanup;
+        }
+
+        stdio_handle_set_handle(descriptor, &resources[resource].Handle);
+        created++;
+    }
+    status = OS_EOK;
+
+cleanup:
+    if (status != OS_EOK) {
+        for (uint32_t i = 0; i < created; i++) {
+            descriptor = stdio_handle_get((int)output.descriptors[i].descriptor);
+            OSHandleDestroy(&descriptor->OSHandle);
+            stdio_handle_delete(descriptor);
+        }
+    }
+
+    // On success the descriptors keep their local references. On failure, any
+    // unwrapped kernel grants are released by the required process exit.
+    for (uint32_t i = 0; i < wrapped; i++) {
+        OSHandleDestroy(&resources[i].Handle);
+    }
+
+    free(resources);
+    sys_process_inheritance_output_destroy(&output);
+    return status;
 }

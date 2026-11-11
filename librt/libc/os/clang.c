@@ -125,7 +125,10 @@ CRTDECL(void, __cxa_threadinitialize(void))
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADATTACH);
     }
-    __cxa_primary_tls_thread_init();
+    // The bootstrap job runs before the primary module registers its callbacks.
+    if (__cxa_primary_tls_thread_init != NULL) {
+        __cxa_primary_tls_thread_init();
+    }
 }
 
 /* __cxa_threadfinalize
@@ -144,7 +147,9 @@ CRTDECL(void, __cxa_threadfinalize(void))
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADDETACH);
     }
     
-    __cxa_primary_tls_thread_finit();
+    if (__cxa_primary_tls_thread_finit != NULL) {
+        __cxa_primary_tls_thread_finit();
+    }
     
     __tls_run_destructors(NULL);
     __tls_release_modules();

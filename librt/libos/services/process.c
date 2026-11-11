@@ -20,15 +20,20 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <ddk/convert.h>
+#include <ddk/convert/grants.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_gracht.h>
+#include <internal/_shm_transfer.h>
 #include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <os/services/process.h>
 #include <os/shm.h>
+#include <os/grants.h>
+#include <os/handle.h>
+#include <os/memory.h>
 
 #include <sys_process_service_client.h>
 
@@ -40,7 +45,6 @@ typedef struct OSProcessOptions {
     struct InheritanceOptions InheritanceOptions;
     UInteger64_t              MemoryLimit;
     Capabilities_t            Capabilities;
-    uint32_t                  InheritationBlockLength;
     uint32_t                  EnvironmentBlockLength;
 } OSProcessOptions_t;
 
@@ -60,7 +64,6 @@ __OSProcessOptionsConstruct(
     options->Capabilities = 0;
 
     // Calculated before passed on to protocol
-    options->InheritationBlockLength = 0;
     options->EnvironmentBlockLength = 0;
 }
 
@@ -109,6 +112,20 @@ OSProcessOptionsSetEnvironment(
 }
 
 void
+OSProcessOptionsSetInheritance(
+    _In_ OSProcessOptions_t* options,
+    _In_ unsigned int       flags,
+    _In_ int                stdinDescriptor,
+    _In_ int                stdoutDescriptor,
+    _In_ int                stderrDescriptor)
+{
+    options->InheritanceOptions.Flags = flags;
+    options->InheritanceOptions.StdInHandle = stdinDescriptor;
+    options->InheritanceOptions.StdOutHandle = stdoutDescriptor;
+    options->InheritanceOptions.StdErrHandle = stderrDescriptor;
+}
+
+void
 OSProcessOptionsSetScope(
         _In_ OSProcessOptions_t* options,
         _In_ uuid_t              scope)
@@ -154,90 +171,179 @@ OSProcessSpawn(
     );
 }
 
-static void
+static oserr_t
 __WriteFlattenedEnvironment(
-        _In_  const char* const* environment,
-        _In_  void*              buffer,
-        _Out_ uint32_t*          bytesWrittenOut)
+    _In_  const char* const* environment,
+    _In_  char*              buffer,
+    _In_  size_t             capacity,
+    _Out_ uint32_t*          bytesWrittenOut)
 {
-    char* flat = buffer;
+    size_t offset = 0;
+    size_t length;
 
     if (environment == NULL) {
         *bytesWrittenOut = 0;
-        return;
+        return OS_EOK;
     }
 
-    for (int i = 0; environment[i]; i++) {
-        size_t entryLength = strlen(environment[i]) + 1;
-        memcpy(flat, environment[i], entryLength);
-        flat += entryLength;
+    if (capacity == 0) {
+        return OS_EBUFFER;
     }
 
-    // write terminating null for the array
-    flat[0] = '\0';
-    flat++;
-    *bytesWrittenOut = (uint32_t)(flat - (char*)buffer);
+    for (size_t i = 0; environment[i] != NULL; i++) {
+        // Reserve the final zero that terminates the list of strings.
+        length = strnlen(environment[i], capacity - offset);
+        if (length + 1 >= capacity - offset) {
+            return OS_EBUFFER;
+        }
+        if (length == 0) {
+            return OS_EINVALPARAMS;
+        }
+        
+        memcpy(buffer + offset, environment[i], length + 1);
+        offset += length + 1;
+    }
+
+    // Terminate the list of environment strings with an additional zero byte.
+    buffer[offset++] = '\0';
+    
+    *bytesWrittenOut = (uint32_t)offset;
+    return OS_EOK;
+}
+
+// Creates the spawn buffer and writes the inheritance block followed by
+// the flattened environment into it. The transfer always covers
+// PROCESS_STARTUP_MAX_SIZE bytes, and the unused tail stays zeroed.
+// On failure, exported may still need CRTReleaseInheritanceBlock.
+static oserr_t
+__CreateSpawnBuffer(
+    _In_  OSProcessOptions_t*        options,
+    _Out_ struct inheritance_export* exported,
+    _Out_ OSHandle_t*                bufferOut,
+    _Out_ SHMTransfer_t*             transferOut)
+{
+    OSHandle_t    buffer;
+    SHMTransfer_t transfer;
+    char*         data;
+    oserr_t       oserr;
+
+    oserr = __SHMTransferAllocate(
+        PROCESS_STARTUP_MAX_SIZE,
+        GrantTokenScopeRead,
+        &buffer,
+        &transfer
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Get a pointer to the shared memory buffer.
+    data = SHMBuffer(&buffer);
+
+    oserr = CRTWriteInheritanceBlock(
+        &options->InheritanceOptions,
+        data,
+        PROCESS_STARTUP_MAX_SIZE,
+        exported
+    );
+    if (oserr != OS_EOK) {
+        goto error;
+    }
+
+    oserr = __WriteFlattenedEnvironment(
+        options->Environment,
+        data + exported->length,
+        PROCESS_STARTUP_MAX_SIZE - exported->length,
+        &options->EnvironmentBlockLength
+    );
+    if (oserr != OS_EOK) {
+        goto error;
+    }
+
+    *bufferOut = buffer;
+    *transferOut = transfer;
+    return OS_EOK;
+
+error:
+    OSGrantTokenRevoke(transfer.Token.ControlHandleID);
+    OSHandleDestroy(&buffer);
+    return oserr;
 }
 
 static void
 __to_sys_process_configuration(
-        _In_ OSProcessOptions_t* in,
-        _In_ uuid_t              bufferIn,
-        _In_ struct sys_process_configuration* out)
+    _In_  OSProcessOptions_t*               in,
+    _In_  uint32_t                          inheritBlockLength,
+    _Out_ struct sys_process_configuration* out)
 {
     out->scope = in->Scope;
     out->memory_limit = in->MemoryLimit.QuadPart;
     out->working_directory = (char*)in->WorkingDirectory;
-    out->inherit_block_length = in->InheritationBlockLength;
+    out->inherit_block_length = inheritBlockLength;
     out->environ_block_length = in->EnvironmentBlockLength;
-    out->data_buffer = bufferIn;
     out->capabilities = (uint32_t)in->Capabilities;
 }
 
 oserr_t
 OSProcessSpawnOpts(
-        _In_     const char*         path,
-        _In_     OSProcessOptions_t* options,
-        _Out_    uuid_t*             handleOut)
+    _In_  const char*         path,
+    _In_  OSProcessOptions_t* options,
+    _Out_ uuid_t*             handleOut)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    struct sys_process_configuration configuration = { 0 };
+    SHMTransfer_t                    transfer;
+    struct inheritance_export        exported = { 0 };
+    OSHandle_t                       buffer;
+    uuid_t                           handle = UUID_INVALID;
     oserr_t                          oserr;
-    struct sys_process_configuration gconfiguration;
-    OSHandle_t*                      dmaBuffer;
-    char*                            buffer;
-    TRACE("OSProcessSpawnOpts(path=%s)", path);
-    
+
     if (path == NULL || options == NULL || handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    // get the current TLS transfer buffer where we will store most
-    // of the process setup data.
-    dmaBuffer = __tls_current_dmabuf();
-    buffer = SHMBuffer(dmaBuffer);
+    if (strnlen(path, PROCESS_STARTUP_MAX_SIZE) == PROCESS_STARTUP_MAX_SIZE ||
+        (options->Arguments != NULL &&
+         strnlen(options->Arguments, PROCESS_STARTUP_MAX_SIZE) == PROCESS_STARTUP_MAX_SIZE)) {
+        return OS_EBUFFER;
+    }
 
-    CRTWriteInheritanceBlock(
-            &options->InheritanceOptions,
-            buffer,
-            &options->InheritationBlockLength
-    );
-    buffer += options->InheritationBlockLength;
+    oserr = __CreateSpawnBuffer(options, &exported, &buffer, &transfer);
+    if (oserr != OS_EOK) {
+        CRTReleaseInheritanceBlock(&exported);
+        return oserr;
+    }
 
-    __WriteFlattenedEnvironment(
-            options->Environment,
-            buffer,
-            &options->EnvironmentBlockLength
-    );
-    buffer += options->EnvironmentBlockLength;
+    __to_sys_process_configuration(options, exported.length, &configuration);
+    oserr = __ToSysSHMTransfer(&transfer, &configuration.data_buffer);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
 
-    __to_sys_process_configuration(options, dmaBuffer->ID, &gconfiguration);
-    sys_process_spawn(GetGrachtClient(), &msg.base,
-                      path,
-                      options->Arguments,
-                      &gconfiguration
-    );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
+    if (sys_process_spawn(GetGrachtClient(), &msg.base, path,
+                          options->Arguments, &configuration) != 0) {
+        oserr = OS_EUNKNOWN;
+        goto cleanup;
+    }
+
+    oserr = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+
+    if (sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, &handle) != 0) {
+        oserr = OS_EPROTOCOL;
+    }
+    
+    if (oserr == OS_EOK) {
+        *handleOut = handle;
+    }
+
+cleanup:
+    // A failed wait does not stop remote work. Its attachment keeps the buffer valid.
+    OSGrantTokenRevoke(transfer.Token.ControlHandleID);
+    OSHandleDestroy(&buffer);
+    CRTReleaseInheritanceBlock(&exported);
     return oserr;
 }
 

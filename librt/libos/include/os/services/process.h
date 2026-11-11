@@ -79,6 +79,24 @@ OSProcessOptionsSetEnvironment(
         _In_ const char* const*  environment));
 
 /**
+ * @brief Selects file descriptors for the next spawn. Keep the descriptor table
+ * unchanged while spawn snapshots it. Unsupported selected types fail the spawn.
+ *
+ * @param options Process options to update.
+ * @param flags Combination of PROCESS_INHERIT_* flags.
+ * @param stdinDescriptor Source for child descriptor 0 when stdin is selected.
+ * @param stdoutDescriptor Source for child descriptor 1 when stdout is selected.
+ * @param stderrDescriptor Source for child descriptor 2 when stderr is selected.
+ */
+CRTDECL(void,
+OSProcessOptionsSetInheritance(
+    _In_ OSProcessOptions_t* options,
+    _In_ unsigned int        flags,
+    _In_ int                 stdinDescriptor,
+    _In_ int                 stdoutDescriptor,
+    _In_ int                 stderrDescriptor));
+
+/**
  * @brief Isolates the process in the provided scope. The scope dictates every resource
  * the process wil have access to. A child scope can be created through the Scope API, in
  * which a process can be isolated.

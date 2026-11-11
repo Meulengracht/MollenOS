@@ -20,7 +20,9 @@
 #define __OS_INTERNAL_SHM_TRANSFER_H__
 
 #include <os/grants.h>
+#include <os/handle.h>
 #include <os/memory.h>
+#include <os/shm.h>
 
 /**
  * @brief Creates a temporary grant token for a nonempty payload. The token covers
@@ -80,6 +82,55 @@ __SHMTransferCreate(
     transfer.RequestedLength = (uint32_t)length;
 
     *transferOut = transfer;
+    return OS_EOK;
+}
+
+/**
+ * @brief Creates a zeroed, committed SHM buffer and a grant token for its first
+ * length bytes. The buffer size is length rounded up to whole pages.
+ * The caller must revoke the token control handle and then destroy the buffer
+ * when the transfer is done.
+ *
+ * @param length      Number of bytes the transfer covers. Must be nonzero.
+ * @param scope       Access the receiver gets through the token.
+ * @param bufferOut   Receives the buffer, mapped for reading and writing.
+ * @param transferOut Receives the transfer description for the buffer.
+ * @return OS_EOK, OS_EINVALPARAMS for a bad length, or an SHM or grant error.
+ */
+static inline oserr_t
+__SHMTransferAllocate(
+    _In_  size_t            length,
+    _In_  GrantTokenScope_t scope,
+    _Out_ OSHandle_t*       bufferOut,
+    _Out_ SHMTransfer_t*    transferOut)
+{
+    OSHandle_t buffer;
+    size_t     pageSize = MemoryPageSize();
+    oserr_t    status;
+
+    if (length == 0 || length > SIZE_MAX - (pageSize - 1)) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = SHMCreate(
+        &(SHM_t) {
+            .Flags = SHM_COMMIT | SHM_CLEAN,
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+            .Size = ((length + pageSize - 1) / pageSize) * pageSize
+        },
+        &buffer
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = __SHMTransferCreate(buffer.ID, 0, length, scope, transferOut);
+    if (status != OS_EOK) {
+        OSHandleDestroy(&buffer);
+        return status;
+    }
+
+    *bufferOut = buffer;
     return OS_EOK;
 }
 

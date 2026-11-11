@@ -1,6 +1,7 @@
 
 add_library(libos-services STATIC
         file.c
+        file_transfer.c
         fileview.c
         mount.c
         net.c

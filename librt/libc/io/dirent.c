@@ -60,10 +60,10 @@ opendir(
     struct DIR* dir;
     OSHandle_t  handle;
     oserr_t     oserr = OSOpenPath(
-            path,
-            __FILE_DIRECTORY,
-            0,
-            &handle
+        path,
+        __FILE_DIRECTORY | __FILE_READ_ACCESS | __FILE_READ_SHARE,
+        0,
+        &handle
     );
     if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);

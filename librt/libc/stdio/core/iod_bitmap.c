@@ -56,11 +56,11 @@ int stdio_bitmap_allocate(int fd)
     if (fd >= 0) {
         int Block  = fd / (8 * sizeof(int));
         int Offset = fd % (8 * sizeof(int));
-        if (g_stdioHandles[Block] & (1 << Offset)) {
+        if (g_stdioHandles[Block] & (1U << Offset)) {
             result = -1;
         }
         else {
-            g_stdioHandles[Block] |= (1 << Offset);
+            g_stdioHandles[Block] |= (1U << Offset);
             result = fd;
         }
     }
@@ -71,8 +71,8 @@ int stdio_bitmap_allocate(int fd)
 
         for (i = 0; i < DIVUP(INTERNAL_MAXFILES, (8 * sizeof(int))); i++) {
             for (; j < (8 * sizeof(int)); j++) {
-                if (!(g_stdioHandles[i] & (1 << j))) {
-                    g_stdioHandles[i] |= (1 << j);
+                if (!(g_stdioHandles[i] & (1U << j))) {
+                    g_stdioHandles[i] |= (1U << j);
                     result = (i * (8 * sizeof(int))) + j;
                     break;
                 }
@@ -96,13 +96,13 @@ void stdio_bitmap_free(int fd)
 
     assert(g_stdioHandles != NULL);
 
-    if (fd > STDERR_FILENO && fd < INTERNAL_MAXFILES) {
+    if (fd >= 0 && fd < INTERNAL_MAXFILES) {
         block  = fd / (8 * sizeof(int));
         offset = fd % (8 * sizeof(int));
 
         // Set the given fd index to free
         spinlock_acquire(&g_stdioHandlesLock);
-        g_stdioHandles[block] &= ~(1 << offset);
+        g_stdioHandles[block] &= ~(1U << offset);
         spinlock_release(&g_stdioHandlesLock);
     }
 }

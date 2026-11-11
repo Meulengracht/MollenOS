@@ -49,7 +49,6 @@ static uint64_t __HandleHash(const void* element);
 static int      __HandleCompare(const void* element1, const void* element2);
 
 static const OSHandleOps_t g_nullOps = {};
-extern const OSHandleOps_t g_osFileOps;
 extern const OSHandleOps_t g_eventOps;
 extern const OSHandleOps_t g_hqueueOps;
 extern const OSHandleOps_t g_ipcOps;
@@ -58,7 +57,7 @@ extern const OSHandleOps_t g_socketOps;
 
 static const OSHandleOps_t* g_osHandlers[__OSHANDLE_COUNT] = {
         &g_nullOps,
-        &g_osFileOps,
+        &g_nullOps,
         &g_eventOps,
         &g_hqueueOps,
         &g_shmOps,
@@ -79,27 +78,27 @@ void OSHandlesInitialize(void)
     spinlock_init(&g_osHandlesLock);
 }
 
-static void
+static oserr_t
 __InsertHandle(
     _In_ struct OSHandle* handle)
 {
-    void* result;
+    struct __LocalHandle entry = {
+        .OSHandle = *handle,
+        .References = 1
+    };
+    oserr_t status;
 
     spinlock_acquire(&g_osHandlesLock);
-    result = hashtable_set(
-            &g_osHandles,
-            &(struct __LocalHandle) {
-                    .OSHandle = {
-                            .ID = handle->ID,
-                            .Type = handle->Type,
-                            .Flags = handle->Flags,
-                            .Payload = handle->Payload
-                    },
-                    .References = 1
-            }
-    );
+    if (hashtable_get(&g_osHandles, &entry) != NULL) {
+        status = OS_EEXISTS;
+    } else {
+        // Insertion returns NULL both on a new entry and on allocation failure.
+        // Check publication while locked, so adoption can roll back correctly.
+        hashtable_set(&g_osHandles, &entry);
+        status = hashtable_get(&g_osHandles, &entry) != NULL ? OS_EOK : OS_EOOM;
+    }
     spinlock_release(&g_osHandlesLock);
-    assert(result == NULL);
+    return status;
 }
 
 oserr_t
@@ -123,7 +122,11 @@ OSHandleCreate(
     if (status != OS_EOK) {
         return status;
     }
-    return OSHandleWrap(id, OSHANDLE_NULL, NULL, true, resourceOut);
+    status = OSHandleWrap(id, OSHANDLE_NULL, NULL, true, resourceOut);
+    if (status != OS_EOK) {
+        (void)Syscall_HandleDestroy(id);
+    }
+    return status;
 }
 
 oserr_t
@@ -134,12 +137,19 @@ OSHandleWrap(
     _In_ bool              ownership,
     _In_ struct OSHandle*  handle)
 {
-    handle->ID = id;
-    handle->Type = type;
-    handle->Flags = ownership ? OSHANDLE_FLAG_OWNERSHIP : 0;
-    handle->Payload = payload;
-    __InsertHandle(handle);
-    return OS_EOK;
+    OSHandle_t result = {
+        .ID = id,
+        .Type = type,
+        .Flags = ownership ? OSHANDLE_FLAG_OWNERSHIP : 0,
+        .Payload = payload
+    };
+    oserr_t status;
+
+    status = __InsertHandle(&result);
+    if (status == OS_EOK) {
+        *handle = result;
+    }
+    return status;
 }
 
 oserr_t

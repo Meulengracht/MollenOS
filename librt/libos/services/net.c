@@ -19,68 +19,49 @@
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
 #include <inet/socket.h>
+#include <internal/_gracht.h>
+#include <internal/_socket.h>
 #include <internal/_tls.h>
+#include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/handle.h>
 #include <os/notification_queue.h>
 #include <os/shm.h>
+#include <ddk/convert/grants.h>
 #include <os/services/net.h>
 #include <os/mutex.h>
 #include <sys_socket_service_client.h>
 
 struct Socket {
-    int                     Type;
-    struct sockaddr_storage ConnectedAddress;
-    OSHandle_t              Send;
-    bool                    SendMapped;
-    OSHandle_t              Recv;
-    bool                    RecvMapped;
-    Mutex_t                 Lock;
+    int        Type;
+    OSHandle_t Send;
+    bool       SendMapped;
+    OSHandle_t Recv;
+    bool       RecvMapped;
+    Mutex_t    Lock;
 };
 
-static size_t __SocketExport(struct OSHandle*, void*);
-static size_t __SocketImport(struct OSHandle*, const void*);
-static void   __SocketDestroy(struct OSHandle*);
+static void    __SocketDestroy(struct OSHandle*);
+static oserr_t __SocketRelease(struct OSHandle*);
 
 const OSHandleOps_t g_socketOps = {
-    .Deserialize = __SocketImport,
-    .Serialize = __SocketExport,
-    .Destroy = __SocketDestroy
+    .Destroy = __SocketDestroy,
+    .Release = __SocketRelease
 };
 
-struct Socket*
+static struct Socket*
 __SocketNew(
-    _In_ int    domain,
-    _In_ int    type,
-    _In_ int    protocol,
-    _In_ uuid_t sendHandleID,
-    _In_ uuid_t recvHandleID)
+    _In_ int type)
 {
     struct Socket* socket;
 
-    socket = malloc(sizeof(struct Socket));
+    socket = calloc(1, sizeof(struct Socket));
     if (socket == NULL) {
         return NULL;
     }
-
-    memset(socket, 0, sizeof(struct Socket));
     socket->Type = type;
-    socket->Send.ID = sendHandleID;
-    socket->Recv.ID = recvHandleID;
     MutexInitialize(&socket->Lock, MUTEX_PLAIN);
     return socket;
-}
-
-static void
-__SocketClose(
-    _In_ uuid_t handle)
-{
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    oserr_t                  oserr;
-
-    sys_socket_close(GetGrachtClient(), &msg.base, handle, SYS_CLOSE_OPTIONS_DESTROY);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_close_result(GetGrachtClient(), &msg.base, &oserr);
 }
 
 static enum sys_close_options
@@ -125,25 +106,173 @@ OSSocketShutdown(
 }
 
 static oserr_t
-__SocketAttachPipes(
-    _In_ struct Socket* socket)
+__SocketAttachPipe(
+    _In_  const struct sys_shm_transfer* description,
+    _Out_ OSHandle_t*                   handle)
 {
-    oserr_t oserr;
+    SHMTransfer_t transfer;
+    unsigned int  scope = GrantTokenScopeRead | GrantTokenScopeWrite;
+    oserr_t       status;
 
-    oserr = SHMAttach(socket->Recv.ID, &socket->Recv);
-    if (oserr != OS_EOK) {
-        socket->Recv.ID = UUID_INVALID;
-        socket->Send.ID = UUID_INVALID;
-        return oserr;
+    status = __FromSysSHMTransfer(description, &transfer);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    oserr = SHMAttach(socket->Send.ID, &socket->Send);
-    if (oserr != OS_EOK) {
+    if (transfer.RangeMode == SHMTransferRangeSubrange &&
+        (transfer.RelativeOffset != 0 || transfer.RequestedLength != transfer.Token.Options.Data.SHM.Length)) {
+        return OS_EINVALPARAMS;
+    }
+
+    if ((transfer.Token.Options.Scope & scope) != scope) {
+        return OS_EPERMISSIONS;
+    }
+
+    status = SHMAttachToken(&transfer.Token, handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = SHMMap(
+        handle,
+        0,
+        SHMBufferCapacity(handle),
+        SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    if (status != OS_EOK) {
+        OSHandleDestroy(handle);
+    }
+    return status;
+}
+
+static oserr_t
+__SocketAttachPipes(
+    _In_ struct Socket*                 socket,
+    _In_ const struct sys_shm_transfer* recvBuffer,
+    _In_ const struct sys_shm_transfer* sendBuffer)
+{
+    oserr_t status;
+
+    status = __SocketAttachPipe(recvBuffer, &socket->Recv);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = __SocketAttachPipe(sendBuffer, &socket->Send);
+    if (status != OS_EOK) {
         OSHandleDestroy(&socket->Recv);
-        socket->Recv.ID = UUID_INVALID;
-        socket->Send.ID = UUID_INVALID;
+        return status;
     }
-    return oserr;
+
+    socket->RecvMapped = true;
+    socket->SendMapped = true;
+    return OS_EOK;
+}
+
+static oserr_t
+__SocketBuild(
+    _In_  uuid_t                        referenceID,
+    _In_  const struct sys_socket_info* info,
+    _Out_ OSHandle_t*                   handleOut)
+{
+    struct Socket* socket;
+    oserr_t        status;
+
+    if (info->domain < 0 || info->domain >= AF_MAX) {
+        return OS_EPROTOCOL;
+    }
+
+    if (info->type < SOCK_STREAM || info->type > SOCK_SEQPACKET) {
+        return OS_EPROTOCOL;
+    }
+
+    socket = __SocketNew(info->type);
+    if (socket == NULL) {
+        return OS_EOOM;
+    }
+
+    // Create, accept and inherited-reference adoption use the same buffer
+    // setup. The local socket is published only after both mappings succeed.
+    status = __SocketAttachPipes(socket, &info->recv_buffer, &info->send_buffer);
+    if (status == OS_EOK) {
+        status = OSHandleWrap(referenceID, OSHANDLE_SOCKET, socket, true, handleOut);
+        if (status != OS_EOK) {
+            OSHandleDestroy(&socket->Send);
+            OSHandleDestroy(&socket->Recv);
+        }
+    }
+    if (status != OS_EOK) {
+        free(socket);
+    }
+    return status;
+}
+
+static oserr_t
+__SocketImport(
+    _In_  const struct sys_grant_token* reference,
+    _In_  const struct sys_socket_info* info,
+    _Out_ OSHandle_t*                   handleOut)
+{
+    GrantToken_t token;
+    uuid_t       referenceID;
+    oserr_t      status;
+
+    status = __FromSysGrantToken(reference, &token);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (token.Options.ResourceType != GrantTokenResourceTypeProvider ||
+        token.Options.Scope != OS_SOCKET_ACCESS) {
+        return OS_EPROTOCOL;
+    }
+
+    status = Syscall_HandleImport(&token, UUID_INVALID, &referenceID);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = __SocketBuild(referenceID, info, handleOut);
+    if (status != OS_EOK) {
+        // Failed local setup drops only this imported reference. Other clients
+        // keep using the same socket until their own references are closed.
+        (void)Syscall_HandleDestroy(referenceID);
+    }
+    return status;
+}
+
+oserr_t
+OSSocketAcquire(
+    _In_  uuid_t      referenceID,
+    _Out_ OSHandle_t* handleOut)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    struct sys_socket_info   info = { 0 };
+    oserr_t                  status;
+
+    if (handleOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    // Processd already installed this reference in the child. The acquire RPC
+    // validates it and returns existing ring tokens without adding another
+    // socket reference. A repeated RPC therefore creates no server-side state.
+    if (sys_socket_acquire(GetGrachtClient(), &msg.base, referenceID) != 0) {
+        return OS_EUNKNOWN;
+    }
+
+    status = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (sys_socket_acquire_result(GetGrachtClient(), &msg.base, &status, &info) != 0) {
+        return OS_EPROTOCOL;
+    }
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    return __SocketBuild(referenceID, &info, handleOut);
 }
 
 oserr_t
@@ -154,51 +283,31 @@ OSSocketOpen(
     _Out_ OSHandle_t* handleOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    struct Socket*           socket;
-    oserr_t                  oserr;
-    uuid_t                   handleID;
-    uuid_t                   send_handle;
-    uuid_t                   recv_handle;
+    struct sys_grant_token   reference = { 0 };
+    struct sys_socket_info   info = { 0 };
+    oserr_t                  status;
 
-    // We need to create the socket object at kernel level, as we need
-    // kernel assisted functionality to support a centralized storage of
-    // all system sockets. They are the foundation of the microkernel for
-    // communication between processes and are needed long before anything else.
-    sys_socket_create(GetGrachtClient(), &msg.base, domain, type, protocol);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_create_result(GetGrachtClient(), &msg.base, &oserr, &handleID, &recv_handle, &send_handle);
-    if (oserr != OS_EOK) {
-        return oserr;
+    if (handleOut == NULL) {
+        return OS_EINVALPARAMS;
     }
 
-    socket = __SocketNew(domain, type, protocol, send_handle, recv_handle);
-    if (socket == NULL) {
-        __SocketClose(handleID);
-        return OS_EOOM;
+    if (sys_socket_create(GetGrachtClient(), &msg.base, domain, type, protocol) != 0) {
+        return OS_EUNKNOWN;
     }
 
-    oserr = __SocketAttachPipes(socket);
-    if (oserr != OS_EOK) {
-        __SocketClose(handleID);
-        free(socket);
-        return oserr;
+    status = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    oserr = OSHandleWrap(
-            handleID,
-            OSHANDLE_SOCKET,
-            socket,
-            true,
-            handleOut
-    );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&socket->Send);
-        OSHandleDestroy(&socket->Recv);
-        __SocketClose(handleID);
-        free(socket);
-        return oserr;
+    if (sys_socket_create_result(GetGrachtClient(), &msg.base, &status, &reference, &info) != 0) {
+        return OS_EPROTOCOL;
     }
-    return OS_EOK;
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    return __SocketImport(&reference, &info, handleOut);
 }
 
 oserr_t
@@ -223,12 +332,11 @@ OSSocketAccept(
     _Out_ OSHandle_t*      handleOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    struct Socket*           source, *accepted;
-    struct sockaddr_storage  peerAddress = {0};
-    uint32_t                 peerAddressLength = sizeof(peerAddress);
-    uuid_t                   handleID;
-    uuid_t                   sendHandle;
-    uuid_t                   recvHandle;
+    struct Socket*           source;
+    struct sockaddr_storage  peerAddress = { 0 };
+    uint32_t                 peerAddressLength = sizeof(struct sockaddr_storage);
+    struct sys_grant_token   reference = { 0 };
+    struct sys_socket_info   info = { 0 };
     oserr_t                  oserr = OS_EPROTOCOL;
 
     if (handle == NULL) {
@@ -250,47 +358,32 @@ OSSocketAccept(
         return OS_ENOTSUPPORTED;
     }
 
-    sys_socket_accept(GetGrachtClient(), &msg.base, handle->ID);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_accept_result(
+    if (sys_socket_accept(GetGrachtClient(), &msg.base, handle->ID) != 0) {
+        return OS_EUNKNOWN;
+    }
+    
+    oserr = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (sys_socket_accept_result(
         GetGrachtClient(),
         &msg.base,
         &oserr,
         (uint8_t*)&peerAddress,
         &peerAddressLength,
-        &handleID,
-        &recvHandle,
-        &sendHandle
-    );
+        &reference,
+        &info
+    ) != 0) {
+        return OS_EPROTOCOL;
+    }
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    accepted = __SocketNew(0, source->Type, 0, sendHandle, recvHandle);
-    if (accepted == NULL) {
-        __SocketClose(handleID);
-        return OS_EOOM;
-    }
-
-    oserr = __SocketAttachPipes(accepted);
+    oserr = __SocketImport(&reference, &info, handleOut);
     if (oserr != OS_EOK) {
-        __SocketClose(handleID);
-        free(accepted);
-        return oserr;
-    }
-
-    oserr = OSHandleWrap(
-        handleID,
-        OSHANDLE_SOCKET,
-        accepted,
-        true,
-        handleOut
-    );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&accepted->Send);
-        OSHandleDestroy(&accepted->Recv);
-        __SocketClose(handleID);
-        free(accepted);
         return oserr;
     }
     if (address != NULL) {
@@ -319,11 +412,11 @@ OSSocketBind(
     }
 
     sys_socket_bind(
-            GetGrachtClient(),
-            &msg.base,
-            handle->ID,
-            (const uint8_t*)address,
-            addressLength
+        GetGrachtClient(),
+        &msg.base,
+        handle->ID,
+        (const uint8_t*)address,
+        addressLength
     );
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_bind_result(GetGrachtClient(), &msg.base, &oserr);
@@ -337,7 +430,6 @@ OSSocketConnect(
     _In_ socklen_t              addressLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    struct Socket*           socket;
     oserr_t                  oserr = OS_EPROTOCOL;
 
     if (handle == NULL) {
@@ -349,19 +441,15 @@ OSSocketConnect(
         return OS_ENOTSUPPORTED;
     }
 
-    socket = handle->Payload;
     sys_socket_connect(
-            GetGrachtClient(),
-            &msg.base,
-            handle->ID,
-            (const uint8_t*)address,
-            addressLength
+        GetGrachtClient(),
+        &msg.base,
+        handle->ID,
+        (const uint8_t*)address,
+        addressLength
     );
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_connect_result(GetGrachtClient(), &msg.base, &oserr);
-    if (oserr == OS_EOK) {
-        memcpy(&socket->ConnectedAddress, address, addressLength);
-    }
     return oserr;
 }
 
@@ -495,21 +583,28 @@ OSSocketSendPipe(
     _In_  OSHandle_t*      handle,
     _Out_ streambuffer_t** pipeOut)
 {
-    struct Socket* socket;
-    oserr_t        oserr = OS_EOK;
+    struct OSSocketSendState* state;
+    struct Socket*            socket;
+    oserr_t                   oserr = OS_EOK;
 
     if (handle == NULL || handle->Type != OSHANDLE_SOCKET) {
         return OS_EINVALPARAMS;
     }
 
     socket = handle->Payload;
+    
     // Two cases can happen here, either the pipe is not mapped (socket was
     // created by this process), or the pipe may already be mapped (it has
     // been mapped by a previous call to OSSocketSendPipe, or it has been
     // inheritted).
     MutexLock(&socket->Lock);
     if (socket->SendMapped) {
-        *pipeOut = SHMBuffer(&socket->Send);
+        state = SHMBuffer(&socket->Send);
+        
+        *pipeOut = state != NULL ? __SocketSendStream(state) : NULL;
+        if (*pipeOut == NULL) {
+            oserr = OS_ECANCELLED;
+        }
         goto exit;
     }
 
@@ -525,7 +620,8 @@ OSSocketSendPipe(
     }
 
     socket->SendMapped = true;
-    *pipeOut = SHMBuffer(&socket->Send);
+    
+    *pipeOut = __SocketSendStream(SHMBuffer(&socket->Send));
 
 exit:
     MutexUnlock(&socket->Lock);
@@ -575,14 +671,33 @@ __SendPacket(
     _In_  streambuffer_rw_options_t* rwOptions,
     _Out_ size_t*                    bytesSentOut)
 {
-    size_t           bytesSent   = 0;
-    size_t           payload_len = 0;
-    size_t           meta_len    = sizeof(struct packethdr) + message->msg_namelen + message->msg_controllen;
-    struct packethdr packet;
-    size_t           avail_len;
-    oserr_t          oserr;
+    struct Socket*            socket = handle->Payload;
+    struct OSSocketSendState* state;
+    size_t                    bytesSent   = 0;
+    size_t                    payload_len = 0;
+    size_t                    meta_len;
+    struct packethdr          packet = { 0 };
+    size_t                    avail_len;
+    struct iovec*             iov;
+    size_t                    count;
+    oserr_t                   oserr;
     streambuffer_packet_ctx_t packetCtx;
-    int              i;
+
+    packet.flags = flags & (MSG_OOB | MSG_DONTROUTE);
+    packet.controllen = message->msg_control != NULL ? message->msg_controllen : 0;
+    packet.addresslen = message->msg_name != NULL ? message->msg_namelen : 0;
+    packet.destination = UUID_INVALID;
+    if (packet.addresslen == 0) {
+        // Reading the shared peer keeps inherited handles and reconnects in
+        // agreement. Store it in the packet before any wait for ring space.
+        state = SHMBuffer(&socket->Send);
+        packet.destination = atomic_load_explicit(&state->Peer, memory_order_acquire);
+        if (socket->Type != SOCK_SEQPACKET && packet.destination == UUID_INVALID) {
+            return OS_ENOTCONNECTED;
+        }
+    }
+
+    meta_len = sizeof(struct packethdr) + packet.addresslen + packet.controllen;
 
     // Writing an packet is an atomic action and the entire packet must be written
     // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
@@ -590,20 +705,17 @@ __SendPacket(
 
     // Otherwise we must build a packet, to do this we need to know the entire
     // length of the message before committing.
-    for (i = 0; i < message->msg_iovlen; i++) {
+    for (int i = 0; i < message->msg_iovlen; i++) {
         payload_len += message->msg_iov[i].iov_len;
     }
 
-    packet.flags = flags & (MSG_OOB | MSG_DONTROUTE);
-    packet.controllen = (message->msg_control != NULL) ? message->msg_controllen : 0;
-    packet.addresslen = (message->msg_name != NULL) ? message->msg_namelen : 0;
     packet.payloadlen = payload_len;
 
     avail_len = streambuffer_write_packet_start(
-            stream,
-            meta_len + payload_len,
-            rwOptions,
-            &packetCtx
+        stream,
+        meta_len + payload_len,
+        rwOptions,
+        &packetCtx
     );
     if (avail_len < (meta_len + payload_len)) {
         if (!(flags & MSG_DONTWAIT)) {
@@ -621,9 +733,9 @@ __SendPacket(
         streambuffer_write_packet_data(message->msg_control, message->msg_controllen, &packetCtx);
     }
 
-    for (i = 0; i < message->msg_iovlen; i++) {
-        struct iovec* iov = &message->msg_iov[i];
-        size_t        count = MIN(avail_len - meta_len, iov->iov_len);
+    for (int i = 0; i < message->msg_iovlen; i++) {
+        iov = &message->msg_iov[i];
+        count = MIN(avail_len - meta_len, iov->iov_len);
         if (!count) {
             break;
         }
@@ -632,6 +744,7 @@ __SendPacket(
         meta_len += count;
         bytesSent += count;
     }
+
     streambuffer_write_packet_end(&packetCtx);
     oserr = OSNotificationQueuePost(handle,IOSETOUT);
     if (oserr != OS_EOK) {
@@ -662,9 +775,9 @@ __SendMessage(
     struct Socket*            socket = handle->Payload;
     OSAsyncContext_t*         asyncContext = __tls_current()->async_context;
     streambuffer_rw_options_t rwOptions = {
-            .flags = 0,
-            .async_context = asyncContext,
-            .deadline = NULL
+        .flags = 0,
+        .async_context = asyncContext,
+        .deadline = NULL
     };
 
     if (flags & MSG_OOB) {
@@ -693,7 +806,6 @@ OSSocketSend(
     _In_  int                  flags,
     _Out_ size_t*              bytesSentOut)
 {
-    struct Socket*  socket;
     streambuffer_t* stream;
     oserr_t         oserr;
 
@@ -710,22 +822,6 @@ OSSocketSend(
         return OS_ELINKINVAL;
     }
 
-    // Lastly, make sure we actually have a destination address. For the rest of
-    // the socket types, we use the stored address ('connected address'), or the
-    // one provided.
-    socket = handle->Payload;
-    if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
-        // TODO return ENOTCONN / EISCONN before writing data. Lack of effecient way
-    } else {
-        if (message->msg_name == NULL) {
-            if (socket->ConnectedAddress.__ss_family == AF_UNSPEC) {
-                return OS_ENOTCONNECTED;
-            }
-            struct msghdr* msg_ptr = (struct msghdr*)message;
-            msg_ptr->msg_name    = &socket->ConnectedAddress;
-            msg_ptr->msg_namelen = socket->ConnectedAddress.__ss_len;
-        }
-    }
     return __SendMessage(handle, stream, message, flags, bytesSentOut);
 }
 
@@ -749,11 +845,9 @@ OSSocketRecvPipe(
     MutexLock(&socket->Lock);
     if (socket->RecvMapped) {
         *pipeOut = SHMBuffer(&socket->Recv);
-        goto exit;
-    }
-
-    oserr = SHMAttach(socket->Recv.ID, &socket->Recv);
-    if (oserr != OS_EOK){
+        if (*pipeOut == NULL) {
+            oserr = OS_ECANCELLED;
+        }
         goto exit;
     }
 
@@ -855,11 +949,13 @@ __RecvMessage(
     intmax_t                  numbytes;
     struct packethdr          packet;
     int                       i;
+    size_t                    addressBytes;
     streambuffer_packet_ctx_t packetCtx;
 
     // In case of stream sockets we simply just read as many bytes as requested
     // or available and return, unless WAITALL has been specified.
     if (socket->Type == SOCK_STREAM) {
+        message->msg_namelen = 0;
         return __RecvStream(handle, stream, message, rwOptions, bytesRecievedOut);
     }
 
@@ -887,18 +983,15 @@ __RecvMessage(
     streambuffer_read_packet_data(&packet, sizeof(struct packethdr), &packetCtx);
     message->msg_flags = packet.flags;
 
-    // Handle the source address that is given in the packet
-    if (packet.addresslen && message->msg_name && message->msg_namelen) {
-        size_t bytes_to_copy    = MIN(message->msg_namelen, packet.addresslen);
-        size_t bytes_to_discard = packet.addresslen - bytes_to_copy;
-
-        streambuffer_read_packet_data(message->msg_name, bytes_to_copy, &packetCtx);
-        packetCtx._state += bytes_to_discard; // hack
+    // The packet's source remains valid even after a reconnect. Copy only the
+    // caller's capacity, but report the full address length on truncation.
+    addressBytes = message->msg_name != NULL ? MIN(message->msg_namelen, packet.addresslen) : 0;
+    if (addressBytes != 0) {
+        streambuffer_read_packet_data(message->msg_name, addressBytes, &packetCtx);
     }
-    else {
-        packetCtx._state += packet.addresslen; // discard, hack
-        message->msg_namelen = 0;
-    }
+    
+    packetCtx._state += packet.addresslen - addressBytes;
+    message->msg_namelen = message->msg_name != NULL ? packet.addresslen : 0;
 
     // Handle control data, and set the appropriate flags and update the actual
     // length read of control data if it is shorter than the buffer provided.
@@ -975,7 +1068,6 @@ OSSocketRecv(
     _In_  int            flags,
     _Out_ size_t*        bytesRecievedOut)
 {
-    struct Socket*    socket;
     streambuffer_t*   stream;
     oserr_t           oserr;
     OSAsyncContext_t* asyncContext;
@@ -993,7 +1085,6 @@ OSSocketRecv(
         return OS_ELINKINVAL;
     }
 
-    socket = handle->Payload;
     asyncContext = __tls_current()->async_context;
     if (asyncContext) {
         OSAsyncContextInitialize(asyncContext);
@@ -1003,89 +1094,45 @@ OSSocketRecv(
         stream,
         message,
         &(streambuffer_rw_options_t) {
-                .flags = __StreambufferFlags(flags),
-                .async_context = asyncContext,
-                .deadline = NULL
+            .flags = __StreambufferFlags(flags),
+            .async_context = asyncContext,
+            .deadline = NULL
         },
         bytesRecievedOut
     );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    // Fill in the source address if one was provided already, and overwrite
-    // the one provided by the packet.
-    if (*bytesRecievedOut > 0 && message->msg_name != NULL) {
-        if (socket->ConnectedAddress.__ss_family != AF_UNSPEC) {
-            memcpy(message->msg_name, &socket->ConnectedAddress,
-                   socket->ConnectedAddress.__ss_len);
-            message->msg_namelen = socket->ConnectedAddress.__ss_len;
-        }
-    }
-    return OS_EOK;
+    return oserr;
 }
 
 
-static size_t
-__SocketExport(
-    _In_ struct OSHandle* handle,
-    _In_ void*            data)
+static oserr_t
+__SocketRelease(
+    _In_ struct OSHandle* handle)
 {
     struct Socket* socket = handle->Payload;
-    uint8_t*       data8 = data;
+    oserr_t        status;
 
-    // When exporting we only save the connected address and
-    // the type
-    *((int*)&data8[0]) = socket->Type;
-    *((uuid_t*)&data8[sizeof(int)]) = socket->Send.ID;
-    *((uuid_t*)&data8[sizeof(int) + sizeof(uuid_t)]) = socket->Recv.ID;
-    memcpy(
-        &data8[sizeof(int) + (2 * sizeof(uuid_t))],
-        &socket->ConnectedAddress,
-        sizeof(struct sockaddr_storage)
-    );
-    return sizeof(int) + (2 * sizeof(uuid_t)) + sizeof(struct sockaddr_storage);
-}
-
-static size_t
-__SocketImport(
-    _In_ struct OSHandle* handle,
-    _In_ const void*      data)
-{
-    struct Socket* socket;
-    const uint8_t* data8 = data;
-    int            type;
-    uuid_t         sendID, recvID;
-
-    type = *((int*)&data8[0]);
-    sendID = *((uuid_t*)&data8[sizeof(int)]);
-    recvID = *((uuid_t*)&data8[sizeof(int) + sizeof(uuid_t)]);
-
-    // When importing, we do a few extra steps. We need to recreate and setup
-    // the Socket data-structure.
-    socket = __SocketNew(0, type, 0, sendID, recvID);
-    if (socket == NULL) {
-        goto exit;
+    // Release runs only for the final local alias. Each successful stage clears
+    // its attachment, so a failed unmap can be retried without repeating work.
+    status = SHMRelease(&socket->Send);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // When the SHM buffers are imported, they are automatically attached to, they are however
-    // not mapped.
-    memcpy(
-            &socket->ConnectedAddress,
-            &data[sizeof(int) + (2 * sizeof(uuid_t))],
-            sizeof(struct sockaddr_storage)
-    );
-    handle->Payload = socket;
-exit:
-    return sizeof(int) + (2 * sizeof(uuid_t)) + sizeof(struct sockaddr_storage);
+    status = SHMRelease(&socket->Recv);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Close this process's service reference. Netd receives the existing
+    // cleanup event only after every process has released its references.
+    // Sending a destroy RPC here would also break other processes' sockets.
+    status = Syscall_HandleDestroy(handle->ID);
+    return status == OS_EINCOMPLETE ? OS_EOK : status;
 }
 
 static void
-__SocketDestroy(struct OSHandle* handle)
+__SocketDestroy(
+    _In_ struct OSHandle* handle)
 {
-    struct Socket* socket = handle->Payload;
-    OSHandleDestroy(&socket->Send);
-    OSHandleDestroy(&socket->Recv);
-    __SocketClose(handle->ID);
-    free(socket);
+    free(handle->Payload);
 }

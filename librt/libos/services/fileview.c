@@ -22,6 +22,8 @@
 #include <internal/_utils.h>
 #include <os/services/file.h>
 #include <os/handle.h>
+#include <os/grants.h>
+#include <string.h>
 #include <os/memory.h>
 #include <os/mutex.h>
 #include <os/shm.h>
@@ -130,55 +132,202 @@ __FileViewCreate(
 }
 
 static oserr_t
-__FillData(
-        _In_ struct __FileView* fileView,
-        _In_ uint64_t           offset,
-        _In_ size_t             length)
+__TransferPrivateView(
+    _In_ struct __FileView* fileView,
+    _In_ size_t             offset,
+    _In_ size_t             length,
+    _In_ bool               write)
 {
-    UInteger64_t             fileOffset = { .QuadPart = fileView->Offset + offset };
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    size_t                   bytesTransferred;
-    oserr_t                  oserr;
+    OSHandle_t    temporary;
+    OSHandle_t    local;
+    SHMTransfer_t transfer = { .RangeMode = SHMTransferRangeSubrange };
+    UInteger64_t position;
+    size_t        capacity = MIN(length, 64 * 1024);
+    size_t        pageSize = MemoryPageSize();
+    size_t        completed = 0;
+    size_t        requested;
+    size_t        bytes;
+    char*         localBuffer;
+    char*         shared;
+    oserr_t       status;
 
-    sys_file_transfer_absolute(
-            GetGrachtClient(),
-            &msg.base,
-            __crt_process_id(),
+    capacity = ((capacity + pageSize - 1) / pageSize) * pageSize;
+    
+    status = SHMAttach(fileView->SHM.ID, &local);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Fill through a separate local mapping so a read-only file view keeps
+    // its protection. The private backing is never included in a token.
+    status = SHMMap(&local, offset, length, write ? SHM_ACCESS_READ :
+                    SHM_ACCESS_READ | SHM_ACCESS_WRITE | SHM_ACCESS_COMMIT);
+    if (status != OS_EOK) {
+        goto releaseLocal;
+    }
+    
+    localBuffer = SHMBuffer(&local);
+    status = SHMCreate(
+        &(SHM_t) {
+            .Flags = SHM_COMMIT | SHM_CLEAN,
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+            .Size = capacity
+        },
+        &temporary
+    );
+    if (status != OS_EOK) {
+        goto releaseLocal;
+    }
+
+    status = OSGrantTokenCreate(
+        temporary.ID,
+        &(GrantTokenOptions_t) {
+            .ResourceType = GrantTokenResourceTypeSHM,
+            .TargetType = GrantTokenTargetTypeAny,
+            .TargetGlobalHandleID = UUID_INVALID,
+            .Scope = write ? GrantTokenScopeRead : GrantTokenScopeRead | GrantTokenScopeWrite,
+            .Data.SHM = { .Offset = 0, .Length = (uint32_t)capacity }
+        },
+        &transfer.Token
+    );
+    if (status != OS_EOK) {
+        goto releaseTemporary;
+    }
+
+    shared = SHMBuffer(&temporary);
+
+    while (completed < length) {
+        requested = MIN(capacity, length - completed);
+        
+        memset(shared, 0, capacity);
+        if (write) {
+            memcpy(shared, localBuffer + completed, requested);
+        }
+
+        position.QuadPart = fileView->Offset + offset + completed;
+        transfer.RequestedLength = (uint32_t)requested;
+        
+        status = OSTransferFileBufferAt(
             fileView->FileHandle.ID,
-            0,
-            fileOffset.u.LowPart,
-            fileOffset.u.HighPart,
-            fileView->SHM.ID,
-            offset,
-            length
+            &position,
+            &transfer,
+            write,
+            &bytes
+        );
+        if (status != OS_EOK) {
+            break;
+        }
+
+        if (!write) {
+            memcpy(localBuffer + completed, shared, requested);
+        }
+
+        completed += requested;
+        if (bytes < requested) {
+            if (write) {
+                status = OS_EINCOMPLETE;
+            } else {
+                memset(localBuffer + completed, 0, length - completed);
+            }
+            break;
+        }
+    }
+
+    OSGrantTokenRevoke(transfer.Token.ControlHandleID);
+
+releaseTemporary:
+    OSHandleDestroy(&temporary);
+
+releaseLocal:
+    OSHandleDestroy(&local);
+    return status;
+}
+
+static oserr_t
+__TransferView(
+    _In_ struct __FileView* fileView,
+    _In_ size_t             offset,
+    _In_ size_t             length,
+    _In_ bool               write)
+{
+    UInteger64_t position;
+    size_t       bytes;
+    oserr_t      status;
+
+    if (offset > fileView->Length || length > fileView->Length - offset) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (length == 0) {
+        return OS_EOK;
+    }
+
+    if (fileView->Offset > UINT64_MAX - offset ||
+        length > UINT64_MAX - (fileView->Offset + offset)) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (!(fileView->Flags & FILEVIEW_SHARED)) {
+        return __TransferPrivateView(fileView, offset, length, write);
+    }
+
+    position.QuadPart = fileView->Offset + offset;
+    
+    status = OSTransferFileAt(
+        fileView->FileHandle.ID,
+        &position,
+        fileView->SHM.ID,
+        offset,
+        write,
+        length,
+        &bytes
     );
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_transfer_absolute_result(
-            GetGrachtClient(),
-            &msg.base,
-            &oserr,
-            &bytesTransferred
+    if (status == OS_EOK && write && bytes != length) {
+        return OS_EINCOMPLETE;
+    }
+    return status;
+}
+
+static oserr_t
+__FillData(
+    _In_ struct __FileView* fileView,
+    _In_ uint64_t           offset,
+    _In_ size_t             length)
+{
+    oserr_t status;
+
+    if (offset > SIZE_MAX) {
+        return OS_EINVALPARAMS;
+    }
+    
+    status = __TransferView(fileView, (size_t)offset, length, false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // Attach the populated backing pages to the original trap mapping.
+    return SHMCommit(
+        &fileView->SHM,
+        (vaddr_t)SHMBuffer(&fileView->SHM) + (size_t)offset,
+        length
     );
-    return oserr;
 }
 
 oserr_t
 OSFileViewCreate(
-        _In_  OSHandle_t*  handle,
-        _In_  unsigned int flags,
-        _In_  uint64_t     offset,
-        _In_  size_t       length,
-        _Out_ void**       mappingOut)
+    _In_  OSHandle_t*  handle,
+    _In_  unsigned int flags,
+    _In_  uint64_t     offset,
+    _In_  size_t       length,
+    _Out_ void**       mappingOut)
 {
     size_t             pageSize = MemoryPageSize();
     size_t             alignedLength = length;
     oserr_t            oserr;
     struct __FileView* fileView;
 
-    // Sanitize that the handle is valid
-    if (handle->Type != OSHANDLE_FILE) {
-        return OS_EINVALPARAMS;
-    }
+    // Imported file references use the generic handle type. Filed validates
+    // the reference and access on each transfer, including lazy page fills.
 
     // Error on offsets that are not page-size aligned.
     if (offset & (pageSize - 1)) {
@@ -196,12 +345,12 @@ OSFileViewCreate(
     }
 
     oserr = SHMCreate(
-            &(SHM_t) {
-                    .Access = __AccessFlags(flags),
-                    .Flags  = __SHMFlags(flags),
-                    .Size   = alignedLength
-            },
-            &fileView->SHM
+        &(SHM_t) {
+            .Access = __AccessFlags(flags),
+            .Flags  = __SHMFlags(flags),
+            .Size   = alignedLength
+        },
+        &fileView->SHM
     );
     if (oserr != OS_EOK) {
         free(fileView);
@@ -236,18 +385,17 @@ OSFileViewCreate(
 
 oserr_t
 OSFileViewFlush(
-        _In_ void*        mapping,
-        _In_ size_t       length,
-        _In_ unsigned int flags)
+    _In_ void*        mapping,
+    _In_ size_t       length,
+    _In_ unsigned int flags)
 {
     struct __FileView* fileView;
-    UInteger64_t       fileOffset;
     size_t             bufferOffset;
     size_t             pageSize = MemoryPageSize();
     size_t             alignedLength = length;
     oserr_t            oserr;
     int                pageCount;
-    unsigned int*      attributes;
+    unsigned int*      attributes = NULL;
 
     // Error on addresses that are not page-size aligned.
     if ((uintptr_t)mapping & (pageSize - 1)) {
@@ -266,6 +414,11 @@ OSFileViewFlush(
         return OS_EINVALPARAMS;
     }
 
+    if (alignedLength > fileView->Length - ((uintptr_t)mapping - (uintptr_t)SHMBuffer(&fileView->SHM))) {
+        MutexUnlock(&g_fileViewsLock);
+        return OS_EINVALPARAMS;
+    }
+
     // If the fileview was mapped as read-only then this makes no sense,
     // abort the operation with an error
     if (!(fileView->Flags & SHM_ACCESS_WRITE)) {
@@ -275,7 +428,6 @@ OSFileViewFlush(
 
     // TODO: In theory we should extract everything here we need or keep reference count...
     bufferOffset = ((uintptr_t)mapping - (uintptr_t)SHMBuffer(&fileView->SHM));
-    fileOffset.QuadPart = fileView->Offset + bufferOffset;
     MutexUnlock(&g_fileViewsLock);
 
     pageCount  = (int)(alignedLength / pageSize);
@@ -294,50 +446,33 @@ OSFileViewFlush(
         goto exit;
     }
 
+    oserr = OS_EOK;
     for (int i = 0; i < pageCount;) {
         int dirtyPageCount = 0;
         int j              = i;
 
         // detect sequential dirty pages to batch writes
-        while (attributes[j] & MEMORY_DIRTY) {
+        while (j < pageCount && (attributes[j] & MEMORY_DIRTY)) {
             dirtyPageCount++;
             j++;
         }
 
         if (dirtyPageCount) {
-            struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-            size_t                   bytesTransferred;
-
-            sys_file_transfer_absolute(
-                    GetGrachtClient(),
-                    &msg.base,
-                    __crt_process_id(),
-                    fileView->FileHandle.ID,
-                    1,
-                    fileOffset.u.LowPart,
-                    fileOffset.u.HighPart,
-                    fileView->SHM.ID,
-                    bufferOffset + (i * pageSize),
-                    dirtyPageCount * pageSize
-            );
-            gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-            sys_file_transfer_absolute_result(
-                    GetGrachtClient(),
-                    &msg.base,
-                    &oserr,
-                    &bytesTransferred
-            );
+            oserr = __TransferView(fileView, bufferOffset + (i * pageSize),
+                                  dirtyPageCount * pageSize, true);
+            if (oserr != OS_EOK) {
+                goto exit;
+            }
 
             // update iterator values and account for the auto inc
             i = j;
-            fileOffset.QuadPart += (uint64_t)dirtyPageCount * (uint64_t)pageSize;
         } else {
             i++;
-            fileOffset.QuadPart += pageSize;
         }
     }
 
 exit:
+    free(attributes);
     return oserr;
 }
 
@@ -356,9 +491,10 @@ OSFileViewUnmap(
         return OS_EINVALPARAMS;
     }
 
+    MutexUnlock(&g_fileViewsLock);
+
     // is the mapping write enabled, then flush pages
     if (fileView->Flags & FILEVIEW_WRITE) {
-        MutexUnlock(&g_fileViewsLock);
         oserr = OSFileViewFlush(mapping, length, 0);
         if (oserr != OS_EOK) {
             return oserr;
@@ -406,8 +542,8 @@ HandleMemoryMappingEvent(
     address &= ~(pageSize - 1);
 
     return __FillData(
-            fileView,
-            (address - (uintptr_t)SHMBuffer(&fileView->SHM)),
-            pageSize
+        fileView,
+        (address - (uintptr_t)SHMBuffer(&fileView->SHM)),
+        pageSize
     );
 }

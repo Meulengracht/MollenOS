@@ -20,6 +20,7 @@
 //#define __TRACE
 #include <assert.h>
 #include <os/notification_queue.h>
+#include <os/handle.h>
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <errno.h>
@@ -72,19 +73,12 @@ CRTSignatureOps(
 }
 
 void
-StdioConfigureStandardHandles(
-        _In_ void* inheritanceBlock)
+StdioConfigureStandardHandles(void)
 {
     stdio_handle_t* stdoutHandle;
     stdio_handle_t* stdinHandle;
     stdio_handle_t* stderrHandle;
     int             status;
-    TRACE("[libc] [parse_inherit] 0x%" PRIxIN, block);
-
-    // Before ensuring the state of the std* FILE descriptors, we must
-    // parse the inheritance block as it can affect their state.
-    CRTReadInheritanceBlock(inheritanceBlock);
-
     // Make sure all default handles have been set for std. The operations for
     // stdout and stderr will be null operations, as no output has been specified
     // for this process. If the process wants to get output it must reopen the
@@ -266,6 +260,8 @@ int stdio_handle_create(
             opsCtx
     );
     if (handle == NULL) {
+        stdio_bitmap_free(allocatedIOD);
+        _set_errno(ENOMEM);
         return -1;
     }
 
@@ -276,72 +272,88 @@ int stdio_handle_create(
             .handle = handle
         }
     );
+    if (stdio_handle_get(allocatedIOD) == NULL) {
+        stdio_bitmap_free(allocatedIOD);
+        free(handle);
+        _set_errno(ENOMEM);
+        return -1;
+    }
     *handleOut = handle;
     return EOK;
 }
 
-int stdio_handle_clone(
-        _In_  stdio_handle_t*  handle,
-        _Out_ stdio_handle_t** handleOut)
+int
+stdio_handle_clone(
+    _In_  stdio_handle_t*  handle,
+    _Out_ stdio_handle_t** handleOut)
 {
     stdio_handle_t* duplicated;
-    int             allocatedIOD;
+    unsigned int    flags;
+    oserr_t         oserr;
+    int             status;
 
     if (handle == NULL || handleOut == NULL) {
         _set_errno(EINVAL);
         return -1;
     }
 
-    // When duplicating a IOD everything is identical, except for the
-    // iod itself.
-    allocatedIOD = stdio_bitmap_allocate(-1);
-    if (allocatedIOD == -1) {
-        _set_errno(EMFILE);
-        return -1;
+    // Copies of these descriptors share a registered handle across local
+    // aliases. Other kinds keep their existing context-close policy until
+    // their lifecycle is migrated.
+    flags = handle->XTFlags;
+    if (!handle->Shared) {
+        flags |= __IO_PERSISTANT;
     }
 
-    duplicated = __descriptor_new(
-            allocatedIOD,
-             0,
-            handle->XTFlags | __IO_PERSISTANT,
-            handle->Signature,
-            NULL
-    );
-    if (duplicated == NULL) {
-        return -1;
+    status = stdio_handle_create(-1, 0, flags, handle->Signature, NULL, &duplicated);
+    if (status) {
+        return status;
     }
 
-    // Clone the associated OS handle
-    stdio_handle_set_handle(duplicated, &handle->OSHandle);
+    duplicated->Shared = handle->Shared;
 
-    // Clone any neccessary stdio-implementation specific data
-    if (duplicated->Ops->clone) {
-        oserr_t oserr = duplicated->Ops->clone(handle->OpsContext, &duplicated->OpsContext);
+    // The copy is registered first, so a failed reference only has to undo
+    // the registration.
+    if (handle->OSHandle.ID != UUID_INVALID) {
+        oserr = OSHandlesAcquire(&handle->OSHandle);
         if (oserr != OS_EOK) {
             stdio_handle_delete(duplicated);
             return OsErrToErrNo(oserr);
         }
+        stdio_handle_set_handle(duplicated, &handle->OSHandle);
     }
+
     *handleOut = duplicated;
     return 0;
 }
 
+void stdio_handle_set_shared(
+    _In_ stdio_handle_t* handle)
+{
+    if (!handle) {
+        return;
+    }
+
+    handle->Shared = true;
+}
+
 int stdio_handle_set_handle(
-        _In_ stdio_handle_t* handle,
-        _In_ OSHandle_t*     osHandle)
+    _In_ stdio_handle_t* handle,
+    _In_ OSHandle_t*     osHandle)
 {
     if (!handle) {
         return EBADF;
     }
+
     memcpy(&handle->OSHandle, osHandle, sizeof(OSHandle_t));
     return EOK;
 }
 
 int stdio_handle_set_buffered(
-        _In_ stdio_handle_t* handle,
-        _In_ FILE*           stream,
-        _In_ uint16_t        flags,
-        _In_ uint8_t         bufferMode)
+    _In_ stdio_handle_t* handle,
+    _In_ FILE*           stream,
+    _In_ uint16_t        flags,
+    _In_ uint8_t         bufferMode)
 {
     if (!handle) {
         return EBADFD;
@@ -381,10 +393,10 @@ void stdio_handle_delete(stdio_handle_t* handle)
     }
 
     hashtable_remove(
-            &g_stdioObjects,
-            &(struct stdio_object_entry) {
-                .id = handle->IOD
-            }
+        &g_stdioObjects,
+        &(struct stdio_object_entry) {
+            .id = handle->IOD
+        }
     );
     stdio_bitmap_free(handle->IOD);
     free(handle);
@@ -459,7 +471,7 @@ FILE* __get_std_handle(int n)
         case STDOUT_FILENO:
         case STDIN_FILENO:
         case STDERR_FILENO: {
-            stdio_handle_t* handle =stdio_handle_get(n);
+            stdio_handle_t* handle = stdio_handle_get(n);
             if (handle != NULL) {
                 return handle->Stream;
             }
@@ -513,10 +525,10 @@ void StdioInitialize(void)
 {
     // initialize the hashtable of handles
     hashtable_construct(
-            &g_stdioObjects,
-            0,
-            sizeof(struct stdio_object_entry),
-            stdio_hash, stdio_cmp
+        &g_stdioObjects,
+        0,
+        sizeof(struct stdio_object_entry),
+        stdio_hash, stdio_cmp
     );
 
     // initialize subsystems for stdio

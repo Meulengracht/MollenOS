@@ -35,6 +35,22 @@ enum OSocketShutdownType {
 _CODE_BEGIN
 
 /**
+ * @brief Builds a local socket for an installed startup reference.
+ * The reference must already be granted to this process and unregistered locally.
+ * Netd checks that reference before returning its existing receive/send rings.
+ * Success transfers the reference to the returned socket. On failure the caller
+ * releases the installed reference, normally through startup process cleanup.
+ *
+ * @param referenceID Installed socket reference.
+ * @param handleOut Receives a socket with both rings mapped. Unchanged on failure.
+ * @return OS_EOK, or a validation, transport, allocation or mapping error.
+ */
+CRTDECL(oserr_t,
+OSSocketAcquire(
+    _In_  uuid_t      referenceID,
+    _Out_ OSHandle_t* handleOut));
+
+/**
  * @brief Creates a socket.
  * @param domain Address family for the socket.
  * @param type Socket type.

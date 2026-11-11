@@ -20,23 +20,31 @@
 
 #include <assert.h>
 #include <ddk/service.h>
+#include <ddk/convert/grants.h>
 #include <ddk/utils.h>
+#include <errno.h>
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_gracht.h>
+#include <internal/_shm_transfer.h>
+#include <os/internal/_process.h>
 #include <internal/_utils.h>
 #include <internal/_tls.h>
-#include <internal/_utils.h>
 #include <os/handle.h>
+#include <os/grants.h>
+#include <os/memory.h>
 #include <os/shm.h>
 #include <os/threads.h>
 #include <os/usched/xunit.h>
 #include <os/usched/job.h>
+#include <os/usched/usched.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys_process_service_client.h>
+#include <time.h>
 
 extern void StdioInitialize(void);
-extern void StdioConfigureStandardHandles(void* inheritanceBlock);
+extern void StdioConfigureStandardHandles(void);
 extern void StdSignalInitialize(void);
 extern void StdMmapInitialize(void);
 extern void OSHandlesInitialize(void);
@@ -51,7 +59,6 @@ static const char* g_nullEnvironment[] = {
 };
 
 static char*      g_rawCommandLine  = NULL;
-static uint8_t*   g_inheritBlock    = NULL;
 static uintptr_t* g_baseLibraries   = NULL;
 static char**     g_environment     = NULL;
 static int        g_isPhoenix       = 0;
@@ -68,180 +75,207 @@ __mark_iod_priority(int iod)
     stdio_handle_set_flags(handle, __IO_PRIORITY);
 }
 
-static uint8_t* memdup(const char* data, size_t length)
+static void
+__free_environment(
+    _In_ char** environment)
 {
-    uint8_t* mem = malloc(length);
-    if (mem == NULL) {
-        return NULL;
+    if (environment == NULL) {
+        return;
     }
-    memcpy(mem, data, length);
-    return mem;
+    
+    for (size_t i = 0; environment[i] != NULL; i++) {
+        free(environment[i]);
+    }
+    free(environment);
 }
 
-// environment data is a null terminated array of
-// null terminated strings
 static oserr_t
 __build_environment(
-        _In_ const char* environment)
+    _In_  const char* environment,
+    _In_  size_t      length,
+    _Out_ char***     environmentOut)
 {
-    const char* i         = environment;
-    int         pairCount = 0;
-    TRACE("__build_environment(env=%s)", environment);
+    char**  pairs;
+    size_t  offset = 0;
+    size_t  count;
+    size_t  entryLength;
+    oserr_t oserr;
 
-    while (*i) {
-        // skip towards next entry, and skip the terminating zero
-        i += strlen(i) + 1;
-        pairCount++;
+    oserr = __EnvironmentBlockValidate(environment, length, &count);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    g_environment = calloc((pairCount + 1), sizeof(char*));
-    if (g_environment == NULL) {
+    pairs = calloc(count + 1, sizeof(char*));
+    if (pairs == NULL) {
         return OS_EOOM;
     }
 
-    i         = environment;
-    pairCount = 0;
-    while (*i) {
-        g_environment[pairCount++] = strdup(i);
-        i += strlen(i) + 1;
+    for (size_t i = 0; i < count; i++) {
+        entryLength = strlen(environment + offset);
+        pairs[i] = strndup(environment + offset, entryLength);
+        if (pairs[i] == NULL) {
+            __free_environment(pairs);
+            return OS_EOOM;
+        }
+        offset += entryLength + 1;
     }
+
+    *environmentOut = pairs;
     return OS_EOK;
 }
 
 static oserr_t
 __parse_library_handles(
-        _In_  const char* buffer,
-        _In_  size_t      length,
-        _Out_ uintptr_t** handlesOut)
+    _In_  const char* buffer,
+    _In_  size_t      length,
+    _Out_ uintptr_t** handlesOut)
 {
-    size_t     entries;
+    size_t     entries = length / sizeof(uintptr_t);
     uintptr_t* libraries;
-    TRACE("__parse_library_handles(length=%u)", length);
 
-    entries = length / sizeof(uintptr_t);
-    if (!entries) {
-        return OS_ENOENT;
+    if (length % sizeof(uintptr_t) != 0 || entries >= PROCESS_MAXMODULES) {
+        return OS_EINVALPARAMS;
     }
 
+    if (entries == 0) {
+        return OS_ENOENT;
+    }
+    
     libraries = calloc(entries + 1, sizeof(uintptr_t));
     if (libraries == NULL) {
         return OS_EOOM;
     }
 
-    for (int i = 0; i < (int)entries; i++) {
-        libraries[i] = ((uintptr_t*)buffer)[i];
-    }
+    // Arguments have byte lengths, so the following entry list does not need to
+    // to be aligned.
+    memcpy(libraries, buffer, length);
     *handlesOut = libraries;
     return OS_EOK;
 }
 
 static oserr_t
 __parse_startup_info(
-        _In_ OSHandle_t* osHandle)
+    _In_ OSHandle_t* osHandle,
+    _In_ uint32_t    bytesWritten)
 {
-    ProcessStartupInformation_t* source;
-    const char*                  data;
-    oserr_t                      oserr;
-    TRACE("__parse_startup_info()");
+    struct ProcessStartupSections sections;
+    char*                         arguments = NULL;
+    uintptr_t*                    libraries = NULL;
+    char**                        environment = NULL;
+    oserr_t                       oserr;
 
-    source = (ProcessStartupInformation_t*)SHMBuffer(osHandle);
-    data   = (char*)SHMBuffer(osHandle) + sizeof(ProcessStartupInformation_t);
-    TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
-          source->ArgumentsLength,
-          source->InheritationLength,
-          source->LibraryEntriesLength);
-    assert((source->ArgumentsLength + source->InheritationLength +
-            source->LibraryEntriesLength + source->EnvironmentBlockLength)
-           < KB(64));
-
-    // Required - arguments (commandline) is written without zero terminator
-    g_rawCommandLine = strndup(data, source->ArgumentsLength);
-    if (g_rawCommandLine == NULL) {
-        ERROR("__parse_startup_info: failed to allocate memory for process arguments");
-        return OS_EOOM;
-    }
-    data += source->ArgumentsLength;
-
-    // Optional - inheritation block is not required and may be null
-    if (source->InheritationLength) {
-        g_inheritBlock = memdup(data, source->InheritationLength);
-        if (g_inheritBlock != NULL) {
-            ERROR("__parse_startup_info: failed to allocate memory for the import block");
-            return OS_EOOM;
-        }
-        data += source->InheritationLength;
+    if (bytesWritten > PROCESS_STARTUP_MAX_SIZE ||
+        bytesWritten > SHMBufferCapacity(osHandle)) {
+        return OS_EBUFFER;
     }
 
-    // Required - the list of library entry points that needs to be called upon
-    // CRT init/finit. This is the base library list, which are the libraries that
-    // were automatically loaded during load of this process.
-    oserr = __parse_library_handles(
-            data,
-            source->LibraryEntriesLength,
-            &g_baseLibraries
-    );
+    oserr = __ProcessStartupSplit(SHMBuffer(osHandle), bytesWritten, &sections);
     if (oserr != OS_EOK) {
-        ERROR("__parse_startup_info: failed to parse library handles: %u", oserr);
         return oserr;
     }
-    data += source->LibraryEntriesLength;
 
-    // Optional - environmental block. List of strings, does not need to be provided.
-    if (source->EnvironmentBlockLength) {
-        oserr = __build_environment(data);
-        if (oserr != OS_EOK) {
-            ERROR("__parse_startup_info: failed to parse environment block: %u", oserr);
-            return oserr;
-        }
-        data += source->EnvironmentBlockLength;
+    arguments = strndup(sections.Arguments, sections.Header.ArgumentsLength);
+    if (arguments == NULL) {
+        return OS_EOOM;
     }
+
+    oserr = __parse_library_handles(
+        sections.LibraryEntries,
+        sections.Header.LibraryEntriesLength,
+        &libraries
+    );
+    if (oserr != OS_EOK) {
+        goto error;
+    }
+
+    if (sections.Header.EnvironmentBlockLength != 0) {
+        oserr = __build_environment(
+            sections.Environment,
+            sections.Header.EnvironmentBlockLength,
+            &environment
+        );
+        if (oserr != OS_EOK) {
+            goto error;
+        }
+    }
+
+    oserr = CRTReadInheritanceBlock(
+        sections.Inheritance,
+        sections.Header.InheritationLength
+    );
+    if (oserr != OS_EOK) {
+        goto error;
+    }
+
+    g_rawCommandLine = arguments;
+    g_baseLibraries = libraries;
+    g_environment = environment;
     return OS_EOK;
+
+error:
+    free(arguments);
+    free(libraries);
+    __free_environment(environment);
+    return oserr;
 }
 
 static oserr_t
 __get_startup_info(void)
 {
     OSHandle_t               mapping;
+    SHMTransfer_t            transfer;
+    struct sys_shm_transfer  destination;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    uuid_t                   processID = UUID_INVALID;
+    uint32_t                 bytesWritten = 0;
     oserr_t                  oserr;
-    TRACE("__get_startup_info()");
 
-    oserr = SHMCreate(
-            &(SHM_t) {
-                .Key = NULL,
-                .Flags = SHM_COMMIT,
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                .Size = KB(64)
-        },
-        &mapping);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    sys_process_get_startup_information(
-            GetGrachtClient(),
-            &msg.base,
-            ThreadsCurrentId(),
-            mapping.ID,
-            0
-    );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_get_startup_information_result(
-            GetGrachtClient(),
-            &msg.base,
-            &oserr,
-            &g_processId
+    oserr = __SHMTransferAllocate(
+        PROCESS_STARTUP_MAX_SIZE,
+        GrantTokenScopeRead | GrantTokenScopeWrite,
+        &mapping,
+        &transfer
     );
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    oserr = __parse_startup_info(&mapping);
+    oserr = __ToSysSHMTransfer(&transfer, &destination);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+
+    if (sys_process_get_startup_information(
+            GetGrachtClient(), &msg.base, ThreadsCurrentId(), &destination) != 0) {
+        oserr = OS_EUNKNOWN;
+        goto cleanup;
+    }
+
+    oserr = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, 0);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+
+    if (sys_process_get_startup_information_result(
+            GetGrachtClient(), &msg.base, &oserr, &processID, &bytesWritten) != 0) {
+        oserr = OS_EPROTOCOL;
+    }
+
+cleanup:
+    OSGrantTokenRevoke(transfer.Token.ControlHandleID);
+    if (oserr == OS_EOK) {
+        // If we retrieved startup information, parse it
+        g_processId = processID;
+        oserr = __parse_startup_info(&mapping, bytesWritten);
+    }
     OSHandleDestroy(&mapping);
     return oserr;
 }
 
-static void __setup_client(void* argument, void* cancellationToken)
+static void
+__setup_client(
+    void)
 {
     gracht_client_configuration_t clientConfig;
     int                           status;
@@ -279,43 +313,44 @@ static void __setup_client(void* argument, void* cancellationToken)
 
 static void
 __startup(
-        _In_ void* argument,
-        _In_ void* cancellationToken)
+    _In_ void* argument,
+    _In_ void* cancellationToken)
 {
+    bool*             complete = argument;
+    OSAsyncContext_t* asyncContext;
+    oserr_t           oserr;
     TRACE("__startup()");
+
+    // Client setup and startup RPCs must run in a job, without asynchronous I/O.
+    asyncContext = __tls_current()->async_context;
+    __tls_current()->async_context = NULL;
+    __setup_client();
 
     // Unless it's the phoenix bootstrapper, we retrieve startup information
     // and various process related configurations before proceeding.
     if (!g_isPhoenix) {
-        OSAsyncContext_t* asyncContext;
-        oserr_t           oserr;
-
-        // during startup, we disable async operations as we need the queued
-        // jobs to run sequentially.
-        asyncContext = __tls_current()->async_context;
-        __tls_current()->async_context = NULL;
-
         oserr = __get_startup_info();
         if (oserr != OS_EOK) {
             ERROR("__startup failed to get process startup information: %u", oserr);
             (void)OsErrToErrNo(oserr);
             _Exit(-errno);
         }
-
-        // restore async context again
-        __tls_current()->async_context = asyncContext;
-
-        // refresh our tls data
-        __tls_update_environment();
     }
 
     // now that we have the startup information, we can proceed to setup systems
     // that require it.
-    StdioConfigureStandardHandles(g_inheritBlock);
+    StdioConfigureStandardHandles();
+    __tls_current()->async_context = asyncContext;
+    *complete = true;
 }
 
-void __crt_process_initialize(int isPhoenix)
+void
+__crt_process_initialize(
+    _In_ int isPhoenix)
 {
+    struct timespec deadline;
+    bool            complete = false;
+    int             status;
     TRACE("__crt_process_initialize(isPhoenix=%i)", isPhoenix);
 
     // We must mark whether this is the phoenix process
@@ -341,13 +376,37 @@ void __crt_process_initialize(int isPhoenix)
     // initialization, as it might require the usched scheduler to be working
     usched_xunit_init();
 
-    // Queue the client setup job, we need this before anything else. Jobs
-    // run sequentially before we add more execution units.
-    usched_job_queue(__setup_client, NULL);
+    if (usched_job_queue(__startup, &complete) == UUID_INVALID) {
+        ERROR("__crt_process_initialize failed to queue startup");
+        ThreadsFastExit(-ENOMEM);
+    }
 
-    // Queue up the startup job which retrieves vital startup information, but
-    // requires the gracht client to be running.
-    usched_job_queue(__startup, NULL);
+    // Constructors need startup data and inherited descriptors. No other
+    // execution units exist yet, so the completion flag stays on this thread.
+    while (!complete) {
+        status = usched_yield(&deadline);
+        if (complete) {
+            break;
+        }
+        if (status == 0) {
+            continue;
+        }
+        if (errno == EWOULDBLOCK) {
+            usched_timedwait(&deadline);
+        } else if (errno == ENOENT) {
+            usched_wait();
+        } else {
+            status = errno;
+            ERROR("__crt_process_initialize scheduler failed: %i", status);
+            ThreadsFastExit(-status);
+        }
+    }
+
+    // Refresh the initial thread, not the temporary bootstrap job.
+    if (!g_isPhoenix && __tls_update_environment() != 0) {
+        ERROR("__crt_process_initialize failed to update environment");
+        ThreadsFastExit(-ENOMEM);
+    }
 }
 
 int __crt_is_phoenix(void)

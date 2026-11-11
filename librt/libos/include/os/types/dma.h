@@ -23,8 +23,7 @@
 
 #define DMA_MAX_RANGES 64
 
-// Which way data moves during a transfer. Cache handling and bounce copies use
-// this to skip work that cannot matter for that direction.
+// Which way data moves. Determines which cache operations and copies are needed.
 enum DMADirection {
     // The device only reads the memory, e.g. a USB OUT transfer.
     DMAToDevice,
@@ -34,16 +33,17 @@ enum DMADirection {
     DMABidirectional
 };
 
-// It must use the original SHM pages directly, without bounce buffers.
+// Use the original SHM pages. Temporary bounce copies are not allowed.
 #define DMA_MAP_REQUIRE_DIRECT 0x1U
-// Whether the mapping is persistent across multiple map/unmaps. Must
-// be used in conjunction with DMA_MAP_REQUIRE_DIRECT.
+// Count device uses and synchronize caches before the first and after the last.
+// Requires DMA_MAP_REQUIRE_DIRECT.
 #define DMA_MAP_PERSISTENT     0x2U
 
 /**
- * Unlike SHMSG_t, which holds CPU physical addresses in a pointer-sized type,
- * this always uses 64 bits because device addresses can exceed 4 GiB even on
- * 32-bit kernels, and they need not equal the physical address.
+ * @brief A consecutive range of byte addresses used by a device.
+ *
+ * Address is always 64-bit because a device address can exceed 4 GiB even on
+ * a 32-bit kernel. It may differ from the CPU physical address stored in SHMSG_t.
  */
 struct DMASegment {
     uint64_t Address;
@@ -52,10 +52,11 @@ struct DMASegment {
 
 /**
  * @brief Constraints on every device segment returned by a DMA mapping.
+ *
  * Zero means no constraint. Nonzero values must be powers of two.
- * The total mapped length must also be a multiple of LengthAlignment. It is never
- * padded to fit. Drivers must keep these constraints when they split segments or
- * add offsets to them.
+ * A nonzero LengthAlignment also applies to the total mapped length, which is
+ * never padded. When drivers split segments or add offsets, the resulting
+ * addresses and lengths must still meet these requirements.
  */
 struct DMAMapRequirements {
     // The device address of each segment must be a multiple of this value.
@@ -65,11 +66,12 @@ struct DMAMapRequirements {
 };
 
 /**
- * What a device needs from memory it keeps using, such as a controller's rings.
+ * @brief Memory requirements for long-lived device buffers, such as command rings.
+ *
  * Zero for Alignment or Boundary means no requirement.
  */
 struct DMARequirements {
-    // Number of bytes needed; the allocation is rounded up to whole pages.
+    // Number of bytes needed. The allocation is rounded up to whole pages.
     size_t   Length;
     // The device address of the first byte must be a multiple of this power of two.
     uint64_t Alignment;
@@ -80,8 +82,12 @@ struct DMARequirements {
 };
 
 enum SHMDeviceCachePolicy {
+    // Cache behavior is unknown. A DMA context cannot use this policy.
     SHMDeviceCacheUnknown,
+    // Software must write back or invalidate cached data for DMA.
     SHMDeviceCacheNonCoherent,
+    // Hardware keeps CPU caches consistent with device reads and writes.
+    // Memory barriers are still needed to order accesses.
     SHMDeviceCacheCoherent
 };
 

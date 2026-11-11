@@ -16,6 +16,7 @@
  */
 
 #include <internal/_storage.h>
+#include <internal/_gracht.h>
 #include <internal/_shm_transfer.h>
 #include <internal/_utils.h>
 #include <gracht/link/vali.h>
@@ -73,10 +74,8 @@ __StorageTransfer(
         goto cleanup;
     }
 
-    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
-        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
-        gracht_client_abandon(GetGrachtClient(), &msg.base);
-        status = OS_EUNKNOWN;
+    status = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != OS_EOK) {
         goto cleanup;
     }
 

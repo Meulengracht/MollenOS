@@ -15,180 +15,286 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
+#include <ddk/convert/grants.h>
 #include <internal/_io.h>
+#include <os/grants.h>
+#include <os/types/file.h>
+#include <stdlib.h>
+
 #include "private.h"
 
-/**
- * Returns whether or not the handle should be inheritted by sub-processes based on the requested
- * startup information and the handle settings.
- */
-static oserr_t
-__IsInheritable(
-        _In_ struct InheritanceOptions* options,
-        _In_ stdio_handle_t*            handle)
-{
-    oserr_t oserr = OS_EOK;
+struct __export_resource {
+    uuid_t              ID;
+    unsigned int        Signature;
+    GrantTokenOptions_t Options;
+};
 
-    if (handle->XTFlags & __IO_NOINHERIT) {
-        oserr = OS_EUNKNOWN;
+static void
+__SelectInheritedFile(
+    _In_ int         index,
+    _In_ const void* element,
+    _In_ void*       context)
+{
+    const struct stdio_object_entry* entry = element;
+    stdio_handle_t**                 selected = context;
+    stdio_handle_t*                  handle = entry->handle;
+    _CRT_UNUSED(index);
+
+    // Standard descriptors are selected explicitly below. Runtime IPC and other
+    // priority descriptors must never enter the application's inheritance list.
+    if (handle->IOD > STDERR_FILENO &&
+        !(handle->XTFlags & (__IO_NOINHERIT | __IO_PRIORITY))) {
+        selected[handle->IOD] = handle;
+    }
+}
+
+static oserr_t
+__SelectStandardFile(
+    _InOut_ stdio_handle_t** selected,
+    _In_    int              source,
+    _In_    int              destination)
+{
+    stdio_handle_t* handle;
+
+    if (source < 0 || source >= INTERNAL_MAXFILES) {
+        return OS_EINVALPARAMS;
     }
 
-    // If we didn't request to inherit one of the handles, then we don't account it
-    // for being the one requested.
-    if (handle->IOD == options->StdOutHandle &&
-        !(options->Flags & PROCESS_INHERIT_STDOUT)) {
-        oserr = OS_EUNKNOWN;
-    } else if (handle->IOD == options->StdInHandle &&
-               !(options->Flags & PROCESS_INHERIT_STDIN)) {
-        oserr = OS_EUNKNOWN;
-    } else if (handle->IOD == options->StdErrHandle &&
-               !(options->Flags & PROCESS_INHERIT_STDERR)) {
-        oserr = OS_EUNKNOWN;
-    } else if (!(options->Flags & PROCESS_INHERIT_FILES)) {
-        if (handle->IOD != options->StdOutHandle &&
-            handle->IOD != options->StdInHandle &&
-            handle->IOD != options->StdErrHandle) {
-            oserr = OS_EUNKNOWN;
+    handle = stdio_handle_get(source);
+    if (handle == NULL) {
+        return OS_ENOENT;
+    }
+
+    if (handle->XTFlags & __IO_PRIORITY) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    // Preserve the existing no-inherit selection policy, even for stdio.
+    selected[destination] = (handle->XTFlags & __IO_NOINHERIT) ? NULL : handle;
+    return OS_EOK;
+}
+
+static oserr_t
+__SelectInheritedFiles(
+    _In_  const struct InheritanceOptions* options,
+    _Out_ stdio_handle_t**                 selected)
+{
+    const int sources[] = {
+        options->StdInHandle,
+        options->StdOutHandle,
+        options->StdErrHandle
+    };
+
+    const unsigned int flags[] = {
+        PROCESS_INHERIT_STDIN,
+        PROCESS_INHERIT_STDOUT,
+        PROCESS_INHERIT_STDERR
+    };
+
+    if (options->Flags & ~PROCESS_INHERIT_ALL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (options->Flags & PROCESS_INHERIT_FILES) {
+        hashtable_enumerate(IODescriptors(), __SelectInheritedFile, selected);
+    }
+
+    for (int i = 0; i < 3; i++) {
+        oserr_t status;
+
+        if (!(options->Flags & flags[i])) {
+            continue;
+        }
+        
+        status = __SelectStandardFile(selected, sources[i], i);
+        if (status != OS_EOK) {
+            return status;
         }
     }
-    return oserr;
-}
-
-struct __get_inherit_context {
-    struct InheritanceOptions* options;
-    int                        file_count;
-};
-
-static void
-__count_inherit_entry(
-        _In_ int         index,
-        _In_ const void* element,
-        _In_ void*       userContext)
-{
-    const struct stdio_object_entry* entry  = element;
-    stdio_handle_t*                  object = entry->handle;
-    struct __get_inherit_context*    context = userContext;
-    _CRT_UNUSED(index);
-
-    if (__IsInheritable(context->options, object) == OS_EOK) {
-        context->file_count++;
-    }
-}
-
-static int
-__InheritableHandlesCount(
-        _In_ struct InheritanceOptions* options)
-{
-    struct __get_inherit_context context = {
-            .options = options,
-            .file_count = 0
-    };
-    LOCK_FILES();
-    hashtable_enumerate(
-            IODescriptors(),
-            __count_inherit_entry,
-            &context
-    );
-    UNLOCK_FILES();
-    return context.file_count;
-}
-
-struct __create_inherit_context {
-    struct InheritanceOptions* options;
-    struct InheritationBlock*  inheritation_block;
-    size_t                     bytes_written;
-};
-
-size_t
-OSHandleSerialize(
-        _In_ struct OSHandle* handle,
-        _In_ void*            buffer);
-
-static void
-__create_inherit_callback(
-        _In_ int         index,
-        _In_ const void* element,
-        _In_ void*       userContext)
-{
-    const struct stdio_object_entry* entry  = element;
-    stdio_handle_t*                  object = entry->handle;
-    struct __create_inherit_context* context = userContext;
-    struct InheritationHeader*       header;
-    void*                            payload;
-    _CRT_UNUSED(index);
-
-    if (__IsInheritable(context->options, object) != OS_EOK) {
-        return;
-    }
-
-    header = (struct InheritationHeader*)
-            &context->inheritation_block->Data[context->bytes_written];
-
-    // Check for this fd to be equal to one of the custom handles
-    // if it is equal, we need to update the fd of the handle to our reserved
-    if (object->IOD == context->options->StdOutHandle) {
-        header->IOD = STDOUT_FILENO;
-    } else if (object->IOD == context->options->StdInHandle) {
-        header->IOD = STDIN_FILENO;
-    } else if (object->IOD == context->options->StdErrHandle) {
-        header->IOD = STDERR_FILENO;
-    } else {
-        header->IOD = object->IOD;
-    }
-    header->Signature = object->Signature;
-    header->XTFlags = object->XTFlags;
-
-    // Mark that we have now written the header
-    context->bytes_written += sizeof(struct InheritationHeader);
-
-    // Write the OS handle data. This is needed to reconstruct the full
-    // io descriptor
-    payload = &context->inheritation_block->Data[context->bytes_written];
-    context->bytes_written += OSHandleSerialize(&object->OSHandle, payload);
-
-    if (object->Ops->serialize) {
-        payload = &context->inheritation_block->Data[context->bytes_written];
-        context->bytes_written += object->Ops->serialize(object->OpsContext, payload);
-    }
+    return OS_EOK;
 }
 
 void
-CRTWriteInheritanceBlock(
-        _In_  struct InheritanceOptions* options,
-        _In_  void*                      buffer,
-        _Out_ uint32_t*                  lengthWrittenOut)
+CRTReleaseInheritanceBlock(
+    _InOut_ struct inheritance_export* exported)
 {
-    struct __create_inherit_context context;
-    struct InheritationBlock*       inheritationBlock;
-    int                             numberOfObjects;
+    for (uint32_t i = 0; i < exported->count; i++) {
+        OSGrantTokenRevoke(exported->controls[i]);
+    }
+    free(exported->controls);
+    memset(exported, 0, sizeof(struct inheritance_export));
+}
 
-    assert(options != NULL);
+static uint32_t
+__FindExportResource(
+    _In_ const struct __export_resource* resources,
+    _In_ uint32_t                        count,
+    _In_ uuid_t                          id)
+{
+    uint32_t i;
 
-    if (options->Flags == PROCESS_INHERIT_NONE) {
-        *lengthWrittenOut = 0;
-        return;
+    for (i = 0; i < count; i++) {
+        if (resources[i].ID == id) {
+            break;
+        }
+    }
+    return i;
+}
+
+// The descriptor is the number in the child. For standard streams it can
+// differ from the local descriptor number of handle.
+static oserr_t
+__AddInheritedDescriptor(
+    _In_    int                                   descriptor,
+    _In_    const stdio_handle_t*                 handle,
+    _InOut_ struct __export_resource*             resources,
+    _InOut_ struct sys_process_inheritance_input* input)
+{
+    GrantTokenOptions_t tokenOptions;
+    unsigned int        flags;
+    uint32_t            resource;
+    oserr_t             status;
+
+    status = CRTPrepareInheritedHandle(handle, &flags, &tokenOptions);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    numberOfObjects = __InheritableHandlesCount(options);
-    if (numberOfObjects == 0) {
-        *lengthWrittenOut = 0;
-        return;
-    }
-
-    inheritationBlock = buffer;
-    inheritationBlock->Count = numberOfObjects;
-
-    context.options = options;
-    context.inheritation_block = inheritationBlock;
-    context.bytes_written = sizeof(struct InheritationBlock);
-
-    LOCK_FILES();
-    hashtable_enumerate(
-            IODescriptors(),
-            __create_inherit_callback,
-            &context
+    // Descriptor aliases share one export, but distinct restricted reference
+    // IDs stay separate.
+    resource = __FindExportResource(
+        resources,
+        input->resources_count,
+        handle->OSHandle.ID
     );
-    UNLOCK_FILES();
-    *lengthWrittenOut = context.bytes_written;
+    if (resource == input->resources_count) {
+        resources[resource] = (struct __export_resource) {
+            .ID = handle->OSHandle.ID,
+            .Signature = handle->Signature,
+            .Options = tokenOptions
+        };
+        input->resources_count++;
+    } else {
+        // One local resource must have one reconstruction type. Different
+        // descriptor modes may share it, but different signatures may not.
+        if (resources[resource].Signature != handle->Signature) {
+            return OS_EINVALPARAMS;
+        }
+        resources[resource].Options.Scope |= tokenOptions.Scope;
+    }
+
+    input->descriptors[input->descriptors_count++] = (struct sys_inherited_descriptor) {
+        .descriptor = descriptor,
+        .resource_index = resource,
+        .signature = handle->Signature,
+        .flags = flags
+    };
+    return OS_EOK;
+}
+
+static oserr_t
+__ExportResources(
+    _In_    const struct __export_resource*       resources,
+    _InOut_ struct sys_process_inheritance_input* input,
+    _InOut_ struct inheritance_export*            exported)
+{
+    for (uint32_t i = 0; i < input->resources_count; i++) {
+        GrantToken_t token;
+        oserr_t      status;
+        
+        status = OSGrantTokenCreate(resources[i].ID, &resources[i].Options, &token);
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        // Record the control handle first, so the caller revokes it on failure.
+        exported->controls[exported->count++] = token.ControlHandleID;
+
+        status = __ToSysGrantToken(&token, &input->resources[i]);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    return OS_EOK;
+}
+
+oserr_t
+CRTWriteInheritanceBlock(
+    _In_  const struct InheritanceOptions* options,
+    _Out_ void*                            buffer,
+    _In_  uint32_t                         capacity,
+    _Out_ struct inheritance_export*       exportOut)
+{
+    struct sys_process_inheritance_input input = { 0 };
+    struct inheritance_export            exported = { 0 };
+    gracht_buffer_t                      wire = { .data = buffer, .limit = capacity };
+    stdio_handle_t**                     selected = NULL;
+    struct __export_resource*            resources = NULL;
+    oserr_t                              status = OS_EOK;
+
+    memset(exportOut, 0, sizeof(*exportOut));
+    if (options->Flags == PROCESS_INHERIT_NONE) {
+        return OS_EOK;
+    }
+
+    selected = calloc(INTERNAL_MAXFILES, sizeof(*selected));
+    resources = calloc(INTERNAL_MAXFILES, sizeof(*resources));
+    input.resources = calloc(INTERNAL_MAXFILES, sizeof(*input.resources));
+    input.descriptors = calloc(INTERNAL_MAXFILES, sizeof(*input.descriptors));
+    exported.controls = calloc(INTERNAL_MAXFILES, sizeof(*exported.controls));
+    
+    if (selected == NULL || resources == NULL || input.resources == NULL ||
+        input.descriptors == NULL || exported.controls == NULL) {
+        status = OS_EOOM;
+        goto cleanup;
+    }
+
+    status = __SelectInheritedFiles(options, selected);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    // Build the complete selection before creating any token.
+    for (uint32_t i = 0; i < INTERNAL_MAXFILES; i++) {
+        if (selected[i] == NULL) {
+            continue;
+        }
+
+        status = __AddInheritedDescriptor((int)i, selected[i], resources, &input);
+        if (status != OS_EOK) {
+            goto cleanup;
+        }
+    }
+    if (input.descriptors_count == 0) {
+        goto cleanup;
+    }
+
+    // Check the generated layout against capacity before exporting resources.
+    // Placeholder tokens have the same fixed encoded size as the real tokens.
+    serialize_sys_process_inheritance_input(&wire, &input);
+    if (wire.error) {
+        status = OS_EBUFFER;
+        goto cleanup;
+    }
+
+    status = __ExportResources(resources, &input, &exported);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    wire.index = 0;
+    serialize_sys_process_inheritance_input(&wire, &input);
+    exported.length = wire.index;
+
+cleanup:
+    free(selected);
+    free(resources);
+    sys_process_inheritance_input_destroy(&input);
+
+    if (status == OS_EOK) {
+        *exportOut = exported;
+    } else {
+        CRTReleaseInheritanceBlock(&exported);
+    }
+    return status;
 }

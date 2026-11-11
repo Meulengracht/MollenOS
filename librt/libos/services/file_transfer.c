@@ -19,6 +19,7 @@
 #include <ddk/convert/grants.h>
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
+#include <internal/_gracht.h>
 #include <internal/_utils.h>
 #include <internal/_shm_transfer.h>
 #include <os/grants.h>
@@ -59,8 +60,7 @@ __TransferFileBuffer(
         return OS_EPERMISSIONS;
     }
 
-    length = transfer->RangeMode == SHMTransferRangeFull
-        ? transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+    length = __SHMTransferLength(transfer);
 
     if (position == NULL) {
         result = sys_file_transfer(
@@ -80,10 +80,9 @@ __TransferFileBuffer(
         return OS_EUNKNOWN;
     }
 
-    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
-        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
-        gracht_client_abandon(GetGrachtClient(), &msg.base);
-        return OS_EUNKNOWN;
+    status = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != OS_EOK) {
+        return status;
     }
 
     if (position == NULL) {

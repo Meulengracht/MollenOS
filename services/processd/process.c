@@ -18,6 +18,7 @@
 #define __TRACE
 
 #include <assert.h>
+#include <sys_process_service.h>
 #include <limits.h>
 #include <ds/mstring.h>
 #include <ds/hashtable.h>
@@ -26,13 +27,15 @@
 #include <ddk/capabilities.h>
 #include <ddk/utils.h>
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
-#include <internal/_io.h>
+#include <os/internal/_process.h>
+#include <ddk/convert/inheritance.h>
 #include <os/threads.h>
 #include <os/usched/cond.h>
 #include <os/shm.h>
 #include <pe.h>
 #include <process.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 struct thread_mapping {
@@ -65,7 +68,7 @@ static int      processhistory_cmp(const void* element1, const void* element2);
 
 static void
 DestroyProcess(
-        _In_ Process_t* process)
+    _In_ Process_t* process)
 {
     TRACE("DestroyProcess(process=%u)", process->handle);
 
@@ -80,12 +83,13 @@ DestroyProcess(
     mstr_delete(process->assembly_directory);
     PEImageLoadContextDelete(process->load_context);
     OSHandleDestroy(&process->handle);
+    free(process->startup_data.Buffer);
     free(process);
 }
 
 Process_t*
 PmGetProcessByHandle(
-        _In_ uuid_t handle)
+    _In_ uuid_t handle)
 {
     struct process_entry* entry;
     usched_mtx_lock(&g_processesLock);
@@ -94,25 +98,68 @@ PmGetProcessByHandle(
     return entry != NULL ? entry->process : NULL;
 }
 
-static inline Process_t*
-GetProcessByThread(
-        _In_ uuid_t handle)
+static oserr_t
+__ReferenceProcess(
+    _In_  struct process_entry* entry,
+    _Out_ Process_t**           processOut)
+{
+    Process_t* process;
+    oserr_t    oserr = OS_EOK;
+
+    // The caller holds the registry lock until the reference has been added.
+    if (entry == NULL) {
+        return OS_ENOENT;
+    }
+
+    process = entry->process;
+    usched_mtx_lock(&process->mutex);
+    if (process->references == INT_MAX) {
+        oserr = OS_EOVERFLOW;
+    } else {
+        process->references++;
+        *processOut = process;
+    }
+    usched_mtx_unlock(&process->mutex);
+    return oserr;
+}
+
+oserr_t
+PmReferenceProcessByThread(
+    _In_  uuid_t      threadHandle,
+    _Out_ Process_t** processOut)
 {
     struct thread_mapping* mapping;
-    struct process_entry*  entry = NULL;
+    struct process_entry*  entry;
+    oserr_t                oserr;
+
     usched_mtx_lock(&g_processesLock);
-    mapping = hashtable_get(&g_threadmappings, &(struct thread_mapping) { .thread_id = handle });
-    if (mapping) {
-        entry = hashtable_get(&g_processes, &(struct process_entry) { .process_id = mapping->process_id });
-    }
+    mapping = hashtable_get(&g_threadmappings, &(struct thread_mapping) { .thread_id = threadHandle });
+    entry = mapping == NULL ? NULL : hashtable_get(
+        &g_processes, &(struct process_entry) { .process_id = mapping->process_id }
+    );
+    oserr = __ReferenceProcess(entry, processOut);
     usched_mtx_unlock(&g_processesLock);
-    return entry != NULL ? entry->process : NULL;
+    return oserr;
+}
+
+void
+PmReleaseProcess(
+    _In_ Process_t* process)
+{
+    int destroy;
+
+    usched_mtx_lock(&process->mutex);
+    process->references--;
+    destroy = process->references == 0;
+    usched_mtx_unlock(&process->mutex);
+    if (destroy) {
+        DestroyProcess(process);
+    }
 }
 
 void
 PmInitialize(void)
 {
-
     hashtable_construct(&g_threadmappings, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct thread_mapping), mapping_hash,
                         mapping_cmp);
@@ -126,30 +173,76 @@ PmInitialize(void)
     usched_mtx_init(&g_processHistoryLock, USCHED_MUTEX_PLAIN);
 }
 
-// The process options data block is built like this
-// InheritationBlock | EnvironmentBlock
-static void*
-__ProcOptsInheritationBlock(
-        _In_ struct ProcessOptions* procOpts)
+static const char*
+__ProcOptsEnvironmentBlock(
+    _In_ const struct ProcessOptions* options)
 {
-    if (procOpts->DataBuffer != NULL) {
-        return (void*)procOpts->DataBuffer;
+    if (options->DataBuffer == NULL) {
+        return NULL;
     }
-    return SHMBuffer(&procOpts->DataBufferHandle);
+    return (const char*)options->DataBuffer + options->InheritationBlockLength;
 }
 
-static void*
-__ProcOptsEnvironmentBlock(
-        _In_ struct ProcessOptions* procOpts)
+static bool
+__FitsStartupPayload(
+    _In_ const char* string)
 {
-    void* buffer = __ProcOptsInheritationBlock(procOpts);
-    return (char*)buffer + procOpts->InheritationBlockLength;
+    return strnlen(string, PROCESS_STARTUP_MAX_SIZE) < PROCESS_STARTUP_MAX_SIZE;
+}
+
+static oserr_t
+__ValidateProcessStrings(
+    _In_ const char* path,
+    _In_ const char* arguments)
+{
+    if (!__FitsStartupPayload(path)) {
+        return OS_EBUFFER;
+    }
+    if (arguments != NULL && !__FitsStartupPayload(arguments)) {
+        return OS_EBUFFER;
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__ValidateProcessBlocks(
+    _In_ const struct ProcessOptions* options)
+{
+    size_t count;
+
+    // Check the lengths before the environment block is located from them.
+    if (options->InheritationBlockLength > PROCESS_STARTUP_MAX_SIZE ||
+        options->EnvironmentBlockLength > PROCESS_STARTUP_MAX_SIZE - options->InheritationBlockLength) {
+        return OS_EBUFFER;
+    }
+    return __EnvironmentBlockValidate(
+        __ProcOptsEnvironmentBlock(options),
+        options->EnvironmentBlockLength,
+        &count
+    );
+}
+
+static oserr_t
+__ValidateProcessInput(
+    _In_ const char*            path,
+    _In_ const char*            arguments,
+    _In_ struct ProcessOptions* options)
+{
+    oserr_t oserr;
+
+    oserr = __ValidateProcessStrings(path, arguments);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return __ValidateProcessBlocks(options);
 }
 
 static oserr_t
 __BuildArguments(
-        _In_ Process_t*  process,
-        _In_ const char* argsIn)
+    _In_  Process_t*  process,
+    _In_  const char* argsIn,
+    _Out_ char**      argumentsOut,
+    _Out_ size_t*     lengthOut)
 {
     mstring_t* fullPath;
     size_t     pathLength;
@@ -166,9 +259,9 @@ __BuildArguments(
     }
 
     oserr = PEImageLoadContextModulePath(
-            process->load_context,
-            process->load_context->RootModule,
-            &fullPath
+        process->load_context,
+        process->load_context->RootModule,
+        &fullPath
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -180,7 +273,13 @@ __BuildArguments(
     }
 
     // handle arguments, we need to prepend the full path of the executable
-    pathLength       = strlen(processPath);
+    pathLength = strlen(processPath);
+    if (pathLength >= PROCESS_STARTUP_MAX_SIZE ||
+        argumentsLength > PROCESS_STARTUP_MAX_SIZE - pathLength - 1) {
+        free(processPath);
+        return OS_EBUFFER;
+    }
+
     argumentsPointer = malloc(pathLength + 1 + argumentsLength);
     if (!argumentsPointer) {
         free(processPath);
@@ -199,18 +298,18 @@ __BuildArguments(
         argumentsPointer[pathLength] = '\0';
     }
 
-    process->arguments        = (const char *)argumentsPointer;
-    process->arguments_length = pathLength + 1 + argumentsLength;
+    *argumentsOut = argumentsPointer;
+    *lengthOut = pathLength + 1 + argumentsLength;
     free(processPath);
     return OS_EOK;
 }
 
 static oserr_t
 __LoadProcessImage(
-        _In_  uuid_t                      scope,
-        _In_  const char*                 ldPaths,
-        _In_  const char*                 cpath,
-        _Out_ struct PEImageLoadContext** loadContextOut)
+    _In_  uuid_t                      scope,
+    _In_  const char*                 ldPaths,
+    _In_  const char*                 cpath,
+    _Out_ struct PEImageLoadContext** loadContextOut)
 {
     struct PEImageLoadContext* loadContext;
     mstring_t*                 path;
@@ -233,7 +332,9 @@ __LoadProcessImage(
     if (oserr != OS_EOK) {
         goto exit;
     }
+
     *loadContextOut = loadContext;
+
 exit:
     if (oserr != OS_EOK) {
         PEImageLoadContextDelete(loadContext);
@@ -244,8 +345,8 @@ exit:
 
 static mstring_t*
 __SelectWorkingDirectory(
-        _In_ struct ProcessOptions* procOpts,
-        _In_ mstring_t*             fullPath)
+    _In_ struct ProcessOptions* procOpts,
+    _In_ mstring_t*             fullPath)
 {
     if (procOpts->WorkingDirectory == NULL || strlen(procOpts->WorkingDirectory) == 0) {
         return mstr_path_dirname(fullPath);
@@ -253,31 +354,12 @@ __SelectWorkingDirectory(
     return mstr_new_u8(procOpts->WorkingDirectory);
 }
 
-static uint8_t*
-__memdup(
-        _In_ const char* data,
-        _In_ size_t      length)
-{
-    uint8_t* mem;
-
-    if (data == NULL || length == 0) {
-        return NULL;
-    }
-
-    mem = malloc(length);
-    if (mem == NULL) {
-        return NULL;
-    }
-    memcpy(mem, data, length);
-    return mem;
-}
-
 static oserr_t
 __ProcessNew(
-        _In_  struct ProcessOptions*     procOpts,
-        _In_  OSHandle_t*                handle,
-        _In_  struct PEImageLoadContext* loadContext,
-        _Out_ Process_t**                processOut)
+    _In_  struct ProcessOptions*     procOpts,
+    _In_  OSHandle_t*                handle,
+    _In_  struct PEImageLoadContext* loadContext,
+    _Out_ Process_t**                processOut)
 {
     Process_t* process;
     mstring_t* fullPath;
@@ -298,31 +380,13 @@ __ProcessNew(
     process->load_context = loadContext;
     process->references = 1;
 
-    process->inheritation_block = (char*)__memdup(
-            __ProcOptsInheritationBlock(procOpts),
-            procOpts->InheritationBlockLength
-    );
-    process->inheritation_block_length = procOpts->InheritationBlockLength;
-    process->environment_block = (char*)__memdup(
-            __ProcOptsEnvironmentBlock(procOpts),
-            procOpts->EnvironmentBlockLength
-    );
-    process->environment_block_length = procOpts->EnvironmentBlockLength;
-    if ((process->inheritation_block == NULL && process->inheritation_block_length != 0) ||
-        (process->environment_block == NULL && process->environment_block_length != 0)) {
-        free(process->inheritation_block);
-        free(process->environment_block);
-        free(process);
-        return OS_EOOM;
-    }
-
     usched_mtx_init(&process->mutex, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&process->condition);
 
     oserr = PEImageLoadContextModulePath(
-            loadContext,
-            loadContext->RootModule,
-            &fullPath
+        loadContext,
+        loadContext->RootModule,
+        &fullPath
     );
     if (oserr != OS_EOK) {
         free(process);
@@ -336,8 +400,6 @@ __ProcessNew(
         mstr_delete(process->name);
         mstr_delete(process->working_directory);
         mstr_delete(process->assembly_directory);
-        free(process->inheritation_block);
-        free(process->environment_block);
         free(process);
         return OS_EOOM;
     }
@@ -352,17 +414,17 @@ __ProcessNew(
 
 static oserr_t
 __StartProcess(
-        _In_ Process_t* process)
+    _In_ Process_t* process)
 {
     OSThreadParameters_t threadParameters;
-    uintptr_t          entryPoint;
-    oserr_t            oserr;
+    uintptr_t            entryPoint;
+    oserr_t              oserr;
     TRACE("__StartProcess(process=%ms)", process->name);
 
     oserr = PEImageLoadContextModuleEntryPoint(
-            process->load_context,
-            process->load_context->RootModule,
-            &entryPoint
+        process->load_context,
+        process->load_context->RootModule,
+        &entryPoint
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -377,10 +439,11 @@ __StartProcess(
     }
 
     oserr = Syscall_ThreadCreate(
-            entryPoint,
-            NULL, // Argument
-            &threadParameters,
-            &process->primary_thread_id);
+        entryPoint,
+        NULL, // Argument
+        &threadParameters,
+        &process->primary_thread_id
+    );
     if (oserr == OS_EOK) {
         oserr = Syscall_ThreadDetach(process->primary_thread_id);
     }
@@ -388,10 +451,11 @@ __StartProcess(
     return oserr;
 }
 
+// stolen rutine from somewhere xd
 static void
 __DumpMemory(
-        _In_ const void* buffer,
-        _In_ size_t      bufferLength)
+    _In_ const void* buffer,
+    _In_ size_t      bufferLength)
 {
     char *data;
     size_t len;
@@ -439,7 +503,7 @@ __DumpMemory(
 
 static const char*
 __GetLoadPaths(
-        _In_ struct ProcessOptions* procOpts)
+    _In_ struct ProcessOptions* procOpts)
 {
     const char* ldpaths = NULL;
     const char* environ;
@@ -468,17 +532,35 @@ __CreateProcess(
     _In_  struct ProcessOptions* procOpts,
     _Out_ uuid_t*                handleOut)
 {
-    struct PEImageLoadContext* loadContext;
-    Process_t*                 process;
-    OSHandle_t                 handle;
-    oserr_t                    oserr;
-    const char*                loadPaths;
+    struct sys_process_inheritance_input input = { 0 };
+    struct PEImageLoadContext*           loadContext;
+    Process_t*                           process;
+    OSHandle_t                           handle;
+    oserr_t                              oserr;
+    const char*                          loadPaths;
+    char*                                arguments = NULL;
+    size_t                               argumentsLength;
     ENTRY("PmCreateProcess(path=%s, args=%s)", path, args);
+
+    oserr = __ValidateProcessInput(path, args, procOpts);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = __ReadInheritanceInput(
+        procOpts->DataBuffer,
+        procOpts->InheritationBlockLength,
+        &input
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     loadPaths = __GetLoadPaths(procOpts);
     if (loadPaths == NULL) {
         ERROR("PmCreateProcess no LDPATH were supplied.");
-        return OS_EOOM;
+        oserr = OS_EOOM;
+        goto exit;
     }
 
     oserr = __LoadProcessImage(
@@ -491,7 +573,7 @@ __CreateProcess(
         goto exit;
     }
 
-    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &handle);
+    oserr = OSHandleCreate(NULL, 0, &handle);
     if (oserr != OS_EOK) {
         ERROR("PmCreateProcess failed to allocate a system handle for process");
         PEImageLoadContextDelete(loadContext);
@@ -505,6 +587,7 @@ __CreateProcess(
         &process
     );
     if (oserr != OS_EOK) {
+        OSHandleDestroy(&handle);
         PEImageLoadContextDelete(loadContext);
         goto exit;
     }
@@ -524,7 +607,20 @@ __CreateProcess(
         }
     }
 
-    oserr = __BuildArguments(process, args);
+    oserr = __BuildArguments(process, args, &arguments, &argumentsLength);
+    if (oserr != OS_EOK) {
+        DestroyProcess(process);
+        goto exit;
+    }
+
+    oserr = PmPrepareStartupInformation(
+        process,
+        __ProcOptsEnvironmentBlock(procOpts),
+        procOpts->EnvironmentBlockLength,
+        arguments,
+        argumentsLength,
+        &input
+    );
     if (oserr != OS_EOK) {
         DestroyProcess(process);
         goto exit;
@@ -555,6 +651,8 @@ __CreateProcess(
 
     *handleOut = handle.ID;
 exit:
+    free(arguments);
+    sys_process_inheritance_input_destroy(&input);
     EXIT("PmCreateProcess");
     return oserr;
 }
@@ -573,7 +671,7 @@ PmAuthorizeSpawn(
         return OS_EOK;
     }
     
-    if (caller == NULL || caller->source != GRACHT_SECURITY_KERNEL || caller->principal == 0) {
+    if (!__IsAuthenticatedCaller(caller)) {
         WARNING("PmAuthorizeSpawn rejected privileged spawn without authenticated credentials");
         return OS_EPERMISSIONS;
     }
@@ -620,113 +718,6 @@ PmCreateServiceProcess(
     return __CreateProcess(path, args, procOpts, handleOut);
 }
 
-static oserr_t
-__WriteProcessStartupInformation(
-        _In_ Process_t* process,
-        _In_ void*      dmaBuffer,
-        _In_ size_t     bufferOffset)
-{
-    ProcessStartupInformation_t* startupInfo = (void*)((char*)dmaBuffer + bufferOffset);
-    char*                        buffer      = (char*)startupInfo + sizeof(ProcessStartupInformation_t);
-    size_t                       infoIndex   = 0;
-    int                          moduleCount = PROCESS_MAXMODULES;
-    oserr_t                      oserr;
-    TRACE("__WriteProcessStartupInformation()");
-
-    memcpy(&buffer[infoIndex], process->arguments, process->arguments_length);
-    infoIndex += process->arguments_length;
-
-    if (process->inheritation_block_length) {
-        memcpy(
-                &buffer[infoIndex],
-                process->inheritation_block,
-                process->inheritation_block_length
-        );
-        infoIndex += process->inheritation_block_length;
-    }
-
-    oserr = PEModuleEntryPoints(
-            process->load_context,
-            (uintptr_t*)&buffer[infoIndex],
-            &moduleCount
-    );
-    if (oserr != OS_EOK) {
-        ERROR("__WriteProcessStartupInformation: failed to retrieve module entry points: %u", oserr);
-        return oserr;
-    }
-
-    // Reduce the module count by one. The last element is the main program,
-    // and we do not supply this to the process as it's not a module that it
-    // needs to initialize.
-    moduleCount--;
-    infoIndex += sizeof(uintptr_t) * moduleCount;
-
-    if (process->environment_block_length) {
-        memcpy(
-                &buffer[infoIndex],
-                process->environment_block,
-                process->environment_block_length
-        );
-    }
-
-    // fill in the startup header as we now have all info
-    startupInfo->ArgumentsLength = process->arguments_length;
-    startupInfo->InheritationLength = process->inheritation_block_length;
-    startupInfo->LibraryEntriesLength = moduleCount * sizeof(uintptr_t);
-    startupInfo->EnvironmentBlockLength = process->environment_block_length;
-    return OS_EOK;
-}
-
-oserr_t
-PmGetProcessStartupInformation(
-        _In_  uuid_t  threadHandle,
-        _In_  uuid_t  bufferHandle,
-        _In_  size_t  bufferOffset,
-        _Out_ uuid_t* processHandleOut)
-{
-    Process_t* process;
-    OSHandle_t shm;
-    oserr_t    oserr = OS_ENOENT;
-    TRACE("PmGetProcessStartupInformation(thread=%u)", threadHandle);
-
-    process = GetProcessByThread(threadHandle);
-    if (process == NULL) {
-        ERROR("PmGetProcessStartupInformation: failed to match thread with a process");
-        goto exit;
-    }
-    *processHandleOut = process->handle.ID;
-
-    oserr = SHMAttach(bufferHandle, &shm);
-    if (oserr != OS_EOK) {
-        ERROR("PmGetProcessStartupInformation failed to attach to user buffer: %u", oserr);
-        goto exit;
-    }
-
-    oserr = SHMMap(
-            &shm,
-            0,
-            SHMBufferCapacity(&shm),
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
-    );
-    if (oserr != OS_EOK) {
-        ERROR("PmGetProcessStartupInformation failed to map user buffer: %u", oserr);
-        goto detach;
-    }
-
-    // Write the header
-    oserr = __WriteProcessStartupInformation(
-            process,
-            SHMBuffer(&shm),
-            bufferOffset
-    );
-
-detach:
-    OSHandleDestroy(&shm);
-
-exit:
-    return oserr;
-}
-
 static void
 __get_timestamp_from_now(
     _In_  unsigned int     ms,
@@ -753,15 +744,15 @@ PmJoinProcess(
     struct timespec               until;
     oserr_t                       oserr = OS_EOK;
     int                           status;
-    int                           destroy;
     TRACE("PmJoinProcess(process=%u, timeout=%u)", handle, timeout);
 
     // Pin the process before dropping the registry lock. Termination removes
     // its entry under the same lock before it can release the registry owner.
     usched_mtx_lock(&g_processesLock);
     entry = hashtable_get(&g_processes, &(struct process_entry) { .process_id = handle });
-    if (entry == NULL) {
-        usched_mtx_unlock(&g_processesLock);
+    oserr = __ReferenceProcess(entry, &target);
+    usched_mtx_unlock(&g_processesLock);
+    if (oserr == OS_ENOENT) {
         usched_mtx_lock(&g_processHistoryLock);
         history = hashtable_get(&g_processHistory, &(struct process_history_entry) {
             .process_id = handle
@@ -775,18 +766,13 @@ PmJoinProcess(
         usched_mtx_unlock(&g_processHistoryLock);
         return oserr;
     }
-
-    target = entry->process;
-    usched_mtx_lock(&target->mutex);
-    if (target->references == INT_MAX) {
-        usched_mtx_unlock(&target->mutex);
-        usched_mtx_unlock(&g_processesLock);
-        return OS_EOVERFLOW;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    target->references++;
-    usched_mtx_unlock(&g_processesLock);
 
+    usched_mtx_lock(&target->mutex);
     __get_timestamp_from_now(timeout, &until);
+    
     while (target->state == ProcessState_RUNNING) {
         status = usched_cnd_timedwait(&target->condition, &target->mutex, &until);
         if (status != 0 && target->state == ProcessState_RUNNING) {
@@ -798,21 +784,15 @@ PmJoinProcess(
         *exitCodeOut = target->exit_code;
     }
 
-    // Timeouts and spurious wakeups own the same reference as normal exits.
-    // Destroy outside the process mutex: cleanup takes the registry lock.
-    target->references--;
-    destroy = target->references == 0;
     usched_mtx_unlock(&target->mutex);
-    if (destroy) {
-        DestroyProcess(target);
-    }
+    PmReleaseProcess(target);
     return oserr;
 }
 
 oserr_t
 PmTerminateProcess(
-        _In_ uuid_t processHandle,
-        _In_ int    exitCode)
+    _In_ uuid_t processHandle,
+    _In_ int    exitCode)
 {
     struct process_entry* entry;
     Process_t*            process;
@@ -857,27 +837,17 @@ PmTerminateProcess(
     process->state     = ProcessState_TERMINATING;
     process->exit_code = exitCode;
 
-    // handle all waiters (if any)
-    if (process->references > 1) {
-        process->references--;
-        // Wake them, and let them handle cleanup. Let the last waiter
-        // cleanup the actual process. Maybe we should spawn a cleanup task or
-        // something, but not now.
-        usched_cnd_notify_all(&process->condition);
-        usched_mtx_unlock(&process->mutex);
-    } else {
-        process->references--;
-        usched_mtx_unlock(&process->mutex);
-        DestroyProcess(process);
-    }
+    usched_cnd_notify_all(&process->condition);
+    usched_mtx_unlock(&process->mutex);
+    PmReleaseProcess(process);
     return OS_EOK;
 }
 
 oserr_t
 PmSignalProcess(
-        _In_ uuid_t processHandle,
-        _In_ uuid_t victimHandle,
-        _In_ int    signal)
+    _In_ uuid_t processHandle,
+    _In_ uuid_t victimHandle,
+    _In_ int    signal)
 {
     Process_t* victim;
     oserr_t    oserr;
@@ -906,10 +876,10 @@ exit:
 
 oserr_t
 PmLoadLibrary(
-        _In_  uuid_t      processHandle,
-        _In_  const char* cpath,
-        _Out_ Handle_t*   handleOut,
-        _Out_ uintptr_t*  entryPointOut)
+    _In_  uuid_t      processHandle,
+    _In_  const char* cpath,
+    _Out_ Handle_t*   handleOut,
+    _Out_ uintptr_t*  entryPointOut)
 {
     Process_t*      process;
     void*           imageKey;
@@ -953,14 +923,14 @@ exit:
 
 oserr_t
 PmGetLibraryFunction(
-        _In_  uuid_t      processHandle,
-        _In_  Handle_t    libraryHandle,
-        _In_  const char* name,
-        _Out_ uintptr_t*  functionAddressOut)
+    _In_  uuid_t      processHandle,
+    _In_  Handle_t    libraryHandle,
+    _In_  const char* name,
+    _Out_ uintptr_t*  functionAddressOut)
 {
-    Process_t*      process;
-    void*           imageKey;
-    oserr_t         oserr   = OS_ENOENT;
+    Process_t* process;
+    void*      imageKey;
+    oserr_t    oserr   = OS_ENOENT;
     TRACE("PmGetLibraryFunction(process=%u, func=%s)", processHandle, name);
 
     process = PmGetProcessByHandle(processHandle);
@@ -989,8 +959,8 @@ PmGetLibraryFunction(
 
 oserr_t
 PmUnloadLibrary(
-        _In_ uuid_t   processHandle,
-        _In_ Handle_t libraryHandle)
+    _In_ uuid_t   processHandle,
+    _In_ Handle_t libraryHandle)
 {
     Process_t* process;
     oserr_t    oserr;
@@ -1017,9 +987,9 @@ exit:
 
 oserr_t
 PmGetModules(
-        _In_  uuid_t    processHandle,
-        _Out_ Handle_t* modules,
-        _Out_ int*      modulesCount)
+    _In_  uuid_t    processHandle,
+    _Out_ Handle_t* modules,
+    _Out_ int*      modulesCount)
 {
     Process_t* process;
     oserr_t    oserr;
@@ -1047,8 +1017,8 @@ PmGetModules(
 
 oserr_t
 PmGetName(
-        _In_  uuid_t      processHandle,
-        _Out_ mstring_t** nameOut)
+    _In_  uuid_t      processHandle,
+    _Out_ mstring_t** nameOut)
 {
     Process_t* process;
 
@@ -1063,8 +1033,8 @@ PmGetName(
 
 oserr_t
 PmGetTickBase(
-        _In_ uuid_t        processHandle,
-        _In_ UInteger64_t* tick)
+    _In_ uuid_t        processHandle,
+    _In_ UInteger64_t* tick)
 {
     Process_t* process;
 
@@ -1078,8 +1048,8 @@ PmGetTickBase(
 
 oserr_t
 PmGetWorkingDirectory(
-        _In_  uuid_t      processHandle,
-        _Out_ mstring_t** pathOut)
+    _In_  uuid_t      processHandle,
+    _Out_ mstring_t** pathOut)
 {
     Process_t* process;
 
@@ -1096,8 +1066,8 @@ PmGetWorkingDirectory(
 
 oserr_t
 PmSetWorkingDirectory(
-        _In_ uuid_t      processHandle,
-        _In_ const char* path)
+    _In_ uuid_t      processHandle,
+    _In_ const char* path)
 {
     Process_t* process;
     mstring_t* newCwd;
@@ -1122,8 +1092,8 @@ PmSetWorkingDirectory(
 
 oserr_t
 PmGetAssemblyDirectory(
-        _In_  uuid_t      processHandle,
-        _Out_ mstring_t** pathOut)
+    _In_  uuid_t      processHandle,
+    _Out_ mstring_t** pathOut)
 {
     Process_t* process;
 
