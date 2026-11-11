@@ -21,6 +21,8 @@
 
 #include <assert.h>
 #include <debug.h>
+#include <capabilities.h>
+#include <handles/global.h>
 #include <handles/grants.h>
 #include <handles/handle.h>
 #include <handles/provider.h>
@@ -29,6 +31,7 @@
 #include <ioset.h>
 #include <os/types/syscall.h>
 #include <memoryspace.h>
+#include <shm/view.h>
 
 oserr_t
 ScCreateHandle(
@@ -87,25 +90,98 @@ ScHandleRegisterProvider(
 oserr_t
 ScHandleImport(
     _In_  const GrantToken_t* userToken,
+    _In_  uuid_t              destinationMemorySpace,
     _Out_ uuid_t*             referenceOut)
 {
-    GrantToken_t token;
-    uuid_t       reference;
-    oserr_t      status;
+    GrantToken_t         token;
+    SHMHandle_t          view;
+    MemorySpace_t*       memorySpace;
+    MSContextSecurity_t* receiver = NULL;
+    uuid_t               reference;
+    oserr_t              status;
 
-    status = MemorySpaceCopyFromUser(&token, userToken, sizeof(GrantToken_t));
-    if (status != OS_EOK) {
-        return status;
+    // The new handle can also be created in another process, which processd uses
+    // to pass handles on to a child process when starting it. Knowing the ID of
+    // a memory space is not enough for this. The caller must also have the
+    // capability to manage memory spaces, and a grant for the memory space. Only
+    // application memory spaces can be used, as kernel memory spaces have no
+    // group to put the handle in.
+    // We keep a reference on the group of the memory space until we are done.
+    // That way it stays alive while we copy the new ID to userspace (and remove
+    // the handle again if that fails), even if the memory space is closed in the
+    // meantime.
+    if (destinationMemorySpace != UUID_INVALID) {
+        status = CapabilityVerify(CAPABILITY_MEMORYSPACE_MANAGEMENT);
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        status = AcquireHandleReference(
+            destinationMemorySpace,
+            HandleTypeMemorySpace,
+            (void**)&memorySpace
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        if (!(memorySpace->Flags & MEMORY_SPACE_APPLICATION)) {
+            ReleaseGlobalHandle(destinationMemorySpace);
+            return OS_EINVALPARAMS;
+        }
+
+        status = MSContextAcquireSecurity(memorySpace->GroupGlobalHandleID, &receiver);
+        ReleaseGlobalHandle(destinationMemorySpace);
+        if (status != OS_EOK) {
+            return status;
+        }
     }
 
-    status = HandleProviderImport(&token, &reference);
+    status = MemorySpaceCopyFromUser(&token, userToken, sizeof(token));
     if (status != OS_EOK) {
-        return status;
+        goto exit;
     }
 
-    status = MemorySpaceCopyToUser(referenceOut, &reference, sizeof(uuid_t));
+    // Both kinds of tokens are handled the same way. The new handle is created in
+    // the receiver (or in the caller, when no memory space was given), and it is
+    // removed again below if we fail to copy the ID to userspace.
+    // For SHM the new handle is a view, which only gives access to the part of
+    // the buffer the token allows, and which is not mapped into memory yet. For
+    // services it is a new reference to the resource, with the access the token
+    // allows.
+    switch (token.Options.ResourceType) {
+        case GrantTokenResourceTypeProvider:
+            status = HandleProviderImport(&token, receiver, &reference);
+            break;
+        case GrantTokenResourceTypeSHM:
+            status = SHMAttachToken(&token, receiver, &view);
+            if (status == OS_EOK) {
+                reference = view.ID;
+            }
+            break;
+        default:
+            status = OS_ENOTSUPPORTED;
+            break;
+    }
     if (status != OS_EOK) {
-        DestroyHandle(reference);
+        goto exit;
+    }
+
+    status = MemorySpaceCopyToUser(referenceOut, &reference, sizeof(reference));
+    if (status != OS_EOK) {
+        // We can't undo the import itself, which means a single-use token stays
+        // used up. So we only remove the new handle again, and we remove it from
+        // the receiver, as that is where it was created.
+        DestroyHandleInContext(
+            receiver != NULL ? receiver : MemorySpaceGetSecurityContext(), reference
+        );
+    }
+
+exit:
+    // MSContextAcquireSecurity took a reference on the group, which we release
+    // again here.
+    if (receiver != NULL) {
+        ReleaseGlobalHandle(receiver->GlobalHandleID);
     }
     return status;
 }

@@ -26,6 +26,8 @@
 
 #include <handles/types.h>
 
+DECL_STRUCT(MSContextSecurity);
+
 /**
  * @brief Register the current group as a handle service.
  * Each call creates a separate registration. When the last grant to it is
@@ -64,19 +66,27 @@ HandleProviderCreate(
 /**
  * @brief Import a token and create a restricted reference to its resource.
  * Each import creates a new reference with its own access mask, even if the
- * caller already has a reference to the same resource.
+ * receiver already has a reference to the same resource. The new reference is
+ * added to the grant table of the receiver, and the calling group gets no grant
+ * for it unless it is the receiver. If another group is given, the kernel caller
+ * must have checked that the import is allowed for it, and must keep it alive
+ * until it is done with the new reference (for instance, if it has to remove it
+ * again because the ID could not be copied to userspace).
  * A single-use token is used up by GrantTokenImport before the reference is
  * created, so it stays used up even if creating the reference fails.
  *
  * @param token        Kernel copy of the token to import.
+ * @param receiver     The group that gets the new reference, or NULL for the
+ *                     calling group.
  * @param referenceOut Receives the new reference ID. Unchanged on failure.
  * @return OS_EOK, a GrantTokenImport error, OS_ECANCELLED if the service has
  *         closed, or an allocation error from creating the reference.
  */
 oserr_t
 HandleProviderImport(
-    _In_    const GrantToken_t* token,
-    _Out_   uuid_t*             referenceOut);
+    _In_  const GrantToken_t*  token,
+    _In_  MSContextSecurity_t* receiver,
+    _Out_ uuid_t*              referenceOut);
 
 /**
  * @brief Check that another group has a grant for a reference, and that the

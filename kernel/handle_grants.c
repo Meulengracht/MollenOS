@@ -261,6 +261,7 @@ GrantTokenImport(
     _In_  const GrantToken_t*      token,
     _In_  GrantTokenResourceType_t expectedType,
     _In_  GrantTokenScope_t        scope,
+    _In_  MSContextSecurity_t*     receiver,
     _Out_ uuid_t*                  handleIDOut)
 {
     struct __GrantTokenRecord* record;
@@ -274,7 +275,10 @@ GrantTokenImport(
         return OS_EINVALPARAMS;
     }
 
-    securityContext = MemorySpaceGetSecurityContext();
+    // The token is checked against the group that is going to get the new
+    // handle. This is the current group, unless the kernel imports the token
+    // for another group (see ScHandleImport).
+    securityContext = receiver != NULL ? receiver : MemorySpaceGetSecurityContext();
     if (securityContext == NULL) {
         return OS_ENOTSUPPORTED;
     }

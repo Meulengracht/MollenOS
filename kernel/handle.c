@@ -37,6 +37,7 @@
 #include <handles/paths.h>
 #include <handles/init.h>
 #include <handles/grants.h>
+#include "handle_private.h"
 
 // Handle is being destroyed
 #define __HANDLE_FLAG_DESTROYING 0x1
@@ -195,6 +196,11 @@ DestroyHandleGrantsTable(
         return;
     }
 
+    // Remove every subscription this process has added to handle sets. Sets can
+    // be shared with other processes and live on after this one is gone, so the
+    // subscriptions must be removed while the table is still valid, and before
+    // the grants are released (which may destroy the resources they watch).
+    HandleSetsRemoveGrant(table, UUID_INVALID);
     hashtable_enumerate(&table->Table, __CleanupGrant, NULL);
     hashtable_destroy(&table->Table);
     kfree(table);
@@ -250,6 +256,34 @@ __AcquireHandleByGrant(
     handle = entry->Handle;
     SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
     return handle;
+}
+
+oserr_t
+HandleSetsReferenceGrant(
+    _In_ uuid_t handle)
+{
+    MSContextSecurity_t*     security = MemorySpaceGetSecurityContext();
+    struct HandleGrantEntry* entry;
+    oserr_t                  status = OS_EOK;
+
+    if (security == NULL) {
+        return OS_ENOENT;
+    }
+    
+    SpinlockAcquireIrq(&security->HandleTable->Lock);
+    entry = hashtable_get(
+        &security->HandleTable->Table,
+        &(struct HandleGrantEntry) { .ID = handle }
+    );
+    if (entry == NULL) {
+        status = OS_ENOENT;
+    } else if (entry->References == INT_MAX) {
+        status = OS_EOVERFLOW;
+    } else {
+        entry->References++;
+    }
+    SpinlockReleaseIrq(&security->HandleTable->Lock);
+    return status;
 }
 
 static struct ResourceHandle*
@@ -344,8 +378,8 @@ AllocateHandleId(void)
     return UUID_INVALID;
 }
 
-static uuid_t
-__CreateHandle(
+uuid_t
+CreateHandleInContext(
     _In_ HandleType_t         handleType,
     _In_ HandleDestructorFn   grantCleanup,
     _In_ HandleDestructorFn   globalCleanup,
@@ -406,7 +440,7 @@ CreateHandle(
     _In_ HandleDestructorFn globalCleanup,
     _In_ void*              resource)
 {
-    return __CreateHandle(
+    return CreateHandleInContext(
         handleType,
         grantCleanup,
         globalCleanup,
@@ -421,7 +455,7 @@ CreateGlobalHandle(
     _In_ HandleDestructorFn cleanup,
     _In_ void*              resource)
 {
-    return __CreateHandle(handleType, NULL, cleanup, resource, NULL);
+    return CreateHandleInContext(handleType, NULL, cleanup, resource, NULL);
 }
 
 oserr_t
@@ -448,6 +482,38 @@ AcquireHandle(
         *resourceOut = handle->Resource;
     }
     return OS_EOK;
+}
+
+oserr_t
+AcquireGlobalHandleUntyped(
+    _In_  uuid_t        handleId,
+    _Out_ HandleType_t* typeOut,
+    _Out_ void**        resourceOut)
+{
+    struct ResourceHandle* handle;
+    oserr_t                status = OS_EOK;
+
+    SpinlockAcquireIrq(&g_handlesLock);
+    handle = __LookupGlobalSafe(handleId);
+    if (handle == NULL) {
+        status = OS_ENOENT;
+    } else if (handle->Type == HandleTypeSHMAccess) {
+        // CPU sessions and DMA operations must finish in the security group
+        // that created them.
+        status = OS_EPERMISSIONS;
+    } else if (handle->References == INT_MAX) {
+        status = OS_EOVERFLOW;
+    } else {
+        handle->References++;
+        if (typeOut != NULL) {
+            *typeOut = handle->Type;
+        }
+        if (resourceOut != NULL) {
+            *resourceOut = handle->Resource;
+        }
+    }
+    SpinlockReleaseIrq(&g_handlesLock);
+    return status;
 }
 
 oserr_t
@@ -799,6 +865,14 @@ __DestroyGrantHandle(
             .ID = handleId
         }
     );
+    
+    // The grant is gone from the table now, so no new subscriptions can be tied
+    // to it. An add that is still in progress holds a temporary count on the
+    // grant (see HandleSetsReferenceGrant), so we can't get here before it has
+    // finished. We keep the table locked while the subscriptions are removed,
+    // otherwise a new grant for the same handle could be added in the meantime,
+    // and its new subscriptions would be removed as well.
+    HandleSetsRemoveGrant(securityContext->HandleTable, handleId);
     SpinlockReleaseIrq(&securityContext->HandleTable->Lock);
 
     // Invoke the grant cleanup at this point before we potentially
@@ -818,17 +892,25 @@ __DestroyGrantHandle(
 }
 
 oserr_t
-DestroyHandle(
-    _In_ uuid_t handleId)
+DestroyHandleInContext(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ uuid_t               handleId)
 {
-    MSContextSecurity_t* securityContext;
-
-    securityContext = MemorySpaceGetSecurityContext();
     if (securityContext != NULL) {
         assert(securityContext->HandleTable != NULL);
         return __DestroyGrantHandle(securityContext, handleId);
     }
     return __DestroyGlobalHandle(handleId);
+}
+
+oserr_t
+DestroyHandle(
+    _In_ uuid_t handleId)
+{
+    return DestroyHandleInContext(
+        MemorySpaceGetSecurityContext(),
+        handleId
+    );
 }
 
 static void

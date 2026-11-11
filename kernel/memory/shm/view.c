@@ -206,6 +206,7 @@ SHMViewCreate(
     _In_  size_t                offset,
     _In_  size_t                length,
     _In_  GrantTokenScope_t     scope,
+    _In_  MSContextSecurity_t*  receiver,
     _Out_ SHMHandle_t*          handle)
 {
     SHMView_t*  view;
@@ -239,7 +240,16 @@ SHMViewCreate(
     view->Length = length;
     view->Scope = scope;
     
-    result.ID = CreateHandle(HandleTypeSHMView, NULL, __DeleteView, view);
+    // The view is only created here, not mapped. It is added to the grant table
+    // of the receiver, and the receiving process maps it itself later. For a child
+    // process this happens after it has started and read its startup data.
+    result.ID = CreateHandleInContext(
+        HandleTypeSHMView,
+        NULL,
+        __DeleteView,
+        view,
+        receiver != NULL ? receiver : MemorySpaceGetSecurityContext()
+    );
     if (result.ID == UUID_INVALID) {
         __DeleteView(view);
         return OS_EOOM;
@@ -253,6 +263,7 @@ SHMViewCreate(
 oserr_t
 SHMAttachToken(
     _In_  const GrantToken_t* token,
+    _In_  MSContextSecurity_t* receiver,
     _Out_ SHMHandle_t*        handle)
 {
     GrantToken_t   tokenCopy;
@@ -271,6 +282,7 @@ SHMAttachToken(
         &tokenCopy,
         GrantTokenResourceTypeSHM,
         tokenCopy.Options.Scope,
+        receiver,
         &sourceID
     );
     if (status != OS_EOK) {
@@ -283,6 +295,7 @@ SHMAttachToken(
         tokenCopy.Options.Data.SHM.Offset,
         tokenCopy.Options.Data.SHM.Length,
         tokenCopy.Options.Scope,
+        receiver,
         handle
     );
     ReleaseGlobalHandle(sourceID);

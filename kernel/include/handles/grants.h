@@ -89,11 +89,15 @@ GrantTokenRevoke(
 /**
  * @brief Checks a typed token and imports it, giving the caller a reference to
  * its resource.
- * token and handleIDOut must point to kernel memory. The current security group
- * is the receiver. The resource type must match expectedType, and every
- * requested scope flag must be allowed by the authenticated policy. SHM tokens
- * require a nonzero scope, while GrantTokenResourceTypeProvider tokens also
- * accept a zero scope (identity checks only).
+ * token and handleIDOut must point to kernel memory. The token is checked
+ * against the receiver, which is the group that is going to get the new handle.
+ * If receiver is NULL, the current security group is the receiver. If another
+ * group is given, the kernel caller must already have checked that the import
+ * is allowed for it, and must keep it alive for the whole call.
+ * The resource type must match expectedType, and every requested scope flag
+ * must be allowed by the authenticated policy. SHM tokens require a nonzero
+ * scope, while GrantTokenResourceTypeProvider tokens also accept a zero scope
+ * (identity checks only).
  * The export status is checked and the import is done under the export lock,
  * so a revoke or a second import of a single-use token cannot happen in between.
  * A reusable token adds a new reference to the resource. A single-use token is
@@ -108,6 +112,8 @@ GrantTokenRevoke(
  * @param token        Kernel token to copy and authenticate.
  * @param expectedType Resource type required by the caller.
  * @param scope        Requested access flags for that resource type.
+ * @param receiver     The group that is going to get the new handle, and that the
+ *                     token is checked against. NULL means the current group.
  * @param handleIDOut  Receives the source handle with one reference for the
  *                     caller on success. Unchanged on failure.
  * @return OS_EOK on success. Invalid tokens and resource-type mismatches return
@@ -122,6 +128,7 @@ GrantTokenImport(
     _In_  const GrantToken_t*      token,
     _In_  GrantTokenResourceType_t expectedType,
     _In_  GrantTokenScope_t        scope,
+    _In_  MSContextSecurity_t*     receiver,
     _Out_ uuid_t*                  handleIDOut);
 
 #endif //! __HANDLES_GRANTS_H__

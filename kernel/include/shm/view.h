@@ -22,6 +22,7 @@
 #include <os/types/shm.h>
 
 struct SHMBuffer;
+DECL_STRUCT(MSContextSecurity);
 
 /**
  * @brief Represents a restricted SHM handle.
@@ -161,22 +162,34 @@ SHMResolveVerified(
     _Out_ SHMReference_t* reference);
 
 /**
- * @brief Create a caller-granted restricted handle from a complete kernel token.
+ * @brief Create a restricted SHM handle (a view) from a grant token. The view only
+ * gives access to the range and scope the token allows, and it is not mapped into
+ * memory yet. The view is added to the grant table of the receiver, and the calling
+ * group gets no grant for it unless it is the receiver. If another group is given,
+ * the kernel caller must have checked that the import is allowed for it, and must
+ * keep it alive until it is done with the new view.
+ * A single-use token is used up by GrantTokenImport before the view is created, so
+ * it stays used up even if creating the view fails.
  * @param token Kernel snapshot of the token to verify.
+ * @param receiver The group that gets the new view, or NULL for the calling group.
  * @param handle Receives an unmapped attachment. Unchanged on failure.
  * @return OS_EOK or a token, range, permission or allocation error.
  */
 oserr_t
 SHMAttachToken(
     _In_  const GrantToken_t* token,
+    _In_  MSContextSecurity_t* receiver,
     _Out_ SHMHandle_t*        handle);
 
 /**
  * @brief Create a restricted view from an already referenced source.
+ * The view is added to the grant table of the receiver. If another group is given,
+ * the caller must have checked that the view may be created there.
  * @param source Referenced storage and its current limits.
  * @param offset First byte relative to the source's permitted range.
  * @param length Nonempty byte count within that range.
  * @param scope Nonzero access flags contained in the source's scope.
+ * @param receiver The group that gets the new view, or NULL for the calling group.
  * @param handle Receives an unmapped attachment on success.
  * @return OS_EOK or a range, permission or allocation error.
  */
@@ -186,6 +199,7 @@ SHMViewCreate(
     _In_  size_t                offset,
     _In_  size_t                length,
     _In_  GrantTokenScope_t     scope,
+    _In_  MSContextSecurity_t*  receiver,
     _Out_ SHMHandle_t*          handle);
 
 #endif

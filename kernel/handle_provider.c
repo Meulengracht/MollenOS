@@ -43,29 +43,7 @@
 #include <mutex.h>
 #include <limits.h>
 
-struct __ProviderResource;
-
-struct __ProviderRegistration {
-    uuid_t                     ID;
-    uuid_t                     GroupID;
-    uuid_t                     QueueID;
-    bool                       Open;
-    struct __ProviderResource* Pending;
-    struct __ProviderResource* PendingTail;
-};
-
-struct __ProviderResource {
-    struct __ProviderRegistration* Registration;
-    struct __ProviderResource*     Next;
-    uuid_t                         ID;
-    unsigned int                   References;
-    bool                           Published;
-};
-
-struct __ProviderReference {
-    struct __ProviderResource* Resource;
-    uint32_t                   AccessMask;
-};
+#include "handle_private.h"
 
 static Mutex_t g_providerLock = OS_MUTEX_INIT(MUTEX_FLAG_PLAIN);
 
@@ -73,24 +51,24 @@ static void
 __FreeProviderResource(
     _In_ struct __ProviderResource* resource)
 {
-    ReleaseGlobalHandle(resource->Registration->ID);
+    ReleaseGlobalHandle(resource->Provider->ID);
     kfree(resource);
 }
 
 static void
 __CloseProviderLocked(
-    _In_ struct __ProviderRegistration* registration)
+    _In_ struct __HandleProvider* provider)
 {
     struct __ProviderResource* resource;
 
-    registration->Open = false;
+    provider->Open = false;
     
-    while ((resource = registration->Pending) != NULL) {
-        registration->Pending = resource->Next;
+    while ((resource = provider->Pending) != NULL) {
+        provider->Pending = resource->Next;
         __FreeProviderResource(resource);
     }
 
-    registration->PendingTail = NULL;
+    provider->PendingTail = NULL;
 }
 
 static void
@@ -104,48 +82,48 @@ __CloseProvider(
 
 static void
 __DeleteProvider(
-    _In_ void* payload)
+    _In_ void* context)
 {
-    struct __ProviderRegistration* registration = payload;
+    struct __HandleProvider* provider = context;
 
     // By the time this runs, every resource has released its reference to the
     // registration. So nothing more can be posted to the queue.
-    ReleaseGlobalHandle(registration->QueueID);
-    kfree(registration);
+    ReleaseGlobalHandle(provider->QueueID);
+    kfree(provider);
 }
 
 static void
 __PostProviderCleanup(
-    _In_ struct __ProviderRegistration* registration)
+    _In_ struct __HandleProvider* provider)
 {
-    MarkHandle(registration->ID, IOSETIN);
+    MarkHandle(provider->ID, IOSETIN);
 }
 
 static void
 __DeleteProviderReference(
-    _In_ void* payload)
+    _In_ void* context)
 {
-    struct __ProviderReference*    reference = payload;
-    struct __ProviderResource*     resource = reference->Resource;
-    struct __ProviderRegistration* registration = resource->Registration;
+    struct __ProviderReference* reference = context;
+    struct __ProviderResource*  resource = reference->Resource;
+    struct __HandleProvider*    provider = resource->Provider;
 
     MutexLock(&g_providerLock);
     resource->References--;
     if (resource->References == 0) {
-        if (!registration->Open || !resource->Published) {
+        if (!provider->Open || !resource->Published) {
             __FreeProviderResource(resource);
         } else {
             // The resource itself is used as the queue node, so the final close
             // can never fail because we are out of memory, or because the
             // userspace IPC queue is full.
             resource->Next = NULL;
-            if (registration->PendingTail != NULL) {
-                registration->PendingTail->Next = resource;
+            if (provider->PendingTail != NULL) {
+                provider->PendingTail->Next = resource;
             } else {
-                registration->Pending = resource;
-                __PostProviderCleanup(registration);
+                provider->Pending = resource;
+                __PostProviderCleanup(provider);
             }
-            registration->PendingTail = resource;
+            provider->PendingTail = resource;
         }
     }
     MutexUnlock(&g_providerLock);
@@ -154,11 +132,11 @@ __DeleteProviderReference(
 
 static bool
 __ProviderExists(
-    _In_ struct __ProviderRegistration* registration)
+    _In_ struct __HandleProvider* provider)
 {
     oserr_t status;
 
-    if (!registration->Open) {
+    if (!provider->Open) {
         return false;
     }
     
@@ -166,26 +144,26 @@ __ProviderExists(
     // open while its group is being destroyed. Once that has started, tokens
     // held by other groups must not be able to import resources from it.
     status = AcquireGlobalHandle(
-        registration->GroupID,
+        provider->GroupID,
         HandleTypeMSContext,
         NULL
     );
     if (status != OS_EOK) {
-        __CloseProviderLocked(registration);
+        __CloseProviderLocked(provider);
         return false;
     }
-    ReleaseGlobalHandle(registration->GroupID);
+    ReleaseGlobalHandle(provider->GroupID);
     return true;
 }
 
 static oserr_t
 __GetProvider(
-    _In_  uuid_t                          registrationID,
-    _Out_ struct __ProviderRegistration** registrationOut)
+    _In_  uuid_t                    registrationID,
+    _Out_ struct __HandleProvider** providerOut)
 {
-    MSContextSecurity_t*           security = MemorySpaceGetSecurityContext();
-    struct __ProviderRegistration* registration;
-    oserr_t                        status;
+    MSContextSecurity_t*     security = MemorySpaceGetSecurityContext();
+    struct __HandleProvider* provider;
+    oserr_t                  status;
 
     if (security == NULL) {
         return OS_EPERMISSIONS;
@@ -194,18 +172,18 @@ __GetProvider(
     status = AcquireHandleReference(
         registrationID,
         HandleTypeProvider,
-        (void**)&registration
+        (void**)&provider
     );
     if (status != OS_EOK) {
         return status;
     }
     
-    if (registration->GroupID != security->GlobalHandleID) {
+    if (provider->GroupID != security->GlobalHandleID) {
         ReleaseGlobalHandle(registrationID);
         return OS_EPERMISSIONS;
     }
     
-    *registrationOut = registration;
+    *providerOut = provider;
     return OS_EOK;
 }
 
@@ -214,11 +192,11 @@ HandleProviderRegister(
     _In_  uuid_t  notificationQueueID,
     _Out_ uuid_t* registrationOut)
 {
-    MSContextSecurity_t*           security = MemorySpaceGetSecurityContext();
-    struct __ProviderRegistration* registration;
-    struct ioset_event             event;
-    uuid_t                         id;
-    oserr_t                        status;
+    MSContextSecurity_t*     security = MemorySpaceGetSecurityContext();
+    struct __HandleProvider* provider;
+    struct ioset_event       event;
+    uuid_t                   id;
+    oserr_t                  status;
 
     if (security == NULL) {
         return OS_EPERMISSIONS;
@@ -232,17 +210,17 @@ HandleProviderRegister(
         return status;
     }
 
-    registration = kmalloc(sizeof(struct __ProviderRegistration));
-    if (registration == NULL) {
+    provider = kmalloc(sizeof(struct __HandleProvider));
+    if (provider == NULL) {
         ReleaseGlobalHandle(notificationQueueID);
         return OS_EOOM;
     }
     
-    registration->GroupID = security->GlobalHandleID;
-    registration->QueueID = notificationQueueID;
-    registration->Open = true;
-    registration->Pending = NULL;
-    registration->PendingTail = NULL;
+    provider->GroupID = security->GlobalHandleID;
+    provider->QueueID = notificationQueueID;
+    provider->Open = true;
+    provider->Pending = NULL;
+    provider->PendingTail = NULL;
 
     // We must hold the mutex while the handle is created, otherwise another
     // thread in this group could close the new handle before we have stored
@@ -252,12 +230,14 @@ HandleProviderRegister(
         HandleTypeProvider,
         __CloseProvider,
         __DeleteProvider,
-        registration
+        provider
     );
     if (id != UUID_INVALID) {
-        registration->ID = id;
+        provider->ID = id;
+        
         event.events = IOSETIN;
         event.data.handle = id;
+        
         status = ControlHandleSet(
             notificationQueueID,
             IOSET_ADD,
@@ -273,7 +253,7 @@ HandleProviderRegister(
         if (id != UUID_INVALID) {
             DestroyHandle(id);
         } else {
-            kfree(registration);
+            kfree(provider);
             ReleaseGlobalHandle(notificationQueueID);
         }
         return status;
@@ -283,10 +263,24 @@ HandleProviderRegister(
     return OS_EOK;
 }
 
+/**
+ * @brief Creates a new reference to a resource, with its own access mask. The
+ * reference is added to the grant table of the given group, which does not have
+ * to be the calling one (see HandleProviderImport). The caller must hold
+ * g_providerLock.
+ *
+ * @param resource        The resource to create a reference to.
+ * @param accessMask      What the new reference allows.
+ * @param securityContext The group that gets the new reference.
+ * @param referenceOut    Receives the ID of the new reference.
+ * @return OS_EOK, OS_EOVERFLOW if the resource has too many references, or
+ *         OS_EOOM if the reference could not be created.
+ */
 static oserr_t
 __CreateProviderReference(
     _In_  struct __ProviderResource* resource,
     _In_  uint32_t                   accessMask,
+    _In_  MSContextSecurity_t*       securityContext,
     _Out_ uuid_t*                    referenceOut)
 {
     struct __ProviderReference* reference;
@@ -295,6 +289,7 @@ __CreateProviderReference(
     if (resource->References == UINT_MAX) {
         return OS_EOVERFLOW;
     }
+
     reference = kmalloc(sizeof(struct __ProviderReference));
     if (reference == NULL) {
         return OS_EOOM;
@@ -303,11 +298,12 @@ __CreateProviderReference(
     reference->Resource = resource;
     reference->AccessMask = accessMask;
     
-    id = CreateHandle(
+    id = CreateHandleInContext(
         HandleTypeProviderReference,
         NULL,
         __DeleteProviderReference,
-        reference
+        reference,
+        securityContext
     );
     if (id == UUID_INVALID) {
         kfree(reference);
@@ -325,24 +321,26 @@ HandleProviderCreate(
     _In_  uint32_t accessMask,
     _Out_ uuid_t*  referenceOut)
 {
-    struct __ProviderRegistration* registration;
-    struct __ProviderResource*     resource;
-    uuid_t                         id;
-    oserr_t                        status;
+    struct __HandleProvider*   provider;
+    struct __ProviderResource* resource;
+    uuid_t                     id;
+    oserr_t                    status;
 
     if (registrationID == UUID_INVALID) {
         if (accessMask != 0) {
             return OS_EINVALPARAMS;
         }
+
         id = CreateHandle(HandleTypeGeneric, NULL, NULL, NULL);
         if (id == UUID_INVALID) {
             return OS_EOOM;
         }
+
         *referenceOut = id;
         return OS_EOK;
     }
 
-    status = __GetProvider(registrationID, &registration);
+    status = __GetProvider(registrationID, &provider);
     if (status != OS_EOK) {
         return status;
     }
@@ -354,16 +352,21 @@ HandleProviderCreate(
     }
 
     *resource = (struct __ProviderResource) {
-        .Registration = registration
+        .Provider = provider
     };
 
     MutexLock(&g_providerLock);
-    status = __ProviderExists(registration) ? OS_EOK : OS_ECANCELLED;
+    status = __ProviderExists(provider) ? OS_EOK : OS_ECANCELLED;
     if (status != OS_EOK) {
         goto error;
     }
     
-    status = __CreateProviderReference(resource, accessMask, &id);
+    status = __CreateProviderReference(
+        resource,
+        accessMask,
+        MemorySpaceGetSecurityContext(),
+        &id
+    );
     if (status != OS_EOK) {
         goto error;
     }
@@ -408,7 +411,7 @@ HandleProviderReferenceForExport(
     }
 
     MutexLock(&g_providerLock);
-    if (!__ProviderExists(reference->Resource->Registration)) {
+    if (!__ProviderExists(reference->Resource->Provider)) {
         status = OS_ECANCELLED;
     } else if (((uint32_t)options->Scope & reference->AccessMask) != (uint32_t)options->Scope) {
         status = OS_EPERMISSIONS;
@@ -425,12 +428,17 @@ HandleProviderReferenceForExport(
 
 oserr_t
 HandleProviderImport(
-    _In_  const GrantToken_t* token,
-    _Out_ uuid_t*             referenceOut)
+    _In_  const GrantToken_t*  token,
+    _In_  MSContextSecurity_t* securityContext,
+    _Out_ uuid_t*              referenceOut)
 {
     struct __ProviderReference* source;
     uuid_t                      sourceID;
     oserr_t                     status;
+
+    if (securityContext == NULL) {
+        securityContext = MemorySpaceGetSecurityContext();
+    }
 
     // A single-use token is used up by this call, even if we fail to create the
     // reference afterwards.
@@ -438,6 +446,7 @@ HandleProviderImport(
         token,
         GrantTokenResourceTypeProvider,
         token->Options.Scope,
+        securityContext,
         &sourceID
     );
     if (status != OS_EOK) {
@@ -447,12 +456,13 @@ HandleProviderImport(
     source = LookupGlobalHandle(sourceID, HandleTypeProviderReference);
     
     MutexLock(&g_providerLock);
-    if (!__ProviderExists(source->Resource->Registration)) {
+    if (!__ProviderExists(source->Resource->Provider)) {
         status = OS_ECANCELLED;
     } else {
         status = __CreateProviderReference(
             source->Resource,
             (uint32_t)token->Options.Scope,
+            securityContext,
             referenceOut
         );
     }
@@ -470,12 +480,12 @@ HandleProviderValidate(
     _In_  uint32_t accessMask,
     _Out_ uuid_t*  resourceOut)
 {
-    struct __ProviderRegistration* registration;
-    struct __ProviderReference*    reference;
-    MSContextSecurity_t*           security;
-    oserr_t                        status;
+    struct __HandleProvider*    provider;
+    struct __ProviderReference* reference;
+    MSContextSecurity_t*        security;
+    oserr_t                     status;
 
-    status = __GetProvider(registrationID, &registration);
+    status = __GetProvider(registrationID, &provider);
     if (status != OS_EOK) {
         return status;
     }
@@ -501,9 +511,9 @@ HandleProviderValidate(
     }
     
     MutexLock(&g_providerLock);
-    if (reference->Resource->Registration != registration) {
+    if (reference->Resource->Provider != provider) {
         status = OS_EPERMISSIONS;
-    } else if (!__ProviderExists(registration)) {
+    } else if (!__ProviderExists(provider)) {
         status = OS_ECANCELLED;
     } else if ((accessMask & reference->AccessMask) != accessMask) {
         status = OS_EPERMISSIONS;
@@ -520,48 +530,55 @@ release:
 
 oserr_t
 HandleProviderGetEvents(
-    _In_    uuid_t    registrationID,
-    _Out_   uuid_t*   userIDs,
-    _In_    uint32_t  capacity,
-    _Out_   uint32_t* userCount)
+    _In_  uuid_t    registrationID,
+    _Out_ uuid_t*   userIDs,
+    _In_  uint32_t  capacity,
+    _Out_ uint32_t* userCount)
 {
-    struct __ProviderRegistration* registration;
+    struct __HandleProvider*   provider;
     struct __ProviderResource* resource;
-    uuid_t* ids = NULL;
-    uint32_t count = 0;
-    uint32_t i;
-    oserr_t status;
+    uuid_t*                    ids = NULL;
+    uint32_t                   count = 0;
+    oserr_t                    status;
 
-    status = __GetProvider(registrationID, &registration);
+    status = __GetProvider(registrationID, &provider);
     if (status != OS_EOK) {
         return status;
     }
+
     MutexLock(&g_providerLock);
-    if (!__ProviderExists(registration)) {
+    
+    if (!__ProviderExists(provider)) {
         status = OS_ECANCELLED;
         goto unlock;
     }
+
     if (capacity == 0 || (uint64_t)capacity * sizeof(uuid_t) > SIZE_MAX) {
         status = OS_EINVALPARAMS;
         goto unlock;
     }
+
     // The capacity comes from userspace and can be any value, so we size the
     // allocation by the number of pending entries instead. The queue nodes were
     // already allocated when each resource was created.
-    for (resource = registration->Pending; resource != NULL && count < capacity; resource = resource->Next) {
+    for (resource = provider->Pending; resource != NULL && count < capacity; resource = resource->Next) {
         count++;
     }
+
     if (count != 0) {
         ids = kmalloc((size_t)count * sizeof(uuid_t));
         if (ids == NULL) {
             status = OS_EOOM;
             goto unlock;
         }
-        resource = registration->Pending;
-        for (i = 0; i < count; i++) {
+        
+        resource = provider->Pending;
+        
+        for (uint32_t i = 0; i < count; i++) {
             ids[i] = resource->ID;
             resource = resource->Next;
         }
+
         // Copy the whole batch with a single MemorySpaceCopyToUser call. The
         // queue must stay unchanged until both copies are done. If a copy fails
         // it may leave partial output in userspace, but no entries are removed.
@@ -570,24 +587,28 @@ HandleProviderGetEvents(
             goto unlock;
         }
     }
+
     status = MemorySpaceCopyToUser(userCount, &count, sizeof(count));
     if (status != OS_EOK) {
         goto unlock;
     }
-    for (i = 0; i < count; i++) {
-        resource = registration->Pending;
-        registration->Pending = resource->Next;
+    
+    for (uint32_t i = 0; i < count; i++) {
+        resource = provider->Pending;
+        provider->Pending = resource->Next;
         __FreeProviderResource(resource);
     }
-    if (registration->Pending == NULL) {
-        registration->PendingTail = NULL;
+
+    if (provider->Pending == NULL) {
+        provider->PendingTail = NULL;
     }
+
 unlock:
     // Reading the queue uses up the wakeup. So if entries are still pending
     // after a partial or failed read, we post the wakeup again. The queue
     // merges it with any event that is already waiting.
-    if (registration->Open && registration->Pending != NULL) {
-        __PostProviderCleanup(registration);
+    if (provider->Open && provider->Pending != NULL) {
+        __PostProviderCleanup(provider);
     }
     MutexUnlock(&g_providerLock);
     kfree(ids);
@@ -597,13 +618,16 @@ unlock:
 
 void
 HandleProviderCancelCreate(
-    _In_    uuid_t referenceID)
+    _In_ uuid_t referenceID)
 {
     struct __ProviderReference* reference;
+    oserr_t                     status;
 
-    if (AcquireHandleReference(referenceID, HandleTypeProviderReference, (void**)&reference) != OS_EOK) {
+    status = AcquireHandleReference(referenceID, HandleTypeProviderReference, (void**)&reference);
+    if (status != OS_EOK) {
         return;
     }
+
     MutexLock(&g_providerLock);
     reference->Resource->Published = false;
     MutexUnlock(&g_providerLock);

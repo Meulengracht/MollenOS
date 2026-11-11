@@ -106,6 +106,53 @@ ReleaseGlobalHandle(
 DECL_STRUCT(MSContextSecurity);
 
 /**
+ * @brief Creates a handle like CreateHandle, but the first reference is added to
+ * the grant table of the given group instead of the calling one. The calling
+ * process gets no grant for the handle, unless it belongs to the given group. This
+ * is how the kernel creates a handle on behalf of another process.
+ * The caller must have checked that the group is allowed to get the handle, and
+ * must keep the group alive for the whole call. If securityContext is NULL, the
+ * first reference is a kernel reference instead, which the caller must release
+ * with ReleaseGlobalHandle.
+ *
+ * @param handleType      The type of the handle.
+ * @param grantCleanup    Optional cleanup, called when a group drops its last
+ *                        reference to the handle, or the group exits.
+ * @param globalCleanup   Optional cleanup, called when the handle is destroyed. This
+ *                        is done by the janitor thread once all references are gone.
+ * @param resource        The resource the handle points to. On failure the caller
+ *                        must clean it up, and neither cleanup function is called.
+ * @param securityContext The group that gets the first reference, or NULL for a
+ *                        kernel reference.
+ * @return The ID of the new handle, or UUID_INVALID on failure.
+ */
+KERNELAPI uuid_t KERNELABI
+CreateHandleInContext(
+    _In_ HandleType_t         handleType,
+    _In_ HandleDestructorFn   grantCleanup,
+    _In_ HandleDestructorFn   globalCleanup,
+    _In_ void*                resource,
+    _In_ MSContextSecurity_t* securityContext);
+
+/**
+ * @brief Drops a reference to a handle from the grant table of the given group,
+ * like DestroyHandle does for the calling group. The caller must have checked
+ * that this is allowed, and must keep the group alive for the whole call. This
+ * is used to undo an import done on behalf of another group, when the new handle
+ * ID could not be copied to userspace (see ScHandleImport).
+ *
+ * @param securityContext The group to drop the reference from, or NULL to drop a
+ *                        kernel reference instead.
+ * @param handleId        The handle to drop a reference to.
+ * @return OS_EOK or OS_EINCOMPLETE, which both mean the reference was dropped, or
+ *         OS_ENOENT if there was no such reference to drop.
+ */
+KERNELAPI oserr_t KERNELABI
+DestroyHandleInContext(
+    _In_ MSContextSecurity_t* securityContext,
+    _In_ uuid_t               handleId);
+
+/**
  * @brief Checks that the given group has a grant for a handle, and if so adds a
  * global reference to it. Release the reference again with ReleaseGlobalHandle.
  * The caller must keep the security context and its grant table valid for the
