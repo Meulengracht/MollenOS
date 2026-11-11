@@ -34,15 +34,15 @@ void usched_mtx_init(struct usched_mtx* mutex, int type)
 
 static int
 __BlockAndWait(
-        struct usched_mtx*              mutex,
-        struct usched_job*              current,
-        const struct timespec *restrict until)
+    struct usched_mtx*              mutex,
+    struct usched_job*              current,
+    const struct timespec *restrict until)
 {
     int status = 0;
     int timer;
 
     // set us blocked
-    current->state = JobState_BLOCKED;
+    __usched_job_block(current);
 
     // add us to the blocked queue
     __usched_append_job(&mutex->queue, current);
@@ -84,7 +84,7 @@ int usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restri
     int                status = 0;
     assert(mutex != NULL);
 
-    current = __usched_get_scheduler()->current;
+    current = __usched_get_execution()->current;
     assert(current != NULL);
 
     spinlock_acquire(&mutex->lock);
@@ -110,7 +110,7 @@ int usched_mtx_trylock(struct usched_mtx* mutex)
     int                status = 0;
     assert(mutex != NULL);
 
-    current = __usched_get_scheduler()->current;
+    current = __usched_get_execution()->current;
     assert(current != NULL);
 
     spinlock_acquire(&mutex->lock);
@@ -142,7 +142,7 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
     struct usched_job* next = NULL;
     assert(mutex != NULL);
 
-    current = __usched_get_scheduler()->current;
+    current = __usched_get_execution()->current;
     assert(current != NULL);
 
     spinlock_acquire(&mutex->lock);

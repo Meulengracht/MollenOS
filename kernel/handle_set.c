@@ -102,7 +102,7 @@ struct __HandleSetElement {
 
 /**
  * @brief Describes where the events of a handle are posted, and is filled in by
- * __ResolveNotificationSource. Resource is the ID that subscriptions are grouped
+ * __ResolveHandleSource. Resource is the ID that subscriptions are grouped
  * by in g_handleSets. Reference is the handle a temporary global reference was
  * taken on, or UUID_INVALID if none was taken. The caller must release it again
  * when done. Type is the type of the handle, if it was one we know.
@@ -160,11 +160,13 @@ static atomic_bool g_handleSetsInitialized;
  */
 static oserr_t
 __ResolveHandleSource(
-    _In_  uuid_t                       handle,
-    _Out_ struct __NotificationSource* source)
+    _In_  uuid_t                      handle,
+    _Out_ struct __HandleInformation* source)
 {
-    void*   payload;
-    oserr_t status;
+    struct __ProviderReference* reference;
+    SHMView_t*                  view;
+    void*                       payload;
+    oserr_t                     status;
 
     *source = (struct __HandleInformation) {
         .Resource = handle,
@@ -192,11 +194,11 @@ __ResolveHandleSource(
     // Otherwise we dereference the handle to find the actual resource it refers to.
     switch (source->Type) {
     case HandleTypeSHMView:
-        SHMView_t* view = (SHMView_t*)payload;
+        view = payload;
         source->Resource = view->Buffer->ID;
         break;
     case HandleTypeProviderReference:
-        struct __ProviderReference* reference = (struct __ProviderReference*)payload;
+        reference = payload;
         source->Resource = reference->Resource->ID;
         source->Registration = reference->Resource->Provider->ID;
         source->ServiceGroup = reference->Resource->Provider->GroupID;
@@ -225,8 +227,8 @@ __ResolveHandleSource(
  */
 static oserr_t
 __ResolveGrantTable(
-    _In_    const struct __NotificationSource* source,
-    _InOut_ struct __HandleSetElement*         element)
+    _In_    const struct __HandleInformation* source,
+    _InOut_ struct __HandleSetElement*        element)
 {
     MSContextSecurity_t* security = MemorySpaceGetSecurityContext();
     uuid_t               grant = source->Resource;
@@ -324,10 +326,11 @@ __CollectSubscriptions(
 {
     const struct __HandleSets*    bucket = value;
     struct __SubscriptionCleanup* cleanup = context;
+    struct __HandleSetElement*    element;
     element_t*                    node;
     (void)index;
 
-    for (element_t* node = bucket->sets.head; node != NULL; node = node->next) {
+    for (node = bucket->sets.head; node != NULL; node = node->next) {
         element = node->value;
         if (element->GrantTable != cleanup->Table) {
             continue;
@@ -718,7 +721,7 @@ MarkHandle(
 
     // The handle that events are posted with does not have to be the same handle
     // that was added to a set. So we resolve it to the resource ID that the
-    // subscriptions are grouped by (see __ResolveNotificationSource).
+    // subscriptions are grouped by (see __ResolveHandleSource).
     status = __ResolveHandleSource(handle, &source);
     if (status != OS_EOK) {
         return status;

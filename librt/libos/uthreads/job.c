@@ -119,14 +119,14 @@ void usched_job_parameters_set_detached(struct usched_job_parameters* params, bo
 static void __finalize_task(struct usched_job* job, int exitCode)
 {
     // finalize tls runtime before anything else. Must complete before the job's
-    // tls is torn down (__task_destroy, run later from the garbage bin).
+    // tls is torn down (__task_destroy, on the execution unit's scheduler stack).
     __cxa_threadfinalize();
     
     // if the task has any joiners, ensure tls has run
     // before removing, as this will make them runnable.
     __remove_job_from_register(job->id, exitCode);
 
-    job->state = JobState_FINISHING;
+    __JOB_SET_STATE(job, JobState_FINISHING);
     usched_yield(NULL);
 
     ERROR("__finalize_task: yield returned, this was not expected");
@@ -139,8 +139,8 @@ static void __finalize_task(struct usched_job* job, int exitCode)
 // TLS for each thread is taken care of by job creation/destruction.
 void __usched_task_main(struct usched_job* job)
 {
-    // Set our state to running, as the task is now in progress
-    job->state = JobState_RUNNING;
+    // The first entry is done, later dispatches resume the saved context.
+    __JOB_SET_STATE(job, JobState_RUNNING);
 
     // Run any C/C++ initialization for the thread. Before this call
     // the tls must be set correctly. The TLS is set before the jump to this
@@ -176,7 +176,7 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->entry = entry;
     job->argument = argument;
     job->detached = params->detached;
-    job->queue = NULL;
+    job->scheduler = NULL;
 
     // We are not switching as we are simply prepping the tls here.
     if (__tls_initialize(&job->tls, 0)) {
@@ -223,11 +223,11 @@ uuid_t usched_job_queue(usched_task_fn entry, void* argument)
 }
 
 uuid_t usched_job_current(void) {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    if (sched->current == NULL) {
+    struct usched_execution_context* execution = __usched_get_execution();
+    if (execution->current == NULL) {
         return UUID_INVALID;
     }
-    return sched->current->id;
+    return execution->current->id;
 };
 
 void usched_job_yield(void) {
@@ -236,11 +236,11 @@ void usched_job_yield(void) {
 
 void usched_job_exit(int exitCode)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    if (sched->current == NULL) {
+    struct usched_execution_context* execution = __usched_get_execution();
+    if (execution->current == NULL) {
         return;
     }
-    __finalize_task(sched->current, exitCode);
+    __finalize_task(execution->current, exitCode);
 }
 
 int usched_job_cancel(uuid_t jobID)
@@ -376,8 +376,8 @@ int usched_job_sleep(const struct timespec* until)
     int                      timer;
 
     // set us blocked
-    current = __usched_get_scheduler()->current;
-    current->state = JobState_BLOCKED;
+    current = __usched_get_execution()->current;
+    __usched_job_block(current);
 
     timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_SLEEP);
     usched_job_yield();

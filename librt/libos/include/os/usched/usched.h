@@ -30,8 +30,9 @@ struct timespec;
 typedef struct OSAsyncContext OSAsyncContext_t;
 
 /**
- * @brief Yields control of the current task and executes the next task in line. If no tasks
- * are ready to execute, control is returned to original caller of this function.
+ * @brief Returns the current job to its execution unit's scheduler stack before
+ * selecting another job. A resumed job returns zero and may run on another unit.
+ * Called outside a job, dispatches jobs until the unit is idle or stopping.
  * @param deadline If there were no more jobs to execute, but there will be in the
  *                     future, for instance that are either sleeping or waiting for a timeout,
  *                     then this will be set to the point in time when usched_yield should be called
@@ -43,6 +44,7 @@ typedef struct OSAsyncContext OSAsyncContext_t;
  *         ENOENT means that there are no more jobs to execute, and no events pending.
  *         EWOULDBLOCK means that there are no jobs to execute, but we have an event pending and
  *         usched_yield should be called again once the time specified by deadline has been reached.
+ *         ESHUTDOWN means the execution unit should stop dispatching jobs.
  */
 CRTDECL(int, usched_yield(struct timespec* deadline));
 

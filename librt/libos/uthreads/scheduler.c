@@ -30,261 +30,265 @@
 #include <stdlib.h>
 #include "private.h"
 
-struct usched_scheduler_queue {
-    struct usched_job* ready;
-    Mutex_t            mutex;
-    OSHandle_t         notification_handle;
+static atomic_int g_timerid = 1;
+static struct usched_scheduler g_scheduler = {
+    .lock = MUTEX_INIT(MUTEX_PLAIN)
 };
 
-static atomic_int                    g_timerid     = 1;
-static struct usched_scheduler_queue g_globalQueue = {
-        NULL,
-        MUTEX_INIT(MUTEX_PLAIN),
-        { 0 }
-};
-
-struct usched_scheduler* __usched_get_scheduler(void) {
-    return __usched_xunit_tls_current()->scheduler;
-}
-
-static struct usched_scheduler_queue* __usched_scheduler_queue_new(struct usched_job* job)
+struct usched_execution_context*
+__usched_get_execution(void)
 {
-    struct usched_scheduler_queue* queue = malloc(sizeof(struct usched_scheduler_queue));
-    if (queue == NULL) {
-        return NULL;
-    }
-
-    queue->ready = job;
-    MutexInitialize(&queue->mutex, MUTEX_PLAIN);
-    if (OSHandleCreate(NULL, 0, &queue->notification_handle) != OS_EOK) {
-        free(queue);
-        return NULL;
-    }
-    return queue;
+    return __usched_xunit_tls_current()->context;
 }
 
-static oserr_t __usched_init_notification_queue(struct usched_scheduler* sched)
+static struct usched_scheduler*
+__scheduler_new(void)
+{
+    struct usched_scheduler* scheduler;
+
+    scheduler = calloc(1, sizeof(struct usched_scheduler));
+    if (scheduler == NULL) {
+        return NULL;
+    }
+
+    MutexInitialize(&scheduler->lock, MUTEX_PLAIN);
+    if (OSHandleCreate(NULL, 0, &scheduler->notification_handle) != OS_EOK) {
+        free(scheduler);
+        return NULL;
+    }
+    return scheduler;
+}
+
+static oserr_t
+__init_notification_queue(
+    _InOut_ struct usched_execution_context* execution)
 {
     oserr_t oserr;
 
-    oserr = OSNotificationQueueCreate(0, &sched->notification_queue);
+    oserr = OSNotificationQueueCreate(0, &execution->notification_queue);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    oserr = OSHandleCreate(NULL, 0, &sched->syscall_handle);
+    oserr = OSHandleCreate(NULL, 0, &execution->syscall_handle);
     if (oserr != OS_EOK) {
-        OSHandleDestroy(&sched->notification_queue);
-        return oserr;
-    }
-
-    // Either we add the global queue, or we add the internal queue.
-    if (sched->internal_queue != NULL) {
-        oserr = OSNotificationQueueCtrl(
-                &sched->notification_queue,
-                IOSET_ADD,
-                &sched->internal_queue->notification_handle,
-                &(struct ioset_event) {
-                    .events = IOSETSYN,
-                    .data.handle = sched->internal_queue->notification_handle.ID
-                }
-        );
-    } else {
-        oserr = OSNotificationQueueCtrl(
-                &sched->notification_queue,
-                IOSET_ADD,
-                &g_globalQueue.notification_handle,
-                &(struct ioset_event) {
-                        .events = IOSETSYN,
-                        .data.handle = g_globalQueue.notification_handle.ID
-                }
-        );
-    }
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&sched->syscall_handle);
-        OSHandleDestroy(&sched->notification_queue);
+        OSHandleDestroy(&execution->notification_queue);
         return oserr;
     }
 
     oserr = OSNotificationQueueCtrl(
-            &sched->notification_queue,
-            IOSET_ADD,
-            &sched->syscall_handle,
-            &(struct ioset_event) {
-                    .events = IOSETSYN,
-                    .data.handle = sched->syscall_handle.ID
-            }
+        &execution->notification_queue,
+        IOSET_ADD,
+        &execution->scheduler->notification_handle,
+        &(struct ioset_event) {
+            .events = IOSETSYN,
+            .data.handle = execution->scheduler->notification_handle.ID
+        }
     );
     if (oserr != OS_EOK) {
-        OSHandleDestroy(&sched->syscall_handle);
-        OSHandleDestroy(&sched->notification_queue);
-        return oserr;
+        goto error;
     }
-    return OS_EOK;
+
+    oserr = OSNotificationQueueCtrl(
+        &execution->notification_queue,
+        IOSET_ADD,
+        &execution->syscall_handle,
+        &(struct ioset_event) {
+            .events = IOSETSYN,
+            .data.handle = execution->syscall_handle.ID
+        }
+    );
+    if (oserr == OS_EOK) {
+        return OS_EOK;
+    }
+
+error:
+    OSHandleDestroy(&execution->syscall_handle);
+    OSHandleDestroy(&execution->notification_queue);
+    return oserr;
 }
 
-extern void __usched_startup(void)
+void
+__usched_startup(void)
 {
-    oserr_t oserr;
-
-    // Create the handle for the global queue. This will be added to all
-    // scheduler's notification queue, so they can track new job postings.
-    oserr = OSHandleCreate(NULL, 0, &g_globalQueue.notification_handle);
-    if (oserr != OS_EOK) {
+    if (OSHandleCreate(NULL, 0, &g_scheduler.notification_handle) != OS_EOK) {
         exit(-1);
     }
 }
 
-void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params)
+void
+__usched_init(
+    _InOut_ struct usched_execution_context* execution,
+    _In_    struct usched_init_params*       params)
 {
-    if (sched->magic == SCHEDULER_MAGIC) {
+    if (execution->magic == SCHEDULER_MAGIC) {
         return;
     }
 
-    // initialize the global scheduler, there will always only exist one
-    // scheduler instance, unless we implement multiple executors
-    memset(sched, 0, sizeof(struct usched_scheduler));
-    sched->tls   = __tls_current();
-    sched->magic = SCHEDULER_MAGIC;
-
-    // If this is set non-null, this means the scheduler will *only* execute
-    // tasks from the internal queue instead of the detached queue. This is useful
-    // if a user wants to keep long-running tasks OR bind tasks to specific cores,
-    // without that impacting the entire workpool.
+    // The caller zero-initializes the context before publishing the unit.
+    // Do not clear a stop request that arrived while its kernel thread started.
+    execution->tls = __tls_current();
+    execution->scheduler = &g_scheduler;
     if (params->detached_job != NULL) {
-        sched->internal_queue = __usched_scheduler_queue_new(params->detached_job);
-        assert(sched->internal_queue != NULL);
-
-        // Also bind the job to the internal queue
-        params->detached_job->queue = sched->internal_queue;
+        execution->scheduler = __scheduler_new();
+        if (execution->scheduler == NULL) {
+            exit(-1);
+        }
+        params->detached_job->scheduler = execution->scheduler;
+        __usched_add_job_ready(params->detached_job);
     }
 
-    // Create a new notification queue for this scheduler. Schedulers will listen for two different
-    // types of events; Syscall completions and the global queue posts. If either of these happen the
-    // scheduler should wake and act immediately. The global queue will be shared amongst each scheduler
-    // and that means a random one will take new jobs posted, and the syscall completion queue will be
-    // per-scheduler.
-    if (__usched_init_notification_queue(sched) != OS_EOK) {
-        // Should not happen, in that case the system ran out of memory, so quit.
+    if (__init_notification_queue(execution) != OS_EOK) {
         exit(-1);
     }
+    execution->magic = SCHEDULER_MAGIC;
 }
 
-void __usched_destroy(struct usched_scheduler* sched)
+void
+__usched_destroy(
+    _InOut_ struct usched_execution_context* execution)
 {
-    if (sched->magic != SCHEDULER_MAGIC) {
+    if (execution->magic != SCHEDULER_MAGIC) {
         return;
     }
-    OSHandleDestroy(&sched->notification_queue);
-    OSHandleDestroy(&sched->syscall_handle);
-    if (sched->internal_queue != NULL) {
-        OSHandleDestroy(&sched->internal_queue->notification_handle);
-        free(sched->internal_queue);
+
+    OSHandleDestroy(&execution->notification_queue);
+    OSHandleDestroy(&execution->syscall_handle);
+    if (execution->scheduler != &g_scheduler) {
+        OSHandleDestroy(&execution->scheduler->notification_handle);
+        free(execution->scheduler);
     }
+    execution->magic = 0;
+}
+
+void
+__usched_request_stop(
+    _InOut_ struct usched_execution_context* execution)
+{
+    // Only pooled units are resized. The shared handle is valid even when the
+    // target unit has not initialized its notification queue yet.
+    atomic_store(&execution->stop_requested, true);
+    OSNotificationQueuePost(&g_scheduler.notification_handle, IOSETSYN);
 }
 
 static void
-__task_destroy(struct usched_job* job)
+__task_destroy(
+    _In_ struct usched_job* job)
 {
-    // Must run after __finalize_task()/__cxa_threadfinalize() has completed for this job.
+    // Finalizers ran on the job stack before it returned to the scheduler.
     __tls_destroy(&job->tls);
     free(job->stack);
     free(job);
 }
 
 static void
-__empty_garbage_bin(struct usched_scheduler* sched)
+__queue_job_locked(
+    _In_ struct usched_job* job)
 {
-    struct usched_job* i;
-
-    i = sched->garbage_bin;
-    while (i) {
-        struct usched_job* next = i->next;
-        __task_destroy(i);
-        i = next;
-    }
-    sched->garbage_bin = NULL;
+    // scheduler->Lock must be held, and no execution unit may use this stack.
+    assert(__JOB_STATE(job) == JobState_CREATED || __JOB_STATE(job) == JobState_READY);
+    __usched_append_job(&job->scheduler->ready, job);
+    OSNotificationQueuePost(&job->scheduler->notification_handle, IOSETSYN);
 }
 
-void __usched_add_job_ready(struct usched_job* job)
+void
+__usched_add_job_ready(
+    _In_ struct usched_job* job)
 {
-    struct usched_scheduler_queue* queue = job->queue;
-
-    // When a job is queued for the global queue, then the job will initially have
-    // the queue set to NULL. In this case bind it to the global queue.
-    if (queue == NULL) {
-        job->queue = &g_globalQueue;
-        queue = &g_globalQueue;
+    if (job->scheduler == NULL) {
+        job->scheduler = &g_scheduler;
     }
 
-    MutexLock(&queue->mutex);
-    __usched_append_job(&queue->ready, job);
-    MutexUnlock(&queue->mutex);
-    OSNotificationQueuePost(&queue->notification_handle, IOSETSYN);
+    MutexLock(&job->scheduler->lock);
+    __queue_job_locked(job);
+    MutexUnlock(&job->scheduler->lock);
 }
 
-void __usched_job_ready(struct usched_job* job)
+void
+__usched_job_block(
+    _InOut_ struct usched_job* job)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    assert(sched != NULL);
-    assert(job != NULL);
-    TRACE("__usched_job_ready(id=%u)", job->id);
+    MutexLock(&job->scheduler->lock);
+    assert(__JOB_STATE(job) == JobState_RUNNING);
+    __JOB_SET_STATE(job, JobState_BLOCKING);
+    MutexUnlock(&job->scheduler->lock);
+}
 
-    // Update job state to be RUNNING
-    job->next  = NULL;
-    job->state = JobState_RUNNING;
+void
+__usched_job_ready(
+    _In_ struct usched_job* job)
+{
+    struct usched_scheduler* scheduler;
 
-    // If we are re-readying the current job then the
-    // state change will be enough
-    if (sched->current != job) {
-        __usched_add_job_ready(job);
+    scheduler = job->scheduler;
+    MutexLock(&scheduler->lock);
+    job->next = NULL;
+
+    // An early notification only cancels the block. The job is still on its
+    // stack, so __finish_dispatch publishes it once the stack is left.
+    if (__JOB_STATE(job) == JobState_BLOCKING) {
+        __JOB_SET_STATE(job, JobState_RUNNING);
+    } else {
+        assert(__JOB_STATE(job) == JobState_BLOCKED);
+        __JOB_SET_STATE(job, JobState_READY);
+        __queue_job_locked(job);
+    }
+    MutexUnlock(&scheduler->lock);
+}
+
+static void
+__finish_dispatch(
+    _InOut_ struct usched_execution_context* execution)
+{
+    struct usched_scheduler* scheduler;
+    struct usched_job*       job;
+    enum job_state           state;
+
+    scheduler = execution->scheduler;
+    job = execution->current;
+    execution->current = NULL;
+
+    // The job has left its stack, so move it to the matching off-stack state.
+    MutexLock(&scheduler->lock);
+    state = __JOB_STATE(job);
+    if (state == JobState_RUNNING) {
+        __JOB_SET_STATE(job, JobState_READY);
+        __queue_job_locked(job);
+    } else if (state == JobState_BLOCKING) {
+        __JOB_SET_STATE(job, JobState_BLOCKED);
+    } else {
+        assert(state == JobState_FINISHING);
+    }
+    MutexUnlock(&scheduler->lock);
+
+    // A published job may already have resumed on another unit. Only a
+    // finished job can still be accessed here, including freeing its stack.
+    if (state == JobState_FINISHING) {
+        __task_destroy(job);
     }
 }
 
-int __usched_prepare_migrate(void)
+static struct usched_job*
+__get_next_ready(
+    _In_ struct usched_scheduler* scheduler)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    if (!sched->current) {
-        return 0; // no current task, which means we can chill
-    }
+    struct usched_job* next;
 
-    // Store the context of the current, this function is called by signal
-    // handler, but stays in the same stack as the task, so we can safely store
-    // the current context and just return to it later.
-    if (setjmp(sched->current->context)) {
-        return 1;
-    }
-
-    // Move the current task back into the ready-queue
-    __usched_add_job_ready(sched->current);
-
-    // Swap back into scheduler context (as much as possible)
-    __tls_switch(sched->tls);
-
-    // Run maintinence tasks before returning the deadline for the next job
-    __empty_garbage_bin(sched);
-    return 0;
-}
-
-static struct usched_job* __get_next_ready(
-        struct usched_scheduler* scheduler)
-{
-    struct usched_scheduler_queue* queue = &g_globalQueue;
-    struct usched_job*             next;
-
-    // If a scheduler has its own internal queue set, then it cannot consume jobs from
-    // the global queue. Instead, we only check the internal queue for jobs.
-    if (scheduler->internal_queue != NULL) {
-        queue = scheduler->internal_queue;
-    }
-
-    MutexLock(&queue->mutex);
-    next = queue->ready;
+    MutexLock(&scheduler->lock);
+    next = scheduler->ready;
     if (next != NULL) {
-        queue->ready = next->next;
+        scheduler->ready = next->next;
         next->next = NULL;
+
+        // A job that has never run must enter through the task entry.
+        if (__JOB_STATE(next) == JobState_CREATED) {
+            __JOB_SET_STATE(next, JobState_STARTING);
+        } else {
+            assert(__JOB_STATE(next) == JobState_READY);
+            __JOB_SET_STATE(next, JobState_RUNNING);
+        }
     }
-    MutexUnlock(&queue->mutex);
+    MutexUnlock(&scheduler->lock);
     return next;
 }
 
@@ -313,7 +317,7 @@ static void __prepare_task_entry(struct usched_job* job)
 }
 
 static void _Noreturn __switch_task(
-        struct usched_job* job)
+    struct usched_job* job)
 {
     char* stack;
     TRACE("__switch_task(job=%u)", job->id);
@@ -323,7 +327,7 @@ static void _Noreturn __switch_task(
 
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
-    if (__JOB_STATE(job) != JobState_CREATED) {
+    if (__JOB_STATE(job) != JobState_STARTING) {
         longjmp(job->context, 1);
     }
 
@@ -371,13 +375,13 @@ static bool __is_before_or_equal(const struct timespec* before, const struct tim
 }
 
 static void __update_timers(
-        struct usched_scheduler* sched)
+        struct usched_execution_context* execution)
 {
     struct timespec        currentTime;
     struct usched_timeout* timer;
 
     timespec_get(&currentTime, TIME_UTC);
-    timer = sched->timers;
+    timer = execution->timers;
     while (timer) {
         if (timer->active) {
             if (__is_before_or_equal(&timer->deadline, &currentTime)) {
@@ -390,7 +394,7 @@ static void __update_timers(
 }
 
 static int __get_next_deadline(
-        struct usched_scheduler* sched,
+        struct usched_execution_context* execution,
         struct timespec*         deadline)
 {
     struct timespec        currentTime;
@@ -400,7 +404,7 @@ static int __get_next_deadline(
     int                    result   = -1;
 
     timespec_get(&currentTime, TIME_UTC);
-    timer = sched->timers;
+    timer = execution->timers;
     while (timer) {
         if (timer->active) {
             if (__is_before_or_equal(&timer->deadline, &currentTime)) {
@@ -440,21 +444,26 @@ static int __get_next_deadline(
     return result;
 }
 
-static void __process_syscall_completions(
-        struct usched_scheduler* sched)
+static void
+__process_syscall_completions(
+    _InOut_ struct usched_execution_context* execution)
 {
-    struct usched_syscall* i, *p;
+    struct usched_syscall* i, *p, *next;
 
-    i = sched->syscalls_pending;
+    i = execution->syscalls_pending;
     p = NULL;
     while (i) {
+        // The completed job may resume and leave this stack frame on another
+        // unit as soon as it is published. Save the link before that point.
+        next = i->next;
+
         // TODO: This should be read atomically as the status is updated from
         // *maybe* another core. Even though we should probably always execute
         // these kinds of syscalls on the same core? (We can consider this)
         if (i->async_context->ErrorCode != OS_ESCSTARTED) {
             // unlink it and schedule the job
             if (p == NULL) {
-                sched->syscalls_pending = i->next;
+                execution->syscalls_pending = i->next;
             } else {
                 p->next = i->next;
             }
@@ -463,97 +472,79 @@ static void __process_syscall_completions(
             p = i;
         }
 
-        i = i->next;
+        i = next;
     }
 }
 
-int usched_yield(struct timespec* deadline)
+int
+usched_yield(
+    _Out_Opt_ struct timespec* deadline)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct usched_job*       current;
-    struct usched_job*       next;
-    TRACE("usched_yield()");
+    struct usched_execution_context* execution;
+    struct usched_job*               current;
+    struct usched_job*               next;
 
-    // save the current context and set a return point
-    if (sched->current) {
-        if (setjmp(sched->current->context)) {
-            // Reacquire the scheduler instead of assuming
-            sched = __usched_get_scheduler();
-            TRACE("usched_yield: loaded job %u", sched->current->id);
-            // We have return to the running thread.
-            __tls_switch(&sched->current->tls);
-            return 0;
+    execution = __usched_get_execution();
+    current = execution->current;
+    if (current != NULL) {
+        if (setjmp(current->context) == 0) {
+            longjmp(execution->jmp_context, 1);
         }
-    } else {
-        if (setjmp(sched->context)) {
-            TRACE("usched_yield: scheduler job");
-            // We have returned to the scheduler context.
-            __tls_switch(sched->tls);
-            // Run maintinence tasks before returning the deadline for the next job
-            __empty_garbage_bin(sched);
-            return __get_next_deadline(sched, deadline);
-        }
+
+        // Dispatch restored job TLS. The saved execution pointer may refer
+        // to another unit after migration, so do not use it on resumption.
+        return 0;
     }
 
-    // update timers before we check the scheduler as we might trigger a job to
-    // be ready. We could also be triggering the current job again.
-    __update_timers(sched);
-    __process_syscall_completions(sched);
-
-    next = __get_next_ready(sched);
-    if (next == NULL && sched->current == NULL) {
-        TRACE("usched_yield: no job");
-        // if no active thread and no ready threads then we can safely just return
-        return __get_next_deadline(sched, deadline);
+    // This continuation stays on the kernel thread's scheduler stack. Every
+    // job returns here before its state is published or its stack is freed.
+    if (setjmp(execution->jmp_context) != 0) {
+        __tls_switch(execution->tls);
+        __finish_dispatch(execution);
     }
 
-    current = sched->current;
-    if (current) {
-        TRACE("usched_yield: state %u", current->state);
-        if (SHOULD_RESCHEDULE(current)) {
-            // let us skip the whole schedule unschedule if
-            // possible.
-            if (next == NULL) {
-                next = current;
-            } else {
-                __usched_add_job_ready(current);
-            }
-        } else if (__JOB_STATE(current) == JobState_FINISHING) {
-            __usched_append_job(&sched->garbage_bin, current);
-        }
+    // Wait registrations are still local in this first refactor. Keep the
+    // unit running until those lists are empty so retirement cannot drop them.
+    if (atomic_load(&execution->stop_requested) &&
+        execution->timers == NULL && execution->syscalls_pending == NULL) {
+        errno = ESHUTDOWN;
+        return -1;
     }
-    sched->current = next;
 
-    // Returning to the scheduler does not enter a job. Every job dispatch,
-    // even when current == next, goes through TLS catch-up in __switch_task.
+    __update_timers(execution);
+    __process_syscall_completions(execution);
+    next = __get_next_ready(execution->scheduler);
     if (next == NULL) {
-        longjmp(sched->context, 1);
+        return __get_next_deadline(execution, deadline);
     }
+
+    execution->current = next;
     __switch_task(next);
 }
 
 void usched_timedwait(const struct timespec* until)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct ioset_event       events[2];
-    int                      numEvents;
-    oserr_t                  oserr;
+    struct usched_execution_context* execution = __usched_get_execution();
+    struct ioset_event               events[2];
+    int                              numEvents;
+    oserr_t                          oserr;
+    
     TRACE("usched_timedwait()");
 
     // We have two handles in the notification queue, so we can be supplied
     // with *at most* two events. We can actually in detail detect which type
     // of event occurred, but we do not care.
     oserr = OSNotificationQueueWait(
-            &sched->notification_queue,
-            &events[0],
-            2,
-            0,
-            until == NULL ? NULL : &(OSTimestamp_t) {
-                .Seconds = until->tv_sec,
-                .Nanoseconds = until->tv_nsec
-            },
-            &numEvents,
-            NULL
+        &execution->notification_queue,
+        &events[0],
+        2,
+        0,
+        until == NULL ? NULL : &(OSTimestamp_t) {
+            .Seconds = until->tv_sec,
+            .Nanoseconds = until->tv_nsec
+        },
+        &numEvents,
+        NULL
     );
 
     // Either it should return timeout or it should return OK. I don't really
@@ -567,8 +558,8 @@ void usched_wait(void) {
 
 int __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct usched_timeout*   timer;
+    struct usched_execution_context* execution = __usched_get_execution();
+    struct usched_timeout*           timer;
 
     if (!until) {
         errno = EINVAL;
@@ -589,8 +580,8 @@ int __usched_timeout_start(const struct timespec *restrict until, union usched_t
     timer->queue_type = queueType;
     timer->next = NULL;
 
-    timer->job = sched->current;
-    __usched_append_timer(&sched->timers, timer);
+    timer->job = execution->current;
+    __usched_append_timer(&execution->timers, timer);
 
     return timer->id;
 }
@@ -598,25 +589,25 @@ int __usched_timeout_start(const struct timespec *restrict until, union usched_t
 int
 __usched_timeout_finish(int id)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct usched_timeout*   timer;
-    struct usched_timeout*   previousTimer = NULL;
-    int                      result = 0;
-    bool                     timerFound = false;
+    struct usched_execution_context* execution = __usched_get_execution();
+    struct usched_timeout*           timer;
+    struct usched_timeout*           previousTimer = NULL;
+    int                              result = 0;
+    bool                             timerFound = false;
 
     if (id == -1) {
         // an invalid id was provided, ignore it
         return 0;
     }
 
-    timer = sched->timers;
+    timer = execution->timers;
     while (timer) {
         if (timer->id == id) {
             if (previousTimer) {
                 previousTimer->next = timer->next;
             }
             else {
-                sched->timers = timer->next;
+                execution->timers = timer->next;
             }
             timerFound = true;
             break;
@@ -639,18 +630,18 @@ __usched_timeout_finish(int id)
 
 void usched_wait_async(void)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct usched_job*       current = sched->current;
-    struct usched_syscall    syscall = {
+    struct usched_execution_context* execution = __usched_get_execution();
+    struct usched_job*               current = execution->current;
+    struct usched_syscall            syscall = {
             .job = current,
             .async_context = &current->async_context,
             .next = NULL
     };
     TRACE("usched_wait_async()");
-    if (sched->syscalls_pending == NULL) {
-        sched->syscalls_pending = &syscall;
+    if (execution->syscalls_pending == NULL) {
+        execution->syscalls_pending = &syscall;
     } else {
-        struct usched_syscall* i = sched->syscalls_pending;
+        struct usched_syscall* i = execution->syscalls_pending;
         while (i->next) {
             i = i->next;
         }
@@ -659,12 +650,12 @@ void usched_wait_async(void)
 
     // set us blocked, so we won't be rescheduled and then
     // yield for the next job.
-    sched->current->state = JobState_BLOCKED;
+    __usched_job_block(execution->current);
     usched_yield(NULL);
 }
 
 uuid_t usched_notification_handle(void)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    return sched->syscall_handle.ID;
+    struct usched_execution_context* execution = __usched_get_execution();
+    return execution->syscall_handle.ID;
 }

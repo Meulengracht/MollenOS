@@ -27,7 +27,7 @@
 #include <internal/_io.h>
 #include <internal/_gracht.h>
 #include <internal/_shm_transfer.h>
-#include <os/internal/_process.h>
+#include <internal/_process.h>
 #include <internal/_utils.h>
 #include <internal/_tls.h>
 #include <os/handle.h>

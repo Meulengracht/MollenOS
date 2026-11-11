@@ -22,9 +22,9 @@
 #include <os/usched/job.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "private.h"
 
 // Needed to handle thread stuff now on userspace basis
@@ -47,40 +47,13 @@ struct execution_manager* __xunit_manager(void) {
     return &g_executionManager;
 }
 
-static void __execution_unit_exit(void)
-{
-    struct thread_storage* tls = __tls_current();
-
-    if (__usched_prepare_migrate()) {
-        return; // return from migrated thread
-    }
-
-    // Run deinit of C/C++ handlers for the execution unit thread.
-    // Must precede __tls_destroy(): destructors/detach callbacks still need TLS.
-    __cxa_threadfinalize();
-    __tls_destroy(tls);
-
-    // Exit thread, but let's keep a catch-all in case of fire
-    Syscall_ThreadExit(0);
-    for(;;);
-}
-
-static void __handle_unit_signal(int sig)
-{
-    if (sig == SIGUSR1) {
-        __execution_unit_exit();
-    }
-}
-
-static void __execution_unit_tls_construct(struct execution_unit_tls* tls, struct usched_scheduler* scheduler)
-{
-    tls->scheduler = scheduler;
-}
-
-static void __execution_unit_construct(struct usched_execution_unit* unit)
+static void
+__execution_unit_construct(
+    _InOut_ struct usched_execution_unit* unit)
 {
     unit->thread_id = UUID_INVALID;
-    __execution_unit_tls_construct(&unit->tls, &unit->scheduler);
+    unit->tls.context = &unit->context;
+    atomic_init(&unit->context.stop_requested, false);
 }
 
 static int __get_cpu_count(void)
@@ -127,9 +100,12 @@ void usched_xunit_init(void)
 
     // Initialize all the subsystems for the primary execution unit. Each unit needs
     // to run this
-    __usched_init(&g_executionManager.primary.scheduler, &(struct usched_init_params) {
-        .detached_job = NULL
-    });
+    __usched_init(
+        &g_executionManager.primary.context,
+        &(struct usched_init_params) {
+            .detached_job = NULL
+        }
+    );
 }
 
 _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
@@ -166,11 +142,15 @@ struct execution_unit_tls* __usched_xunit_tls_current(void) {
     return (struct execution_unit_tls*)__get_reserved(2);
 }
 
-_Noreturn static void __execution_unit_main(void* data)
+static _Noreturn void
+__execution_unit_main(
+    _In_ void* data)
 {
     struct usched_execution_unit* unit  = data;
     uuid_t                        jobID = UUID_INVALID;
     struct thread_storage         tls;
+    struct timespec               deadline;
+    int                           status;
 
     // Initialize the thread storage system for the execution unit,
     // each execution unit has their own TLS as well
@@ -185,13 +165,13 @@ _Noreturn static void __execution_unit_main(void* data)
     // the tls must be set correctly.
     __cxa_threadinitialize();
 
-    // Install a signal handler in case we need to be told something
-    signal(SIGUSR1, __handle_unit_signal);
-
     // Initialize the userspace thread systems before going into the main loop
-    __usched_init(&unit->scheduler, &(struct usched_init_params) {
-        .detached_job = unit->params.detached_job
-    });
+    __usched_init(
+        &unit->context,
+        &(struct usched_init_params) {
+            .detached_job = unit->params.detached_job
+        }
+    );
 
     // Retrieve and store the job id of the detached job, so we can keep track of
     // exit status for the job.
@@ -204,12 +184,13 @@ _Noreturn static void __execution_unit_main(void* data)
     // becomes available. If the primary runs out of tasks, and all XU's sleep, then the program
     // exits.
     while (1) {
-        struct timespec deadline;
-        int             status;
-
         do {
             status = usched_yield(&deadline);
         } while (status == 0);
+
+        if (errno == ESHUTDOWN) {
+            break;
+        }
 
         // If this unit is running detached, then we want to continuously check
         // whether the detached job has exit - In the case it has, we exit the
@@ -225,18 +206,17 @@ _Noreturn static void __execution_unit_main(void* data)
         else                      { usched_wait(); }
     }
 
-    // Remove the execution unit from the list of execution units
-    MutexLock(&g_executionManager.lock);
-    __usched_remove_xunit(&g_executionManager.detached, unit);
-    MutexUnlock(&g_executionManager.lock);
+    // Pooled units have already been removed by the resizing caller.
+    if (jobID != UUID_INVALID) {
+        MutexLock(&g_executionManager.lock);
+        __usched_remove_xunit(&g_executionManager.detached, unit);
+        MutexUnlock(&g_executionManager.lock);
+    }
 
-    // Cleanup the userspace thread systems
-    __execution_unit_delete(unit);
-
-    // Cleanup the execution unit. Must finalize before destroying TLS:
-    // destructors/detach callbacks still need it.
+    // Keep the execution context valid while runtime finalizers use TLS.
     __cxa_threadfinalize();
     __tls_destroy(&tls);
+    __execution_unit_delete(unit);
     Syscall_ThreadExit(0);
     for(;;);
 }
@@ -277,7 +257,7 @@ static int __spawn_execution_unit(struct usched_execution_unit* unit, unsigned i
 static void __execution_unit_delete(struct usched_execution_unit* unit)
 {
     // Cleanup and destroy the userspace scheduler
-    __usched_destroy(&unit->scheduler);
+    __usched_destroy(&unit->context);
 
     // Cleanup the memory used by the execution unit
     free(unit);
@@ -312,10 +292,11 @@ static int __start_execution_unit(unsigned int* affinityMask, struct usched_job*
     return 0;
 }
 
-static int __stop_execution_unit(void)
+static int
+__stop_execution_unit(void)
 {
     struct usched_execution_unit* unit;
-    int                           unitResult;
+    bool                          isCurrent;
 
     // Check if there are any available execution units to kill,
     // otherwise we just return here.
@@ -329,26 +310,28 @@ static int __stop_execution_unit(void)
     g_executionManager.primary.next = unit->next;
     g_executionManager.count--;
 
-    // We are bound to kill ourselves at some point, so we instead return
-    // with ESHUTDOWN to make sure that the killing of us, takes place after
-    // we've killed others.
-    if (&unit->tls == __usched_xunit_tls_current()) {
-        // uh oh, we need to kill ourselves
+    // The unit may stop and free its storage as soon as we request it.
+    isCurrent = &unit->tls == __usched_xunit_tls_current();
+    __usched_request_stop(&unit->context);
+
+    // A caller stopping its own unit must release the manager lock before
+    // yielding back to its scheduler stack.
+    if (isCurrent) {
         errno = ESHUTDOWN;
         return -1;
     }
 
-    // signal the execution unit to stop, wait for it to terminate,
-    // and then we transfer its tasks to the remaining units
-    ThreadsSignal(unit->thread_id, SIGUSR1);
-    ThreadsJoin(unit->thread_id, &unitResult);
     return 0;
 }
 
-int usched_xunit_set_count(int count)
+int
+usched_xunit_set_count(
+    _In_ int count)
 {
-    int killCurrentXUnit = 0;
+    int stopCurrentXUnit = 0;
     int result           = 0;
+    int unitsToChange;
+    int i;
 
     // plz call _start first
     if (g_executionManager.count == 0) {
@@ -368,23 +351,21 @@ int usched_xunit_set_count(int count)
 
     MutexLock(&g_executionManager.lock);
     if (count > g_executionManager.count) {
-        int xunitsToCreate = count - g_executionManager.count;
-        for (int i = 0; i < xunitsToCreate; i++) {
+        unitsToChange = count - g_executionManager.count;
+        for (i = 0; i < unitsToChange; i++) {
             result = __start_execution_unit(NULL, NULL);
             if (result) {
                 break;
             }
         }
     } else if (count < g_executionManager.count) {
-        int xunitsToStop = g_executionManager.count - count;
-        for (int i = 0; i < xunitsToStop; i++) {
+        unitsToChange = g_executionManager.count - count;
+        for (i = 0; i < unitsToChange; i++) {
             result = __stop_execution_unit();
             if (result) {
-                // Two types of error here, either it's because
-                // we are putting off suicide (ESHUTDOWN), or it's
-                // because there are no more units to kill (ENOENT)
+                // Self-retirement must wait until the manager lock is released.
                 if (errno == ESHUTDOWN) {
-                    killCurrentXUnit = 1;
+                    stopCurrentXUnit = 1;
                 } else {
                     // Simply break out as we do not need to do anymore.
                     break;
@@ -394,10 +375,11 @@ int usched_xunit_set_count(int count)
     }
     MutexUnlock(&g_executionManager.lock);
 
-    // Before returning - which we should not do if we need to kill
-    // the current thread, we just exit
-    if (killCurrentXUnit) {
-        __execution_unit_exit();
+    // The current job resumes on another unit after the scheduler publishes
+    // it from the retiring unit's native stack.
+    if (stopCurrentXUnit) {
+        usched_job_yield();
+        result = 0;
     }
     return result;
 }

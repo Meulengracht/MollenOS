@@ -39,7 +39,8 @@ CRTDECL(void, usched_xunit_init(void));
 CRTDECL(_Noreturn void, usched_xunit_main_loop(usched_task_fn startFn, void* argument));
 
 /**
- * @brief Retrieves the current number of execution units.
+ * @brief Retrieves the requested number of pooled execution units.
+ * Units finishing a stop request are excluded from this count.
  *
  * @return Number of execution units, or -1 if any error occurred. Check errno for details.
  */
@@ -48,6 +49,10 @@ CRTDECL(int, usched_xunit_count(void));
 /**
  * @brief Sets the number of execution units available for the process. This should be
  * not be larger then number of logical CPUs on the system.
+ * Reducing the count requests cooperative retirement and returns without joining
+ * kernel threads. Selected units stop at a scheduling point after their local
+ * waits finish. Until then, the number of live kernel threads may exceed count.
+ * Jobs must yield or block for retirement to complete.
  *
  * @param[In] count The number of execution units.  To request the maximum number
  *                  of execution units, set this to -1.

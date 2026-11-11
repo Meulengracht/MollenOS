@@ -36,8 +36,8 @@ void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
     assert(mutex != NULL);
 
     spinlock_acquire(&condition->lock);
-    current = __usched_get_scheduler()->current;
-    current->state = JobState_BLOCKED;
+    current = __usched_get_execution()->current;
+    __usched_job_block(current);
     __usched_append_job(&condition->queue, current);
     spinlock_release(&condition->lock);
 
@@ -59,8 +59,8 @@ int usched_cnd_timedwait(
     assert(mutex != NULL);
 
     spinlock_acquire(&condition->lock);
-    current = __usched_get_scheduler()->current;
-    current->state = JobState_BLOCKED;
+    current = __usched_get_execution()->current;
+    __usched_job_block(current);
     __usched_append_job(&condition->queue, current);
     spinlock_release(&condition->lock);
 

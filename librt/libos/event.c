@@ -77,7 +77,7 @@ OSEvent(
             handleOut
     );
     if (oserr != OS_EOK) {
-        Syscall_DestroyHandle(handleID);
+        Syscall_HandleDestroy(handleID);
         free(event);
         return oserr;
     }
@@ -112,7 +112,7 @@ OSTimeoutEvent(
             handleOut
     );
     if (oserr != OS_EOK) {
-        Syscall_DestroyHandle(handleID);
+        Syscall_HandleDestroy(handleID);
         free(event);
         return oserr;
     }
@@ -209,6 +209,6 @@ OSEventValue(
 
 static void __EventDestroy(struct OSHandle* handle)
 {
-    (void)Syscall_DestroyHandle(handle->ID);
+    (void)Syscall_HandleDestroy(handle->ID);
     free(handle->Payload);
 }
