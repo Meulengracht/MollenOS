@@ -21,6 +21,8 @@
  * session, while the records of who manages each slot are kept in netd's private memory.
  *
  * One manager belongs to one netadapter session and manages one TX pool and one RX pool.
+ * Slot spacing satisfies the adapter's alignment and keeps adjacent slots on separate
+ * CPU cache lines so their shared-memory accesses can run at the same time.
  * Do not create a new manager for a session that is still open: the new manager would
  * start its registration IDs over from the beginning, clashing with the IDs the driver
  * already knows. All calls, including any use of a lease, must run on the adapter's

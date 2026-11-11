@@ -29,6 +29,7 @@
 #include <internal/_shm_transfer.h>
 #include <ddk/convert/grants.h>
 #include <os/memory.h>
+#include <os/mollenos.h>
 #include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
@@ -284,11 +285,39 @@ __ValidateConfig(
 }
 
 static oserr_t
+__GetSlotAlignment(
+    _In_  size_t  deviceAlignment,
+    _In_  size_t  pageSize,
+    _Out_ size_t* alignmentOut)
+{
+    OSSystemCPUInfo_t info;
+    size_t            queried;
+    size_t            line;
+    oserr_t           status;
+
+    status = OSSystemQuery(OSSYSTEMQUERY_CPUINFO, &info, sizeof(info), &queried);
+    if (status != OS_EOK) {
+        return status;
+    } else if (queried != sizeof(OSSystemCPUInfo_t)) {
+        return OS_EINVALPARAMS;
+    }
+
+    line = info.DataCacheLineSizeBytes;
+    if (line == 0 || (line & (line - 1)) != 0 || line > pageSize) {
+        return OS_EINVALPARAMS;
+    }
+
+    *alignmentOut = line > deviceAlignment ? line : deviceAlignment;
+    return OS_EOK;
+}
+
+static oserr_t
 __CalculateBufferLayout(
     _In_  const struct ctt_netadapter_info* info,
-    _In_  const NetBufferConfig_t*         config,
-    _In_  size_t                          pageSize,
-    _Out_ struct __BufferLayout*           layout)
+    _In_  const NetBufferConfig_t*          config,
+    _In_  size_t                            pageSize,
+    _In_  size_t                            slotAlignment,
+    _Out_ struct __BufferLayout*            layout)
 {
     uint64_t offset, stride, total = sizeof(NetBufferManager_t);
     uint64_t slotBytes, windowBytes;
@@ -303,10 +332,11 @@ __CalculateBufferLayout(
         return OS_EOVERFLOW;
     }
     
-    // Include the frame and tailroom, then round up so the next slot is aligned too.
+    // SHM reserves whole cache lines during DMA, including on coherent devices.
+    // Pad each slot so a receive cannot conflict with the adjacent slot's access.
     valid = __RoundUpAligned(
         offset + config->FrameCapacity + info->required_tailroom,
-        info->buffer_alignment,
+        slotAlignment,
         &stride
     );
     if (!valid) {
@@ -453,7 +483,8 @@ NetBuffersCreate(
 {
     struct __BufferLayout layout;
     size_t                pageSize = MemoryPageSize();
-    NetBufferManager_t*    manager;
+    size_t                slotAlignment;
+    NetBufferManager_t*   manager;
     oserr_t               status;
     int                   i;
 
@@ -480,7 +511,12 @@ NetBuffersCreate(
         return status;
     }
 
-    status = __CalculateBufferLayout(info, config, pageSize, &layout);
+    status = __GetSlotAlignment(info->buffer_alignment, pageSize, &slotAlignment);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = __CalculateBufferLayout(info, config, pageSize, slotAlignment, &layout);
     if (status != OS_EOK) {
         return status;
     }
