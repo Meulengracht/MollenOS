@@ -49,13 +49,16 @@ typedef struct SystemCpuCore {
     queue_t                                 FunctionQueue[CpuFunctionCount];
     _Atomic(MemorySynchronizationObject_t*) MemorySync;
     Thread_t*                               CurrentThread;
-    uuid_t                                  TerminatingThread;
+
+    // A thread that was switched away from while TERMINATING. It is finished
+    // at the next outer interrupt entry, see CpuCoreDeferFinish.
+    uuid_t                                  PendingFinish;
+
     Context_t*                              InterruptRegisters;
     int                                     InterruptNesting;
     uint32_t                                InterruptPriority;
 
-    struct SystemCpuCore* Link;
-
+    struct SystemCpuCore*  Link;
     PlatformCpuCoreBlock_t PlatformData;
 } SystemCpuCore_t;
 

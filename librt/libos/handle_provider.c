@@ -17,6 +17,7 @@
 
 #include <internal/_syscalls.h>
 #include <os/handle.h>
+#include <ioset.h>
 
 oserr_t
 OSHandleRegisterProvider(
@@ -34,7 +35,15 @@ OSHandleRegisterProvider(
     if (status != OS_EOK) {
         return status;
     }
-    return OSHandleWrap(id, OSHANDLE_NULL, NULL, true, registrationOut);
+
+    status = OSHandleWrap(id, OSHANDLE_NULL, NULL, true, registrationOut);
+    if (status != OS_EOK) {
+        // Registration also added a queue entry. Remove it before closing the
+        // unpublished registration so no stale event selector is left behind.
+        (void)Syscall_ControlHandleSet(notificationQueue->ID, IOSET_DEL, id, NULL);
+        (void)Syscall_HandleDestroy(id);
+    }
+    return status;
 }
 
 oserr_t
@@ -45,24 +54,35 @@ OSHandleImport(
     uuid_t  id;
     oserr_t status;
 
-    if (handleOut == NULL) {
+    if (token == NULL || handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    status = Syscall_HandleImport(token, &id);
+    if (token->Options.ResourceType != GrantTokenResourceTypeProvider) {
+        // SHM imports need their mapping metadata and use SHMAttachToken.
+        // Only processd uses the raw syscall to install either reference kind.
+        return OS_ENOTSUPPORTED;
+    }
+
+    status = Syscall_HandleImport(token, UUID_INVALID, &id);
     if (status != OS_EOK) {
         return status;
     }
-    return OSHandleWrap(id, OSHANDLE_NULL, NULL, true, handleOut);
+    
+    status = OSHandleWrap(id, OSHANDLE_NULL, NULL, true, handleOut);
+    if (status != OS_EOK) {
+        (void)Syscall_HandleDestroy(id);
+    }
+    return status;
 }
 
 oserr_t
 OSHandleValidate(
-    _In_    OSHandle_t* registration,
-    _In_    uint64_t    callerGroupID,
-    _In_    uuid_t      referenceID,
-    _In_    uint32_t    requiredAccess,
-    _Out_   uuid_t*     resourceIDOut)
+    _In_  OSHandle_t* registration,
+    _In_  uint64_t    callerGroupID,
+    _In_  uuid_t      referenceID,
+    _In_  uint32_t    requiredAccess,
+    _Out_ uuid_t*     resourceIDOut)
 {
     if (registration == NULL) {
         return OS_EINVALPARAMS;

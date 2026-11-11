@@ -77,11 +77,13 @@ typedef struct SystemCpu {
 #define SYSTEM_CPU_INIT { { 0 }, { 0 }, 0, NULL, NULL }
 
 /**
- * @brief Initializes the processor environment for the calling processor, this also
- * sets the calling TXU as the boot-TXU and initializes static data for this.
+ * @brief Sets up the boot processor and registers its first core.
  *
- * @param[In] cpu  A pointer to the CPU structure that should be initialized.
- * @param[In] core A pointer to the PerCpu structure that should be pre-allocated before this call.
+ * Call during platform startup with both records allocated. The architecture code
+ * fills in the processor details and core ID before the core is added to the table.
+ *
+ * @param cpu Processor record to initialize.
+ * @param core Preallocated record for the calling boot core.
  */
 KERNELAPI void KERNELABI
 CpuInitializePlatform(
@@ -96,9 +98,15 @@ KERNELAPI void KERNELABI
 CpuEnableMultiProcessorMode(void);
 
 /**
- * @brief Registers a new cpu application core for the given cpu. The core count and the
- * application-core will be initialized on first call to this function. This also allocates a 
- * new instance of the cpu-core.
+ * @brief Allocates and registers another core in a processor's core list.
+ *
+ * Call during processor discovery after the boot core has been installed and the
+ * processor reports multiple cores. coreId must be unused and below __CPU_MAX_COUNT.
+ *
+ * @param cpu Processor whose core list receives the new record.
+ * @param coreId Hardware core ID used for direct lookup.
+ * @param initialState Core state before startup.
+ * @param external Nonzero for a core outside the current domain.
  */
 KERNELAPI void KERNELABI
 CpuCoreRegister(
@@ -108,24 +116,43 @@ CpuCoreRegister(
         _In_ int              external);
 
 /**
- * @brief Activates the given core and prepares it for usage. This sets up a new
- * scheduler and initializes a new idle thread. This function does never return.
+ * @brief Sets up the calling core's memory space and idle thread, then runs it.
+ *
+ * The core must already be registered and have a working boot stack. Startup
+ * installs per-core data, enables interrupts and scheduling, then enters the idle
+ * loop. A domain's first core also starts the remaining cores in that domain.
+ * Does not return.
  */
 KERNELAPI void KERNELABI
 CpuCoreStart(void);
 
 /**
- * StartApplicationCore (@arch)
- * Initializes and starts the cpu core given. This is called by the kernel if it detects multiple
- * cores in the processor.
+ * @brief Asks the architecture code to start a registered secondary core.
+ *
+ * @param core Core record with the platform startup data already filled in.
  */
 KERNELAPI void KERNELABI
 StartApplicationCore(
     _In_ SystemCpuCore_t* core);
 
 /**
- * TxuMessageSend
- * * Sends a TXU message to the target TXU.
+ * @brief Queues a callback request and sends an interrupt to a registered core.
+ *
+ * Interrupt handlers and the message cache must be initialized. Function and its
+ * Argument must be usable on the target core. Keep any pointed-to data valid until
+ * the callback is done. Delivered is set before the handler runs, so waiting for
+ * it does not guarantee that the callback has finished.
+ *
+ * The message is queued before the interrupt is sent. A delivery error leaves it
+ * queued. Callbacks that release references must still do so if they run later.
+ *
+ * @param CoreId Registered destination core.
+ * @param Type Interrupt and queue to use. CpuFunctionCustom executes Function.
+ * @param Function Callback to invoke on the destination core. Must not be NULL.
+ * @param Argument Value passed to Function without copying pointed-to data.
+ * @param Asynchronous Nonzero to return after sending. Zero waits for the core
+ *                     to take the message, with a bounded wait that logs a timeout.
+ * @return The interrupt delivery status. A wait timeout does not change that status.
  */
 KERNELAPI oserr_t KERNELABI
 TxuMessageSend(
@@ -136,12 +163,18 @@ TxuMessageSend(
         _In_ int                     Asynchronous);
 
 /**
- * ProcessorMessageSend 
- * * Sends a message to an entire processor, and returns the number of TXU's
- * * the function request was successfully sent to.
- * @param ExcludeSelf [In] Whether or not to send the message to the calling TXU.
- * @param Type        [In] The message type
- * @param Message     [In] The message that should be sent
+ * @brief Sends the same callback request to running cores in the current domain.
+ *
+ * Without a current domain, uses the machine's processor core list. The callback
+ * may run on several cores, so shared Argument data needs suitable synchronization.
+ * The data lifetime and completion rules are those of TxuMessageSend.
+ *
+ * @param ExcludeSelf Nonzero to skip the calling core.
+ * @param Type Interrupt and queue to use.
+ * @param Function Callback to send. Must not be NULL.
+ * @param Argument Value passed unchanged to every callback.
+ * @param Asynchronous Nonzero to send without waiting for each core to take its message.
+ * @return Number of sends that returned OS_EOK.
  */
 KERNELAPI int KERNELABI
 ProcessorMessageSend(
@@ -152,24 +185,38 @@ ProcessorMessageSend(
     _In_ int                     Asynchronous);
 
 /**
- * GetProcessorCore
- * Retrieves the cpu core from the given core-id.
+ * @brief Looks up a core in the table populated during processor startup.
+ *
+ * @param coreId Core ID below __CPU_MAX_COUNT.
+ * @return The registered record, or NULL if that table entry is unused.
  */
 KERNELAPI SystemCpuCore_t* KERNELABI
 GetProcessorCore(
         _In_ uuid_t coreId);
 
 /**
- * CpuCoreCurrent
- * Retrieves the cpu core that belongs to calling cpu core.
+ * @brief Looks up the calling core using its hardware core ID.
+ *
+ * @return The core record, or NULL before that core has been registered.
  */
 KERNELAPI SystemCpuCore_t* KERNELABI
 CpuCoreCurrent(void);
 
 /**
- * CpuCoreEnterInterrupt
- * @param InterruptContext  The context of the current interrupt
- * @param InterruptPriority The priority before entering the interrupt
+ * @brief Records an interrupt entry and finishes any thread awaiting stack cleanup.
+ *
+ * Call on a registered core with interrupts disabled, before running its handler.
+ * The outer interrupt saves the register context and previous priority. A nested
+ * interrupt only increases the nesting count, since it may still be using the
+ * stack of the outgoing thread.
+ *
+ * At the next outer entry, the preceding interrupt has returned on the selected
+ * thread's stack. PendingFinish is cleared before ThreadingFinish is called, so
+ * that thread is finished once. Nested interrupts are enabled afterwards when
+ * configured. Pair every entry with CpuCoreExitInterrupt.
+ *
+ * @param InterruptContext Registers saved at interrupt entry.
+ * @param InterruptPriority Priority to restore when this interrupt returns.
  */
 KERNELAPI void KERNELABI
 CpuCoreEnterInterrupt(
@@ -177,23 +224,36 @@ CpuCoreEnterInterrupt(
     _In_ int        InterruptPriority);
 
 /**
- * @brief Defers release of the outgoing thread until after interrupt return.
- * The calling core must have selected a new thread with interrupts disabled.
- * At most one outgoing thread is retained until the next outer interrupt entry.
+ * @brief Records a terminating thread to finish at the next outer interrupt entry.
  *
- * @param core         The calling core.
- * @param threadHandle The outgoing thread handle whose reference is transferred.
+ * Call from ThreadingAdvance on the current core with interrupts disabled, after
+ * selecting the next thread. The outgoing thread must be TERMINATING and removed
+ * from scheduling. Its kernel stack is still used by the current interrupt return,
+ * so releasing the scheduler reference here could allow that stack to be freed.
+ *
+ * Only one thread can wait in PendingFinish. The slot must be empty on entry.
+ * CpuCoreEnterInterrupt clears it and calls ThreadingFinish once the old stack is
+ * unused. This call adds no reference.
+ *
+ * @param core The calling core.
+ * @param threadHandle Outgoing thread ID. The core becomes responsible for passing
+ *                     its existing scheduler reference to ThreadingFinish.
  */
 KERNELAPI void KERNELABI
-CpuCoreTerminateThread(
+CpuCoreDeferFinish(
     _In_ SystemCpuCore_t* core,
     _In_ uuid_t           threadHandle);
 
 /**
- * CpuCoreExitInterrupt
- * @param InterruptContext  The context of the current interrupt
- * @param InterruptPriority The priority before entering the interrupt
- * @return                  The context that should be switched to
+ * @brief Leaves an interrupt and selects the register context to restore.
+ *
+ * Must match an earlier CpuCoreEnterInterrupt on this core. A nested return uses
+ * its supplied context and priority. The outer return uses the core's saved
+ * context, which the scheduler may have changed to run another thread.
+ *
+ * @param InterruptContext Registers saved for this interrupt.
+ * @param InterruptPriority Priority saved before this interrupt.
+ * @return Context for the architecture code to restore during interrupt return.
  */
 KERNELAPI Context_t* KERNELABI
 CpuCoreExitInterrupt(
@@ -201,18 +261,23 @@ CpuCoreExitInterrupt(
     _In_ int        InterruptPriority);
 
 /**
- * CpuCorePopQueuedIpc
- * @param cpuCore A pointer to a cpu core structure
- * @return        The next IPC structure that has been queued, or NULL if none
+ * @brief Removes the next custom callback message from a core's queue.
+ *
+ * @param cpuCore Core whose CpuFunctionCustom queue is read, or NULL.
+ * @return The message's list element, or NULL for an empty queue or NULL core.
  */
 KERNELAPI element_t* KERNELABI
 CpuCorePopQueuedIpc(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreQueueIpc
- * @param cpuCore A pointer to a cpu core structure
- * @param element A pointer to the element header of the IPC message
+ * @brief Adds a message to the selected core queue without sending an interrupt.
+ *
+ * Keep the message allocated until the destination has processed it.
+ *
+ * @param cpuCore Destination core. NULL does nothing.
+ * @param functionType Queue index below CpuFunctionCount.
+ * @param element Message list element to insert.
  */
 KERNELAPI void KERNELABI
 CpuCoreQueueIpc(
@@ -221,18 +286,20 @@ CpuCoreQueueIpc(
         _In_ element_t*              element);
 
 /**
- * CpuCoreId
- * @param cpuCore A pointer to a cpu core structure
- * @return        The id of the cpu core instance
+ * @brief Reads the hardware core ID stored during registration.
+ *
+ * @param cpuCore Core to inspect, or NULL.
+ * @return The core ID, or UUID_INVALID for NULL.
  */
 KERNELAPI uuid_t KERNELABI
 CpuCoreId(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreSetState
- * @param cpuCore A pointer to a cpu core structure
- * @param cpuState   The new state of the cpu core
+ * @brief Replaces the stored core state and its status bits.
+ *
+ * @param cpuCore Core to update. NULL does nothing.
+ * @param cpuState Complete new state, including any status bits to keep.
  */
 KERNELAPI void KERNELABI
 CpuCoreSetState(
@@ -240,38 +307,42 @@ CpuCoreSetState(
         _In_ SystemCpuState_t cpuState);
 
 /**
- * CpuCoreState
- * @param cpuCore A pointer to a cpu core structure
- * @return        The current cpu core state
+ * @brief Reads the stored core state and status bits.
+ *
+ * @param cpuCore Core to inspect, or NULL.
+ * @return The state, or CpuStateUnavailable for NULL.
  */
 KERNELAPI SystemCpuState_t KERNELABI
 CpuCoreState(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * @brief Retrieves the next core link. Can be used to iterate through cores on a processor.
+ * @brief Reads the next core in the processor's linked list.
  *
- * @param cpuCore A pointer to a cpu core structure
- * @return        A pointer to the next cpu core in the cpu
+ * @param cpuCore Current core, or NULL.
+ * @return The next core, or NULL at the end of the list or for NULL input.
  */
 KERNELAPI SystemCpuCore_t* KERNELABI
 CpuCoreNext(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * @brief Retrieves the platform specific core data block
+ * @brief Reads the architecture-specific data stored inside a core record.
  *
- * @param[In] cpuCore A pointer to a cpu core structure
- * @return    A pointer to the platform cpu core block structure.
+ * @param cpuCore Core to inspect, or NULL.
+ * @return Pointer to its platform data, or NULL. The core record contains the storage.
  */
 KERNELAPI PlatformCpuCoreBlock_t* KERNELABI
 CpuCorePlatformBlock(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreSetPriority
- * @param cpuCore A pointer to a cpu core structure
- * @param priority The new priority of the cpu core
+ * @brief Stores the priority to apply when leaving the outer interrupt.
+ *
+ * This updates the core record. It does not immediately change interrupt hardware.
+ *
+ * @param cpuCore Core to update. NULL does nothing.
+ * @param priority Priority value to store.
  */
 KERNELAPI void KERNELABI
 CpuCoreSetPriority(
@@ -279,17 +350,24 @@ CpuCoreSetPriority(
         _In_ int              priority);
 
 /**
- * CpuCorePriority
- * @param cpuCore A pointer to a cpu core structure
- * @return        The current cpu core priority
+ * @brief Reads the priority stored for interrupt return.
+ *
+ * @param cpuCore Core to inspect, or NULL.
+ * @return The stored priority, or zero for NULL.
  */
 KERNELAPI int KERNELABI
 CpuCorePriority(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreSetCurrentThread
- * @param cpuCore A pointer to a cpu core structure
+ * @brief Records the selected thread and its scheduler priority.
+ *
+ * Call during startup or scheduling while the core cannot switch threads. This
+ * sets the software record. The scheduler must also install the thread's address
+ * space and register context before returning from the interrupt.
+ *
+ * @param cpuCore Core to update. NULL does nothing.
+ * @param thread Selected thread with an existing scheduler reference.
  */
 KERNELAPI void KERNELABI
 CpuCoreSetCurrentThread(
@@ -297,36 +375,46 @@ CpuCoreSetCurrentThread(
         _In_ Thread_t*        thread);
 
 /**
- * CpuCoreCurrentThread
- * @param cpuCore A pointer to a cpu core structure
- * @return        A pointer to the current thread instance
+ * @brief Reads the thread currently selected on a core.
+ *
+ * The pointer adds no reference and can change on the next scheduling step.
+ * Callers inspecting another core must keep the result valid while using it.
+ *
+ * @param cpuCore Core to inspect, or NULL.
+ * @return Selected thread, or NULL before threading starts or for NULL input.
  */
 KERNELAPI Thread_t* KERNELABI
 CpuCoreCurrentThread(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreIdleThread
- * @param cpuCore A pointer to a cpu core structure
- * @return        A pointer to the idle thread of the cpu core
+ * @brief Reads the idle thread record stored inside a core.
+ *
+ * @param cpuCore Core to inspect, or NULL.
+ * @return Pointer to the embedded record, or NULL. ThreadingEnable initializes it.
  */
 KERNELAPI Thread_t* KERNELABI
 CpuCoreIdleThread(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreScheduler
- * @param cpuCore A pointer to a cpu core structure
- * @return        A pointer to the cpu core's scheduler
+ * @brief Reads the scheduler data stored inside a core.
+ *
+ * @param cpuCore Core to inspect, or NULL.
+ * @return Pointer to the embedded scheduler, or NULL.
  */
 KERNELAPI Scheduler_t* KERNELABI
 CpuCoreScheduler(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * CpuCoreSetInterruptContext
- * @param cpuCore A pointer to a cpu core structure
- * @param context A pointer to the new interrupt context
+ * @brief Selects the saved registers to restore on the outer interrupt return.
+ *
+ * Call while handling an interrupt on this core, with scheduling changes protected
+ * by disabling interrupts. This can select a different thread's saved context.
+ *
+ * @param cpuCore Core to update. NULL does nothing.
+ * @param context Saved register context to install for return.
  */
 KERNELAPI void KERNELABI
 CpuCoreSetInterruptContext(
@@ -334,9 +422,10 @@ CpuCoreSetInterruptContext(
         _In_ Context_t*       context);
 
 /**
- * CpuCoreInterruptContext
- * @param cpuCore A pointer to a cpu core structure
- * @return        A pointer to the current threads interrupt context
+ * @brief Reads the context selected for the outer interrupt return.
+ *
+ * @param cpuCore Core to inspect, or NULL.
+ * @return Saved register context, or NULL outside an outer interrupt or for NULL input.
  */
 KERNELAPI Context_t* KERNELABI
 CpuCoreInterruptContext(

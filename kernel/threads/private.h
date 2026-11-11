@@ -50,6 +50,32 @@ typedef struct ThreadSignals {
     unsigned int    Mask;
 } ThreadSignals_t;
 
+/**
+ * @brief Execution state stored in Thread_t::State. Creation starts at
+ * INITIALIZING, then __MarkThreadReady sets RUNNING. A termination request can
+ * replace either state with TERMINATING. ThreadingFinish sets FINISHED once the
+ * stack is unused. The global handle's references separately control cleanup.
+ * Compare named states explicitly. Their numeric values are not in time order,
+ * and RUNNING is zero, so a boolean test cannot distinguish completion.
+ */
+enum ThreadState {
+    // Normal execution, including time spent queued or blocked in a wait.
+    ThreadState_RUNNING = 0,
+
+    // Exit has been requested, and the thread may still be running. The
+    // scheduler calls ThreadingFinish once it is no longer queued or using a stack.
+    ThreadState_TERMINATING,
+
+    // The thread cannot run again. Joiners can read RetCode. References may
+    // still keep the record allocated after this state is reached.
+    ThreadState_FINISHED,
+
+    // The thread has a global handle but is not fully built, so lookups by
+    // handle must treat it as missing. A parent can still flag it as
+    // TERMINATING, and its creator must keep that when it queues the thread.
+    ThreadState_INITIALIZING
+};
+
 typedef struct Thread {
     MemorySpace_t*          MemorySpace;
     uuid_t                  MemorySpaceHandle;
@@ -57,19 +83,19 @@ typedef struct Thread {
     Context_t*              ContextActive;
 
     uuid_t                  Handle;
-    uuid_t                  ParentHandle;
+    // The parent handle ID only. No reference is kept.
+    _Atomic(uuid_t)         ParentHandle;
 
     Mutex_t                 SyncObject;
-    Semaphore_t             EventObject;
-    _Atomic(int)            References;
+
+    _Atomic(uuid_t)         JoinTarget;
     UInteger64_t            StartedAt;
     struct Thread*          Children;
     struct Thread*          Sibling;
+    _Atomic(int)            State;
 
-    // configuration data
     const char*             Name;
     unsigned int            Flags;
-    _Atomic(int)            Cleanup;
     uuid_t                  Cookie;
     ThreadEntry_t           Function;
     void*                   Arguments;
@@ -80,17 +106,31 @@ typedef struct Thread {
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     PlatformThreadBlock_t   PlatformData;
 
-    // SyscallContext is used to support asynchronous system calls. When a thread
-    // is forked, this structure must be provided and will be returned to userspace
-    // once the forked thread is done, by signalling the parent thread that we are
-    // done handling the system call.
+    // Completion data supplied to ThreadFork. The copied system call writes its
+    // result here and wakes the userspace waiter before calling ThreadExit.
     OSAsyncContext_t* SyscallContext;
 
-    // Signaling is used to support the per-thread signals and contains
-    // a mask, and a signal queue. The signal queue is then handled on exit
-    // of each system-call, or scheduled directly while the thread is in
-    // userspace.
+    // Pending signals are added to a saved userspace context on system call
+    // return, or by a callback on the target core if it is already in userspace.
     ThreadSignals_t Signaling;
 } Thread_t;
+
+/**
+ * @brief Marks a TERMINATING thread FINISHED, wakes joiners and releases its
+ * scheduler reference. Called only by ThreadingAdvance and CpuCoreEnterInterrupt.
+ *
+ * Preconditions: runs in interrupt context and must not block. The thread is in
+ * no run queue, and its stack is no longer in use on any core. The caller passes
+ * an existing scheduler reference. Do not use the thread after this call without
+ * a separate reference. A final release queues cleanup on the handle janitor.
+ *
+ * If this thread was waiting in ThreadJoin, its JoinTarget reference is released
+ * here as well. That wait will never return to perform its normal cleanup.
+ *
+ * @param threadId The thread to finish.
+ */
+void
+ThreadingFinish(
+    _In_ uuid_t threadId);
 
 #endif //__VALI_THREADING_PRIVATE_H__

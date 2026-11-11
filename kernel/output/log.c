@@ -129,7 +129,8 @@ LogMigrate(
         return OS_EINVALPARAMS;
     }
 
-    // Once this is called, we disable logging.
+    // Hold the log lock while copying so an appended message cannot change the
+    // entries midway through the copy. Logging continues after the lock is released.
     SpinlockAcquireIrq(&g_kernelLog.SyncObject);
 
     // Clamp the number of lines we are going to read
@@ -159,7 +160,6 @@ void
 LogRenderMessages(void)
 {
     OSKernelLogEntry_t* logLine;
-    Thread_t*           thread;
     char                sprintBuffer[256];
     int                 written;
 
@@ -170,15 +170,16 @@ LogRenderMessages(void)
         if (g_kernelLog.RenderIndex == g_kernelLog.NumberOfLines) {
             g_kernelLog.RenderIndex = 0;
         }
-        thread = THREAD_GET(logLine->ThreadID);
-
+        // The thread may have finished since this entry was written. Print its
+        // recorded numeric ID so rendering needs no live thread record and cannot
+        // try to take a handle-table lock already held by the code that logged.
         VideoGetTerminal()->FgColor = g_typeColors[(int)logLine->Level];
         written = snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
-                           "%09llu [%s-%u-%s] %s\n",
+                           "%09llu [%s-%u-%u] %s\n",
                            logLine->Timestamp,
                            g_typeNames[(int)logLine->Level],
                            logLine->CoreID,
-                           thread ? ThreadName(thread) : "boot",
+                           logLine->ThreadID,
                            &logLine->Message[0]
         );
         sprintBuffer[written] = '\0';

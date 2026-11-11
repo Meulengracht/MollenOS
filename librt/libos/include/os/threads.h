@@ -37,10 +37,10 @@ _CODE_BEGIN
  */
 CRTDECL(oserr_t,
 ThreadsCreate(
-        _Out_ uuid_t*               threadId,
-        _In_  OSThreadParameters_t* parameters,
-        _In_  ThreadEntry_t         function,
-        _In_  void*                 argument));
+    _Out_ uuid_t*               threadId,
+    _In_  OSThreadParameters_t* parameters,
+    _In_  ThreadEntry_t         function,
+    _In_  void*                 argument));
 
 /**
  *
@@ -49,7 +49,7 @@ ThreadsCreate(
  */
 CRTDECL(void,
 ThreadParametersInitialize(
-        _In_ OSThreadParameters_t* parameters));
+    _In_ OSThreadParameters_t* parameters));
 
 /**
  * @brief First, for every thread-specific storage key which was created with a non-null
@@ -98,8 +98,8 @@ ThreadsCurrentId(void));
  */
 CRTDECL(oserr_t,
 ThreadsSleep(
-        _In_      const OSTimestamp_t* until,
-        _Out_Opt_ OSTimestamp_t*       remaining));
+    _In_      const OSTimestamp_t* until,
+    _Out_Opt_ OSTimestamp_t*       remaining));
 
 /**
  * @brief rovides a hint to the to reschedule the execution of the current thread,
@@ -116,21 +116,23 @@ ThreadsYield(void));
  */
 CRTDECL(oserr_t,
 ThreadsDetach(
-        _In_ uuid_t threadId));
+    _In_ uuid_t threadId));
 
 /**
  * @brief Blocks the current thread until the thread identified by thr finishes execution.
  * If res is not a null pointer, the result code of the thread is put to the location pointed to by res.
  * The termination of the thread synchronizes-with the completion of this function.
  * The behavior is undefined if the thread was previously detached or joined by another thread.
+ * The target must still exist when the call starts. Thread IDs do not preserve
+ * completed threads; joining an ID that has disappeared returns OS_ENOENT.
  * @param threadId Identifier of the thread to join.
  * @param exitCode Receives the thread's exit code.
  * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ThreadsJoin(
-        _In_  uuid_t threadId,
-        _Out_ int*   exitCode));
+    _In_  uuid_t threadId,
+    _Out_ int*   exitCode));
 
 /**
  * @brief nvokes a signal on the given thread id, for security reasons
@@ -141,8 +143,8 @@ ThreadsJoin(
  */
 CRTDECL(oserr_t,
 ThreadsSignal(
-        _In_ uuid_t threadId,
-        _In_ int    signal));
+    _In_ uuid_t threadId,
+    _In_ int    signal));
 
 /**
  * @brief Sets the name of the calling thread.
@@ -151,7 +153,7 @@ ThreadsSignal(
  */
 CRTDECL(oserr_t,
 ThreadsSetName(
-        _In_ const char* name));
+    _In_ const char* name));
 
 /**
  * @brief Retrieves the name of the calling thread.
@@ -161,8 +163,8 @@ ThreadsSetName(
  */
 CRTDECL(oserr_t,
 ThreadsGetName(
-        _In_ char*  buffer,
-        _In_ size_t maxLength));
+    _In_ char*  buffer,
+    _In_ size_t maxLength));
 
 _CODE_END
 #endif //!__OS_THREADS_H__

@@ -65,10 +65,12 @@ __ConstructCpuCore(
     // zero out the entire structure first
     memset(core, 0, sizeof(SystemCpuCore_t));
 
-    core->Id                = coreId;
-    core->State             = state;
-    core->External          = external;
-    core->TerminatingThread = UUID_INVALID;
+    // Clearing the structure does not set UUID_INVALID. Set the empty finish
+    // slot explicitly before the first interrupt can inspect it.
+    core->Id            = coreId;
+    core->State         = state;
+    core->External      = external;
+    core->PendingFinish = UUID_INVALID;
 
     // Scheduler  = { 0 } TODO SchedulerConstruct
     queue_construct(&core->FunctionQueue[0]);
@@ -175,8 +177,8 @@ CpuCoreStart(void)
     ThreadingEnable(cpuCore);
     
 #if !defined(__aarch64__)
-    // ThreadingEnable has no current thread to inherit from on an AP. Retain
-    // the private space we installed, so scheduling back to idle restores it.
+    // ThreadingEnable has no current thread to inherit from on a secondary core.
+    // Keep the private space we installed so scheduling back to idle restores it.
     cpuCore->IdleThread.MemorySpace = MEMORYSPACE_GET(memorySpace);
     cpuCore->IdleThread.MemorySpaceHandle = memorySpace;
 #endif
@@ -257,7 +259,7 @@ CpuCoreEnterInterrupt(
     _In_ int        InterruptPriority)
 {
     SystemCpuCore_t* core = CpuCoreCurrent();
-    uuid_t           terminatingThread;
+    uuid_t           pendingFinish;
 
     if (!core->InterruptNesting) {
         InterruptSetActiveStatus(1);
@@ -266,14 +268,15 @@ CpuCoreEnterInterrupt(
     }
     core->InterruptNesting++;
 
-    // The preceding outer interrupt has returned on its selected stack. Clear
-    // the slot before cleanup, and never reclaim from a nested interrupt that
-    // could still be using the outgoing stack.
+    // Only an outer entry proves the preceding interrupt returned on the new
+    // stack. A nested interrupt may still be using the outgoing thread's stack.
+    // Clear the slot first so the same scheduler reference cannot be released
+    // twice if interrupt handling enters here again.
     if (core->InterruptNesting == 1) {
-        terminatingThread = core->TerminatingThread;
-        core->TerminatingThread = UUID_INVALID;
-        if (terminatingThread != UUID_INVALID) {
-            DestroyHandle(terminatingThread);
+        pendingFinish       = core->PendingFinish;
+        core->PendingFinish = UUID_INVALID;
+        if (pendingFinish != UUID_INVALID) {
+            ThreadingFinish(pendingFinish);
         }
     }
 #ifdef __OSCONFIG_NESTED_INTERRUPTS
@@ -282,13 +285,15 @@ CpuCoreEnterInterrupt(
 }
 
 void
-CpuCoreTerminateThread(
+CpuCoreDeferFinish(
     _In_ SystemCpuCore_t* core,
     _In_ uuid_t           threadHandle)
 {
+    // ThreadingAdvance has selected a new thread, but the CPU still has to leave
+    // the old kernel stack. Keep its scheduler reference until a later outer entry.
     assert(core == CpuCoreCurrent());
-    assert(core->TerminatingThread == UUID_INVALID);
-    core->TerminatingThread = threadHandle;
+    assert(core->PendingFinish == UUID_INVALID);
+    core->PendingFinish = threadHandle;
 }
 
 Context_t*

@@ -15,7 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Memory related system call implementations
+ * Memory system calls. Token attachment and changes to an existing shared-memory
+ * handle use kernel copies of user structures. Calls that inspect another thread's
+ * space require CAPABILITY_MEMORYSPACE_MANAGEMENT and hold a thread reference
+ * until they have finished reading or mapping that space.
  */
 
 #define __MODULE "sc_mem"
@@ -28,6 +31,7 @@
 #include <capabilities.h>
 #include <debug.h>
 #include <handles/handle.h>
+#include <handles/global.h>
 #include <heap.h>
 #include <memoryspace.h>
 #include <shm/shm.h>
@@ -286,7 +290,7 @@ ScSHMAttachToken(
         return status;
     }
 
-    status = SHMAttachToken(&tokenCopy, &result);
+    status = SHMAttachToken(&tokenCopy, NULL, &result);
     if (status != OS_EOK) {
         return status;
     }
@@ -467,12 +471,19 @@ ScGetThreadMemorySpaceHandle(
         return oserr;
     }
 
-    thread = THREAD_GET(threadHandle);
-    if (thread != NULL) {
-        *handleOut = ThreadMemorySpaceHandle(thread);
-        return OS_EOK;
+    oserr = AcquireGlobalHandle(threadHandle, HandleTypeThread, (void**)&thread);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    return OS_ENOENT;
+
+    // A global thread ID exists before its memory space is ready for callers.
+    if (ThreadMemorySpace(thread) == NULL) {
+        oserr = OS_ENOENT;
+    } else {
+        *handleOut = ThreadMemorySpaceHandle(thread);
+    }
+    ReleaseGlobalHandle(threadHandle);
+    return oserr;
 }
 
 oserr_t
@@ -575,12 +586,18 @@ ScMapThreadMemoryRegion(
         return status;
     }
 
-    thread = THREAD_GET(threadHandle);
-    if (!thread) {
+    status = AcquireGlobalHandle(threadHandle, HandleTypeThread, (void**)&thread);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    if (ThreadMemorySpace(thread) == NULL) {
+        ReleaseGlobalHandle(threadHandle);
         return OS_ENOENT;
     }
 
-    // Map in the first page of the stack
+    // Map two pages so bytes above the supplied address can be inspected even
+    // when it is near a page boundary. Keep the thread referenced through the clone.
     status = MemorySpaceCloneMapping(
         ThreadMemorySpace(thread),
         GetCurrentMemorySpace(),
@@ -590,6 +607,7 @@ ScMapThreadMemoryRegion(
         MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
         MAPPING_VIRTUAL_PROCESS
     );
+    ReleaseGlobalHandle(threadHandle);
     if (status != OS_EOK) {
         return status;
     }

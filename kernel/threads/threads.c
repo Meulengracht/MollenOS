@@ -15,9 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Threading Interface
- * - Common routines that are platform independant to provide
- *   a flexible and generic threading platfrom
+ * Thread creation, scheduling and exit shared by the supported architectures.
+ * Public calling rules are in threading.h. State and reference handling are
+ * described in lifecycle.md beside this file.
  */
 
 #define __MODULE "thread"
@@ -25,6 +25,7 @@
 //#define __OSCONFIG_DEBUG_SCHEDULER
 #define __need_quantity
 
+#include <arch/interrupts.h>
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <assert.h>
@@ -32,8 +33,11 @@
 #include <component/timer.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
+#include <futex.h>
+#include <handles/global.h>
 #include <handles/handle.h>
 #include <heap.h>
+#include <limits.h>
 #include <memoryspace.h>
 #include <string.h>
 #include <stdio.h>
@@ -43,6 +47,7 @@
 
 _Noreturn static void __ThreadStart(void);
 static void    __DestroyThread(void* resource);
+static void    __AbortThreadCreation(Thread_t* thread);
 static oserr_t __CreateThreadContexts(Thread_t* thread);
 static oserr_t __InitializeDefaultsForThread(Thread_t* thread, const char* name,
                                                  ThreadEntry_t threadEntry, void* arguments,
@@ -52,10 +57,12 @@ static size_t __GetDefaultStackSize(unsigned int threadFlags);
 static uuid_t __CreateCookie(Thread_t* thread, Thread_t* parent);
 static void   __AddChild(Thread_t* parent, Thread_t* child);
 static void   __RemoveChild(Thread_t* parent, Thread_t* child);
+static void   __MarkThreadReady(Thread_t* thread);
+static int    __RequestTermination(Thread_t* thread);
 
 void
 ThreadingEnable(
-        _In_ SystemCpuCore_t* cpuCore)
+    _In_ SystemCpuCore_t* cpuCore)
 {
     Thread_t* thread;
     oserr_t   oserr;
@@ -64,13 +71,13 @@ ThreadingEnable(
 
     thread = CpuCoreIdleThread(cpuCore);
     oserr = __InitializeDefaultsForThread(
-            thread,
-            "idle",
-            NULL,
-            NULL,
-            THREADING_KERNELMODE | THREADING_IDLE,
-            THREADING_KERNEL_STACK_SIZE,
-            0
+        thread,
+        "idle",
+        NULL,
+        NULL,
+        THREADING_KERNELMODE | THREADING_IDLE,
+        THREADING_KERNEL_STACK_SIZE,
+        0
     );
     if (oserr != OS_EOK) {
         assert(0);
@@ -80,33 +87,38 @@ ThreadingEnable(
     // be setup according to the current stack.
     thread->Contexts[THREADING_CONTEXT_LEVEL0] = ArchThreadContextIdle();
 
-    // Handle setup of memory space as that is not covered.
+    // Startup already installed this core's memory space. The idle thread uses
+    // it directly and keeps the boot stack rather than allocating a new one.
     thread->MemorySpace       = GetCurrentMemorySpace();
     thread->MemorySpaceHandle = GetCurrentMemorySpaceHandle();
+    __MarkThreadReady(thread);
     CpuCoreSetCurrentThread(CpuCoreCurrent(), thread);
 }
 
+// The parent must stay referenced throughout this call. A successful copy of a
+// valid space handle adds a reference that __DestroyThread releases later.
 static oserr_t
 __InheritAddressSpace(
-        _In_ Thread_t* parent,
-        _In_ Thread_t* thread)
+    _In_ Thread_t* parent,
+    _In_ Thread_t* thread)
 {
     MemorySpace_t* memorySpace;
     oserr_t        oserr;
 
-    // Idle threads have no memory space handle, just the root (domain) memory
-    // space. Instead of acquiring it (which we don't need), we just proxy it
-    // and use the same setup
+    // A parent with no space handle uses the domain's kernel memory space.
+    // That space stays allocated independently of individual threads.
     if (parent->MemorySpaceHandle == UUID_INVALID) {
         thread->MemorySpace       = GetDomainMemorySpace();
         thread->MemorySpaceHandle = UUID_INVALID;
         return OS_EOK;
     }
 
-    oserr = AcquireHandle(
-            parent->MemorySpaceHandle,
-            HandleTypeMemorySpace,
-            (void**)&memorySpace
+    // The parent already keeps this space allocated. Add the child's reference
+    // directly, without depending on permission in the current process handle table.
+    oserr = AcquireGlobalHandle(
+        parent->MemorySpaceHandle,
+        HandleTypeMemorySpace,
+        (void**)&memorySpace
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -117,9 +129,11 @@ __InheritAddressSpace(
     return OS_EOK;
 }
 
+// The thread handle must already exist. Failure leaves Name as NULL so creation
+// can use the same cleanup path as a failed copy of a caller-supplied name.
 static void
 __SetDefaultName(
-        _In_ Thread_t* thread)
+    _In_ Thread_t* thread)
 {
     char buffer[16];
     memset(&buffer[0], 0, sizeof(buffer));
@@ -137,7 +151,7 @@ static unsigned int __InheritThreadFlags(unsigned int flags)
 
 oserr_t
 ThreadFork(
-        _In_ OSAsyncContext_t* asyncContext)
+    _In_ OSAsyncContext_t* asyncContext)
 {
     Thread_t* parent;
     Thread_t* thread;
@@ -151,8 +165,8 @@ ThreadFork(
         return OS_EFORKED;
     }
 
-    // Set the return code to non-zero, so when the thread resumes from
-    // GetContext, we catch this
+    // The copied stack resumes at GetContext. Give that return a nonzero result
+    // so the new thread returns OS_EFORKED instead of creating another copy.
     CONTEXT_SC_RET0(&returnContext) = 1;
 
     // Create new thread structure
@@ -162,54 +176,71 @@ ThreadFork(
     }
     memset(thread, 0, sizeof(Thread_t));
     MutexConstruct(&thread->SyncObject, MUTEX_FLAG_PLAIN);
-    SemaphoreConstruct(&thread->EventObject, 0, 1);
-    thread->References = 0;
+    thread->Handle = UUID_INVALID;
+    thread->ParentHandle = UUID_INVALID;
+    thread->MemorySpaceHandle = UUID_INVALID;
+    thread->JoinTarget = UUID_INVALID;
+    thread->State = ThreadState_INITIALIZING;
 
     // Get current stack pointer, get top of stack, clone it.
     parent = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    thread->KernelStackSize = parent->KernelStackSize;
+    
     oserr = ArchThreadContextFork(
-            parent->Contexts[THREADING_CONTEXT_LEVEL0],
-            &returnContext,
-            THREADING_CONTEXT_LEVEL0,
-            parent->KernelStackSize,
-            &thread->Contexts[THREADING_CONTEXT_LEVEL0],
-            &thread->ContextActive
+        parent->Contexts[THREADING_CONTEXT_LEVEL0],
+        &returnContext,
+        THREADING_CONTEXT_LEVEL0,
+        parent->KernelStackSize,
+        &thread->Contexts[THREADING_CONTEXT_LEVEL0],
+        &thread->ContextActive
     );
     if (oserr != OS_EOK) {
+        __AbortThreadCreation(thread);
         return oserr;
     }
 
-    thread->Handle = CreateHandle(
-            HandleTypeThread,
-            NULL,
-            __DestroyThread,
-            thread
+    // This first reference becomes the scheduler reference when the thread is
+    // queued. Until then, __AbortThreadCreation releases it if setup fails.
+    thread->Handle = CreateGlobalHandle(
+        HandleTypeThread,
+        __DestroyThread,
+        thread
     );
+    if (thread->Handle == UUID_INVALID) {
+        __AbortThreadCreation(thread);
+        return OS_EOOM;
+    }
 
     oserr = streambuffer_create(
-            sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
-            STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
-            &thread->Signaling.Signals
+        sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
+        STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
+        &thread->Signaling.Signals
     );
     if (oserr != OS_EOK) {
-        __DestroyThread(thread);
+        __AbortThreadCreation(thread);
         return OS_EOOM;
     }
 
     __SetDefaultName(thread);
     if (!thread->Name) {
-        __DestroyThread(thread);
+        __AbortThreadCreation(thread);
         return OS_EOOM;
     }
 
     thread->SchedulerObject = SchedulerCreateObject(thread, parent->Flags | THREADING_FORKED);
+    if (thread->SchedulerObject == NULL) {
+        __AbortThreadCreation(thread);
+        return OS_EOOM;
+    }
+
     oserr = ArchThreadInitialize(thread);
     if (oserr != OS_EOK) {
-        __DestroyThread(thread);
+        __AbortThreadCreation(thread);
         return oserr;
     }
 
-    // Inherit all the following
+    // Keep the copied system call's entry data and completion pointer. The new
+    // thread continues in kernel mode, even when its parent started in userspace.
     thread->Function        = parent->Function;
     thread->Arguments       = parent->Arguments;
     thread->Flags           = __InheritThreadFlags(parent->Flags) | THREADING_FORKED;
@@ -222,15 +253,17 @@ ThreadFork(
     // Inherit the same address space, even if an application.
     oserr = __InheritAddressSpace(parent, thread);
     if (oserr != OS_EOK) {
-        __DestroyThread(thread);
+        __AbortThreadCreation(thread);
         return oserr;
     }
 
-    // Schedule the thread
+    // Adding the child lets a parent termination request find it. Keep a request
+    // made during that window when marking the thread ready, then queue it anyway.
     __AddChild(parent, thread);
+    __MarkThreadReady(thread);
     TRACE("ThreadFork new thread %s on core %u",
-          thread->Name,
-          SchedulerObjectGetAffinity(thread->SchedulerObject)
+        thread->Name,
+        SchedulerObjectGetAffinity(thread->SchedulerObject)
     );
     SchedulerQueueObject(thread->SchedulerObject);
     return OS_EOK;
@@ -238,19 +271,22 @@ ThreadFork(
 
 oserr_t
 ThreadCreate(
-        _In_ const char*   name,
-        _In_ ThreadEntry_t entry,
-        _In_ void*         arguments,
-        _In_ unsigned int  flags,
-        _In_ uuid_t        memorySpaceHandle,
-        _In_ size_t        kernelMaxStackSize,
-        _In_ size_t        userMaxStackSize,
-        _In_ uuid_t*       handle)
+    _In_ const char*   name,
+    _In_ ThreadEntry_t entry,
+    _In_ void*         arguments,
+    _In_ unsigned int  flags,
+    _In_ uuid_t        memorySpaceHandle,
+    _In_ size_t        kernelMaxStackSize,
+    _In_ size_t        userMaxStackSize,
+    _In_ uuid_t*       handle)
 {
-    Thread_t* thread;
-    Thread_t* parent;
-    uuid_t    coreId;
-    oserr_t   oserr;
+    Thread_t*      thread;
+    Thread_t*      parent;
+    MemorySpace_t* memorySpace;
+    uuid_t         coreId;
+    uuid_t         securityGroupID;
+    unsigned int   memorySpaceFlags = 0;
+    oserr_t        oserr;
 
     TRACE("ThreadCreate(name=%s, entry=0x%" PRIxIN ", argments=0x%" PRIxIN ", flags=0x%x, memorySpaceHandle=%u"
           "kernelMaxStackSize=%" PRIuIN ", userMaxStackSize=%" PRIuIN ")",
@@ -265,22 +301,22 @@ ThreadCreate(
     }
 
     oserr = __InitializeDefaultsForThread(
-            thread,
-            name,
-            entry,
-            arguments,
-            flags,
-            kernelMaxStackSize,
-            userMaxStackSize
+        thread,
+        name,
+        entry,
+        arguments,
+        flags,
+        kernelMaxStackSize,
+        userMaxStackSize
     );
     if (oserr != OS_EOK) {
-        __DestroyThread(thread);
+        __AbortThreadCreation(thread);
         return oserr;
     }
 
     oserr = __CreateThreadContexts(thread);
     if (oserr != OS_EOK) {
-        __DestroyThread(thread);
+        __AbortThreadCreation(thread);
         return oserr;
     }
     
@@ -293,17 +329,18 @@ ThreadCreate(
         thread->Cookie = __CreateCookie(thread, parent);
     }
 
-    // Is a memory space given to us that we should run in? Determine run mode automatically
+    // An explicit space is used only when inheritance is disabled. Application
+    // spaces also set the thread's user-mode flag.
     if (!(flags & THREADING_INHERIT) && memorySpaceHandle != UUID_INVALID) {
-        MemorySpace_t* memorySpace;
-
-        oserr = AcquireHandle(
-                memorySpaceHandle,
-                HandleTypeMemorySpace,
-                (void**)&memorySpace
+        // Check the caller's permission, then add a kernel reference to the space.
+        // The janitor releases it later while running in a different process.
+        oserr = AcquireHandleReference(
+            memorySpaceHandle,
+            HandleTypeMemorySpace,
+            (void**)&memorySpace
         );
         if (oserr != OS_EOK) {
-            __DestroyThread(thread);
+            __AbortThreadCreation(thread);
             return oserr;
         }
 
@@ -317,9 +354,6 @@ ThreadCreate(
             thread->MemorySpace       = GetDomainMemorySpace();
             thread->MemorySpaceHandle = UUID_INVALID;
         } else {
-            uuid_t       securityGroupID;
-            unsigned int memorySpaceFlags = 0;
-
             if (THREADING_RUNMODE(flags) == THREADING_USERMODE) {
                 memorySpaceFlags |= MEMORY_SPACE_APPLICATION;
             }
@@ -329,14 +363,26 @@ ThreadCreate(
 
             oserr = CreateMemorySpace(
                 memorySpaceFlags,
-                &thread->MemorySpaceHandle,
+                &memorySpaceHandle,
                 &securityGroupID
             );
             if (oserr != OS_EOK) {
-                __DestroyThread(thread);
+                __AbortThreadCreation(thread);
                 return OS_EUNKNOWN;
             }
-            thread->MemorySpace = MEMORYSPACE_GET(thread->MemorySpaceHandle);
+            // Keep a kernel reference before dropping the handle created for the
+            // caller. The thread must still have its space after the caller exits.
+            oserr = AcquireHandleReference(
+                memorySpaceHandle,
+                HandleTypeMemorySpace,
+                (void**)&thread->MemorySpace
+            );
+            DestroyHandle(memorySpaceHandle);
+            if (oserr != OS_EOK) {
+                __AbortThreadCreation(thread);
+                return oserr;
+            }
+            thread->MemorySpaceHandle = memorySpaceHandle;
         }
     }
 
@@ -345,43 +391,66 @@ ThreadCreate(
     }
 
     TRACE("[ThreadCreate] new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
-    SchedulerQueueObject(thread->SchedulerObject);
+    // The ID is published only after construction. Once queued on another CPU,
+    // the thread may finish and disappear before this function returns.
     *handle = thread->Handle;
+    __MarkThreadReady(thread);
+    SchedulerQueueObject(thread->SchedulerObject);
     return OS_EOK;
 }
 
 oserr_t
 ThreadDetach(
-        _In_ uuid_t ThreadId)
+    _In_ uuid_t threadId)
 {
-    Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    Thread_t* target = THREAD_GET(ThreadId);
-    oserr_t   oserr = OS_ENOENT;
+    Thread_t* current = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    Thread_t* target;
+    Thread_t* parent;
+    uuid_t    parentId;
+    oserr_t   oserr;
 
-    if (target == NULL) {
+    oserr = AcquireGlobalHandle(threadId, HandleTypeThread, (void**)&target);
+    if (oserr != OS_EOK) {
         return oserr;
     }
-    
-    // Detach is allowed if the caller is the spawner or the caller is in same process
-    oserr = AreMemorySpacesRelated(thread->MemorySpace, target->MemorySpace);
-    if (target->ParentHandle == thread->Handle || oserr == OS_EOK) {
-        Thread_t* Parent = THREAD_GET(target->ParentHandle);
-        if (Parent) {
-            __RemoveChild(Parent, target);
-        }
-        target->ParentHandle = UUID_INVALID;
-        oserr = OS_EOK;
+    if (atomic_load(&target->State) == ThreadState_INITIALIZING) {
+        oserr = OS_ENOENT;
+        goto exit;
     }
+
+    // Detach is allowed for the creator or a thread sharing the target's process
+    // memory group. Holding a reference only keeps the record allocated.
+    parentId = atomic_load(&target->ParentHandle);
+    oserr = AreMemorySpacesRelated(current->MemorySpace, target->MemorySpace);
+    if (parentId != current->Handle && oserr != OS_EOK) {
+        goto exit;
+    }
+
+    if (AcquireGlobalHandle(parentId, HandleTypeThread, (void**)&parent) == OS_EOK) {
+        __RemoveChild(parent, target);
+        ReleaseGlobalHandle(parentId);
+    }
+    atomic_store(&target->ParentHandle, UUID_INVALID);
+    oserr = OS_EOK;
+
+exit:
+    ReleaseGlobalHandle(threadId);
     return oserr;
 }
 
+// The thread must stay allocated throughout the walk. Call from thread context,
+// since child mutexes may block. Each parent mutex keeps its child pointers valid
+// while recursive calls take the child mutexes. Existing requests return early,
+// leaving their exit code and any later additions to their child list unchanged.
 static oserr_t
 __TerminateWithChildren(
-        _In_ Thread_t* thread,
-        _In_ int       exitCode)
+    _In_ Thread_t* thread,
+    _In_ int       exitCode)
 {
-    Thread_t* child;
-    int       value;
+    Thread_t*  child;
+    irqstate_t irqState;
+    oserr_t    status;
+    int        state;
 
     TRACE("__TerminateWithChildren(%s, %i)", thread->Name, exitCode);
 
@@ -390,29 +459,38 @@ __TerminateWithChildren(
         return OS_EPERMISSIONS;
     }
 
+    // Only a thread that has not been flagged yet is processed. This includes
+    // a thread that is still initializing, as its creator is about to queue it.
     MutexLock(&thread->SyncObject);
-    value = atomic_load(&thread->Cleanup);
-    if (value) {
+    state = atomic_load(&thread->State);
+    if (state == ThreadState_TERMINATING || state == ThreadState_FINISHED) {
         MutexUnlock(&thread->SyncObject);
         return OS_EOK;
     }
 
     child = thread->Children;
     while (child) {
-        oserr_t Status = __TerminateWithChildren(child, exitCode);
-        if (Status != OS_EOK) {
+        status = __TerminateWithChildren(child, exitCode);
+        if (status != OS_EOK) {
             ERROR("__TerminateWithChildren failed to terminate child %s of %s", child->Name, thread->Name);
         }
         child = child->Sibling;
     }
 
+    // Once TERMINATING is set, a timer can finish the calling thread. Disable
+    // interrupts while setting that state and releasing the mutex. Child processing
+    // above may block, so it needs interrupts enabled. See lifecycle.md for the
+    // remaining case where another thread has already requested our termination.
+    irqState = InterruptDisable();
     thread->RetCode = exitCode;
-    atomic_store(&thread->Cleanup, 1);
+    state = __RequestTermination(thread);
     MutexUnlock(&thread->SyncObject);
+    InterruptRestoreState(irqState);
 
-    // If the thread we are trying to kill is not this one, and is sleeping
-    // we must wake it up, it will be cleaned on next schedule
-    if (thread->Handle != ThreadCurrentHandle()) {
+    // A blocked target needs to become ready so the scheduler can finish it.
+    // The caller yields through ThreadExit or reaches a scheduling interrupt.
+    // An INITIALIZING child still needs its creator to queue it after setup.
+    if (state == ThreadState_RUNNING && thread->Handle != ThreadCurrentHandle()) {
         SchedulerExpediteObject(thread->SchedulerObject);
     }
     return OS_EOK;
@@ -420,89 +498,124 @@ __TerminateWithChildren(
 
 oserr_t
 ThreadTerminate(
-        _In_ uuid_t ThreadId,
-        _In_ int    ExitCode,
-        _In_ int    TerminateChildren)
+    _In_ uuid_t threadId,
+    _In_ int    exitCode)
 {
-    Thread_t* thread = THREAD_GET(ThreadId);
-    int       value;
-    
-    if (!thread) {
-        return OS_ENOENT;
-    }
-    
-    // Never, ever kill system idle threads
-    if (thread->Flags & THREADING_IDLE) {
-        return OS_EPERMISSIONS;
-    }
-    
-    TRACE("ThreadTerminate(%s, %i, %i)", thread->Name, ExitCode, TerminateChildren);
-    
-    MutexLock(&thread->SyncObject);
-    value = atomic_load(&thread->Cleanup);
-    if (value) {
-        MutexUnlock(&thread->SyncObject);
-        return OS_EOK;
+    Thread_t* current = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    Thread_t* thread;
+    oserr_t   oserr;
+
+    // The calling thread must use ThreadExit, which also leaves the CPU. It
+    // already has the scheduler reference, so it never takes the one below.
+    if (threadId == current->Handle) {
+        return OS_EINVALPARAMS;
     }
 
-    if (thread->ParentHandle != UUID_INVALID) {
-        Thread_t* parent = THREAD_GET(thread->ParentHandle);
-        if (!parent) {
-            // Parent does not exist anymore, it was terminated without terminating children
-            // which is very unusal. Log this.
-            WARNING("[terminate_thread] orphaned child terminating %s", thread->Name);
-        }
-        else {
-            __RemoveChild(parent, thread);
-        }
+    oserr = AcquireGlobalHandle(threadId, HandleTypeThread, (void**)&thread);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    if (TerminateChildren) {
-        Thread_t* child = thread->Children;
-        while (child) {
-            oserr_t osStatus = __TerminateWithChildren(child, ExitCode);
-            if (osStatus != OS_EOK) {
-                ERROR("[terminate_thread] failed to terminate child %s of %s", child->Name, thread->Name);
-            }
-            child = child->Sibling;
-        }
+    // A thread that is still being created is not visible by id yet.
+    if (atomic_load(&thread->State) == ThreadState_INITIALIZING) {
+        oserr = OS_ENOENT;
+    } else {
+        oserr = __TerminateWithChildren(thread, exitCode);
     }
-    thread->RetCode = ExitCode;
-    atomic_store(&thread->Cleanup, 1);
-    MutexUnlock(&thread->SyncObject);
 
-    // If the thread we are trying to kill is not this one, and is sleeping
-    // we must wake it up, it will be cleaned on next schedule
-    if (ThreadId != ThreadCurrentHandle()) {
-        SchedulerExpediteObject(thread->SchedulerObject);
-    }
-    return OS_EOK;
+    ReleaseGlobalHandle(threadId);
+    return oserr;
 }
 
-int
-ThreadJoin(
-        _In_ uuid_t ThreadId)
+_Noreturn void
+ThreadExit(
+    _In_ int exitCode)
 {
-    Thread_t* target = THREAD_GET(ThreadId);
-    int       value;
-    
-    if (target != NULL && target->ParentHandle != UUID_INVALID) {
-        MutexLock(&target->SyncObject);
-        value = atomic_load(&target->Cleanup);
-        if (value == 1) {
-            value = target->RetCode;
-            MutexUnlock(&target->SyncObject);
-            return value;
+    Thread_t* current = ThreadCurrentForCore(ArchGetProcessorCoreId());
+
+    // The running thread already has the scheduler reference. Taking another
+    // one would leak, as the scheduler can finish this thread before we return.
+    assert((current->Flags & THREADING_IDLE) == 0);
+    (void)__TerminateWithChildren(current, exitCode);
+
+    // The thread is only flagged here, and keeps running until the scheduler
+    // switches away from it.
+    ArchThreadYield();
+
+    // Catch all, the thread must not escape. If the yield returns without
+    // switching, the next timer tick moves this thread off the CPU.
+    for (;;) { }
+}
+
+oserr_t
+ThreadJoin(
+    _In_  uuid_t threadId,
+    _Out_ int*   exitCode)
+{
+    Thread_t*  current = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    Thread_t*  target;
+    irqstate_t irqState;
+    oserr_t    oserr;
+    int        state;
+
+    if (threadId == current->Handle) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Record the reference before a scheduling interrupt can finish this thread.
+    // If that happens during the wait, ThreadingFinish releases JoinTarget because
+    // execution will never reach the cleanup at the end of this function.
+    irqState = InterruptDisable();
+    oserr = AcquireGlobalHandle(threadId, HandleTypeThread, (void**)&target);
+    if (oserr == OS_EOK) {
+        assert(atomic_load(&current->JoinTarget) == UUID_INVALID);
+        atomic_store(&current->JoinTarget, threadId);
+    }
+    InterruptRestoreState(irqState);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (atomic_load(&target->State) == ThreadState_INITIALIZING) {
+        oserr = OS_ENOENT;
+        goto exit;
+    }
+
+    oserr = AreMemorySpacesRelated(current->MemorySpace, target->MemorySpace);
+    if (oserr != OS_EOK) {
+        goto exit;
+    }
+
+    if (atomic_load(&target->ParentHandle) == UUID_INVALID) {
+        oserr = OS_EINVALPARAMS;
+        goto exit;
+    }
+
+    // FutexWait only sleeps if State still matches the value read here. If the
+    // target finishes between the read and the wait, the changed value prevents
+    // sleeping past the wake. TERMINATING still requires a wait for stack cleanup.
+    for (;;) {
+        state = atomic_load(&target->State);
+        if (state == ThreadState_FINISHED) {
+            *exitCode = target->RetCode;
+            oserr = OS_EOK;
+            break;
         }
 
-        value = atomic_fetch_add(&target->References, 1);
-        MutexUnlock(&target->SyncObject);
-
-        SemaphoreWait(&target->EventObject, NULL);
-        value = atomic_fetch_sub(&target->References, 1);
-        return target->RetCode;
+        oserr = FutexWait(NULL, &target->State, state, 0, NULL, 0, 0, NULL);
+        if (oserr != OS_EOK && oserr != OS_EINTERRUPTED) {
+            break;
+        }
     }
-    return -1;
+
+exit:
+    // Clearing the recorded target and releasing it must complete before a
+    // scheduling interrupt can make ThreadingFinish inspect this thread.
+    irqState = InterruptDisable();
+    threadId = atomic_exchange(&current->JoinTarget, UUID_INVALID);
+    ReleaseGlobalHandle(threadId);
+    InterruptRestoreState(irqState);
+    return oserr;
 }
 
 _Noreturn static void
@@ -515,17 +628,18 @@ __EnterUsermode(
     paddr_t   tlsPhysicalAddress;
     oserr_t   osStatus;
 
-    // Allocate the TLS segment (1 page) (x86 only, should be another place)
+    // Allocate one page for thread-local storage (TLS), the per-thread data used
+    // by the runtime. This must happen after the thread's memory space is active.
     osStatus = MemorySpaceMap(
-            GetCurrentMemorySpace(),
-            &(struct MemorySpaceMapOptions) {
-                .Pages = &tlsPhysicalAddress,
-                .Length = GetMemorySpacePageSize(),
-                .Mask = __MASK,
-                .Flags = MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT,
-                .PlacementFlags = MAPPING_VIRTUAL_THREAD
-            },
-            &tlsAddress
+        GetCurrentMemorySpace(),
+        &(struct MemorySpaceMapOptions) {
+            .Pages = &tlsPhysicalAddress,
+            .Length = GetMemorySpacePageSize(),
+            .Mask = __MASK,
+            .Flags = MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT,
+            .PlacementFlags = MAPPING_VIRTUAL_THREAD
+        },
+        &tlsAddress
     );
     if (osStatus != OS_EOK) {
         FATAL(FATAL_SCOPE_THREAD, "__EnterUsermode failed to map TLS page");
@@ -555,8 +669,11 @@ __EnterUsermode(
 
     // initiate the userspace stack with entry point and argument
     ArchThreadContextReset(
-            thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
-            (uintptr_t) threadEntry, (uintptr_t) argument);
+        thread->Contexts[THREADING_CONTEXT_LEVEL1],
+        THREADING_CONTEXT_LEVEL1,
+        (uintptr_t)threadEntry,
+        (uintptr_t)argument
+    );
 
     // initiate switch to userspace
     thread->Flags |= THREADING_TRANSITION_USERMODE;
@@ -566,7 +683,7 @@ __EnterUsermode(
 
 Thread_t*
 ThreadCurrentForCore(
-        _In_ uuid_t CoreId)
+    _In_ uuid_t CoreId)
 {
     return CpuCoreCurrentThread(GetProcessorCore(CoreId));
 }
@@ -584,20 +701,35 @@ ThreadCurrentHandle(void)
 
 oserr_t
 ThreadIsRelated(
-        _In_ uuid_t Thread1,
-        _In_ uuid_t Thread2)
+    _In_ uuid_t firstId,
+    _In_ uuid_t secondId)
 {
-    Thread_t* First  = THREAD_GET(Thread1);
-    Thread_t* Second = THREAD_GET(Thread2);
-    if (First == NULL || Second == NULL) {
-        return OS_ENOENT;
+    Thread_t* first;
+    Thread_t* second;
+    oserr_t   oserr;
+
+    oserr = AcquireGlobalHandle(firstId, HandleTypeThread, (void**)&first);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    return AreMemorySpacesRelated(First->MemorySpace, Second->MemorySpace);
+
+    oserr = AcquireGlobalHandle(secondId, HandleTypeThread, (void**)&second);
+    if (oserr == OS_EOK) {
+        if (atomic_load(&first->State) == ThreadState_INITIALIZING ||
+            atomic_load(&second->State) == ThreadState_INITIALIZING) {
+            oserr = OS_ENOENT;
+        } else {
+            oserr = AreMemorySpacesRelated(first->MemorySpace, second->MemorySpace);
+        }
+        ReleaseGlobalHandle(secondId);
+    }
+    ReleaseGlobalHandle(firstId);
+    return oserr;
 }
 
 int
 ThreadIsCurrentIdle(
-        _In_ uuid_t CoreId)
+    _In_ uuid_t CoreId)
 {
     SystemCpuCore_t* core = GetProcessorCore(CoreId);
     return (CpuCoreCurrentThread(core) == CpuCoreIdleThread(core)) ? 1 : 0;
@@ -614,7 +746,7 @@ ThreadCurrentMode(void)
 
 uuid_t
 ThreadHandle(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return UUID_INVALID;
@@ -624,7 +756,7 @@ ThreadHandle(
 
 uuid_t
 ThreadParent(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return UUID_INVALID;
@@ -634,7 +766,7 @@ ThreadParent(
 
 UInteger64_t*
 ThreadStartTime(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return 0;
@@ -644,7 +776,7 @@ ThreadStartTime(
 
 uuid_t
 ThreadCookie(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return 0;
@@ -654,8 +786,8 @@ ThreadCookie(
 
 oserr_t
 ThreadSetName(
-        _In_ Thread_t*   Thread,
-        _In_ const char* Name)
+    _In_ Thread_t*   Thread,
+    _In_ const char* Name)
 {
     const char* previousName;
     char*       nameCopy;
@@ -677,7 +809,7 @@ ThreadSetName(
 
 const char*
 ThreadName(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return NULL;
@@ -687,7 +819,7 @@ ThreadName(
 
 unsigned int
 ThreadFlags(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return 0;
@@ -697,7 +829,7 @@ ThreadFlags(
 
 OSAsyncContext_t*
 ThreadSyscallContext(
-        _In_ Thread_t* thread)
+    _In_ Thread_t* thread)
 {
     if (!thread) {
         return NULL;
@@ -707,9 +839,15 @@ ThreadSyscallContext(
 
 MemorySpace_t*
 ThreadMemorySpace(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
+        return NULL;
+    }
+
+    // A global ID exists during construction, but its memory space must not
+    // be exposed until the remaining thread resources are ready as well.
+    if (atomic_load(&Thread->State) == ThreadState_INITIALIZING) {
         return NULL;
     }
     return Thread->MemorySpace;
@@ -717,7 +855,7 @@ ThreadMemorySpace(
 
 uuid_t
 ThreadMemorySpaceHandle(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return UUID_INVALID;
@@ -727,7 +865,7 @@ ThreadMemorySpaceHandle(
 
 SchedulerObject_t*
 ThreadSchedulerHandle(
-        _In_ Thread_t* Thread)
+    _In_ Thread_t* Thread)
 {
     if (!Thread) {
         return NULL;
@@ -737,7 +875,7 @@ ThreadSchedulerHandle(
 
 PlatformThreadBlock_t*
 ThreadPlatformBlock(
-        _In_ Thread_t* thread)
+    _In_ Thread_t* thread)
 {
     if (!thread) {
         return NULL;
@@ -747,8 +885,8 @@ ThreadPlatformBlock(
 
 Context_t*
 ThreadContext(
-        _In_ Thread_t* Thread,
-        _In_ int       Context)
+    _In_ Thread_t* Thread,
+    _In_ int       Context)
 {
     if (!Thread || Context < 0 || Context >= THREADING_NUMCONTEXTS) {
         return NULL;
@@ -765,24 +903,24 @@ ThreadingAdvance(
     SystemCpuCore_t* core          = CpuCoreCurrent();
     Thread_t*        currentThread = CpuCoreCurrentThread(core);
     Thread_t*        nextThread;
-    uuid_t           terminatingThreadHandle = UUID_INVALID;
+    uuid_t           pendingFinishHandle = UUID_INVALID;
     int              signalsPending;
-    int              cleanup;
+    int              state;
 
     // Is threading disabled?
     if (!currentThread) {
         return OS_EUNKNOWN;
     }
 
-    cleanup = atomic_load(&currentThread->Cleanup);
+    state = atomic_load(&currentThread->State);
     currentThread->ContextActive = CpuCoreInterruptContext(core);
     
-    // Perform pre-liminary actions only if we are not going to clean up and destroy the thread
-    if (!cleanup) {
+    // Save architecture-specific state only for a thread that can run again.
+    if (state == ThreadState_RUNNING) {
         ArchThreadLeave(currentThread);
         
-        // Handle any received signals during runtime in system calls, this must be handled
-        // here after any blocking operations has been queued, so we can cancel it.
+        // A system call may have queued a wait before receiving a signal. Make
+        // that thread ready again so it can return and process its pending signals.
         signalsPending = atomic_load(&currentThread->Signaling.Pending);
         if (signalsPending) {
             SchedulerExpediteObject(currentThread->SchedulerObject);
@@ -794,16 +932,19 @@ ThreadingAdvance(
           CpuCoreId(core), currentThread->Name,
           currentThread->ContextActive, CONTEXT_IP(currentThread->ContextActive), preemptive);
 #endif
+
 GetNextThread:
-    if ((currentThread->Flags & THREADING_IDLE) || cleanup == 1) {
-        // If the thread is finished then add it to garbagecollector
-        if (cleanup == 1) {
+    if ((currentThread->Flags & THREADING_IDLE) || state == ThreadState_TERMINATING) {
+        if (state == ThreadState_TERMINATING) {
             if (currentThread == CpuCoreCurrentThread(core)) {
                 // Interrupt return still runs on this thread's kernel stack
-                // after ArchThreadEnter installs the next address space.
-                terminatingThreadHandle = currentThread->Handle;
+                // after ArchThreadEnter installs the next address space, so
+                // the core finishes the thread at its next interrupt entry.
+                pendingFinishHandle = currentThread->Handle;
             } else {
-                DestroyHandle(currentThread->Handle);
+                // The thread was popped from a run queue and never ran again,
+                // so its stack is not in use and it can be finished now.
+                ThreadingFinish(currentThread->Handle);
             }
         }
 #ifdef __OSCONFIG_DEBUG_SCHEDULER
@@ -820,9 +961,8 @@ GetNextThread:
             nextDeadlineOut
     );
     
-    // Sanitize if we need to activate our idle thread, otherwise
-    // do a final check that we haven't just gotten ahold of a thread
-    // marked for finish
+    // An empty run queue selects idle. Check every selected thread's state before
+    // restoring its context, since a termination request may have arrived in queue.
     if (nextThread == NULL) {
 #ifdef __OSCONFIG_DEBUG_SCHEDULER
         TRACE("[threading] [switch] selecting idle");
@@ -830,8 +970,8 @@ GetNextThread:
         nextThread = CpuCoreIdleThread(core);
     }
     else {
-        cleanup = atomic_load(&nextThread->Cleanup);
-        if (cleanup == 1) {
+        state = atomic_load(&nextThread->State);
+        if (state == ThreadState_TERMINATING) {
             currentThread = nextThread;
             goto GetNextThread;
         }
@@ -861,13 +1001,15 @@ GetNextThread:
     }
 
     CpuCoreSetInterruptContext(core, nextThread->ContextActive);
-    if (terminatingThreadHandle != UUID_INVALID) {
-        CpuCoreTerminateThread(core, terminatingThreadHandle);
+    if (pendingFinishHandle != UUID_INVALID) {
+        CpuCoreDeferFinish(core, pendingFinishHandle);
     }
     return OS_EOK;
 }
 
-// Common entry point for everything
+// Newly created threads start here on their kernel stack. A user thread creates
+// its user contexts before switching modes. Returning from a kernel entry ends
+// the thread with exit code zero, using the same path as an explicit ThreadExit.
 _Noreturn static void
 __ThreadStart(void)
 {
@@ -880,48 +1022,69 @@ __ThreadStart(void)
         for (;;) {
             ArchProcessorIdle();
         }
-    }
-    else if (THREADING_RUNMODE(thread->Flags) == THREADING_KERNELMODE ||
+    } else if (THREADING_RUNMODE(thread->Flags) == THREADING_KERNELMODE ||
              (thread->Flags & THREADING_KERNELENTRY)) {
         thread->Flags &= ~(THREADING_KERNELENTRY);
         thread->Function(thread->Arguments);
-        ThreadTerminate(thread->Handle, 0, 1);
-    }
-    else {
+        ThreadExit(0);
+    } else {
         __EnterUsermode(thread->Function, thread->Arguments);
     }
     for (;;);
 }
 
-static void
-__WaitForReferences(
-        _In_ Thread_t* thread)
+void
+ThreadingFinish(
+    _In_ uuid_t threadId)
 {
-    int           references;
-    OSTimestamp_t wakeUp;
+    Thread_t* thread;
+    uuid_t    joinTarget;
 
-    references = atomic_load(&thread->References);
-    if (references != 0) {
-        int timeout = 200;
-        SemaphoreSignal(&thread->EventObject, references + 1);
-        SystemTimerGetWallClockTime(&wakeUp);
-        while (timeout > 0) {
-            OSTimestampAddNsec(&wakeUp, &wakeUp, 10 * NSEC_PER_MSEC);
-            timeout -= 10;
+    // The scheduler reference keeps the record allocated during this lookup.
+    // The caller has already established that no core is using the thread's stack.
+    thread = LookupGlobalHandle(threadId, HandleTypeThread);
+    assert(thread != NULL);
 
-            references = atomic_load(&thread->References);
-            if (!references) {
-                break;
-            }
-        }
+    // Only a flagged thread may be finished. A thread that is still running
+    // or initializing would lose its stack under it.
+    assert(atomic_load(&thread->State) == ThreadState_TERMINATING);
+    atomic_store(&thread->State, ThreadState_FINISHED);
+    FutexWake(&thread->State, INT_MAX, 0);
+
+    // A thread ended while joining another one never reaches ThreadJoin's exit
+    // label. Release that wait's reference before releasing this thread's own one.
+    joinTarget = atomic_exchange(&thread->JoinTarget, UUID_INVALID);
+    if (joinTarget != UUID_INVALID) {
+        ReleaseGlobalHandle(joinTarget);
+    }
+    ReleaseGlobalHandle(threadId);
+}
+
+// Use only before the thread has been queued. The partially initialized record
+// uses NULL pointers and UUID_INVALID handles for resources that were not created.
+static void
+__AbortThreadCreation(
+    _In_ Thread_t* thread)
+{
+    // Before registration, cleanup is direct. After registration, the final
+    // release removes the ID from lookup and queues __DestroyThread on the janitor.
+    if (thread->Handle == UUID_INVALID) {
+        __DestroyThread(thread);
+    } else {
+        ReleaseGlobalHandle(thread->Handle);
     }
 }
 
+// Called by the handle janitor after the last reference, or directly for a thread
+// whose creation failed before handle registration. No core may still use its
+// stacks. Unlike ThreadingFinish, this cleanup may wait for the parent's mutex.
 static void
 __DestroyThread(
-        _In_ void* resource)
+    _In_ void* resource)
 {
     Thread_t* thread = resource;
+    Thread_t* parent;
+    uuid_t    parentId;
 
     TRACE("__DestroyThread(resource=0x%" PRIxIN ")", resource);
 
@@ -929,28 +1092,42 @@ __DestroyThread(
         return;
     }
 
-    // Make sure we are completely removed as reference
-    // from the entire system. We also signal all waiters for this
-    // thread again before continueing just in case
-    __WaitForReferences(thread);
+    // A parent's list protects child pointers with its mutex. Remove this
+    // entry before freeing it, without holding the child's mutex. Recursive
+    // termination takes locks from parent to child in that same order.
+    parentId = atomic_load(&thread->ParentHandle);
+    if (AcquireGlobalHandle(parentId, HandleTypeThread, (void**)&parent) == OS_EOK) {
+        __RemoveChild(parent, thread);
+        ReleaseGlobalHandle(parentId);
+    }
 
-    // Cleanup resources now that we have no external dependancies
+    // The scheduler and all temporary users have released their references.
     if (thread->SchedulerObject) {
         SchedulerDestroyObject(thread->SchedulerObject);
     }
 
-    // Detroy the thread-contexts
-    ArchThreadContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL0], THREADING_CONTEXT_LEVEL0,
-                             thread->KernelStackSize);
-    ArchThreadContextDestroy(thread->Contexts[THREADING_CONTEXT_LEVEL1], THREADING_CONTEXT_LEVEL1,
-                             thread->UserStackSize);
-    ArchThreadContextDestroy(thread->Contexts[THREADING_CONTEXT_SIGNAL], THREADING_CONTEXT_SIGNAL,
-                             thread->UserStackSize);
+    // Destroy the saved contexts and their stacks before releasing the memory
+    // space used to locate them. A failed creation may leave some contexts NULL.
+    ArchThreadContextDestroy(
+        thread->Contexts[THREADING_CONTEXT_LEVEL0],
+        THREADING_CONTEXT_LEVEL0,                     
+        thread->KernelStackSize
+    );
+    ArchThreadContextDestroy(
+        thread->Contexts[THREADING_CONTEXT_LEVEL1],
+        THREADING_CONTEXT_LEVEL1,
+        thread->UserStackSize
+    );
+    ArchThreadContextDestroy(
+        thread->Contexts[THREADING_CONTEXT_SIGNAL],
+        THREADING_CONTEXT_SIGNAL,
+        thread->UserStackSize
+    );
 
-    // Remove a reference to the memory space if not root, and remove the
-    // kernel mapping of the threads' ipc area
+    // A valid handle records the thread's independent reference to its memory
+    // space. The domain's kernel space is used directly without such a reference.
     if (thread->MemorySpaceHandle != UUID_INVALID) {
-        DestroyHandle(thread->MemorySpaceHandle);
+        ReleaseGlobalHandle(thread->MemorySpaceHandle);
     }
 
     kfree((void*)thread->Name);
@@ -962,15 +1139,16 @@ __DestroyThread(
 
 static oserr_t
 __CreateThreadContexts(
-        _In_ Thread_t* thread)
+    _In_ Thread_t* thread)
 {
     oserr_t status = OS_EOK;
     TRACE("__CreateThreadContexts(thread=0x%" PRIxIN ")", thread);
 
-    // Create the kernel context, for an userspace thread this is always the default
+    // Every new thread first runs __ThreadStart on a kernel stack, including
+    // threads whose supplied entry function will later run in userspace.
     thread->Contexts[THREADING_CONTEXT_LEVEL0] = ArchThreadContextCreate(
-            THREADING_CONTEXT_LEVEL0,
-            thread->KernelStackSize
+        THREADING_CONTEXT_LEVEL0,
+        thread->KernelStackSize
     );
     if (!thread->Contexts[THREADING_CONTEXT_LEVEL0]) {
         status = OS_EOOM;
@@ -978,10 +1156,10 @@ __CreateThreadContexts(
     }
 
     ArchThreadContextReset(
-            thread->Contexts[THREADING_CONTEXT_LEVEL0],
-            THREADING_CONTEXT_LEVEL0,
-            (uintptr_t) &__ThreadStart,
-            0
+        thread->Contexts[THREADING_CONTEXT_LEVEL0],
+        THREADING_CONTEXT_LEVEL0,
+        (uintptr_t) &__ThreadStart,
+        0
     );
 
     // We cannot at this time allocate userspace contexts as they need to be located inside
@@ -991,16 +1169,18 @@ exit:
     return status;
 }
 
-// Setup defaults for a new thread and creates appropriate resources
+// Initialize a fresh record and register its first reference. The caller still
+// has to create contexts, select a memory space and mark it ready. On error, pass
+// the partial record to __AbortThreadCreation so registered resources are freed.
 static oserr_t
 __InitializeDefaultsForThread(
-        _In_ Thread_t*     thread,
-        _In_ const char*   name,
-        _In_ ThreadEntry_t threadEntry,
-        _In_ void*         arguments,
-        _In_ unsigned int  flags,
-        _In_ size_t        kernelStackSize,
-        _In_ size_t        userStackSize)
+    _In_ Thread_t*     thread,
+    _In_ const char*   name,
+    _In_ ThreadEntry_t threadEntry,
+    _In_ void*         arguments,
+    _In_ unsigned int  flags,
+    _In_ size_t        kernelStackSize,
+    _In_ size_t        userStackSize)
 {
     oserr_t oserr;
     uuid_t  handle;
@@ -1015,11 +1195,17 @@ __InitializeDefaultsForThread(
     // Reset thread structure
     memset(thread, 0, sizeof(Thread_t));
     MutexConstruct(&thread->SyncObject, MUTEX_FLAG_PLAIN);
-    SemaphoreConstruct(&thread->EventObject, 0, 1);
+    thread->Handle = UUID_INVALID;
+    thread->ParentHandle = UUID_INVALID;
+    thread->JoinTarget = UUID_INVALID;
+    thread->State = ThreadState_INITIALIZING;
+    thread->MemorySpaceHandle = UUID_INVALID;
 
-    handle = CreateHandle(HandleTypeThread, NULL, __DestroyThread, thread);
+    handle = CreateGlobalHandle(HandleTypeThread, __DestroyThread, thread);
     thread->Handle          = handle;
-    thread->References      = 0;
+    if (handle == UUID_INVALID) {
+        return OS_EOOM;
+    }
     thread->Function        = threadEntry;
     thread->Arguments       = arguments;
     thread->Flags           = flags;
@@ -1029,9 +1215,10 @@ __InitializeDefaultsForThread(
     SystemTimerGetClockTick(&thread->StartedAt);
 
     oserr = streambuffer_create(
-            sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
-            STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
-            &thread->Signaling.Signals);
+        sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
+        STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
+        &thread->Signaling.Signals
+    );
     if (oserr != OS_EOK) {
         return OS_EOOM;
     }
@@ -1044,16 +1231,24 @@ __InitializeDefaultsForThread(
         }
     } else {
         thread->Name = strdup(name);
+        if (thread->Name == NULL) {
+            return OS_EOOM;
+        }
     }
 
     thread->SchedulerObject = SchedulerCreateObject(thread, flags);
+    if (thread->SchedulerObject == NULL) {
+        return OS_EOOM;
+    }
     return ArchThreadInitialize(thread);
 }
 
+// Build the default cookie from creation ticks. Threads created with inheritance
+// copy their parent's cookie instead. The value is not a secret or access check.
 static uuid_t
 __CreateCookie(
-        _In_ Thread_t* thread,
-        _In_ Thread_t* parent)
+    _In_ Thread_t* thread,
+    _In_ Thread_t* parent)
 {
     uuid_t cookie = thread->StartedAt.u.LowPart ^ parent->StartedAt.u.LowPart;
     for (int i = 0; i < 5; i++) {
@@ -1064,10 +1259,48 @@ __CreateCookie(
     return cookie;
 }
 
+// All resources must be ready before this call. Only replace INITIALIZING, since
+// the parent may have requested termination after the child was added to its list.
+// The creator queues a TERMINATING thread too, so the scheduler can finish it.
+static void
+__MarkThreadReady(
+    _In_ Thread_t* thread)
+{
+    int expected = ThreadState_INITIALIZING;
+
+    (void)atomic_compare_exchange_strong(
+        &thread->State,
+        &expected,
+        ThreadState_RUNNING
+    );
+}
+
+// __RequestTermination flags a RUNNING or INITIALIZING thread as TERMINATING
+// and returns the state it replaced. A thread that is already TERMINATING or
+// FINISHED is left alone, and its state is returned. The thread's mutex must be
+// held, which leaves only the creator able to race with this by moving the
+// thread from INITIALIZING to RUNNING.
+static int
+__RequestTermination(
+    _In_ Thread_t* thread)
+{
+    int state = atomic_load(&thread->State);
+
+    while (state == ThreadState_RUNNING || state == ThreadState_INITIALIZING) {
+        if (atomic_compare_exchange_weak(&thread->State, &state, ThreadState_TERMINATING)) {
+            break;
+        }
+    }
+    return state;
+}
+
+// ParentHandle must already name this parent. The parent's mutex also protects
+// the walk used by termination and prevents cleanup from removing a child midway.
+// Adding a child does not add a handle reference or check the parent's exit state.
 static void
 __AddChild(
-        _In_ Thread_t* parent,
-        _In_ Thread_t* child)
+    _In_ Thread_t* parent,
+    _In_ Thread_t* child)
 {
     Thread_t* previous;
     Thread_t* link;
@@ -1089,10 +1322,13 @@ __AddChild(
     MutexUnlock(&parent->SyncObject);
 }
 
+// Keep the parent referenced while removing the child. Do not hold the child's
+// mutex here, since termination takes the parent mutex before the child mutex.
+// It is safe for the child to be absent, as it can fail setup before being linked.
 static void
 __RemoveChild(
-        _In_ Thread_t* parent,
-        _In_ Thread_t* child)
+    _In_ Thread_t* parent,
+    _In_ Thread_t* child)
 {
     Thread_t* previous = NULL;
     Thread_t* link;
@@ -1118,7 +1354,7 @@ __RemoveChild(
 
 static size_t
 __GetDefaultStackSize(
-        _In_ unsigned int threadFlags)
+    _In_ unsigned int threadFlags)
 {
     if (THREADING_RUNMODE(threadFlags) == THREADING_KERNELMODE) {
         return THREADING_KERNEL_STACK_SIZE;

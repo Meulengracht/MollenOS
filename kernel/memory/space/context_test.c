@@ -26,8 +26,15 @@
 #include <heap.h>
 #include <string.h>
 
+// These tests exercise shared memory-group data and memory-space cleanup with
+// small replacements for the handle table, allocator and page-table routines.
+// They check reference counts and cleanup calls, without creating real mappings.
+// Handle cleanup runs immediately here. The kernel queues it on the janitor.
+
 /**
- * @brief Test handle entry with reference counts and synchronous resource cleanup.
+ * @brief One test resource and the references that keep it allocated.
+ * A zero count makes the slot reusable. Releasing the last reference calls
+ * Destructor immediately so each test can check allocation counts before returning.
  */
 struct __TestHandle {
     HandleType_t       Type;
@@ -36,6 +43,12 @@ struct __TestHandle {
     int                References;
 };
 
+/**
+ * @brief Counters, handle entries and failure settings reset before each test.
+ * FailHandle and FailAcquire apply only to their selected resource types.
+ * CurrentHandle selects the simulated running space. SkipFree lets a test use
+ * a stack allocation record while still checking that cleanup tries to free it.
+ */
 static struct __TestContext {
     int                MutexConstructCalls;
     int                MutexLockCalls;
@@ -152,6 +165,8 @@ void TestMSContextDelete_Happy(void** state)
     assert_int_equal(g_testContext.DynamicMemoryPoolDestroyCalls, 1);
 }
 
+// Children created from an inherited space must still refer to the process root.
+// Closing the root's caller handle cannot free it while either child uses it.
 static void
 __TestGroupLifetime(
     _In_ void** state)
@@ -214,6 +229,8 @@ __TestGroupLifetime(
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
 
+// A direct group reference keeps process-wide data allocated even after the last
+// memory space is deleted. Releasing that reference must free the group too.
 static void
 __TestRetainedGroup(
     _In_ void** state)
@@ -242,6 +259,7 @@ __TestRetainedGroup(
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
 
+// Kernel-only spaces have page-table resources but no application memory group.
 static void
 __TestKernelSpace(
     _In_ void** state)
@@ -295,6 +313,9 @@ __TestGroupGlobalHandleIDFailure(
     assert_int_equal(g_testContext.VirtualSpaceDestroyCalls, 0);
 }
 
+// A page-table clone failure must undo both references added for an inherited
+// space. The failing clone handles its own page-table cleanup, so these tests
+// expect no call to MmuDestroyVirtualSpace for that partial space.
 static void
 __TestCloneFailure(
     _In_ void** state)
@@ -333,6 +354,8 @@ __TestCloneFailure(
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
 
+// Handle registration happens after a successful page-table clone. If it fails,
+// the complete space must be destroyed, including its parent and group references.
 static void
 __TestSpaceHandleFailure(
     _In_ void** state)
@@ -372,6 +395,8 @@ __TestSpaceHandleFailure(
     assert_int_equal(g_testContext.LiveAllocations, 0);
 }
 
+// Fail each reference step separately. Failure to reference the group must also
+// release the parent reference added by the preceding step.
 static void
 __TestGroupAcquireFailure(
     _In_ void** state)
@@ -619,7 +644,10 @@ LookupGlobalHandle(
     _In_ uuid_t       globalHandleID,
     _In_ HandleType_t type)
 {
-    assert_int_equal(type, HandleTypeMSContext);
+    // MSContext uses global handles from creation. Inherited memory spaces also
+    // use this lookup when adding a kernel reference to their existing root.
+    // These test entries track lifetime only, without process permission checks.
+    assert_true(type == HandleTypeMSContext || type == HandleTypeMemorySpace);
     return __LookupTestHandle(globalHandleID, type);
 }
 
@@ -661,6 +689,8 @@ AcquireGlobalHandle(
     return OS_EOK;
 }
 
+// Unlike the kernel janitor, this replacement calls the destructor before
+// returning. OS_EINCOMPLETE still means the reference was successfully released.
 static oserr_t
 __ReleaseTestHandle(
     _In_ uuid_t handle)
@@ -689,7 +719,10 @@ oserr_t
 ReleaseGlobalHandle(
     _In_ uuid_t globalHandleID)
 {
-    assert_int_equal(g_testContext.Handles[globalHandleID].Type, HandleTypeMSContext);
+    // Pair both the memory-group and parent-space references taken during setup.
+    // A parent reference must be releasable even outside its creating process.
+    assert_true(g_testContext.Handles[globalHandleID].Type == HandleTypeMSContext ||
+                g_testContext.Handles[globalHandleID].Type == HandleTypeMemorySpace);
     return __ReleaseTestHandle(globalHandleID);
 }
 

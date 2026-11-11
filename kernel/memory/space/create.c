@@ -41,11 +41,12 @@ CreateMemorySpace(
         return OS_EOOM;
     }
 
-    // Clone the kernel address space so each thread has its own TLS area.
-    // User address spaces can be created or inherited.
+    // Kernel spaces need separate thread-local storage. Application spaces can
+    // start a new process memory group or share the current one through inheritance.
     if (flags == MEMORY_SPACE_INHERIT) {
-        // Kernel clones own their page tables and TLS. They need their own
-        // handle too: an AP has no current thread and therefore no parent handle.
+        // Kernel copies need separate page tables and thread-local storage (TLS).
+        // A secondary core has no current thread yet, so create a separate handle
+        // without depending on a parent thread.
         oserr = MmuCloneVirtualSpace(NULL, memorySpace, 0);
         if (oserr != OS_EOK) {
             goto error;
@@ -62,7 +63,11 @@ CreateMemorySpace(
                     parentHandle = GetCurrentMemorySpaceHandle();
                 }
 
-                oserr = AcquireHandle(
+                // The running space supplies this root ID. Keep a kernel reference
+                // so the root stays allocated until all inherited spaces are gone.
+                // Cleanup can then release it from the janitor's process without
+                // needing permission in that process's handle table.
+                oserr = AcquireGlobalHandle(
                     parentHandle,
                     HandleTypeMemorySpace,
                     (void**)&parent
@@ -72,6 +77,8 @@ CreateMemorySpace(
                 }
                 memorySpace->ParentHandle = parentHandle;
 
+                // The child also uses the group's allocation records, permissions
+                // and signal handler. Its group reference is released separately.
                 oserr = AcquireGlobalHandle(parent->GroupGlobalHandleID, HandleTypeMSContext, NULL);
                 if (oserr != OS_EOK) {
                     goto error;
@@ -83,7 +90,7 @@ CreateMemorySpace(
             }
         }
 
-        // The new group supplies this root space's global reference.
+        // A new application root starts with one reference to its own memory group.
         if (memorySpace->ParentHandle == UUID_INVALID) {
             memorySpace->GroupGlobalHandleID = MSContextNew();
             if (memorySpace->GroupGlobalHandleID == UUID_INVALID) {
@@ -116,13 +123,15 @@ CreateMemorySpace(
     return OS_EOK;
 
 error:
-    // A failed clone frees its page tables. Release the references held by this space.
+    // A failed clone cleans up its partial page tables. Release only the group
+    // and parent references already recorded by this creation attempt. A fully
+    // cloned space whose handle creation fails uses MemorySpaceDelete above.
     if (memorySpace->GroupGlobalHandleID != UUID_INVALID) {
         ReleaseGlobalHandle(memorySpace->GroupGlobalHandleID);
     }
     
     if (memorySpace->ParentHandle != UUID_INVALID) {
-        DestroyHandle(memorySpace->ParentHandle);
+        ReleaseGlobalHandle(memorySpace->ParentHandle);
     }
 
     DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);

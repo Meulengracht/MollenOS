@@ -112,6 +112,7 @@ SHMCreate(
     );
     if (oserr != OS_EOK) {
         (void)Syscall_SHMDetach(shmHandle);
+        free(shmHandle);
         return oserr;
     }
     return OS_EOK;
@@ -187,6 +188,29 @@ SHMAttachToken(
     }
     
     *handleOut = result;
+    return OS_EOK;
+}
+
+oserr_t
+SHMAdopt(
+    _In_  uuid_t      referenceID,
+    _Out_ OSHandle_t* handleOut)
+{
+    OSHandle_t attachment;
+    oserr_t    status;
+
+    status = SHMAttach(referenceID, &attachment);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = Syscall_HandleDestroy(referenceID);
+    if (status != OS_EOK && status != OS_EINCOMPLETE) {
+        OSHandleDestroy(&attachment);
+        return status;
+    }
+
+    *handleOut = attachment;
     return OS_EOK;
 }
 

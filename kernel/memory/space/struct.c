@@ -69,9 +69,10 @@ MemorySpaceDelete(
         ReleaseGlobalHandle(memorySpace->GroupGlobalHandleID);
     }
     
-    // Some cleanup for non-root memory spaces
+    // CreateMemorySpace added this kernel reference to the root space. Release
+    // it without consulting the current process, which may be the janitor's.
     if (memorySpace->ParentHandle != UUID_INVALID) {
-        DestroyHandle(memorySpace->ParentHandle);
+        ReleaseGlobalHandle(memorySpace->ParentHandle);
     }
     kfree(memorySpace);
 }

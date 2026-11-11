@@ -24,19 +24,20 @@
 //#define __TRACE
 
 #include <arch/thread.h>
+#include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
 #include <ds/streambuffer.h>
-#include <handles/handle.h>
+#include <handles/global.h>
 #include <machine.h>
 #include <scheduler.h>
 #include <threading.h>
 #include "../threads/private.h"
 
 static void
-ExecuteSignalOnCoreFunction(
+__ExecuteSignalOnCore(
     _In_ void* Context)
 {
     Thread_t* thread = Context;
@@ -88,69 +89,92 @@ ExecuteSignalOnCoreFunction(
     }
 }
 
+static void
+__DeliverSignal(
+    _In_ void* context)
+{
+    Thread_t*  thread = context;
+    irqstate_t irqState;
+
+    // The message carries a global reference until this callback completes.
+    // A stopped thread must not be queued again. A never-started thread will
+    // process its pending signal when it first returns toward userspace.
+    irqState = InterruptDisable();
+    if (atomic_load(&thread->State) == ThreadState_RUNNING &&
+        thread->ContextActive != NULL) {
+        __ExecuteSignalOnCore(thread);
+    }
+    InterruptRestoreState(irqState);
+    ReleaseGlobalHandle(thread->Handle);
+}
+
 oserr_t
 SignalSend(
-        _In_ uuid_t ThreadId,
-        _In_ int    Signal,
-        _In_ void*  Argument)
+    _In_ uuid_t threadId,
+    _In_ int    signal,
+    _In_ void*  argument)
 {
-    Thread_t*      target = THREAD_GET(ThreadId);
+    Thread_t*      target;
     uuid_t         targetCore;
+    oserr_t        oserr;
     ThreadSignal_t signalInfo = {
-        .Signal   = Signal,
-        .Argument = Argument,
+        .Signal   = signal,
+        .Argument = argument,
         .Flags    = 0
     };
+
+    if (signal < 0 || signal >= NUMSIGNALS) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = AcquireGlobalHandle(threadId, HandleTypeThread, (void**)&target);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
     
-    if (!target) {
-        ERROR("[signal] [send] thread %" PRIuIN " did not exist", ThreadId, Signal);
+    if (atomic_load(&target->State) != ThreadState_RUNNING) {
+        ReleaseGlobalHandle(threadId);
         return OS_ENOENT;
     }
 
-    if (Signal < 0 || Signal >= NUMSIGNALS) {
-        ERROR("[signal] [send] signal %i was not in range");
-        return OS_EINVALPARAMS; // Invalid
-    }
-    
-    if (target->Signaling.Mask & (1 << Signal)) {
+    if (target->Signaling.Mask & (1U << signal)) {
+        ReleaseGlobalHandle(threadId);
         return OS_EBLOCKED;
     }
-    
-    TRACE("[signal] [send] thread %s, signal %i", target->Name, Signal);
+
     streambuffer_stream_out(
-            target->Signaling.Signals,
-            &signalInfo,
-            sizeof(ThreadSignal_t),
-            0
+        target->Signaling.Signals,
+        &signalInfo,
+        sizeof(ThreadSignal_t),
+        0
     );
     atomic_fetch_add(&target->Signaling.Pending, 1);
-    
-    // Is the thread local or foreign? We only handle signals locally on core,
-    // so if it is running on a different core, we want to send an IPI and let
-    // the local core handle this.
+
     targetCore = SchedulerObjectGetAffinity(target->SchedulerObject);
     if (targetCore == ArchGetProcessorCoreId()) {
-        ExecuteSignalOnCoreFunction(target);
+        __DeliverSignal(target);
         return OS_EOK;
     }
-    else {
-        return TxuMessageSend(
-                targetCore,
-                CpuFunctionCustom,
-                ExecuteSignalOnCoreFunction,
-                target,
-                1
-        );
-    }
+
+    // TxuMessageSend queues the callback before sending the interrupt. Even
+    // when interrupt delivery reports an error, the queued callback still
+    // holds this reference and must be the one to release it.
+    return TxuMessageSend(
+        targetCore,
+        CpuFunctionCustom,
+        __DeliverSignal,
+        target,
+        1
+    );
 }
 
 void
 SignalExecuteLocalThreadTrap(
-        _In_ Context_t*   context,
-        _In_ int          signal,
-        _In_ unsigned int flags,
-        _In_ void*        argument0,
-        _In_ void*        argument1)
+    _In_ Context_t*   context,
+    _In_ int          signal,
+    _In_ unsigned int flags,
+    _In_ void*        argument0,
+    _In_ void*        argument1)
 {
     Thread_t*    thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     unsigned int argument = ((unsigned int)(signal & 0xFF) << 24 | SIGNAL_FLAG_SEPERATE_STACK | SIGNAL_FLAG_HARDWARE_TRAP | flags);
@@ -164,9 +188,9 @@ SignalExecuteLocalThreadTrap(
     // However if we wanted to support this, we could
     if (CONTEXT_IP(context) != 0 && IS_KERNEL_CODE(CONTEXT_IP(context))) {
         DebugPanic(
-                FATAL_SCOPE_KERNEL,
-                context,
-                "Crash at address 0x%" PRIxIN, CONTEXT_IP(context)
+            FATAL_SCOPE_KERNEL,
+            context,
+            "Crash at address 0x%" PRIxIN, CONTEXT_IP(context)
         );
     }
 
@@ -178,12 +202,12 @@ SignalExecuteLocalThreadTrap(
     // We do absolutely not care about the existing signal stack
     // in case of local trap signals
     ArchThreadContextPushInterceptor(
-            context,
-            (uintptr_t)thread->Contexts[THREADING_CONTEXT_SIGNAL],
-            MemorySpaceSignalHandler(thread->MemorySpace),
-            argument,
-            (uintptr_t)argument0,
-            (uintptr_t)argument1
+        context,
+        (uintptr_t)thread->Contexts[THREADING_CONTEXT_SIGNAL],
+        MemorySpaceSignalHandler(thread->MemorySpace),
+        argument,
+        (uintptr_t)argument0,
+        (uintptr_t)argument1
     );
 #endif
 }
@@ -213,14 +237,14 @@ SignalProcessQueued(
 
     for (;;) {
         size_t bytesRead = streambuffer_stream_in(
-                thread->Signaling.Signals,
-                &threadSignal,
-                sizeof(ThreadSignal_t),
-                &(streambuffer_rw_options_t) {
-                    .flags = STREAMBUFFER_NO_BLOCK,
-                    .async_context = NULL,
-                    .deadline = NULL
-                }
+            thread->Signaling.Signals,
+            &threadSignal,
+            sizeof(ThreadSignal_t),
+            &(streambuffer_rw_options_t) {
+                .flags = STREAMBUFFER_NO_BLOCK,
+                .async_context = NULL,
+                .deadline = NULL
+            }
         );
         if (!bytesRead) {
             break;
@@ -235,12 +259,12 @@ SignalProcessQueued(
 
         flags = ((uint32_t)threadSignal.Signal << 24 | threadSignal.Flags);
         ArchThreadContextPushInterceptor(
-                context,
-                alternativeStack,
-                handler,
-                flags,
-                (uintptr_t)threadSignal.Argument,
-                0
+            context,
+            alternativeStack,
+            handler,
+            flags,
+            (uintptr_t)threadSignal.Argument,
+            0
         );
         atomic_fetch_sub(&thread->Signaling.Pending, 1);
     }

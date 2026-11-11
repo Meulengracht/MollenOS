@@ -7,6 +7,23 @@ import "types"
 
 namespace sys
 
+struct inherited_descriptor {
+    uint32 descriptor;
+    uint32 resource_index;
+    uint32 signature;
+    uint32 flags;
+}
+
+struct process_inheritance_input {
+    grant_token[]          resources;
+    inherited_descriptor[] descriptors;
+}
+
+struct process_inheritance_output {
+    uuid_t[]               resources;
+    inherited_descriptor[] descriptors;
+}
+
 struct process_configuration {
     uuid_t       scope;
     ulong        memory_limit;
