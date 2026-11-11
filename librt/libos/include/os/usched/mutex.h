@@ -24,6 +24,7 @@ struct timespec;
 #include <os/spinlock.h>
 
 struct usched_job;
+struct usched_wait;
 
 enum {
     USCHED_MUTEX_PLAIN       = 0,
@@ -31,50 +32,58 @@ enum {
     USCHED_MUTEX_TIMED       = 2
 };
 
+/**
+ * @brief Tracks the job holding the mutex, its recursive lock count and waiting
+ * jobs. The internal lock protects owner, references and queue.
+ */
 struct usched_mtx {
-    int                type;
-    int                references;
-    spinlock_t         lock;
-    struct usched_job* owner;
-    struct usched_job* queue;
+    int                 type;
+    int                 references;
+    spinlock_t          lock;
+    struct usched_job*  owner;
+    struct usched_wait* queue;
 };
 
 _CODE_BEGIN
 
 /**
- * @brief Initializes the mutex provided to its default state.
+ * @brief Initializes an unlocked mutex.
  *
- * @param mutex A pointer to a mutex that should be initialized.
+ * @param mutex The mutex to initialize.
+ * @param type  USCHED_MUTEX_* flags.
  */
 CRTDECL(void, usched_mtx_init(struct usched_mtx* mutex, int type));
 
 /**
- * @brief Blocks the current thread until the mutex pointed to by mutex is
- * locked or until the TIME_UTC based time point pointed to by until has been reached.
- * @param mutex Mutex to lock.
- * @param until Absolute time at which the lock attempt expires.
- * @return Zero on success; otherwise, an error code.
+ * @brief Locks the mutex, blocking the current job if necessary until the
+ * mutex is available or the deadline is reached.
+ *
+ * @param mutex The mutex to lock.
+ * @param until Absolute deadline (TIME_UTC). NULL means no timeout.
+ * @return      0 if locked, or -1 with errno set to ETIME on timeout.
  */
 CRTDECL(int, usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restrict until));
 
 /**
- * @brief Tries to lock the mutex pointed to by mutex without blocking.
- * @param mutex Mutex to try to lock.
- * @return Zero on success; otherwise, an error code.
+ * @brief Tries to lock the mutex without blocking.
+ *
+ * @param mutex The mutex to lock.
+ * @return      0 if locked, or -1 with errno set to EBUSY if unavailable.
  */
 CRTDECL(int, usched_mtx_trylock(struct usched_mtx* mutex));
 
 /**
- * @brief Locks a mutex, and if the mutex is already locked then this function will block.
+ * @brief Locks the mutex, blocking the current job until it is available.
  *
- * @param mutex The mutex that should be locked.
+ * @param mutex The mutex to lock.
  */
 CRTDECL(void, usched_mtx_lock(struct usched_mtx* mutex));
 
 /**
- * @brief Unlocks an already held mutex.
+ * @brief Unlocks a mutex held by the calling job. A recursive mutex must be
+ * unlocked once for each successful lock before another job can take it.
  *
- * @param mutex The mutex that should be unlocked.
+ * @param mutex The mutex to unlock.
  */
 CRTDECL(void, usched_mtx_unlock(struct usched_mtx* mutex));
 

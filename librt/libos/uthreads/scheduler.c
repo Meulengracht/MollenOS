@@ -30,7 +30,6 @@
 #include <stdlib.h>
 #include "private.h"
 
-static atomic_int g_timerid = 1;
 static struct usched_scheduler g_scheduler = {
     .lock = MUTEX_INIT(MUTEX_PLAIN)
 };
@@ -70,12 +69,6 @@ __init_notification_queue(
         return oserr;
     }
 
-    oserr = OSHandleCreate(NULL, 0, &execution->syscall_handle);
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&execution->notification_queue);
-        return oserr;
-    }
-
     oserr = OSNotificationQueueCtrl(
         &execution->notification_queue,
         IOSET_ADD,
@@ -86,25 +79,8 @@ __init_notification_queue(
         }
     );
     if (oserr != OS_EOK) {
-        goto error;
+        OSHandleDestroy(&execution->notification_queue);
     }
-
-    oserr = OSNotificationQueueCtrl(
-        &execution->notification_queue,
-        IOSET_ADD,
-        &execution->syscall_handle,
-        &(struct ioset_event) {
-            .events = IOSETSYN,
-            .data.handle = execution->syscall_handle.ID
-        }
-    );
-    if (oserr == OS_EOK) {
-        return OS_EOK;
-    }
-
-error:
-    OSHandleDestroy(&execution->syscall_handle);
-    OSHandleDestroy(&execution->notification_queue);
     return oserr;
 }
 
@@ -125,7 +101,7 @@ __usched_init(
         return;
     }
 
-    // The caller zero-initializes the context before publishing the unit.
+    // The context must be zero-initialized before the unit's kernel thread starts.
     // Do not clear a stop request that arrived while its kernel thread started.
     execution->tls = __tls_current();
     execution->scheduler = &g_scheduler;
@@ -153,8 +129,9 @@ __usched_destroy(
     }
 
     OSHandleDestroy(&execution->notification_queue);
-    OSHandleDestroy(&execution->syscall_handle);
     if (execution->scheduler != &g_scheduler) {
+        assert(execution->scheduler->timers == NULL);
+        assert(execution->scheduler->syscalls_pending == NULL);
         OSHandleDestroy(&execution->scheduler->notification_handle);
         free(execution->scheduler);
     }
@@ -185,8 +162,9 @@ static void
 __queue_job_locked(
     _In_ struct usched_job* job)
 {
-    // scheduler->Lock must be held, and no execution unit may use this stack.
+    // scheduler->lock must be held, and no execution unit may use this stack.
     assert(__JOB_STATE(job) == JobState_CREATED || __JOB_STATE(job) == JobState_READY);
+
     __usched_append_job(&job->scheduler->ready, job);
     OSNotificationQueuePost(&job->scheduler->notification_handle, IOSETSYN);
 }
@@ -204,28 +182,14 @@ __usched_add_job_ready(
     MutexUnlock(&job->scheduler->lock);
 }
 
-void
-__usched_job_block(
+static void
+__job_ready_locked(
     _InOut_ struct usched_job* job)
 {
-    MutexLock(&job->scheduler->lock);
-    assert(__JOB_STATE(job) == JobState_RUNNING);
-    __JOB_SET_STATE(job, JobState_BLOCKING);
-    MutexUnlock(&job->scheduler->lock);
-}
-
-void
-__usched_job_ready(
-    _In_ struct usched_job* job)
-{
-    struct usched_scheduler* scheduler;
-
-    scheduler = job->scheduler;
-    MutexLock(&scheduler->lock);
     job->next = NULL;
 
-    // An early notification only cancels the block. The job is still on its
-    // stack, so __finish_dispatch publishes it once the stack is left.
+    // An early notification cancels the block. The job is still using its
+    // stack, so __finish_dispatch queues it after it returns to the scheduler.
     if (__JOB_STATE(job) == JobState_BLOCKING) {
         __JOB_SET_STATE(job, JobState_RUNNING);
     } else {
@@ -233,7 +197,6 @@ __usched_job_ready(
         __JOB_SET_STATE(job, JobState_READY);
         __queue_job_locked(job);
     }
-    MutexUnlock(&scheduler->lock);
 }
 
 static void
@@ -248,7 +211,8 @@ __finish_dispatch(
     job = execution->current;
     execution->current = NULL;
 
-    // The job has left its stack, so move it to the matching off-stack state.
+    // The job has returned to the scheduler stack. It can now be queued,
+    // blocked or destroyed.
     MutexLock(&scheduler->lock);
     state = __JOB_STATE(job);
     if (state == JobState_RUNNING) {
@@ -261,7 +225,7 @@ __finish_dispatch(
     }
     MutexUnlock(&scheduler->lock);
 
-    // A published job may already have resumed on another unit. Only a
+    // A queued job may already have resumed on another unit. Only a
     // finished job can still be accessed here, including freeing its stack.
     if (state == JobState_FINISHING) {
         __task_destroy(job);
@@ -295,13 +259,16 @@ __get_next_ready(
 // entry point for new tasks
 extern void __usched_task_main(struct usched_job* job);
 #if defined(__aarch64__)
-extern _Noreturn void __usched_task_start(void* stack, struct usched_job* job,
-                                        void (*entry)(struct usched_job*));
+extern _Noreturn void 
+__usched_task_start(
+    void* stack,
+    struct usched_job* job,
+    void (*entry)(struct usched_job*));
 #endif
 
-// Every dispatch (including same-job resumption and migration) must catch up
-// before entering user code. Only the selected job owns these TLS slots; this
-// does not publish modules to jobs already running on other execution units.
+// Update the job's TLS before every dispatch, including when it resumes on
+// the same unit. Jobs already running on other units pick up new modules
+// when they next resume.
 static void __prepare_task_entry(struct usched_job* job)
 {
     __tls_switch(&job->tls);
@@ -352,128 +319,223 @@ static void _Noreturn __switch_task(
     for (;;);
 }
 
-static void __notify_timer(
-        struct usched_timeout* timer)
+static bool
+__is_before_or_equal(
+    _In_ const struct timespec* before,
+    _In_ const struct timespec* after)
 {
-    TRACE("__notify_timer(job=%u)", timer->job->id);
-    if (timer->queue_type == __QUEUE_TYPE_SLEEP) {
-        __usched_job_notify(timer->job);
-    } else if (timer->queue_type == __QUEUE_TYPE_MUTEX) {
-        __usched_mtx_notify_job(timer->queue.mutex, timer->job);
-    } else if (timer->queue_type == __QUEUE_TYPE_COND) {
-        __usched_cond_notify_job(timer->queue.cond, timer->job);
+    if (before->tv_sec == after->tv_sec) {
+        return before->tv_nsec <= after->tv_nsec;
     }
+    return before->tv_sec < after->tv_sec;
 }
 
-static bool __is_before_or_equal(const struct timespec* before, const struct timespec* this) {
-    if (before->tv_sec < this->tv_sec) {
-        return true;
-    } else if (before->tv_sec == this->tv_sec) {
-        return before->tv_nsec <= this->tv_nsec;
+static void
+__remove_timer_locked(
+    _InOut_ struct usched_wait* wait)
+{
+    struct usched_wait** link;
+
+    if (!wait->timed) {
+        return;
     }
-    return false;
+
+    // A wait with timed set must still be in the scheduler timer list.
+    link = &wait->job->scheduler->timers;
+    while (*link != wait) {
+        assert(*link != NULL);
+        link = &(*link)->timer_next;
+    }
+    *link = wait->timer_next;
+
+    // Clear timed so later cleanup skips the list.
+    wait->timer_next = NULL;
+    wait->timed = false;
 }
 
-static void __update_timers(
-        struct usched_execution_context* execution)
+static bool
+__complete_wait_locked(
+    _InOut_ struct usched_wait*    wait,
+    _In_    enum usched_wait_status result)
 {
-    struct timespec        currentTime;
-    struct usched_timeout* timer;
+    // The timer and a notifier can both reach this wait. Keep the first result.
+    if (wait->result != UschedWaitStatus_PENDING) {
+        return false;
+    }
 
-    timespec_get(&currentTime, TIME_UTC);
-    timer = execution->timers;
-    while (timer) {
-        if (timer->active) {
-            if (__is_before_or_equal(&timer->deadline, &currentTime)) {
-                timer->active = 0;
-                __notify_timer(timer);
-            }
+    // The wait is on the job's stack. Remove the timer before waking the job,
+    // as it can resume on another unit and leave this stack frame. The job
+    // removes any remaining condition or mutex link before returning.
+    __remove_timer_locked(wait);
+    wait->result = result;
+    __job_ready_locked(wait->job);
+    return true;
+}
+
+void
+__usched_wait_prepare(
+    _Out_ struct usched_wait*    wait,
+    _In_  const struct timespec* until)
+{
+    struct usched_scheduler* scheduler;
+
+    wait->job = __usched_get_execution()->current;
+    wait->result = UschedWaitStatus_PENDING;
+    wait->timed = until != NULL;
+    wait->timer_next = NULL;
+    wait->queue_next = NULL;
+    
+    scheduler = wait->job->scheduler;
+    MutexLock(&scheduler->lock);
+    
+    assert(__JOB_STATE(wait->job) == JobState_RUNNING);
+    
+    __JOB_SET_STATE(wait->job, JobState_BLOCKING);
+    if (until != NULL) {
+        wait->deadline = *until;
+        wait->timer_next = scheduler->timers;
+        scheduler->timers = wait;
+
+        // Wake up idle units, as they may be sleeping until a later deadline
+        // or without any deadline at all.
+        OSNotificationQueuePost(&scheduler->notification_handle, IOSETSYN);
+    }
+    MutexUnlock(&scheduler->lock);
+}
+
+void
+__usched_wait_enqueue(
+    _InOut_ struct usched_wait** queue,
+    _InOut_ struct usched_wait*  wait)
+{
+    while (*queue != NULL) {
+        queue = &(*queue)->queue_next;
+    }
+    *queue = wait;
+}
+
+void
+__usched_wait_remove(
+    _InOut_ struct usched_wait** queue,
+    _In_    struct usched_wait*  wait)
+{
+    while (*queue != NULL) {
+        if (*queue == wait) {
+            *queue = wait->queue_next;
+            return;
         }
-        timer = timer->next;
+        queue = &(*queue)->queue_next;
     }
 }
 
-static int __get_next_deadline(
-        struct usched_execution_context* execution,
-        struct timespec*         deadline)
+struct usched_job*
+__usched_wait_signal(
+    _InOut_ struct usched_wait** queue)
 {
-    struct timespec        currentTime;
-    struct timespec        currentDiff;
-    struct usched_timeout* timer;
-    clock_t                shortest = (clock_t)-1;
-    int                    result   = -1;
+    struct usched_wait*      wait;
+    struct usched_job*       job;
+    struct usched_scheduler* scheduler;
+    bool                     completed;
 
-    timespec_get(&currentTime, TIME_UTC);
-    timer = execution->timers;
-    while (timer) {
-        if (timer->active) {
-            if (__is_before_or_equal(&timer->deadline, &currentTime)) {
-                // timer ready, let it run again
-                currentDiff.tv_sec  = 0;
-                currentDiff.tv_nsec = 0;
-            } else {
-                timespec_diff(&timer->deadline, &currentTime,  &currentDiff);
-            }
-
-            clock_t diff = (clock_t)((currentDiff.tv_sec * NSEC_PER_SEC) + (clock_t)currentDiff.tv_nsec);
-            if (diff < shortest) {
-                deadline->tv_sec = timer->deadline.tv_sec;
-                deadline->tv_nsec = timer->deadline.tv_nsec;
-            }
-            shortest = MIN(diff, shortest);
-            if (!shortest) {
-                result = 0;
-                break;
-            }
+    while (*queue != NULL) {
+        wait = *queue;
+        *queue = wait->queue_next;
+        
+        job = wait->job;
+        
+        scheduler = job->scheduler;
+        MutexLock(&scheduler->lock);
+        completed = __complete_wait_locked(wait, UschedWaitStatus_SIGNALLED);
+        MutexUnlock(&scheduler->lock);
+        if (completed) {
+            return job;
         }
-        timer = timer->next;
     }
+    return NULL;
+}
 
-    // Set error code based on the outcome of this. We must inform
-    // the execution unit of the next action based on when a new job
-    // is ready
-    if (shortest == (clock_t)-1) {
-        // No entries, this means the XU should block indefinitely
-        // untill a new job enters ready queue
+static void
+__update_timers(
+    _InOut_ struct usched_scheduler* scheduler)
+{
+    struct timespec      now;
+    struct usched_wait** link;
+    struct usched_wait*  wait;
+
+    timespec_get(&now, TIME_UTC);
+
+    MutexLock(&scheduler->lock);
+    link = &scheduler->timers;
+    while (*link != NULL) {
+        wait = *link;
+
+        if (__is_before_or_equal(&wait->deadline, &now)) {
+            // Unlink the wait here and clear timed, so __complete_wait_locked
+            // does not search the timer list for it again.
+            *link = wait->timer_next;
+            wait->timer_next = NULL;
+            wait->timed = false;
+            __complete_wait_locked(wait, UschedWaitStatus_TIMEOUT);
+        } else {
+            link = &wait->timer_next;
+        }
+    }
+    MutexUnlock(&scheduler->lock);
+}
+
+static int
+__get_next_deadline(
+    _In_  struct usched_scheduler* scheduler,
+    _Out_ struct timespec*         deadline)
+{
+    struct timespec     now;
+    struct timespec     earliest;
+    struct usched_wait* wait;
+    bool                found = false;
+
+    MutexLock(&scheduler->lock);
+    for (wait = scheduler->timers; wait != NULL; wait = wait->timer_next) {
+        if (!found || __is_before_or_equal(&wait->deadline, &earliest)) {
+            earliest = wait->deadline;
+            found = true;
+        }
+    }
+    MutexUnlock(&scheduler->lock);
+    if (!found) {
         errno = ENOENT;
-    } else {
-        // Entries will be ready at some point, and the XU should check
-        // when the deadline has been reached.
-        errno = EWOULDBLOCK;
+        return -1;
     }
-    return result;
+
+    if (deadline != NULL) {
+        *deadline = earliest;
+    }
+    timespec_get(&now, TIME_UTC);
+    errno = EWOULDBLOCK;
+    return __is_before_or_equal(&earliest, &now) ? 0 : -1;
 }
 
 static void
 __process_syscall_completions(
-    _InOut_ struct usched_execution_context* execution)
+    _InOut_ struct usched_scheduler* scheduler)
 {
-    struct usched_syscall* i, *p, *next;
+    struct usched_syscall** link;
+    struct usched_syscall*  syscall;
 
-    i = execution->syscalls_pending;
-    p = NULL;
-    while (i) {
-        // The completed job may resume and leave this stack frame on another
-        // unit as soon as it is published. Save the link before that point.
-        next = i->next;
+    MutexLock(&scheduler->lock);
+    link = &scheduler->syscalls_pending;
+    while (*link != NULL) {
+        syscall = *link;
 
-        // TODO: This should be read atomically as the status is updated from
-        // *maybe* another core. Even though we should probably always execute
-        // these kinds of syscalls on the same core? (We can consider this)
-        if (i->async_context->ErrorCode != OS_ESCSTARTED) {
-            // unlink it and schedule the job
-            if (p == NULL) {
-                execution->syscalls_pending = i->next;
-            } else {
-                p->next = i->next;
-            }
-            __usched_job_ready(i->job);
+        // Use atomics for the error-code as the kernel will update this
+        // using atomic operations.
+        if (__atomic_load_n(&syscall->async_context->ErrorCode, __ATOMIC_ACQUIRE) != OS_ESCSTARTED) {
+            *link = syscall->next;
+            __job_ready_locked(syscall->job);
         } else {
-            p = i;
+            link = &syscall->next;
         }
-
-        i = next;
     }
+    MutexUnlock(&scheduler->lock);
 }
 
 int
@@ -496,26 +558,25 @@ usched_yield(
         return 0;
     }
 
-    // This continuation stays on the kernel thread's scheduler stack. Every
-    // job returns here before its state is published or its stack is freed.
+    // Jobs must return to this point on the kernel thread's scheduler stack
+    // before we can queue them again or free their stacks.
     if (setjmp(execution->jmp_context) != 0) {
         __tls_switch(execution->tls);
         __finish_dispatch(execution);
     }
 
-    // Wait registrations are still local in this first refactor. Keep the
-    // unit running until those lists are empty so retirement cannot drop them.
-    if (atomic_load(&execution->stop_requested) &&
-        execution->timers == NULL && execution->syscalls_pending == NULL) {
+    // Waits are kept on the scheduler, so this unit can stop even while
+    // some of its jobs are still waiting.
+    if (atomic_load(&execution->stop_requested)) {
         errno = ESHUTDOWN;
         return -1;
     }
 
-    __update_timers(execution);
-    __process_syscall_completions(execution);
+    __update_timers(execution->scheduler);
+    __process_syscall_completions(execution->scheduler);
     next = __get_next_ready(execution->scheduler);
     if (next == NULL) {
-        return __get_next_deadline(execution, deadline);
+        return __get_next_deadline(execution->scheduler, deadline);
     }
 
     execution->current = next;
@@ -525,19 +586,18 @@ usched_yield(
 void usched_timedwait(const struct timespec* until)
 {
     struct usched_execution_context* execution = __usched_get_execution();
-    struct ioset_event               events[2];
+    struct ioset_event               events[1];
     int                              numEvents;
     oserr_t                          oserr;
     
     TRACE("usched_timedwait()");
 
-    // We have two handles in the notification queue, so we can be supplied
-    // with *at most* two events. We can actually in detail detect which type
-    // of event occurred, but we do not care.
+    // Ready jobs, new deadlines and syscall completions are all signalled
+    // through the scheduler notification handle, so we only expect one event.
     oserr = OSNotificationQueueWait(
         &execution->notification_queue,
         &events[0],
-        2,
+        1,
         0,
         until == NULL ? NULL : &(OSTimestamp_t) {
             .Seconds = until->tv_sec,
@@ -556,106 +616,37 @@ void usched_wait(void) {
     usched_timedwait(NULL);
 }
 
-int __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType)
+void
+usched_wait_async(void)
 {
-    struct usched_execution_context* execution = __usched_get_execution();
-    struct usched_timeout*           timer;
+    struct usched_job*       current;
+    struct usched_scheduler* scheduler;
+    struct usched_syscall    syscall;
 
-    if (!until) {
-        errno = EINVAL;
-        return -1;
-    }
+    current = __usched_get_execution()->current;
+    scheduler = current->scheduler;
+    
+    syscall.job = current;
+    syscall.async_context = &current->async_context;
 
-    timer = malloc(sizeof(struct usched_timeout));
-    if (!timer) {
-        errno = ENOMEM;
-        return -1;
-    }
-
-    timer->id = atomic_fetch_add(&g_timerid, 1);
-    timer->active = 1;
-    timer->deadline.tv_sec = until->tv_sec;
-    timer->deadline.tv_nsec = until->tv_nsec;
-    timer->queue = *queue;
-    timer->queue_type = queueType;
-    timer->next = NULL;
-
-    timer->job = execution->current;
-    __usched_append_timer(&execution->timers, timer);
-
-    return timer->id;
-}
-
-int
-__usched_timeout_finish(int id)
-{
-    struct usched_execution_context* execution = __usched_get_execution();
-    struct usched_timeout*           timer;
-    struct usched_timeout*           previousTimer = NULL;
-    int                              result = 0;
-    bool                             timerFound = false;
-
-    if (id == -1) {
-        // an invalid id was provided, ignore it
-        return 0;
-    }
-
-    timer = execution->timers;
-    while (timer) {
-        if (timer->id == id) {
-            if (previousTimer) {
-                previousTimer->next = timer->next;
-            }
-            else {
-                execution->timers = timer->next;
-            }
-            timerFound = true;
-            break;
-        }
-
-        previousTimer = timer;
-        timer = timer->next;
-    }
-
-    if (timerFound) {
-        // return -1 if timer was signalled.
-        if (!timer->active) {
-            errno = ETIME;
-            result = -1;
-        }
-        free(timer);
-    }
-    return result;
-}
-
-void usched_wait_async(void)
-{
-    struct usched_execution_context* execution = __usched_get_execution();
-    struct usched_job*               current = execution->current;
-    struct usched_syscall            syscall = {
-            .job = current,
-            .async_context = &current->async_context,
-            .next = NULL
-    };
-    TRACE("usched_wait_async()");
-    if (execution->syscalls_pending == NULL) {
-        execution->syscalls_pending = &syscall;
-    } else {
-        struct usched_syscall* i = execution->syscalls_pending;
-        while (i->next) {
-            i = i->next;
-        }
-        i->next = &syscall;
-    }
-
-    // set us blocked, so we won't be rescheduled and then
-    // yield for the next job.
-    __usched_job_block(execution->current);
+    // Block the job and add the syscall under the same lock. The next scan
+    // checks each pending syscall's error code, even if another unit has
+    // already read its completion event.
+    MutexLock(&scheduler->lock);
+    
+    assert(__JOB_STATE(current) == JobState_RUNNING);
+    __JOB_SET_STATE(current, JobState_BLOCKING);
+    
+    syscall.next = scheduler->syscalls_pending;
+    scheduler->syscalls_pending = &syscall;
+    
+    OSNotificationQueuePost(&scheduler->notification_handle, IOSETSYN);
+    MutexUnlock(&scheduler->lock);
     usched_yield(NULL);
 }
 
-uuid_t usched_notification_handle(void)
+uuid_t
+usched_notification_handle(void)
 {
-    struct usched_execution_context* execution = __usched_get_execution();
-    return execution->syscall_handle.ID;
+    return __usched_get_execution()->scheduler->notification_handle.ID;
 }

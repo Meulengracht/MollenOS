@@ -369,34 +369,23 @@ int usched_job_signal(uuid_t jobID, int signal)
     return -1;
 }
 
-int usched_job_sleep(const struct timespec* until)
+int
+usched_job_sleep(
+    _In_ const struct timespec* until)
 {
-    union usched_timer_queue queue = { NULL };
-    struct usched_job*       current;
-    int                      timer;
+    struct usched_wait wait;
 
-    // set us blocked
-    current = __usched_get_execution()->current;
-    __usched_job_block(current);
-
-    timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_SLEEP);
-    usched_job_yield();
-    if (__usched_timeout_finish(timer)) {
-        if (errno == ETIME) {
-            return 0;
-        }
-
-        // In general, sleeps in userspace do not get interrupted, so we do
-        // not need ever to calculate a remaining duration. If any error occurs
-        // it's not because of sleep. Maybe this changes some day.
+    if (until == NULL) {
+        errno = EINVAL;
         return -1;
     }
-    return 0;
-}
 
-void __usched_job_notify(struct usched_job* job)
-{
-    __usched_job_ready(job);
+    __usched_wait_prepare(&wait, until);
+    usched_job_yield();
+
+    // Only the timer can complete a sleep, so the deadline must have been reached.
+    assert(wait.result == UschedWaitStatus_TIMEOUT);
+    return 0;
 }
 
 bool usched_is_cancelled(const void* cancellationToken)

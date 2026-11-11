@@ -38,7 +38,7 @@ __SyscallAwaitFork(
 
     // The kernel child completes through the cooperative scheduler.
     usched_wait_async();
-    return async->ErrorCode;
+    return __atomic_load_n(&async->ErrorCode, __ATOMIC_ACQUIRE);
 }
 
-#endif
+#endif //!__INTERNAL_ASYNC_H__

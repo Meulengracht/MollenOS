@@ -22,16 +22,14 @@
 #include <os/usched/types.h>
 
 /**
- * @brief Initializes the xunit system, and initializes the current kernel thread
- * as the initial execution unit for the userspace threads. After this call it's possible
- * to either use a custom loop for the primary execution unit, or use the pre-provided
- * usched_xunit_main_loop
+ * @brief Initializes the current kernel thread as the primary execution unit.
+ * After this call, use usched_xunit_main_loop or a custom scheduling loop.
  */
 CRTDECL(void, usched_xunit_init(void));
 
 /**
- * @brief Runs the execution units primary loop. There is no return from this call, as
- * it will run until program exit.
+ * @brief Runs the primary execution unit's scheduling loop until program exit.
+ * This function does not return.
  *
  * @param startFn Initial job that should be scheduled for this execution unit.
  * @param argument Argument for the initial job.
@@ -47,15 +45,16 @@ CRTDECL(_Noreturn void, usched_xunit_main_loop(usched_task_fn startFn, void* arg
 CRTDECL(int, usched_xunit_count(void));
 
 /**
- * @brief Sets the number of execution units available for the process. This should be
- * not be larger then number of logical CPUs on the system.
- * Reducing the count requests cooperative retirement and returns without joining
- * kernel threads. Selected units stop at a scheduling point after their local
- * waits finish. Until then, the number of live kernel threads may exceed count.
- * Jobs must yield or block for retirement to complete.
+ * @brief Sets the number of pooled execution units for the process. The count
+ * should not exceed the number of logical CPUs on the system.
+ * Reducing the count asks the selected units to stop, and returns without waiting
+ * for their kernel threads to exit. A unit stops at its next scheduling point,
+ * so jobs must yield or block before it can stop. Waiting jobs stay on the
+ * shared scheduler and can resume on another unit. Until the units have stopped,
+ * the number of running kernel threads may be higher than count.
  *
- * @param[In] count The number of execution units.  To request the maximum number
- *                  of execution units, set this to -1.
+ * @param[In] count The requested number of pooled execution units.
+ *                  Set to -1 to use the maximum number.
  * @return The result of the operation. If this returns != 0, check errno for details.
  */
 CRTDECL(int, usched_xunit_set_count(int count));

@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <os/usched/job.h>
 #include <os/usched/mutex.h>
+
 #include "private.h"
 
 void usched_mtx_init(struct usched_mtx* mutex, int type)
@@ -34,48 +35,32 @@ void usched_mtx_init(struct usched_mtx* mutex, int type)
 
 static int
 __BlockAndWait(
-    struct usched_mtx*              mutex,
-    struct usched_job*              current,
-    const struct timespec *restrict until)
+    _InOut_ struct usched_mtx*              mutex,
+    _In_    struct usched_job*              current,
+    _In_    const struct timespec *restrict until)
 {
-    int status = 0;
-    int timer;
+    struct usched_wait wait;
 
-    // set us blocked
-    __usched_job_block(current);
-
-    // add us to the blocked queue
-    __usched_append_job(&mutex->queue, current);
-
-    // wait for ownership
-    while (mutex->owner != current) {
-        spinlock_release(&mutex->lock);
-        if (until != NULL) {
-            union usched_timer_queue queue = { .mutex = mutex };
-            timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_MUTEX);
-        }
-        usched_job_yield();
-        if (until != NULL) {
-            status = __usched_timeout_finish(timer);
-        }
-        spinlock_acquire(&mutex->lock);
-        
-        if (status) {
-            // The deadline expired, which means the timeout handler has already
-            // unlinked us from the block queue. Ownership may still have been
-            // handed to us in the same window, in which case we keep it.
-            if (mutex->owner == current) {
-                status = 0;
-            }
-            break;
-        }
+    // mutex->lock must be held until the wait is queued, so an unlock
+    // cannot miss it.
+    __usched_wait_prepare(&wait, until);
+    __usched_wait_enqueue(&mutex->queue, &wait);
+    
+    // release and yield to allow other jobs to acquire the mutex.
+    spinlock_release(&mutex->lock);
+    usched_job_yield();
+    
+    // A timed-out wait may still be queued. Remove it before returning.
+    spinlock_acquire(&mutex->lock);
+    __usched_wait_remove(&mutex->queue, &wait);
+    if (wait.result == UschedWaitStatus_TIMEOUT) {
+        errno = ETIME;
+        return -1;
     }
 
-    if (status == 0) {
-        // we got ownership, reset reference count
-        mutex->references = 1;
-    }
-    return status;
+    assert(mutex->owner == current);
+    mutex->references = 1;
+    return 0;
 }
 
 int usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restrict until)
@@ -136,12 +121,13 @@ void usched_mtx_lock(struct usched_mtx* mutex)
     assert(status == 0);
 }
 
-void usched_mtx_unlock(struct usched_mtx* mutex)
+void
+usched_mtx_unlock(
+    _InOut_ struct usched_mtx* mutex)
 {
     struct usched_job* current;
-    struct usched_job* next = NULL;
-    assert(mutex != NULL);
 
+    assert(mutex != NULL);
     current = __usched_get_execution()->current;
     assert(current != NULL);
 
@@ -149,58 +135,8 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
     assert(mutex->owner == current);
     mutex->references--;
     if (!mutex->references) {
-        next = mutex->queue;
-        mutex->owner = next;
-        if (next) {
-            mutex->queue = next->next;
-        }
+        // Hand the mutex directly to the next waiting job, if any, and wake it up.
+        mutex->owner = __usched_wait_signal(&mutex->queue);
     }
     spinlock_release(&mutex->lock);
-
-    // mark next job as woken
-    if (next) {
-        __usched_job_ready(next);
-    }
-}
-
-void __usched_mtx_notify_job(struct usched_mtx* mtx, struct usched_job* job)
-{
-    struct usched_job* i;
-    struct usched_job* previous;
-    bool               reQueue = false;
-
-    assert(mtx != NULL);
-    assert(job != NULL);
-
-    spinlock_acquire(&mtx->lock);
-    if (mtx->queue == NULL) {
-        spinlock_release(&mtx->lock);
-        return;
-    }
-
-    i = mtx->queue;
-    previous = NULL;
-    while (i) {
-        if (i == job) {
-            // Unlink the job from the mutex block queue while we hold
-            // the spinlock. The rest of the job handling can be done
-            // without the spinlock.
-            if (!previous) {
-                mtx->queue = i->next;
-            }
-            else {
-                previous->next = i->next;
-            }
-            reQueue = true;
-            break;
-        }
-
-        previous = i;
-        i = i->next;
-    }
-    spinlock_release(&mtx->lock);
-
-    if (reQueue) {
-        __usched_job_ready(job);
-    }
 }

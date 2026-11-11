@@ -30,50 +30,55 @@ struct timespec;
 #include <os/usched/mutex.h>
 
 struct usched_job;
+struct usched_wait;
 
 struct usched_cnd {
-    spinlock_t         lock;
-    struct usched_job* queue;
+    spinlock_t          lock;
+    struct usched_wait* queue;
 };
 
 _CODE_BEGIN
 
 /**
- * @brief Initializes a new condition variable instance.
+ * @brief Initializes a condition variable with an empty wait queue.
  *
- * @param condition A pointer to a condition variable that should be initialized
+ * @param condition The condition variable to initialize.
  */
 CRTDECL(void, usched_cnd_init(struct usched_cnd* condition));
 
 /**
- * @brief Blocks the current running task until the condition variable has been signalled.
+ * @brief Blocks the current job until the condition variable is signalled.
+ * The mutex must be held by the calling job. It is unlocked before the job
+ * blocks and locked again before this function returns.
  *
- * @param condition The condition variable that should be waited for.
- * @param mutex     A mutex protecting the condition variable, this will be unlocked before blocking.
+ * @param condition The condition variable to wait for.
+ * @param mutex     The mutex protecting the condition being checked.
  */
 CRTDECL(void, usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex));
 
 /**
- * @brief Blocks the current running task until the condition variable has been signalled.
+ * @brief Blocks the current job until the condition variable is signalled or
+ * the deadline is reached. The mutex must be held by the calling job. It is
+ * locked again before this function returns, including after a timeout.
  *
- * @param condition The condition variable that should be waited for.
- * @param mutex     A mutex protecting the condition variable, this will be unlocked before blocking.
- * @param until     The timeout in as a timespec before returning if condition has not been signalled. 0 means infinite.
- * @return          Returns -1 (ETIME) if timeout was reached. Returns 0 if condition was signalled.
+ * @param condition The condition variable to wait for.
+ * @param mutex     The mutex to unlock before blocking.
+ * @param until     Absolute deadline (TIME_UTC). NULL means no timeout.
+ * @return          0 if signalled, or -1 with errno set to ETIME on timeout.
  */
 CRTDECL(int, usched_cnd_timedwait(struct usched_cnd* condition, struct usched_mtx* mutex, const struct timespec *restrict));
 
 /**
- * @brief Notifies one task that is currently blocked by the condition variable, and wakes it up.
+ * @brief Wakes one job waiting on the condition variable.
  *
- * @param condition The condition variable that should be signalled.
+ * @param condition The condition variable to signal.
  */
 CRTDECL(void, usched_cnd_notify_one(struct usched_cnd* condition));
 
 /**
- * @brief Notifies all waiters that are currently blocked by a condition variable, and wakes them up.
+ * @brief Wakes all jobs waiting on the condition variable.
  *
- * @param condition The condition variable that should be signalled.
+ * @param condition The condition variable to signal.
  */
 CRTDECL(void, usched_cnd_notify_all(struct usched_cnd* condition));
 

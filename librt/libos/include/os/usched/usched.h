@@ -30,47 +30,44 @@ struct timespec;
 typedef struct OSAsyncContext OSAsyncContext_t;
 
 /**
- * @brief Returns the current job to its execution unit's scheduler stack before
- * selecting another job. A resumed job returns zero and may run on another unit.
- * Called outside a job, dispatches jobs until the unit is idle or stopping.
- * @param deadline If there were no more jobs to execute, but there will be in the
- *                     future, for instance that are either sleeping or waiting for a timeout,
- *                     then this will be set to the point in time when usched_yield should be called
- *                     again. This parameter is optional, and does not need to be provided if a job
- *                     simply wants to give up it's timeslice voluntarily.
- * @return Returns the next action available for the scheduler.
- *         A value of 0 means that there are jobs ready to execute now.
- *         A value of -1 means that the caller needs to block, as either of two cases have occurred.
- *         ENOENT means that there are no more jobs to execute, and no events pending.
- *         EWOULDBLOCK means that there are no jobs to execute, but we have an event pending and
- *         usched_yield should be called again once the time specified by deadline has been reached.
- *         ESHUTDOWN means the execution unit should stop dispatching jobs.
+ * @brief Yields the current job to the execution unit's scheduler stack.
+ * The job may resume on another unit. Called outside a job, this runs jobs
+ * until the unit is idle or asked to stop.
+ *
+ * @param deadline Optional output for the next timer deadline (TIME_UTC).
+ *                 Set when no jobs are ready and a timer is pending.
+ * @return 0 when a job resumes. Outside a job, 0 means a timer is due and
+ *         this function should be called again.
+ *         -1 with errno set to ENOENT if no jobs are ready and no timers remain,
+ *         EWOULDBLOCK if the next timer is still pending, or ESHUTDOWN if the
+ *         execution unit has been asked to stop.
  */
 CRTDECL(int, usched_yield(struct timespec* deadline));
 
 /**
- * @brief Puts the calling thread/execution unit to sleep until a new job has been queued.
+ * @brief Puts the calling execution unit to sleep until its scheduler is notified.
  */
 CRTDECL(void, usched_wait(void));
 
 /**
- * @brief Puts the calling thread/execution unit to sleep until a new job or the point in time
- * specified by 'until' has been reached.
- * @param until A point in time for which the execution unit must be woken up by.
+ * @brief Puts the calling execution unit to sleep until its scheduler is notified
+ * or the deadline is reached.
+ *
+ * @param until Absolute deadline (TIME_UTC). NULL means no timeout.
  */
 CRTDECL(void, usched_timedwait(const struct timespec* until));
 
 /**
- * @brief Blocks the current job until the async context has completed its
- * action.
+ * @brief Blocks the current job until its async syscall completes.
  */
 CRTDECL(void, usched_wait_async(void));
 
 /**
- * @brief Retrieves the notification queue handle for the current scheduler.
- * This is used by the system call subsystem to notify the scheduler of new syscall
- * completion events.
- * @return The handle of the scheduler notification queue.
+ * @brief Retrieves the current scheduler's notification handle for syscall
+ * completions. All execution units on the scheduler share this handle, so it
+ * stays valid when a job moves to another unit or its previous unit stops.
+ *
+ * @return The ID of the scheduler notification handle.
  */
 CRTDECL(uuid_t, usched_notification_handle(void));
 

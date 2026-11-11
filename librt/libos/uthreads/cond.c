@@ -20,126 +20,81 @@
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
 #include <assert.h>
+
 #include "private.h"
 
-void usched_cnd_init(struct usched_cnd* condition)
+void
+usched_cnd_init(
+    _InOut_ struct usched_cnd* condition)
 {
     assert(condition != NULL);
     spinlock_init(&condition->lock);
     condition->queue = NULL;
 }
 
-void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
+int
+usched_cnd_timedwait(
+    _InOut_ struct usched_cnd*              condition,
+    _InOut_ struct usched_mtx*              mutex,
+    _In_    const struct timespec *restrict until)
 {
-    struct usched_job* current;
+    struct usched_wait wait;
+
     assert(condition != NULL);
     assert(mutex != NULL);
 
     spinlock_acquire(&condition->lock);
-    current = __usched_get_execution()->current;
-    __usched_job_block(current);
-    __usched_append_job(&condition->queue, current);
+    __usched_wait_prepare(&wait, until);
+    __usched_wait_enqueue(&condition->queue, &wait);
     spinlock_release(&condition->lock);
 
     usched_mtx_unlock(mutex);
     usched_job_yield();
-    usched_mtx_lock(mutex);
-}
 
-int usched_cnd_timedwait(
-        struct usched_cnd*              condition,
-        struct usched_mtx*              mutex,
-        const struct timespec *restrict until)
-{
-    struct usched_job*       current;
-    int                      timer;
-    int                      status;
-    union usched_timer_queue queue = { .cond = condition };
-    assert(condition != NULL);
-    assert(mutex != NULL);
-
+    // A timeout can leave the wait in the queue. Remove it before this
+    // stack frame is released.
     spinlock_acquire(&condition->lock);
-    current = __usched_get_execution()->current;
-    __usched_job_block(current);
-    __usched_append_job(&condition->queue, current);
+    __usched_wait_remove(&condition->queue, &wait);
     spinlock_release(&condition->lock);
-
-    usched_mtx_unlock(mutex);
-    timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_COND);
-    usched_job_yield();
-    status = __usched_timeout_finish(timer);
-    usched_mtx_lock(mutex);
-    return status;
-}
-
-void usched_cnd_notify_one(struct usched_cnd* condition)
-{
-    assert(condition != NULL);
-
-    spinlock_acquire(&condition->lock);
-    if (condition->queue) {
-        struct usched_job* job = condition->queue;
-        condition->queue = job->next;
-        __usched_job_ready(job);
-    }
-    spinlock_release(&condition->lock);
-}
-
-void usched_cnd_notify_all(struct usched_cnd* condition)
-{
-    assert(condition != NULL);
-
-    spinlock_acquire(&condition->lock);
-    while (condition->queue) {
-        struct usched_job* job = condition->queue;
-        condition->queue = job->next;
-        __usched_job_ready(job);
-    }
-    spinlock_release(&condition->lock);
-}
-
-static bool __remove_waiter(struct usched_job** queue, struct usched_job* job)
-{
-    struct usched_job* i;
-    struct usched_job* previous;
-
-    if (*queue == NULL) {
-        return false;
-    }
     
-    i = *queue;
-    previous = NULL;
-    while (i) {
-        if (i == job) {
-            // Unlink the job from the condition block queue while we hold
-            // the spinlock. The rest of the job handling can be done
-            // without the spinlock.
-            if (!previous) {
-                *queue = i->next;
-            } else {
-                previous->next = i->next;
-            }
-            return true;
-        }
-
-        previous = i;
-        i = i->next;
+    usched_mtx_lock(mutex);
+    if (wait.result == UschedWaitStatus_TIMEOUT) {
+        errno = ETIME;
+        return -1;
     }
-    return false;
+    return 0;
 }
 
-void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* job)
+void
+usched_cnd_wait(
+    _InOut_ struct usched_cnd* condition,
+    _InOut_ struct usched_mtx* mutex)
 {
-    bool reQueue;
+    (void)usched_cnd_timedwait(condition, mutex, NULL);
+}
 
+void
+usched_cnd_notify_one(
+    _InOut_ struct usched_cnd* condition)
+{
     assert(condition != NULL);
-    assert(job != NULL);
 
     spinlock_acquire(&condition->lock);
-    reQueue = __remove_waiter(&condition->queue, job);
+    (void)__usched_wait_signal(&condition->queue);
     spinlock_release(&condition->lock);
+}
 
-    if (reQueue) {
-        __usched_job_ready(job);
+void
+usched_cnd_notify_all(
+    _InOut_ struct usched_cnd* condition)
+{
+    assert(condition != NULL);
+
+    spinlock_acquire(&condition->lock);
+    for (;;) {
+        if (__usched_wait_signal(&condition->queue) == NULL) {
+            break;
+        }
     }
+    spinlock_release(&condition->lock);
 }

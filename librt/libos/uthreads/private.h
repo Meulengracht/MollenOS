@@ -88,9 +88,8 @@ struct usched_job {
     // The scheduler remains the same when another execution unit resumes us.
     struct usched_scheduler* scheduler;
 
-    // next is the pointer to the next job for the queues it is in.
-    // Since a job can only be in one queue at the time, the link pointer
-    // is kept as a part of the job.
+    // next is the link in the scheduler's ready queue. Wait queues link
+    // through struct usched_wait instead.
     struct usched_job* next;
 };
 
@@ -101,50 +100,70 @@ struct usched_job {
 #define __JOB_SET_STATE(job, newState) \
     ((job)->state = (enum job_state)(((job)->state & JobState_CANCELLED) | (newState)))
 
-#define __QUEUE_TYPE_SLEEP 0
-#define __QUEUE_TYPE_COND  1
-#define __QUEUE_TYPE_MUTEX 2
+enum usched_wait_status {
+    // The wait has not completed yet.
+    UschedWaitStatus_PENDING,
 
-union usched_timer_queue {
-    struct usched_cnd* cond;
-    struct usched_mtx* mutex;
+    // Completed by a notifier, either a condition notify or a mutex unlock.
+    UschedWaitStatus_SIGNALLED,
+
+    // Completed by the scheduler because the deadline was reached.
+    UschedWaitStatus_TIMEOUT
 };
 
-struct usched_timeout {
-    int                      id;
-    struct timespec          deadline;
-    int                      active;
-    struct usched_job*       job;
-    union usched_timer_queue queue;
-    int                      queue_type;
-    struct usched_timeout*   next;
+/**
+ * @brief Wait data for a condition, mutex or sleep, stored on the job's stack.
+ * Once the wait has been added, the scheduler lock must be held when changing
+ * result or timer_next. The condition or mutex lock protects queue_next.
+ * The scheduler removes the timer when the wait completes. Before leaving the
+ * stack frame, the job must remove any link still in the condition or mutex queue.
+ */
+struct usched_wait {
+    struct usched_job*      job;
+    enum usched_wait_status result;
+    struct timespec         deadline;
+    bool                    timed;
+    struct usched_wait*     timer_next;
+    struct usched_wait*     queue_next;
 };
 
+/**
+ * @brief Pending async syscall, stored on the waiting job's stack. The scheduler
+ * must remove it from the pending list before waking the job, because the job
+ * can leave this stack frame as soon as it resumes.
+ */
 struct usched_syscall {
     struct usched_job*     job;
     OSAsyncContext_t*      async_context;
     struct usched_syscall* next;
 };
 
+/**
+ * @brief Jobs and waits shared by the execution units on this scheduler.
+ * The lock must be held when accessing ready, timers or syscalls_pending.
+ * The notification handle wakes idle units when a job is queued, a timer is
+ * added or a syscall completes. It stays valid while any unit uses the scheduler.
+ */
 struct usched_scheduler {
-    struct usched_job* ready;
-    Mutex_t            lock;
-    OSHandle_t         notification_handle;
+    struct usched_job*     ready;
+    Mutex_t                lock;
+    OSHandle_t             notification_handle;
+    struct usched_wait*    timers;
+    struct usched_syscall* syscalls_pending;
 };
 
+/**
+ * @brief Scheduler context for one execution unit's kernel thread. Waits
+ * are kept on the scheduler, so they stay valid after this context is destroyed.
+ */
 struct usched_execution_context {
-    int                    magic;
-    jmp_buf                jmp_context;
-    struct thread_storage* tls;
-    OSHandle_t             notification_queue;
-    OSHandle_t             syscall_handle;
-
+    int                      magic;
+    jmp_buf                  jmp_context;
+    struct thread_storage*   tls;
+    OSHandle_t               notification_queue;
     struct usched_scheduler* scheduler;
     atomic_bool              stop_requested;
-    struct usched_syscall*   syscalls_pending;
-
-    struct usched_job*     current;
-    struct usched_timeout* timers;
+    struct usched_job*       current;
 };
 
 struct execution_unit_tls {
@@ -218,7 +237,6 @@ struct execution_manager {
         }                              \
     }
 
-DEFINE_LIST_APPEND(struct usched_timeout, timer)
 DEFINE_LIST_APPEND(struct usched_job, job)
 DEFINE_LIST_APPEND(struct usched_execution_unit, xunit)
 DEFINE_LIST_REMOVE(struct usched_execution_unit, xunit)
@@ -228,16 +246,17 @@ struct usched_init_params {
 };
 
 /**
- * @brief Should run once during XU startup. This initializes a few resources
- * that only need to run once.
+ * @brief Creates the shared scheduler notification handle.
+ * Must run once before any execution units are initialized.
  */
 extern void __usched_startup(void);
 
 /**
  * @brief Initializes a zero-initialized execution context on its kernel thread.
  * A stop request made before initialization is preserved.
+ *
  * @param execution Execution context to initialize.
- * @param params Optional dedicated job configuration.
+ * @param params Execution unit settings. Must be non-NULL.
  */
 extern void
 __usched_init(
@@ -245,7 +264,9 @@ __usched_init(
     _In_    struct usched_init_params*       params);
 
 /**
- * @brief Destroys any resources allocated by __usched_init
+ * @brief Frees the resources allocated by __usched_init.
+ * The execution unit must have stopped running jobs.
+ *
  * @param execution Execution context that is no longer dispatching jobs.
  */
 extern void
@@ -254,26 +275,19 @@ __usched_destroy(
 
 /**
  * @brief Requests a pooled execution unit to stop at a scheduling point.
+ *
  * @param execution Execution context to stop. May still be starting.
  */
 extern void
 __usched_request_stop(
     _InOut_ struct usched_execution_context* execution);
 
-/**
- * @brief Marks the executing job blocked before it enters a wait queue.
- * The caller must serialize wait registration with the corresponding notifier.
- * @param job Current job to block.
- */
-extern void
-__usched_job_block(
-    _InOut_ struct usched_job* job);
-
 extern int __xunit_start_detached(struct usched_job* job, struct usched_job_parameters* params);
 
 /**
- * @brief Publishes a new or suspended job. Its stack must not be executing.
+ * @brief Queues a new or suspended job. No execution unit may be using its stack.
  * A job without a scheduler is assigned to the shared pool.
+ *
  * @param job Job to place on its scheduler's ready queue.
  */
 extern void
@@ -281,17 +295,9 @@ __usched_add_job_ready(
     _In_ struct usched_job* job);
 
 /**
- * @brief Wakes a job after removing it from its wait queue. If it is still
- * executing, publication waits until it returns to the native scheduler stack.
- * @param job Job whose wait completed.
- */
-extern void
-__usched_job_ready(
-    _In_ struct usched_job* job);
-
-/**
  * @brief Retrieves the current kernel thread's dispatch state from reserved TLS.
  * The execution unit must have installed its TLS record before this call.
+ *
  * @return Execution context, independent of the currently selected job TLS.
  */
 extern struct usched_execution_context*
@@ -301,10 +307,55 @@ extern struct execution_manager*  __xunit_manager(void);
 extern struct execution_unit_tls* __usched_xunit_tls_current(void);
 extern bool                       __usched_job_has_exit(uuid_t jobID);
 
-extern int                        __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType);
-extern int                        __usched_timeout_finish(int id);
-extern void                       __usched_job_notify(struct usched_job* job);
-extern void                       __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
-extern void                       __usched_mtx_notify_job(struct usched_mtx* mtx, struct usched_job* job);
+/**
+ * @brief Marks the current job as blocking and prepares its wait.
+ * A deadline also adds the wait to the scheduler timer list. When using a
+ * condition or mutex queue, its lock must be held from before this call until
+ * __usched_wait_enqueue returns, so a notify cannot miss the wait.
+ *
+ * @param wait Stack data for the wait. Must stay valid until the job resumes
+ *             and removes any remaining queue link.
+ * @param until Optional absolute deadline (TIME_UTC). NULL means no timeout.
+ */
+extern void
+__usched_wait_prepare(
+    _Out_ struct usched_wait*      wait,
+    _In_  const struct timespec* until);
+
+/**
+ * @brief Appends a wait to a condition or mutex queue.
+ * The condition or mutex lock must be held.
+ *
+ * @param queue The wait queue to modify.
+ * @param wait  A wait prepared by __usched_wait_prepare.
+ */
+extern void
+__usched_wait_enqueue(
+    _InOut_ struct usched_wait** queue,
+    _InOut_ struct usched_wait*  wait);
+
+/**
+ * @brief Removes a wait after its job resumes. Does nothing if a notifier
+ * already removed it. The condition or mutex lock must be held.
+ *
+ * @param queue The wait queue to modify.
+ * @param wait  The wait to remove before it goes out of scope.
+ */
+extern void
+__usched_wait_remove(
+    _InOut_ struct usched_wait** queue,
+    _In_    struct usched_wait*  wait);
+
+/**
+ * @brief Completes the first pending wait. Timed-out waits are removed and skipped.
+ * The condition or mutex lock must be held. For a mutex, keep the lock held
+ * until the returned job has been set as owner.
+ *
+ * @param queue The wait queue to signal.
+ * @return The job whose wait completed, or NULL if no pending waits remain.
+ */
+extern struct usched_job*
+__usched_wait_signal(
+    _InOut_ struct usched_wait** queue);
 
 #endif //!__USCHED_PRIVATE_H__
