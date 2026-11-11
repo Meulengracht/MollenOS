@@ -336,10 +336,10 @@ __PrepareApic(
 
     ApicWriteLocal(APIC_PERF_MONITOR, APIC_NMI_ROUTE);
 
-    // x2APIC uses cluster-format logical destinations and does not use DFR.
-    if (ApicIsX2Apic()) {
-        ApicWriteLocal(APIC_LOGICAL_DEST, ApicComputeLogicalDestination(coreId));
-    } else {
+    // In x2APIC mode, hardware sets the logical destination and LDR is
+    // read-only (MSR 0x80D). DFR has no corresponding MSR in that mode.
+    // Only xAPIC accepts these writes; writing x2APIC LDR raises #GP.
+    if (!ApicIsX2Apic()) {
         ApicWriteLocal(APIC_DEST_FORMAT,  0xFFFFFFFF);
         ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(coreId)));
     }
@@ -349,7 +349,7 @@ __PrepareApic(
     for (i = 8 - 1; i >= 0; i--) {
         temp = ApicReadLocal(0x100 + i * 0x10);
         for (j = 31; j >= 0; j--) {
-            if (temp & (1 << j)) {
+            if (temp & (1U << j)) {
                 ApicSendEoi(0, 0);
             }
         }
@@ -524,6 +524,12 @@ ApicIsInitialized(void)
 void
 ApicInitializeForApplicationCore(void)
 {
+    // The access mode was selected by the BSP, but IA32_APIC_BASE is local
+    // to each CPU. Enable x2APIC here before reading even the local APIC ID.
+    if (ApicIsX2Apic()) {
+        (void)ApicEnableX2Apic();
+    }
+
     // Perform inital preperations for the APIC
     __PrepareApic(ArchGetProcessorCoreId());
     __EnableApic();

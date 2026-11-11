@@ -32,18 +32,25 @@ int ApicIsX2Apic(void) {
 	return g_x2ApicEnabled;
 }
 
-int ApicEnableX2Apic(void) {
-	uint64_t value;
+int
+ApicEnableX2Apic(void)
+{
+    uint64_t value;
 
-	if (CpuHasFeatures(CPUID_FEAT_ECX_x2APIC, 0) != OS_EOK) {
-		return 0;
-	}
+    if (CpuHasFeatures(CPUID_FEAT_ECX_x2APIC, 0) != OS_EOK) {
+        return 0;
+    }
 
-	CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &value);
-	value |= CPU_MSR_APIC_BASE_ENABLE | CPU_MSR_APIC_BASE_X2APIC;
-	CpuWriteModelRegister(CPU_MSR_LAPIC_BASE, &value);
-	g_x2ApicEnabled = 1;
-	return 1;
+    CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &value);
+    value |= CPU_MSR_APIC_BASE_ENABLE | CPU_MSR_APIC_BASE_X2APIC;
+    CpuWriteModelRegister(CPU_MSR_LAPIC_BASE, &value);
+
+    // The BSP selects the shared register-access mode before starting other
+    // CPUs. Their later calls only need to enable their local APIC hardware.
+    if (!g_x2ApicEnabled) {
+        g_x2ApicEnabled = 1;
+    }
+    return 1;
 }
 
 static uint32_t __ApicMsr(size_t Register) {
