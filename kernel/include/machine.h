@@ -119,18 +119,22 @@ MachineMemoryInitialize(
         _In_ SystemCpuCore_t* cpuCore);
 
 /**
- * @brief
+ * @brief Allocate a contiguous physical extent during boot, before concurrent allocation starts.
+ * Prefer the highest memory region allowed by memoryMask. Output values and
+ * allocation counts are unchanged on failure.
  *
- * @param size
- * @param virtualBaseOut
- * @param physicalBaseOut
- * @return
+ * @param memoryMask Inclusive upper limit for eligible memory regions, or zero for no limit.
+ * @param size Number of bytes to allocate, rounded up to whole pages.
+ * @param virtualBaseOut Optional output for a registered kernel mapping.
+ * @param physicalBaseOut Receives the page-aligned physical base on success.
+ * @return OS_EOK, OS_EOOM, or an error for an invalid or unsupported size.
  */
 KERNELAPI oserr_t KERNELABI
 MachineAllocateBootMemory(
-        _In_  size_t   size,
-        _Out_ vaddr_t* virtualBaseOut,
-        _Out_ paddr_t* physicalBaseOut);
+    _In_  size_t   memoryMask,
+    _In_  size_t   size,
+    _Out_ vaddr_t* virtualBaseOut,
+    _Out_ paddr_t* physicalBaseOut);
 
 /**
  * @brief Tries to allocate the requested number of memory pages

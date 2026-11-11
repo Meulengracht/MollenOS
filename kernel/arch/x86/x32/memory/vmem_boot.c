@@ -117,9 +117,10 @@ MmBootPrepareKernel(void)
     }
 
     osStatus = MachineAllocateBootMemory(
-            sizeof(PageDirectory_t),
-            &virtualBase,
-            (paddr_t*)&pageDirectory
+        0,
+        sizeof(PageDirectory_t),
+        &virtualBase,
+        (paddr_t*)&pageDirectory
     );
     assert(osStatus == OS_EOK);
 

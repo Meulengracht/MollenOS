@@ -205,12 +205,22 @@ MmBootPrepareKernel(void)
         kernelPageFlags |= PAGE_GLOBAL;
     }
 
+    // APs load this root into CR3 in 32-bit protected mode before enabling
+    // long mode. Lower-level tables can use unrestricted physical addresses.
     osStatus = MachineAllocateBootMemory(
-            sizeof(PageMasterTable_t),
-            &virtualBase,
-            (paddr_t*)&pageMasterTable
+        MEMORY_MASK_32BIT,
+        sizeof(PageMasterTable_t),
+        &virtualBase,
+        (paddr_t*)&pageMasterTable
     );
-    assert(osStatus == OS_EOK);
+    if (osStatus != OS_EOK) {
+        FATAL(
+            FATAL_SCOPE_KERNEL,
+            "MmBootPrepareKernel: failed to allocate a 32-bit page-table root: %u",
+            osStatus
+        );
+        return;
+    }
 
     memset((void*)pageMasterTable, 0, sizeof(PageMasterTable_t));
     g_kernelcr3 = (uintptr_t)pageMasterTable;

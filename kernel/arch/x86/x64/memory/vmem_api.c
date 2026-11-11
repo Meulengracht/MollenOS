@@ -29,7 +29,7 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/memory.h>
 #include <assert.h>
-#include <handles/handle.h>
+#include <handles/global.h>
 #include <heap.h>
 #include <debug.h>
 #include <machine.h>
@@ -45,11 +45,12 @@
 
 PageMasterTable_t*
 MmVirtualGetMasterTable(
-        _In_  MemorySpace_t*      memorySpace,
-        _In_  vaddr_t    address,
-        _Out_ PageMasterTable_t** parentDirectory,
-        _Out_ int*                isCurrentOut)
+    _In_  MemorySpace_t*      memorySpace,
+    _In_  vaddr_t             address,
+    _Out_ PageMasterTable_t** parentDirectory,
+    _Out_ int*                isCurrentOut)
 {
+    MemorySpace_t*     parentSpace;
     PageMasterTable_t* parent = NULL;
 
     if (!memorySpace || !parentDirectory || !isCurrentOut) {
@@ -62,9 +63,13 @@ MmVirtualGetMasterTable(
     if (memorySpace->ParentHandle != UUID_INVALID) {
         if (address >= MEMORY_LOCATION_RING3_CODE &&
             address < MEMORY_LOCATION_RING3_THREAD_START) {
-            MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandle(
-                    memorySpace->ParentHandle, HandleTypeMemorySpace);
-            parent = (PageMasterTable_t*)MemorySpaceParent->PlatformData.Cr3VirtualAddress;
+            // CreateMemorySpace keeps the parent alive until this space is
+            // deleted. The current process need not have a grant to that parent.
+            parentSpace = LookupGlobalHandle(
+                memorySpace->ParentHandle,
+                HandleTypeMemorySpace
+            );
+            parent = (PageMasterTable_t*)parentSpace->PlatformData.Cr3VirtualAddress;
         }
     }
 

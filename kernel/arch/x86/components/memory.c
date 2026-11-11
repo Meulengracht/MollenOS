@@ -1048,9 +1048,10 @@ __InitializeTLS(
     TRACE("__InitializeTLS()");
 
     osStatus = MachineAllocateBootMemory(
-            PAGE_SIZE,
-            NULL,
-            (paddr_t*)&tlsPhysical
+        0,
+        PAGE_SIZE,
+        NULL,
+        (paddr_t*)&tlsPhysical
     );
     if (osStatus != OS_EOK) {
         return osStatus;

@@ -62,7 +62,7 @@ DECL_STRUCT(MemorySpace);
 // to have them seperate
 #define CREATE_STRUCTURE_HELPER(Type, Name) static Type* MmVirtualCreate##Name(vaddr_t* virtualBase) { \
                                             paddr_t physicalBase; \
-                                            MachineAllocateBootMemory(sizeof(Type), virtualBase, &physicalBase); \
+                                            MachineAllocateBootMemory(0, sizeof(Type), virtualBase, &physicalBase); \
                                             assert(physicalBase != 0); \
                                             memset((void*)physicalBase, 0, sizeof(Type)); \
                                             return (Type*)physicalBase; }

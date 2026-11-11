@@ -27,7 +27,7 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/memory.h>
 #include <assert.h>
-#include <handles/handle.h>
+#include <handles/global.h>
 #include <heap.h>
 #include <machine.h>
 #include <memoryspace.h>
@@ -44,11 +44,12 @@ extern void memory_reload_cr3(void);
 
 PageDirectory_t*
 MmVirtualGetMasterTable(
-        _In_  MemorySpace_t*    memorySpace,
-        _In_  vaddr_t           address,
-        _Out_ PageDirectory_t** parentDirectory,
-        _Out_ int*              isCurrentOut)
+    _In_  MemorySpace_t*    memorySpace,
+    _In_  vaddr_t           address,
+    _Out_ PageDirectory_t** parentDirectory,
+    _Out_ int*              isCurrentOut)
 {
+    MemorySpace_t*   parentSpace;
     PageDirectory_t* directory = (PageDirectory_t*)memorySpace->PlatformData.Cr3VirtualAddress;
     PageDirectory_t* parent    = NULL;
 
@@ -60,9 +61,13 @@ MmVirtualGetMasterTable(
     // We always have the shared page-tables mapped. The address must be below the thread-specific space
     if (memorySpace->ParentHandle != UUID_INVALID) {
         if (address < MEMORY_LOCATION_RING3_THREAD_START) {
-            MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandle(
-                    memorySpace->ParentHandle, HandleTypeMemorySpace);
-            parent = (PageDirectory_t*)MemorySpaceParent->PlatformData.Cr3VirtualAddress;
+            // CreateMemorySpace keeps the parent alive until this space is
+            // deleted. The current process need not have a grant to that parent.
+            parentSpace = LookupGlobalHandle(
+                memorySpace->ParentHandle,
+                HandleTypeMemorySpace
+            );
+            parent = (PageDirectory_t*)parentSpace->PlatformData.Cr3VirtualAddress;
         }
     }
 

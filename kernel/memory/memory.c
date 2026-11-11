@@ -385,6 +385,7 @@ __AllocateIdentity(
 
 oserr_t
 MachineAllocateBootMemory(
+    _In_  size_t   memoryMask,
     _In_  size_t   size,
     _Out_ vaddr_t* virtualBaseOut,
     _Out_ paddr_t* physicalBaseOut)
@@ -409,6 +410,10 @@ MachineAllocateBootMemory(
     // Early callers describe the result as one physical extent. Searching for
     // that extent must finish before mapping it or changing accounting.
     for (int i = allocator->MaskCount - 1; i >= 0; i--) {
+        if (memoryMask != 0 && memoryMask < allocator->Masks[i]) {
+            continue;
+        }
+
         stack = &allocator->Region[i].Stack;
         status = MemoryStackPopContiguous(stack, size, 0, 0, &physicalBase);
         if (status != OS_EOOM) {
