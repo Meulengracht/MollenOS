@@ -65,8 +65,7 @@ __ValidateDescription(
         return status;
     }
 
-    length = transfer.RangeMode == SHMTransferRangeFull ?
-        transfer.Token.Options.Data.SHM.Length : transfer.RequestedLength;
+    length = __SHMTransferLength(&transfer);
     if (description->direction == CTT_NETADAPTER_DIRECTION_RX) {
         scope |= GrantTokenScopeWrite;
     }
@@ -195,8 +194,7 @@ __PreparePool(
         return status;
     }
 
-    pool->BufferOffset = transfer.RangeMode == SHMTransferRangeFull 
-        ? 0 : transfer.RelativeOffset;
+    pool->BufferOffset = transfer.RelativeOffset;
     
     status = SHMAttachToken(&transfer.Token, &pool->Memory);
     if (status != OS_EOK) {
