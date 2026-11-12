@@ -19,54 +19,58 @@
 
 #include <ddk/utils.h>
 #include <os/handle.h>
+#include <os/grants.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
+oserr_t
+VFSNodeClose(
+    _In_ struct VFS* vfs,
+    _In_ uuid_t      handleID)
 {
     struct VFSNodeHandle* handle;
     struct VFSNode*       node;
-    struct __VFSHandle*   vfsHandle;
+    OSHandle_t            initialReference;
+    uuid_t                tokenControlHandleID;
     void*                 data;
-    oserr_t               osStatus;
-    _CRT_UNUSED(vfs);
+    oserr_t               oserr;
 
-    osStatus = VFSNodeHandleGet(handleID, &handle);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    _CRT_UNUSED(vfs);
+    oserr = VFSNodeHandleGet(handleID, &handle);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    // store data we need from the handle
     node = handle->Node;
     data = handle->Data;
+    tokenControlHandleID = handle->TokenControlHandleID;
 
-    osStatus = VFSNodeHandleRemove(handleID);
-    if (osStatus != OS_EOK) {
-        return osStatus;
-    }
+    // Removal waits for existing Get/Put users before invalidating the record.
+    // Never wait for table removal while holding the node's HandlesLock: open
+    // adds its record while holding that lock.
+    oserr = VFSNodeHandleRemove(handleID);
     VFSNodeHandlePut(handle);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
-    // Start out by closing the handle
     usched_mtx_lock(&node->HandlesLock);
-    osStatus = node->FileSystem->Interface->Operations.Close(
-            node->FileSystem->Interface,
-            node->FileSystem->Data,
-            data
+    oserr = node->FileSystem->Interface->Operations.Close(
+        node->FileSystem->Interface, node->FileSystem->Data, data
     );
-    if (osStatus != OS_EOK) {
-        WARNING("VFSNodeClose failed to close the underlying handle");
+    if (oserr != OS_EOK) {
+        WARNING("VFSNodeClose failed to close filesystem state: %u", oserr);
     }
-
-    // Remove the handle from the node
-    vfsHandle = hashtable_remove(
-            &node->Handles,
-            &(struct __VFSHandle) {
-                    .OSHandle.ID = handleID
-            }
-    );
-    if (vfsHandle != NULL) {
-        OSHandleDestroy(&vfsHandle->OSHandle);
-    }
+    hashtable_remove(&node->Handles, &(struct __VFSHandle) { .Id = handleID });
     usched_mtx_unlock(&node->HandlesLock);
+
+    // Internal opens still have their first reference. Client handoffs have
+    // already released it, and final cleanup IDs do not themselves give a grant.
+    if (OSHandlesFind(handleID, &initialReference) == OS_EOK) {
+        OSHandleDestroy(&initialReference);
+    }
+    if (tokenControlHandleID != UUID_INVALID) {
+        (void)OSGrantTokenRevoke(tokenControlHandleID);
+    }
     return OS_EOK;
 }

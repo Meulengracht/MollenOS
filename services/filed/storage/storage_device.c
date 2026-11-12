@@ -20,6 +20,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
+#include <internal/_gracht.h>
 #include <internal/_utils.h>
 #include <internal/_storage.h>
 #include <vfs/storage.h>
@@ -47,10 +48,9 @@ static oserr_t __DeviceQueryStats(
         return OS_EUNKNOWN;
     }
 
-    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
-        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
-        gracht_client_abandon(GetGrachtClient(), &msg.base);
-        return OS_EUNKNOWN;
+    osStatus = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (osStatus != OS_EOK) {
+        return osStatus;
     }
 
     if (ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor) != 0) {

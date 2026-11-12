@@ -54,23 +54,16 @@ oserr_t VFSNodeGetAccess(uuid_t fileHandle, uint32_t* accessKindOut)
     return OS_EOK;
 }
 
-oserr_t VFSNodeSetAccess(uuid_t fileHandle, uint32_t access)
+oserr_t
+VFSNodeSetAccess(
+    _In_ uuid_t   fileHandle,
+    _In_ uint32_t access)
 {
-    struct VFSNodeHandle* handle;
-    oserr_t               osStatus;
+    _CRT_UNUSED(fileHandle);
+    _CRT_UNUSED(access);
 
-    osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OS_EOK) {
-        return osStatus;
-    }
-
-    // So in order to change access kind for this node, we have to check new permissions versus
-    // old, if the new are more restrictive, we need to make sure it doesn't coincide with
-    // the current ones.
-    // TODO: implement support for this
-
-    VFSNodeHandlePut(handle);
-    return OS_EOK;
+    // Reference access is fixed when the grant token is created.
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t VFSNodeGetSize(uuid_t fileHandle, uint64_t* sizeOut)

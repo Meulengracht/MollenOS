@@ -101,7 +101,7 @@ struct __VFSChild {
 };
 
 struct __VFSHandle {
-    OSHandle_t OSHandle;
+    uuid_t     Id;
     uint32_t   AccessKind;
 };
 
@@ -113,6 +113,7 @@ enum VFSNodeMode {
 
 struct VFSNodeHandle {
     uuid_t           Id;
+    uuid_t           TokenControlHandleID;
     struct VFSNode*  Node;
     enum VFSNodeMode Mode;
     uint32_t         AccessKind;
@@ -262,11 +263,22 @@ extern oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_
 extern oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t* target, int symbolic, struct VFSNode** nodeOut);
 
 /**
- * @brief
- * @param node
- * @param accessKind
- * @param handleOut
- * @return
+ * @brief Creates the initial resource reference with the open's read/write access.
+ * @param accessKind File access and sharing flags; sharing flags stay in filed.
+ * @param handleOut Receives the initial reference, released on close or handoff.
+ * @return OS_EOK or a resource allocation error.
+ */
+extern oserr_t
+VFSNodeHandleCreate(
+    _In_  uint32_t    accessKind,
+    _Out_ OSHandle_t* handleOut);
+
+/**
+ * @brief Opens filesystem state and records its initial resource reference.
+ * @param node File or directory to open.
+ * @param accessKind File access and sharing flags.
+ * @param handleOut Receives the resource ID for internal close or token handoff.
+ * @return OS_EOK or a sharing, filesystem or allocation error.
  */
 extern oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut);
 

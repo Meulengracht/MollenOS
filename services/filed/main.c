@@ -36,7 +36,11 @@ void ServiceInitialize(
     oserr_t oserr;
 
     // Initialize subsystems
-    VFSNodeHandleStartup();
+    oserr = VFSNodeHandleStartup();
+    if (oserr != OS_EOK) {
+        ERROR("VFSNodeHandleStartup failed: %u", oserr);
+        exit(-1);
+    }
     VFSStorageStartup();
     VFSFileSystemStartup();
     VFSScopeStartup();

@@ -28,6 +28,7 @@
 #include "private.h"
 #include <string.h>
 #include <stdlib.h>
+#include <os/usched/job.h>
 
 static uint64_t __HandlesHash(const void* element);
 static int      __HandlesCmp(const void* lh, const void* rh);
@@ -206,8 +207,8 @@ void VFSDestroy(struct VFS* vfs)
     // Cleanup children of this? If someone has cloned this tree
     // we have to make sure that there are no links back to this
 
-    OSHandleDestroy(&vfs->Buffer);
     VFSNodeDestroy(vfs->Root);
+    OSHandleDestroy(&vfs->Buffer);
     free(vfs);
 }
 
@@ -241,24 +242,19 @@ oserr_t VFSNodeChildNew(struct VFS* vfs, struct VFSNode* node, struct VFSStat* s
     return OS_EOK;
 }
 
-void __CleanupHandle(int index, const void* element, void* userContext)
+static void
+__FirstHandle(
+    _In_ int         index,
+    _In_ const void* element,
+    _In_ void*       userContext)
 {
     const struct __VFSHandle* handle = element;
-    struct VFSNodeHandle*     nodeHandle;
-    oserr_t                   osStatus;
+    uuid_t*                   id = userContext;
 
-    // Unregister any handle with the filesystem
-    osStatus = VFSNodeHandleGet(handle->OSHandle.ID, &nodeHandle);
-    if (osStatus != OS_EOK) {
-        // didn't exist?
-        return;
+    _CRT_UNUSED(index);
+    if (*id == UUID_INVALID) {
+        *id = handle->Id;
     }
-
-    osStatus = VFSNodeHandleRemove(handle->OSHandle.ID);
-    if (osStatus != OS_EOK) {
-        // LOG
-    }
-    VFSNodeHandlePut(nodeHandle);
 }
 
 void __CleanupChild(int index, const void* element, void* userContext)
@@ -274,11 +270,37 @@ void __CleanupMount(int index, const void* element, void* userContext)
 
 void VFSNodeDestroy(struct VFSNode* node)
 {
+    uuid_t  handleID;
+    oserr_t oserr;
+
     if (node == NULL) {
         return;
     }
 
-    hashtable_enumerate(&node->Handles, __CleanupHandle, NULL);
+    // A cleanup job can have removed the global record while still closing
+    // the backend state. Its per-node entry remains until Close finishes.
+    // Inspect that entry under HandlesLock, but release the lock before Close
+    // promotes the global table lock. Teardown requires no new opens here.
+    for (;;) {
+        handleID = UUID_INVALID;
+        usched_mtx_lock(&node->HandlesLock);
+        hashtable_enumerate(&node->Handles, __FirstHandle, &handleID);
+        usched_mtx_unlock(&node->HandlesLock);
+        if (handleID == UUID_INVALID) {
+            break;
+        }
+
+        oserr = VFSNodeClose(NULL, handleID);
+        if (oserr == OS_ENOENT) {
+            // Let the close which removed the global record finish. The next
+            // iteration waits for its node lock before inspecting the table.
+            usched_job_yield();
+        } else if (oserr != OS_EOK) {
+            WARNING("VFSNodeDestroy failed to close %u: %u", handleID, oserr);
+            return;
+        }
+    }
+
     hashtable_enumerate(&node->Children, __CleanupChild, NULL);
     hashtable_enumerate(&node->Mounts, __CleanupMount, NULL);
 
@@ -295,14 +317,14 @@ void VFSNodeDestroy(struct VFSNode* node)
 static uint64_t __HandlesHash(const void* element)
 {
     const struct __VFSHandle* handle = element;
-    return handle->OSHandle.ID;
+    return handle->Id;
 }
 
 static int __HandlesCmp(const void* lh, const void* rh)
 {
     const struct __VFSHandle* handle1 = lh;
     const struct __VFSHandle* handle2 = rh;
-    return handle1->OSHandle.ID == handle2->OSHandle.ID ? 0 : 1;
+    return handle1->Id == handle2->Id ? 0 : 1;
 }
 
 static uint64_t __ChildrenHash(const void* element)

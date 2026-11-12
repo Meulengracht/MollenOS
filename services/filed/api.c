@@ -25,6 +25,9 @@
 #include <ddk/convert.h>
 #include <ddk/convert/grants.h>
 #include <ddk/utils.h>
+#include <internal/_service.h>
+#include <os/grants.h>
+#include <os/types/file.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/scope.h>
@@ -36,55 +39,68 @@
 
 extern oserr_t Mount(struct VFS* fsScope, const char* path, const char* at, const char* fsType, unsigned int flags);
 
-void sys_file_open_invocation(struct gracht_message* message,
-                              const uuid_t processId, const char* path,
-                              const unsigned int options, const unsigned int access)
+void
+sys_file_open_invocation(
+    struct gracht_message* message,
+    const uuid_t           processId,
+    const char*            path,
+    const unsigned int     options,
+    const unsigned int     access)
 {
-    struct VFS* fsScope = VFSScopeGet(processId);
-    uuid_t      handle   = UUID_INVALID;
-    oserr_t     osStatus;
+    struct VFS*                           fsScope;
+    const struct gracht_security_context* caller;
+    struct sys_grant_token                wireToken = { 0 };
+    GrantToken_t                          token = { 0 };
+    uuid_t                                resourceID = UUID_INVALID;
+    oserr_t                               oserr;
+    int                                   status;
 
-    TRACE("svc_file_open_callback()");
-    if (!strlen(path)) {
-        sys_file_open_response(message, OS_EINVALPARAMS, UUID_INVALID);
+    if (path == NULL || path[0] == '\0') {
+        sys_file_open_response(message, OS_EINVALPARAMS, &wireToken);
         return;
     }
 
+    caller = gracht_server_get_security_context(message);
+    if (!__IsAuthenticatedCaller(caller)) {
+        sys_file_open_response(message, OS_EPERMISSIONS, &wireToken);
+        return;
+    }
+
+    fsScope = VFSScopeGet(processId);
     if (fsScope == NULL) {
-        sys_file_open_response(message, OS_EPERMISSIONS, UUID_INVALID);
+        sys_file_open_response(message, OS_EPERMISSIONS, &wireToken);
         return;
     }
 
-    // perform initial input verification
-    if (!path) {
-        sys_file_open_response(message, OS_EINVALPARAMS, UUID_INVALID);
-        return;
+    oserr = VFSNodeOpen(fsScope, path, options, access, &resourceID);
+    if (oserr == OS_EOK) {
+        oserr = VFSNodeHandleExport(resourceID, caller, &token);
+        if (oserr != OS_EOK) {
+            (void)VFSNodeClose(fsScope, resourceID);
+        } else {
+            oserr = __ToSysGrantToken(&token, &wireToken);
+            if (oserr != OS_EOK) {
+                (void)OSGrantTokenRevoke(token.ControlHandleID);
+            }
+        }
     }
 
-    osStatus = VFSNodeOpen(fsScope,path, options, access, &handle);
-    sys_file_open_response(message, osStatus, handle);
-}
-
-void sys_file_close_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
-{
-    TRACE("sys_file_close_invocation()");
-    struct VFS* fsScope = VFSScopeGet(processId);
-    oserr_t     osStatus;
-    if (fsScope == NULL) {
-        sys_file_close_response(message, OS_EPERMISSIONS);
-        return;
+    status = sys_file_open_response(message, oserr, &wireToken);
+    if (status != 0 && oserr == OS_EOK) {
+        // A failed response does not need to leave an unimported token active.
+        // If import already completed, revocation leaves that reference valid.
+        (void)OSGrantTokenRevoke(token.ControlHandleID);
     }
-
-    osStatus = VFSNodeClose(fsScope, handle);
-    sys_file_close_response(message, osStatus);
 }
 
 void sys_file_delete_invocation(struct gracht_message* message,
                                 const uuid_t processId, const char* path, const unsigned int flags)
 {
-    TRACE("sys_file_delete_invocation()");
     struct VFS* fsScope = VFSScopeGet(processId);
     oserr_t     oserr;
+    
+    TRACE("sys_file_delete_invocation()");
+    
     if (fsScope == NULL) {
         sys_file_delete_response(message, OS_EPERMISSIONS);
         return;
@@ -97,6 +113,7 @@ void sys_file_delete_invocation(struct gracht_message* message,
 void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle,
                                   const enum sys_transfer_direction direction, const struct sys_shm_transfer* buffer)
 {
+    uuid_t        resourceID;
     struct VFS*   fsScope = VFSScopeGet(processId);
     size_t        transferred = 0;
     oserr_t       oserr;
@@ -110,15 +127,27 @@ void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t p
         sys_file_transfer_response(message, OS_EINVALPARAMS, 0);
         return;
     }
+
     if (fsScope == NULL) {
         sys_file_transfer_response(message, OS_EPERMISSIONS, 0);
         return;
     }
 
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        direction == SYS_TRANSFER_DIRECTION_READ ? __FILE_READ_ACCESS : __FILE_WRITE_ACCESS,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_transfer_response(message, oserr, 0);
+        return;
+    }
+
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
-        oserr = VFSNodeRead(handle, &transfer, &transferred);
+        oserr = VFSNodeRead(resourceID, &transfer, &transferred);
     } else {
-        oserr = VFSNodeWrite(handle, &transfer, &transferred);
+        oserr = VFSNodeWrite(resourceID, &transfer, &transferred);
     }
     sys_file_transfer_response(message, oserr, transferred);
 }
@@ -126,9 +155,11 @@ void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t p
 void sys_file_seek_invocation(struct gracht_message* message, const uuid_t processId,
                               const uuid_t handle, const unsigned int seekLow, const unsigned int seekHigh)
 {
+    uuid_t      resourceID;
     struct VFS* fsScope = VFSScopeGet(processId);
     uint64_t    position = 0;
     oserr_t     oserr;
+
     TRACE("sys_file_seek_invocation()")
 
     if (fsScope == NULL) {
@@ -136,10 +167,25 @@ void sys_file_seek_invocation(struct gracht_message* message, const uuid_t proce
         return;
     }
 
-    oserr = VFSNodeSeek(handle, &(UInteger64_t) {
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_seek_response(message, oserr);
+        return;
+    }
+
+    oserr = VFSNodeSeek(
+        resourceID,
+        &(UInteger64_t) {
             .u.LowPart = seekLow,
             .u.HighPart = seekHigh
-    }, &position);
+        },
+        &position
+    );
     sys_file_seek_response(message, oserr);
 }
 
@@ -148,6 +194,7 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
                                            const unsigned int seekLow, const unsigned int seekHigh,
                                            const struct sys_shm_transfer* buffer)
 {
+    uuid_t        resourceID;
     struct VFS*   fsScope = VFSScopeGet(processId);
     size_t        transferred = 0;
     oserr_t       oserr;
@@ -161,14 +208,26 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
         sys_file_transfer_absolute_response(message, OS_EINVALPARAMS, 0);
         return;
     }
+
     if (fsScope == NULL) {
         sys_file_transfer_absolute_response(message, OS_EPERMISSIONS, 0);
         return;
     }
 
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        direction == SYS_TRANSFER_DIRECTION_READ ? __FILE_READ_ACCESS : __FILE_WRITE_ACCESS,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_transfer_absolute_response(message, oserr, 0);
+        return;
+    }
+
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
         oserr = VFSNodeReadAt(
-            handle,
+            resourceID,
             &(UInteger64_t) {
                 .u.LowPart = seekLow,
                 .u.HighPart = seekHigh
@@ -178,10 +237,10 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
         );
     } else {
         oserr = VFSNodeWriteAt(
-            handle,
+            resourceID,
             &(UInteger64_t) {
-                    .u.LowPart = seekLow,
-                    .u.HighPart = seekHigh
+                .u.LowPart = seekLow,
+                .u.HighPart = seekHigh
             },
             &transfer,
             &transferred
@@ -196,6 +255,7 @@ void sys_file_mkdir_invocation(struct gracht_message* message, const uuid_t proc
     uuid_t      handle;
     oserr_t     oserr;
     mstring_t*  mpath;
+
     TRACE("sys_file_mkdir_invocation()");
 
     if (!strlen(path)) {
@@ -227,6 +287,7 @@ static void __ToSysDirectoryEntry(struct VFSStat* in, struct sys_directory_entry
 
 void sys_file_readdir_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t                     resourceID;
     struct VFSStat             stats;
     struct sys_directory_entry entry = { 0 };
     struct VFS*                fsScope;
@@ -240,7 +301,18 @@ void sys_file_readdir_invocation(struct gracht_message* message, const uuid_t pr
         return;
     }
 
-    oserr = VFSNodeReadDirectory(handle, &stats, &index);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        __FILE_READ_ACCESS,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_readdir_response(message, oserr, &entry);
+        return;
+    }
+
+    oserr = VFSNodeReadDirectory(resourceID, &stats, &index);
     if (oserr == OS_EOK) {
         __ToSysDirectoryEntry(&stats, &entry, index);
     }
@@ -256,6 +328,7 @@ void sys_file_readdir_invocation(struct gracht_message* message, const uuid_t pr
 
 void sys_file_flush_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t      resourceID;
     struct VFS* fsScope = VFSScopeGet(processId);
     oserr_t     oserr;
     TRACE("sys_file_flush_invocation()");
@@ -265,7 +338,18 @@ void sys_file_flush_invocation(struct gracht_message* message, const uuid_t proc
         return;
     }
 
-    oserr = VFSNodeFlush(handle);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_flush_response(message, oserr);
+        return;
+    }
+
+    oserr = VFSNodeFlush(resourceID);
     sys_file_flush_response(message, oserr);
 }
 
@@ -274,11 +358,14 @@ void sys_file_move_invocation(struct gracht_message* message, const uuid_t proce
 {
     struct VFS* fsScope = VFSScopeGet(processId);
     oserr_t     oserr;
+    
     TRACE("sys_file_move_invocation()");
+    
     if (!strlen(source) || !strlen(destination)) {
         sys_file_move_response(message, OS_EINVALPARAMS);
         return;
     }
+    
     if (fsScope == NULL) {
         sys_file_move_response(message, OS_EPERMISSIONS);
         return;
@@ -293,12 +380,14 @@ void sys_file_link_invocation(struct gracht_message* message, const uuid_t proce
 {
     struct VFS* fsScope = VFSScopeGet(processId);
     oserr_t     oserr;
+
     TRACE("sys_file_link_invocation()");
 
     if (!strlen(source) || !strlen(destination)) {
         sys_file_link_response(message, OS_EINVALPARAMS);
         return;
     }
+
     if (fsScope == NULL) {
         sys_file_link_response(message, OS_EPERMISSIONS);
         return;
@@ -310,8 +399,9 @@ void sys_file_link_invocation(struct gracht_message* message, const uuid_t proce
 
 void sys_file_get_position_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t       resourceID;
     struct VFS*  fsScope = VFSScopeGet(processId);
-    UInteger64_t position;
+    UInteger64_t position = { 0 };
     oserr_t      oserr;
     TRACE("sys_file_get_position_invocation()");
 
@@ -320,30 +410,26 @@ void sys_file_get_position_invocation(struct gracht_message* message, const uuid
         return;
     }
 
-    oserr = VFSNodeGetPosition(handle,&position.QuadPart);
-    sys_file_get_position_response(message, oserr, position.u.LowPart, position.u.HighPart);
-}
-
-void sys_file_duplicate_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
-{
-    struct VFS* fsScope = VFSScopeGet(processId);
-    uuid_t      dupHandle;
-    oserr_t     oserr;
-    TRACE("sys_file_duplicate_invocation()");
-
-    if (fsScope == NULL) {
-        sys_file_duplicate_response(message, OS_EPERMISSIONS, UUID_INVALID);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_get_position_response(message, oserr, 0, 0);
         return;
     }
 
-    oserr = VFSNodeDuplicate(handle, &dupHandle);
-    sys_file_duplicate_response(message, oserr, dupHandle);
+    oserr = VFSNodeGetPosition(resourceID,&position.QuadPart);
+    sys_file_get_position_response(message, oserr, position.u.LowPart, position.u.HighPart);
 }
 
 void sys_file_get_access_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t      resourceID;
     struct VFS* fsScope = VFSScopeGet(processId);
-    uint32_t    access;
+    uint32_t    access = 0;
     oserr_t     oserr;
     TRACE("sys_file_get_access_invocation()");
 
@@ -352,13 +438,25 @@ void sys_file_get_access_invocation(struct gracht_message* message, const uuid_t
         return;
     }
 
-    oserr = VFSNodeGetAccess(handle, &access);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_get_access_response(message, oserr, 0);
+        return;
+    }
+
+    oserr = VFSNodeGetAccess(resourceID, &access);
     sys_file_get_access_response(message, oserr, access);
 }
 
 void sys_file_set_access_invocation(struct gracht_message* message, const uuid_t processId,
                                     const uuid_t handle, const unsigned int access)
 {
+    uuid_t      resourceID;
     struct VFS* fsScope = VFSScopeGet(processId);
     oserr_t     oserr;
     TRACE("sys_file_set_access_invocation()");
@@ -368,14 +466,26 @@ void sys_file_set_access_invocation(struct gracht_message* message, const uuid_t
         return;
     }
 
-    oserr = VFSNodeSetAccess(handle, access);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_set_access_response(message, oserr);
+        return;
+    }
+
+    oserr = VFSNodeSetAccess(resourceID, access);
     sys_file_set_access_response(message, oserr);
 }
 
 void sys_file_get_size_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t       resourceID;
     struct VFS*  fsScope = VFSScopeGet(processId);
-    UInteger64_t size;
+    UInteger64_t size = { 0 };
     oserr_t      oserr;
     TRACE("sys_file_get_size_invocation()");
 
@@ -384,15 +494,27 @@ void sys_file_get_size_invocation(struct gracht_message* message, const uuid_t p
         return;
     }
 
-    oserr = VFSNodeGetSize(handle, &size.QuadPart);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_get_size_response(message, oserr, 0, 0);
+        return;
+    }
+
+    oserr = VFSNodeGetSize(resourceID, &size.QuadPart);
     sys_file_get_size_response(message, oserr, size.u.LowPart, size.u.HighPart);
 }
 
 void sys_file_set_size_invocation(struct gracht_message* message, const uuid_t processId,
                                   const uuid_t handle, const unsigned int sizeLow, const unsigned int sizeHigh)
 {
-    struct VFS*  fsScope = VFSScopeGet(processId);
-    oserr_t      oserr;
+    uuid_t      resourceID;
+    struct VFS* fsScope = VFSScopeGet(processId);
+    oserr_t     oserr;
     TRACE("sys_file_set_size_invocation()");
 
     if (fsScope == NULL) {
@@ -400,7 +522,18 @@ void sys_file_set_size_invocation(struct gracht_message* message, const uuid_t p
         return;
     }
 
-    oserr = VFSNodeSetSize(handle, &(UInteger64_t) {
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        __FILE_WRITE_ACCESS,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_set_size_response(message, oserr);
+        return;
+    }
+
+    oserr = VFSNodeSetSize(resourceID, &(UInteger64_t) {
             .u.LowPart = sizeLow,
             .u.HighPart = sizeHigh
     });
@@ -409,6 +542,7 @@ void sys_file_set_size_invocation(struct gracht_message* message, const uuid_t p
 
 void sys_file_get_path_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t      resourceID;
     struct VFS* fsScope = VFSScopeGet(processId);
     mstring_t*  fullPath;
     oserr_t     oserr;
@@ -419,7 +553,18 @@ void sys_file_get_path_invocation(struct gracht_message* message, const uuid_t p
         return;
     }
 
-    oserr = VFSNodeGetPathHandle(handle, &fullPath);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_get_path_response(message, oserr, "");
+        return;
+    }
+
+    oserr = VFSNodeGetPathHandle(resourceID, &fullPath);
     if (oserr != OS_EOK) {
         sys_file_get_path_response(message, oserr, "");
         return;
@@ -445,6 +590,7 @@ static void __ToProtocolFileDescriptor(struct VFSStat* in, struct sys_file_descr
 
 void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t                     resourceID;
     struct VFSStat             stats;
     struct sys_file_descriptor result = { 0 };
     struct VFS*                fsScope = VFSScopeGet(processId);
@@ -456,7 +602,18 @@ void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t proc
         return;
     }
 
-    osStatus = VFSNodeStatHandle(handle, &stats);
+    osStatus = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (osStatus != OS_EOK) {
+        sys_file_fstat_response(message, osStatus, &result);
+        return;
+    }
+
+    osStatus = VFSNodeStatHandle(resourceID, &stats);
     if (osStatus == OS_EOK) {
         __ToProtocolFileDescriptor(&stats, &result);
     }
@@ -469,12 +626,14 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const uuid_t
     struct VFSStat             stats;
     struct VFS*                fsScope = VFSScopeGet(processId);
     oserr_t                    oserr;
+
     TRACE("sys_file_fstat_path_invocation()");
 
     if (!strlen(path)) {
         sys_file_fstat_path_response(message, OS_EINVALPARAMS, &gdescriptor);
         return;
     }
+
     if (fsScope == NULL) {
         sys_file_fstat_path_response(message, OS_EPERMISSIONS, &gdescriptor);
         return;
@@ -492,12 +651,14 @@ void sys_file_fstat_link_invocation(struct gracht_message* message, const uuid_t
     struct VFS* fsScope = VFSScopeGet(processId);
     mstring_t* linkPath;
     oserr_t    oserr;
+
     TRACE("sys_file_fstat_link_invocation()");
 
     if (!strlen(path)) {
         sys_file_fstat_link_response(message, OS_EINVALPARAMS, "");
         return;
     }
+
     if (fsScope == NULL) {
         sys_file_fstat_link_response(message, OS_EPERMISSIONS, "");
         return;
@@ -534,10 +695,12 @@ static void __CleanupProtocolFileSystemDescriptor(struct sys_filesystem_descript
 
 void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
+    uuid_t                           resourceID;
     struct VFSStatFS                 stats;
     struct sys_filesystem_descriptor result = { 0 };
     struct VFS*                      fsScope = VFSScopeGet(processId);
     oserr_t                          oserr;
+
     TRACE("sys_file_fsstat_invocation()");
 
     if (fsScope == NULL) {
@@ -545,7 +708,18 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t pro
         return;
     }
 
-    oserr = VFSNodeStatFsHandle(handle, &stats);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        handle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_fsstat_response(message, oserr, &result);
+        return;
+    }
+
+    oserr = VFSNodeStatFsHandle(resourceID, &stats);
     if (oserr == OS_EOK) {
         __ToProtocolFileSystemDescriptor(&stats, &result);
     }
@@ -559,6 +733,7 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const uuid_
     struct sys_filesystem_descriptor result = { 0 };
     struct VFS*                      fsScope = VFSScopeGet(processId);
     oserr_t                          osStatus;
+
     TRACE("sys_file_fsstat_path_invocation()");
 
     if (fsScope == NULL) {
@@ -579,12 +754,14 @@ void sys_file_realpath_invocation(struct gracht_message* message, const char* pa
     struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
     mstring_t*  realPath;
     oserr_t     oserr;
+
     TRACE("sys_file_realpath_invocation(path=%s)", path);
 
     if (!strlen(path)) {
         sys_file_realpath_response(message, OS_EINVALPARAMS, "");
         return;
     }
+
     if (fsScope == NULL) {
         sys_file_realpath_response(message, OS_EPERMISSIONS, "");
         return;
@@ -604,10 +781,12 @@ void sys_file_realpath_invocation(struct gracht_message* message, const char* pa
 
 void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t fileHandle)
 {
+    uuid_t                     resourceID;
     StorageDescriptor_t        stats;
     struct sys_disk_descriptor result = { 0 };
     struct VFS*                fsScope = VFSScopeGet(processId);
     oserr_t                    oserr;
+
     TRACE("sys_file_ststat_invocation()");
 
     if (fsScope == NULL) {
@@ -615,7 +794,18 @@ void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t pro
         return;
     }
 
-    oserr = VFSNodeStatStorageHandle(fileHandle, &stats);
+    oserr = VFSNodeHandleValidate(
+        gracht_server_get_security_context(message),
+        fileHandle,
+        0,
+        &resourceID
+    );
+    if (oserr != OS_EOK) {
+        sys_file_ststat_response(message, oserr, &result);
+        return;
+    }
+
+    oserr = VFSNodeStatStorageHandle(resourceID, &stats);
     if (oserr == OS_EOK) {
         to_sys_disk_descriptor_dkk(&stats, &result);
     }
@@ -628,12 +818,14 @@ void sys_file_ststat_path_invocation(struct gracht_message* message, const uuid_
     StorageDescriptor_t        stats;
     struct sys_disk_descriptor gdescriptor = { 0 };
     oserr_t                    oserr;
+
     TRACE("sys_file_ststat_path_invocation()");
 
     if (!strlen(filePath)) {
         sys_file_ststat_path_response(message, OS_EINVALPARAMS, &gdescriptor);
         return;
     }
+
     if (fsScope == NULL) {
         sys_file_ststat_path_response(message, OS_EPERMISSIONS, &gdescriptor);
         return;
@@ -651,6 +843,7 @@ void sys_mount_mount_invocation(struct gracht_message* message, const uuid_t pro
 {
     struct VFS* fsScope = VFSScopeGet(processId);
     oserr_t     oserr;
+
     TRACE("sys_mount_mount_invocation()");
 
     if (!strlen(at)) {
@@ -671,6 +864,7 @@ void sys_mount_unmount_invocation(struct gracht_message* message, const uuid_t p
     struct VFS* fsScope = VFSScopeGet(processId);
     mstring_t*  mpath;
     oserr_t     oserr;
+
     TRACE("sys_mount_unmount_invocation()");
 
     if (!strlen(path)) {

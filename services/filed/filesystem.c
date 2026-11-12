@@ -456,7 +456,11 @@ VFSFileSystemDisconnectInterface(
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_CONNECTED) {
-        osStatus = fileSystem->Interface->Operations.Destroy(fileSystem->Interface, &fileSystem->Data, flags);
+        // The filesystem must already be detached from new opens. Drain its
+        // records while the backend is live, including asynchronous closes.
+        VFSDestroy(fileSystem->VFS);
+        fileSystem->VFS = NULL;
+        osStatus = fileSystem->Interface->Operations.Destroy(fileSystem->Interface, fileSystem->Data, flags);
         fileSystem->State = FileSystemState_NO_INTERFACE;
     }
     usched_mtx_unlock(&fileSystem->Lock);

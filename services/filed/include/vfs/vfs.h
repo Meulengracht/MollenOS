@@ -33,7 +33,43 @@ struct VFSNodeHandle;
 struct VFSStat;
 struct VFSStatFS;
 
-extern void VFSNodeHandleStartup(void);
+struct gracht_security_context;
+
+/**
+ * @brief Initializes the open-file table, cleanup queue and cleanup job.
+ * @return OS_EOK or an allocation/registration error.
+ */
+extern oserr_t VFSNodeHandleStartup(void);
+
+/**
+ * @brief Creates a single-use token for a client open and releases its initial reference.
+ * Call only for a newly opened resource that has not been sent to a client.
+ * @param resourceID Initial resource ID returned by VFSNodeOpen.
+ * @param caller Authenticated RPC sender.
+ * @param tokenOut Receives the handoff token on success.
+ * @return OS_EOK or a token/reference error. Close the internal open on failure.
+ */
+extern oserr_t
+VFSNodeHandleExport(
+    _In_  uuid_t                                resourceID,
+    _In_  const struct gracht_security_context* caller,
+    _Out_ GrantToken_t*                         tokenOut);
+
+/**
+ * @brief Validates the RPC sender's reference and resolves the stable resource ID.
+ * Validation does not keep the VFS record allocated. Use Get/Put during operations.
+ * @param caller Authenticated RPC sender, never an RPC processId argument.
+ * @param referenceID Reference supplied by the sender.
+ * @param requiredAccess Required file read/write bits, or zero for metadata.
+ * @param resourceIDOut Receives the ID used by the VFS table.
+ * @return OS_EOK or a reference/access error.
+ */
+extern oserr_t
+VFSNodeHandleValidate(
+    _In_  const struct gracht_security_context* caller,
+    _In_  uuid_t                                referenceID,
+    _In_  uint32_t                              requiredAccess,
+    _Out_ uuid_t*                               resourceIDOut);
 
 extern oserr_t
 VFSNew(
@@ -74,7 +110,6 @@ extern oserr_t VFSNodeMount(struct VFS*, uuid_t atID, struct VFS* what);
 extern oserr_t VFSNodeUnmount(struct VFS*, uuid_t directoryHandleID);
 extern oserr_t VFSNodeUnmountPath(struct VFS*, mstring_t* path);
 
-extern oserr_t VFSNodeDuplicate(uuid_t handle, uuid_t* handleOut);
 extern oserr_t VFSNodeRead(uuid_t fileHandle, const SHMTransfer_t* transfer, size_t* readOut);
 extern oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, const SHMTransfer_t* transfer, size_t* readOut);
 extern oserr_t VFSNodeWrite(uuid_t fileHandle, const SHMTransfer_t* transfer, size_t* writtenOut);

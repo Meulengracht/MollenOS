@@ -19,6 +19,7 @@
 #define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
+#include <ddk/convert/grants.h>
 #include <ds/hashtable.h>
 #include <os/usched/mutex.h>
 #include <os/handle.h>
@@ -810,9 +811,8 @@ __MemFSRead(
         return OS_EINVALPARAMS;
     }
     
-    offset = transfer->RangeMode == SHMTransferRangeFull ? 0 : transfer->RelativeOffset;
-    length = transfer->RangeMode == SHMTransferRangeFull
-        ? transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+    offset = transfer->RelativeOffset;
+    length = __SHMTransferLength(transfer);
     
     status = SHMAttachToken(&transfer->Token, &shm);
     if (status != OS_EOK) {

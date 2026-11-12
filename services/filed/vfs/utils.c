@@ -450,28 +450,25 @@ static void __VerifyHandleExclusivityEnum(int index, const void* element, void* 
     }
 }
 
-oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut)
+oserr_t
+VFSNodeOpenHandle(
+    _In_  struct VFSNode* node,
+    _In_  uint32_t        accessKind,
+    _Out_ uuid_t*         handleOut)
 {
     struct __HandleExcCheckContext context;
-    void*                          data;
-    oserr_t                        oserr;
     struct __VFSHandle             vfsHandle;
+    OSHandle_t                     resource;
+    void*                          data;
     mstring_t*                     nodePath;
-
-    TRACE("VFSNodeOpenHandle(node=%ms)", node ? node->Name : NULL);
-    if (node == NULL || handleOut == NULL) {
-        return OS_EINVALPARAMS;
-    }
+    oserr_t                        oserr;
 
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
         return OS_EOOM;
     }
 
-    TRACE("VFSNodeOpenHandle exclusivity check");
     usched_mtx_lock(&node->HandlesLock);
-
-    // Perform a handle exclusivity check before opening new handles.
     context.Success = true;
     context.AccessKind = accessKind;
     hashtable_enumerate(&node->Handles, __VerifyHandleExclusivityEnum, &context);
@@ -480,39 +477,50 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
         goto cleanup;
     }
 
-    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &vfsHandle.OSHandle);
+    oserr = VFSNodeHandleCreate(accessKind, &resource);
     if (oserr != OS_EOK) {
         goto cleanup;
     }
 
     oserr = node->FileSystem->Interface->Operations.Open(
-            node->FileSystem->Interface,
-            node->FileSystem->Data,
-            nodePath,
-            &data
+        node->FileSystem->Interface,
+        node->FileSystem->Data,
+        nodePath,
+        &data
     );
     if (oserr != OS_EOK) {
-        goto cleanup;
+        goto resource;
     }
 
-    oserr = VFSNodeHandleAdd(&vfsHandle.OSHandle, node, data, accessKind);
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&vfsHandle.OSHandle);
-        goto error;
-    }
-
-    // Everything OK, we can add a new handle
+    // Tables contain stable resource IDs, not resource references. The local
+    // handle registry keeps the initial reference until close or token handoff.
+    vfsHandle.Id = resource.ID;
     vfsHandle.AccessKind = accessKind;
     hashtable_set(&node->Handles, &vfsHandle);
-    *handleOut = vfsHandle.OSHandle.ID;
+    if (hashtable_get(&node->Handles, &vfsHandle) == NULL) {
+        oserr = OS_EOOM;
+        goto file;
+    }
+
+    oserr = VFSNodeHandleAdd(&resource, node, data, accessKind);
+    if (oserr != OS_EOK) {
+        hashtable_remove(&node->Handles, &vfsHandle);
+        goto file;
+    }
+    *handleOut = resource.ID;
     goto cleanup;
 
-error:
+file:
     node->FileSystem->Interface->Operations.Close(
-            node->FileSystem->Interface,
-            node->FileSystem->Data,
-            data
+        node->FileSystem->Interface,
+        node->FileSystem->Data,
+        data
     );
+
+resource:
+    // A cleanup event for an unpublished record is harmless: no table entry
+    // exists and all filesystem state has already been closed here.
+    OSHandleDestroy(&resource);
 
 cleanup:
     usched_mtx_unlock(&node->HandlesLock);

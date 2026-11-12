@@ -1,6 +1,5 @@
 add_library(filed-vfs-handlers
         close.c
-        duplicate.c
         flush.c
         handle_stat.c
         link.c

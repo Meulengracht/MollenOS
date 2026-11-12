@@ -18,6 +18,7 @@
 #include <ddk/convert.h>
 #include <ddk/convert/grants.h>
 #include <gracht/link/vali.h>
+#include <internal/_gracht.h>
 #include <internal/_utils.h>
 #include <vfs/interface.h>
 
@@ -202,17 +203,15 @@ __DriverRead(
         return status;
     }
 
-    length = transfer->RangeMode == SHMTransferRangeFull
-        ? transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+    length = __SHMTransferLength(transfer);
     if (ctt_filesystem_read(GetGrachtClient(), &msg.base,
                           (uintptr_t)instanceData, (uintptr_t)data, &params) != 0) {
         return OS_EUNKNOWN;
     }
 
-    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
-        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
-        gracht_client_abandon(GetGrachtClient(), &msg.base);
-        return OS_EUNKNOWN;
+    status = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != OS_EOK) {
+        return status;
     }
 
     if (ctt_filesystem_read_result(GetGrachtClient(), &msg.base, &status, &completed) != 0 ||
@@ -246,17 +245,15 @@ __DriverWrite(
         return status;
     }
 
-    length = transfer->RangeMode == SHMTransferRangeFull
-        ? transfer->Token.Options.Data.SHM.Length : transfer->RequestedLength;
+    length = __SHMTransferLength(transfer);
     if (ctt_filesystem_write(GetGrachtClient(), &msg.base,
                           (uintptr_t)instanceData, (uintptr_t)data, &params) != 0) {
         return OS_EUNKNOWN;
     }
 
-    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
-        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
-        gracht_client_abandon(GetGrachtClient(), &msg.base);
-        return OS_EUNKNOWN;
+    status = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != OS_EOK) {
+        return status;
     }
 
     if (ctt_filesystem_write_result(GetGrachtClient(), &msg.base, &status, &completed) != 0 ||

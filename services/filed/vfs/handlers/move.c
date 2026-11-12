@@ -19,8 +19,11 @@
 #define __need_quantity
 #include <ddk/utils.h>
 #include <os/handle.h>
+#include <os/grants.h>
+#include <string.h>
 #include <os/shm.h>
 #include <vfs/vfs.h>
+
 #include "../private.h"
 
 static mstring_t* __SubtractPath(mstring_t* path, mstring_t* operand)
@@ -112,54 +115,107 @@ unlock:
     return oserr;
 }
 
-static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VFS* targetVFS, void* targetFile)
+static oserr_t
+__TransferFile(
+    _In_ struct VFS* sourceVFS,
+    _In_ void*       sourceFile,
+    _In_ struct VFS* targetVFS,
+    _In_ void*       targetFile)
 {
-    OSHandle_t shm;
-    oserr_t    oserr;
+    OSHandle_t    shm;
+    SHMTransfer_t source = { .RangeMode = SHMTransferRangeFull };
+    SHMTransfer_t target = { .RangeMode = SHMTransferRangeSubrange };
+    size_t        read;
+    size_t        written;
+    oserr_t       status;
 
-    oserr = SHMCreate(
-            &(SHM_t) {
-                .Flags = SHM_COMMIT,
-                .Size = MB(1),
-                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
-            },
-            &shm
+    GrantTokenOptions_t options = {
+        .ResourceType = GrantTokenResourceTypeSHM,
+        .TargetType = GrantTokenTargetTypeAny,
+        .TargetGlobalHandleID = UUID_INVALID,
+        .Scope = GrantTokenScopeRead | GrantTokenScopeWrite,
+        .Data.SHM = {
+            .Offset = 0,
+            .Length = MB(1)
+        }
+    };
+
+    status = SHMCreate(
+        &(SHM_t) {
+            .Flags = SHM_COMMIT | SHM_CLEAN,
+            .Size = MB(1),
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+        },
+        &shm
     );
-    if (oserr != OS_EOK) {
-        return oserr;
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = OSGrantTokenCreate(shm.ID, &options, &source.Token);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    options.Scope = GrantTokenScopeRead;
+    status = OSGrantTokenCreate(shm.ID, &options, &target.Token);
+    if (status != OS_EOK) {
+        goto cleanup;
     }
 
     while (1) {
-        size_t read, written;
-
-        oserr = sourceVFS->Interface->Operations.Read(
-                sourceVFS->Interface,
-                sourceVFS->Data,
-                sourceFile,
-                shm.ID,
-                SHMBuffer(&shm),
-                0,
-                MB(1), &read
+        memset(SHMBuffer(&shm), 0, MB(1));
+        
+        read = 0;
+        
+        status = sourceVFS->Interface->Operations.Read(
+            sourceVFS->Interface,
+            sourceVFS->Data,
+            sourceFile,
+            &source,
+            &read
         );
-        if (oserr != OS_EOK || read == 0) {
+        if (status != OS_EOK || read == 0) {
             break;
         }
 
-        oserr = targetVFS->Interface->Operations.Write(
-                sourceVFS->Interface,
-                targetVFS->Data, targetFile,
-                shm.ID,
-                SHMBuffer(&shm),
-                0,
-                read, &written
-        );
-        if (oserr != OS_EOK) {
+        if (read > MB(1)) {
+            status = OS_EPROTOCOL;
             break;
+        }
+
+        target.RelativeOffset = 0;
+        target.RequestedLength = (uint32_t)read;
+        while (target.RequestedLength != 0) {
+            written = 0;
+            status = targetVFS->Interface->Operations.Write(
+                targetVFS->Interface,
+                targetVFS->Data,
+                targetFile,
+                &target,
+                &written
+            );
+            if (status != OS_EOK) {
+                goto cleanup;
+            }
+
+            if (written == 0 || written > target.RequestedLength) {
+                status = OS_EPROTOCOL;
+                goto cleanup;
+            }
+            target.RelativeOffset += (uint32_t)written;
+            target.RequestedLength -= (uint32_t)written;
         }
     }
 
+cleanup:
+    if (target.Token.ControlHandleID != UUID_INVALID) {
+        OSGrantTokenRevoke(target.Token.ControlHandleID);
+    }
+    if (source.Token.ControlHandleID != UUID_INVALID) {
+        OSGrantTokenRevoke(source.Token.ControlHandleID);
+    }
     OSHandleDestroy(&shm);
-    return OS_EOK;
+    return status;
 }
 
 static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directoryNode, mstring_t* targetName, int copy)
