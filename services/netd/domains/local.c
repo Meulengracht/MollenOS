@@ -26,8 +26,11 @@
 //#define __TRACE
 
 #include <os/handle.h>
+#include <os/grants.h>
 #include <os/notification_queue.h>
 #include <os/services/net.h>
+#include <os/shm.h>
+#include <internal/_socket.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
 #include <inet/local.h>
@@ -234,7 +237,6 @@ HandleSocketStreamData(
 
 static Socket_t*
 ProcessSocketPacket(
-    _In_ Socket_t* Socket,
     _In_ void*     PacketData,
     _In_ size_t    PacketLength)
 {
@@ -266,7 +268,9 @@ ProcessSocketPacket(
         }
         TargetSocket = GetSocketFromAddress(Address);
     } else {
-        TargetSocket = NetworkManagerSocketGetUnsafe(Socket->Domain->ConnectedSocket);
+        // The sender snapshots the shared peer when it queues the packet.
+        // A later connect must not change this packet's destination.
+        TargetSocket = NetworkManagerSocketGetUnsafe(Packet->destination);
     }
     return TargetSocket;
 }
@@ -320,7 +324,7 @@ HandleSocketPacketData(
             doRead = 1;
         }
 
-        targetSocket = ProcessSocketPacket(Socket, buffer, bytesRead);
+        targetSocket = ProcessSocketPacket(buffer, bytesRead);
         if (targetSocket) {
             struct packethdr* packet = buffer;
             struct sockaddr_lc sourceAddress = {0};
@@ -355,6 +359,7 @@ HandleSocketPacketData(
                     bytesRead - sizeof(*packet) - (size_t)packet->addresslen);
             memcpy(address, &sourceAddress, sizeof(sourceAddress));
             packet->addresslen = sizeof(sourceAddress);
+            packet->destination = UUID_INVALID;
             streambuffer_write_packet_data(buffer, outputLength, &packetCtx);
             streambuffer_write_packet_end(&packetCtx);
             OSNotificationQueuePost(&targetSocket->Handle, IOSETIN);
@@ -386,13 +391,27 @@ DomainLocalReceive(
     return OS_ENOTSUPPORTED;
 }
 
+static void
+__SetConnectedSocket(
+    _In_ Socket_t* socket,
+    _In_ uuid_t    peer)
+{
+    struct OSSocketSendState* state = SHMBuffer(&socket->Send.SHM);
+
+    // Hold the manager execution lock and keep the send mapping valid while
+    // publishing a peer change to every process attached to this socket.
+    socket->Domain->ConnectedSocket = peer;
+    socket->Configuration.Connected = peer != UUID_INVALID;
+    atomic_store_explicit(&state->Peer, peer, memory_order_release);
+}
+
 static oserr_t
 DomainLocalPair(
     _In_ Socket_t* Socket1,
     _In_ Socket_t* Socket2)
 {
-    Socket1->Domain->ConnectedSocket = (uuid_t)(uintptr_t)Socket2->Header.key;
-    Socket2->Domain->ConnectedSocket = (uuid_t)(uintptr_t)Socket1->Header.key;
+    __SetConnectedSocket(Socket1, (uuid_t)(uintptr_t)Socket2->Header.key);
+    __SetConnectedSocket(Socket2, (uuid_t)(uintptr_t)Socket1->Header.key);
     return OS_EOK;
 }
 
@@ -524,6 +543,8 @@ AcceptConnectionRequest(
     _In_ struct gracht_message* connectMessage)
 {
     uuid_t                  handle = UUID_INVALID;
+    struct sys_grant_token  reference = { 0 };
+    struct sys_socket_info  info = { 0 };
     struct sys_shm_transfer recvBuffer = { 0 };
     struct sys_shm_transfer sendBuffer = { 0 };
     struct sockaddr_storage address = {0};
@@ -545,22 +566,33 @@ AcceptConnectionRequest(
         &sendBuffer
     );
     if (status == OS_EOK) {
-        NetworkManagerSocketPair(handle, (uuid_t)(uintptr_t)connectSocket->Header.key);
+        status = NetworkManagerSocketPair(handle, (uuid_t)(uintptr_t)connectSocket->Header.key);
+        if (status != OS_EOK) {
+            NetworkManagerSocketShutdown(handle, SYS_CLOSE_OPTIONS_DESTROY);
+        }
+
+        status = NetworkManagerSocketExport(acceptMessage, handle, &reference, &info);
+        if (status != OS_EOK) {
+            NetworkManagerSocketShutdown(handle, SYS_CLOSE_OPTIONS_DESTROY);
+        }
     }
-    
+
     // Reply to the connector (the thread that called connect())
     sys_socket_connect_response(connectMessage, status);
     
     // Reply to the accepter (the thread that called accept())
-    sys_socket_accept_response(
+    if (sys_socket_accept_response(
         acceptMessage,
         status,
         (uint8_t*)&address,
         status == OS_EOK ? address.__ss_len : 0,
-        handle,
-        &recvBuffer,
-        &sendBuffer
-    );
+        &reference,
+        &info
+    ) != 0 && status == OS_EOK) {
+        // Match create: failed delivery must cancel the initial token without
+        // closing a reference which the client may already have imported.
+        (void)OSGrantTokenRevoke(reference.export_id);
+    }
 }
 
 static oserr_t
@@ -612,7 +644,13 @@ DomainLocalConnect(
     _In_ Socket_t*              socket,
     _In_ const struct sockaddr* address)
 {
-    Socket_t* target = GetSocketFromAddress(address);
+    Socket_t* target;
+
+    if (ValidateLocalAddress(address, address->sa_len) != OS_EOK) {
+        return OS_EINVALPARAMS;
+    }
+
+    target = GetSocketFromAddress(address);
     TRACE("[domain] [local] [connect] %s", &address->sa_data[0]);
     
     if (!target) {
@@ -626,15 +664,13 @@ DomainLocalConnect(
         return OS_EPROTOCOL;
     }
     
-    if (ValidateLocalAddress(address, address->sa_len) != OS_EOK) {
-        return OS_EINVALPARAMS;
-    }
-    
     if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
         return HandleLocalConnectionRequest(message, socket, target);
     }
     else {
-        // Don't handle this scenario. It is handled locally in libc
+        socket->Configuration.Connecting = 0;
+        __SetConnectedSocket(socket, (uuid_t)(uintptr_t)target->Header.key);
+        sys_socket_connect_response(message, OS_EOK);
         return OS_EOK;
     }
 }
@@ -643,23 +679,41 @@ static oserr_t
 DomainLocalDisconnect(
     _In_ Socket_t* socket)
 {
-    Socket_t* peerSocket = NetworkManagerSocketGetUnsafe(socket->Domain->ConnectedSocket);
-    oserr_t   oserr      = OS_ENOTCONNECTED;
+    Socket_t*            peerSocket;
+    oserr_t              oserr = OS_ENOTCONNECTED;
+    element_t*           element;
+    ConnectionRequest_t* connection;
+    AcceptRequest_t*     accept;
+
+    peerSocket = NetworkManagerSocketGetUnsafe(socket->Domain->ConnectedSocket);
     TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(socket->Header.key),
         LODWORD(socket->Domain->ConnectedSocket));
+
+    // Final-reference cleanup can be caused by process exit. Deferred replies
+    // must be completed and freed even when the application never called close.
+    while ((element = queue_pop(&socket->ConnectionRequests)) != NULL) {
+        connection = element->value;
+        sys_socket_connect_response(&connection->Response[0], OS_ECONNABORTED);
+        free(connection);
+    }
+
+    while ((element = queue_pop(&socket->AcceptRequests)) != NULL) {
+        accept = element->value;
+        sys_socket_accept_response(&accept->Response[0], OS_ECONNABORTED, NULL, 0,
+            &(struct sys_grant_token){ 0 }, &(struct sys_socket_info){ 0 });
+        free(accept);
+    }
     
     // Send a disconnect request if socket was valid
-    if (peerSocket) {
+    if (peerSocket && peerSocket->Domain->ConnectedSocket == (uuid_t)(uintptr_t)socket->Header.key) {
         // disconnect peer-socket as-well, and notify them of the disconnect
-        peerSocket->Domain->ConnectedSocket = UUID_INVALID;
-        peerSocket->Configuration.Connected = 0;
+        __SetConnectedSocket(peerSocket, UUID_INVALID);
         OSNotificationQueuePost(&peerSocket->Handle, IOSETCTL);
         oserr = OS_EOK;
     }
 
     // update our stats
-    socket->Domain->ConnectedSocket = UUID_INVALID;
-    socket->Configuration.Connected = 0;
+    __SetConnectedSocket(socket, UUID_INVALID);
     return oserr;
 }
 

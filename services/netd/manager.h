@@ -31,6 +31,8 @@
 #include <inet/socket.h>
 
 struct sys_shm_transfer;
+struct sys_grant_token;
+struct sys_socket_info;
 typedef struct Socket Socket_t;
 typedef struct SocketDescriptor SocketDescriptor_t;
 
@@ -51,6 +53,23 @@ NetworkManagerSocketCreate(
     _Out_ uuid_t*                  HandleOut,
     _Out_ struct sys_shm_transfer* RecvBufferOut,
     _Out_ struct sys_shm_transfer* SendBufferOut);
+
+/**
+ * @brief Exports a newly created socket to the authenticated request's group.
+ * The initial reference is released after the single-use reply token is ready.
+ * Deferred accept messages carry the original authenticated security context.
+ * @param message Request selecting the recipient.
+ * @param resource Service resource ID returned by creation.
+ * @param referenceOut Receives the initial client token.
+ * @param infoOut Receives the existing ring transfers and socket type.
+ * @return OS_EOK, or an authentication, token or resource error.
+ */
+oserr_t
+NetworkManagerSocketExport(
+    _In_  const struct gracht_message* message,
+    _In_  uuid_t                       resource,
+    _Out_ struct sys_grant_token*      referenceOut,
+    _Out_ struct sys_socket_info*      infoOut);
 
 oserr_t
 NetworkManagerSocketShutdown(

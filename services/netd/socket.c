@@ -28,6 +28,7 @@
 #include <ddk/utils.h>
 #include <os/shm.h>
 #include <internal/_shm_transfer.h>
+#include <internal/_socket.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,18 +41,22 @@
 // TODO recv pipe should have STREAMBUFFER_MULTIPLE_READERS only
 static void
 InitializeStreambuffer(
-    _In_ streambuffer_t* Stream)
+    _In_ streambuffer_t* Stream,
+    _In_ size_t          HeaderSize)
 {
-    size_t       ActualBufferSize = SOCKET_DEFAULT_BUFFER_SIZE - sizeof(streambuffer_t);
+    size_t       ActualBufferSize = SOCKET_DEFAULT_BUFFER_SIZE - HeaderSize - sizeof(streambuffer_t);
     unsigned int BufferOptions    = STREAMBUFFER_MULTIPLE_READERS | STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL;
     streambuffer_construct(Stream, ActualBufferSize, BufferOptions);
 }
 
 static oserr_t
 CreateSocketPipe(
-    _In_ SocketPipe_t* Pipe)
+    _In_ SocketPipe_t* Pipe,
+    _In_ bool          Send)
 {
-    oserr_t oserr;
+    struct OSSocketSendState* state;
+    size_t                   headerSize = 0;
+    oserr_t                  oserr;
     TRACE("CreateSocketPipe()");
 
     oserr = SHMCreate(
@@ -67,7 +72,13 @@ CreateSocketPipe(
     }
     
     Pipe->Stream = SHMBuffer(&Pipe->SHM);
-    InitializeStreambuffer(Pipe->Stream);
+    if (Send) {
+        state = SHMBuffer(&Pipe->SHM);
+        atomic_init(&state->Peer, UUID_INVALID);
+        headerSize = sizeof(*state);
+        Pipe->Stream = __SocketSendStream(state);
+    }
+    InitializeStreambuffer(Pipe->Stream, headerSize);
     
     oserr = __SHMTransferCreate(
         Pipe->SHM.ID,
@@ -100,6 +111,7 @@ SetDefaultConfiguration(
 
 oserr_t
 SocketCreateImpl(
+    _In_  OSHandle_t* Registration,
     _In_  int        Domain,
     _In_  int        Type,
     _In_  int        Protocol,
@@ -134,14 +146,18 @@ SocketCreateImpl(
     queue_construct(&socket->ConnectionRequests);
     queue_construct(&socket->AcceptRequests);
 
-    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &osHandle);
+    oserr = OSHandleCreate(Registration, OS_SOCKET_ACCESS, &osHandle);
     if (oserr != OS_EOK) {
         ERROR("Failed to create socket handle");
         mtx_destroy(&socket->SyncObject);
         free(socket);
         return oserr;
     }
-    socket->Handle = osHandle;
+    
+    socket->References.Initial = osHandle;
+    // Event operations use the stable service resource ID. This selector is
+    // not registered in the local handle table and adds no client reference.
+    socket->Handle.ID = osHandle.ID;
     RB_LEAF_INIT(&socket->Header, osHandle.ID, socket);
 
     oserr = DomainCreate(Domain, &socket->Domain);
@@ -163,7 +179,7 @@ SocketCreateImpl(
         return oserr;
     }
 
-    oserr = CreateSocketPipe(&socket->Receive);
+    oserr = CreateSocketPipe(&socket->Receive, false);
     if (oserr != OS_EOK) {
         ERROR("Failed to initialize the socket receive pipe");
         DomainDestroy(socket->Domain);
@@ -173,7 +189,7 @@ SocketCreateImpl(
         return oserr;
     }
 
-    oserr = CreateSocketPipe(&socket->Send);
+    oserr = CreateSocketPipe(&socket->Send, true);
     if (oserr != OS_EOK) {
         ERROR("Failed to initialize the socket send pipe");
         DomainDestroy(socket->Domain);
@@ -208,9 +224,9 @@ SocketShutdownImpl(
     }
 
     mtx_lock(&Socket->SyncObject);
-    if (Socket->Configuration.Connected) {
-        DomainDisconnect(Socket);
-    }
+    // A final close also cancels pending accept/connect requests on a passive
+    // socket. Disconnection therefore runs even when no peer is connected.
+    DomainDisconnect(Socket);
     mtx_unlock(&Socket->SyncObject);
 
     mtx_destroy(&Socket->SyncObject);
@@ -219,7 +235,10 @@ SocketShutdownImpl(
     DomainDestroy(Socket->Domain);
     __SocketPipeDestroy(&Socket->Receive);
     __SocketPipeDestroy(&Socket->Send);
-    OSHandleDestroy(&Socket->Handle);
+    if (Socket->References.ExportControl != UUID_INVALID) {
+        OSGrantTokenRevoke(Socket->References.ExportControl);
+    }
+    OSHandleDestroy(&Socket->References.Initial);
     free(Socket);
     return OS_EOK;
 }

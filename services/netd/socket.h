@@ -64,9 +64,15 @@ typedef struct SocketWorkQueue {
     struct Socket* Tail;
 } SocketWorkQueue_t;
 
+typedef struct SocketReferences {
+    OSHandle_t Initial;
+    uuid_t     ExportControl;
+} SocketReferences_t;
+
 typedef struct Socket {
     rb_leaf_t             Header;
     OSHandle_t            Handle;
+    SocketReferences_t    References;
     _Atomic(int)          PendingPackets;
     int                   DomainType;
     int                   Type;
@@ -97,6 +103,7 @@ typedef struct Socket {
  * @brief Creates a socket with default options, buffers and a temporary address.
  *
  * @param Domain The socket domain.
+ * @param Registration Netd's handle-service registration.
  * @param Type The socket type.
  * @param Protocol The protocol within the domain.
  * @param SocketOut Receives the socket on success.
@@ -104,6 +111,7 @@ typedef struct Socket {
  */
 oserr_t
 SocketCreateImpl(
+    _In_  OSHandle_t*     Registration,
     _In_  int              Domain,
     _In_  int              Type,
     _In_  int              Protocol,
