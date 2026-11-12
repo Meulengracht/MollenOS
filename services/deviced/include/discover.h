@@ -169,4 +169,19 @@ DmDiscoverFindDriver(
     _In_ uuid_t                       deviceId,
     _In_ struct DriverIdentification* deviceIdentification);
 
+/**
+ * @brief Accept readiness only from the security group returned by spawn.
+ * The caller must obtain principal from kernel-authenticated transport metadata.
+ * Duplicate notifications are harmless; conflicting identities or endpoints fail.
+ *
+ * @param principal Full kernel-authenticated IPC principal.
+ * @param driverId Driver entry selected during discovery.
+ * @param driverHandle Service endpoint used only to route messages.
+ */
+__EXTERN void
+DmHandleNotify(
+    _In_ uint64_t principal,
+    _In_ uuid_t   driverId,
+    _In_ uuid_t   driverHandle);
+
 #endif //!__DISCOVER_H__

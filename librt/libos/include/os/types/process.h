@@ -46,6 +46,15 @@
 
 typedef struct OSProcessOptions OSProcessOptions_t;
 
+// @brief The process handle and kernel-assigned security-group identity.
+// Process identifies the process, not a service endpoint. Principal is the full
+// identity supplied by authenticated IPC. Reserved is zero on successful spawn.
+typedef struct OSProcessIdentity {
+    uuid_t   Process;
+    uint32_t Reserved;
+    uint64_t Principal;
+} OSProcessIdentity_t;
+
 // ProcessStartupInformation is used internally for processes during startup
 // to transfer certain configuration data between the process manager and the
 // new process itself.

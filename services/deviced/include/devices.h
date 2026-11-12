@@ -46,8 +46,11 @@ DmDeviceRefreshDrivers(void);
 
 /**
  * @brief Sends a device description to its selected driver.
+ * Call only after authenticating readiness against the driver's spawn identity.
+ * The assignment records the principal before sending. A failed send clears it.
  *
- * @param driverHandle The ID of the driver that should receive the device.
+ * @param principal Verified principal stored in the driver entry.
+ * @param driverHandle Service endpoint that should receive the device.
  * @param deviceId The ID of the device to send.
  * @return OS_EOK if the request was sent, OS_ENOENT if the device is absent or
  *         unavailable for binding, or OS_EEXISTS if it already has a driver.
@@ -56,8 +59,9 @@ DmDeviceRefreshDrivers(void);
  */
 extern oserr_t
 DmDevicesRegister(
-    _In_ uuid_t driverHandle,
-    _In_ uuid_t deviceId);
+    _In_ uint64_t principal,
+    _In_ uuid_t   driverHandle,
+    _In_ uuid_t   deviceId);
 
 /**
  * @brief Adds a description without request callbacks, optionally finding a driver.

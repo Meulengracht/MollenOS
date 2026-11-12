@@ -121,35 +121,22 @@ OSProcessOptionsSetMemoryLimit(
         _In_ size_t              memoryLimit));
 
 /**
- * @brief Spawn a new process with default parameters. The process will inherit the current process's environment
- * block, but run in it's own context (no io-descriptor share and does not inherit std handles).
- * @param path The path of the process to spawn. The path will be resolved in the current
- *             filesystem scope.
- * @param arguments The arguments that should be provided for the process.
- * @param handleOut The handle of the new process.
- * @return OS_EOK on success; otherwise, an error code.
+ * @brief Spawn a process and return the identity used by authenticated IPC.
+ * If options is NULL, inherit the current environment and use default settings
+ * without inherited file descriptors or additional capabilities. Set arguments
+ * through OSProcessOptionsSetArguments when supplying options. A failed request
+ * may have started the child; do not automatically retry a lost reply.
+ *
+ * @param path Executable path, resolved in the current scope unless options sets one.
+ * @param options Process configuration, or NULL for defaults.
+ * @param identityOut Receives the process handle and principal only on success.
+ * @return OS_EOK on success; otherwise, an error code with identityOut unchanged.
  */
 CRTDECL(oserr_t,
 OSProcessSpawn(
-	_In_     const char* path,
-	_In_Opt_ const char* arguments,
-    _Out_    uuid_t*     handleOut));
-
-/**
- * @brief Spawn a new process with a more detailed configuration. Allows for customization of io
- * descriptors, environmental block and custom limitations.
- * @param path The path of the process to spawn. The path will be resolved in the current
- *             filesystem scope if none is provided in the options structure. If a scope is
- *             set in the options structure, then the path will be resolved using that scope.
- * @param options The process options structure that will configure certain elements of the process.
- * @param handleOut The handle of the new process.
- * @return OS_EOK on success; otherwise, an error code.
- */
-CRTDECL(oserr_t,
-OSProcessSpawnOpts(
-    _In_  const char*         path,
-    _In_  OSProcessOptions_t* options,
-    _Out_ uuid_t*             handleOut));
+    _In_     const char*          path,
+    _In_Opt_ OSProcessOptions_t*  options,
+    _Out_    OSProcessIdentity_t* identityOut));
 
 /**
  * @brief Wait for a process to terminate, and retrieve the exit code of the process.

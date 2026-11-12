@@ -105,22 +105,21 @@ __CopySpawnInput(
     return OS_EOK;
 }
 
-void
-sys_process_spawn_invocation(
-    struct gracht_message*                  message,
-    const char*                             path,
-    const char*                             arguments,
-    const struct sys_process_configuration* configuration)
+static oserr_t
+__SpawnProcess(
+    _In_  struct gracht_message*                  message,
+    _In_  const char*                             path,
+    _In_  const char*                             arguments,
+    _In_  const struct sys_process_configuration* configuration,
+    _Out_ OSProcessIdentity_t*                    identityOut)
 {
     struct ProcessOptions                 options = { 0 };
     const struct gracht_security_context* caller;
     void*                                 inputCopy;
-    uuid_t                                handle = UUID_INVALID;
     oserr_t                               oserr;
 
     if (path == NULL || path[0] == '\0') {
-        sys_process_spawn_response(message, OS_EINVALPARAMS, UUID_INVALID);
-        return;
+        return OS_EINVALPARAMS;
     }
 
     __from_sys_process_configuration(configuration, &options);
@@ -128,21 +127,39 @@ sys_process_spawn_invocation(
     caller = gracht_server_get_security_context(message);
     oserr = PmAuthorizeSpawn(caller, options.Capabilities);
     if (oserr != OS_EOK) {
-        sys_process_spawn_response(message, oserr, UUID_INVALID);
-        return;
+        return oserr;
     }
 
     oserr = __CopySpawnInput(configuration, &inputCopy);
     if (oserr != OS_EOK) {
-        sys_process_spawn_response(message, oserr, UUID_INVALID);
-        return;
+        return oserr;
     }
 
     options.DataBuffer = inputCopy;
    
-    oserr = PmCreateProcess(caller, path, arguments, &options, &handle);
+    oserr = PmCreateProcess(caller, path, arguments, &options, identityOut);
     free(inputCopy);
-    sys_process_spawn_response(message, oserr, handle);
+    return oserr;
+}
+
+void
+sys_process_spawn_invocation(
+    _In_ struct gracht_message*                  message,
+    _In_ const char*                             path,
+    _In_ const char*                             arguments,
+    _In_ const struct sys_process_configuration* configuration)
+{
+    OSProcessIdentity_t identity = { .Process = UUID_INVALID };
+    oserr_t             oserr;
+
+    oserr = __SpawnProcess(
+        message,
+        path,
+        arguments,
+        configuration,
+        &identity
+    );
+    sys_process_spawn_response(message, oserr, identity.Process, identity.Principal);
 }
 
 void sys_process_join_invocation(struct gracht_message* message, const uuid_t handle, const unsigned int timeout)

@@ -530,9 +530,10 @@ __CreateProcess(
     _In_  const char*            path,
     _In_  const char*            args,
     _In_  struct ProcessOptions* procOpts,
-    _Out_ uuid_t*                handleOut)
+    _Out_ OSProcessIdentity_t*   resultOut)
 {
     struct sys_process_inheritance_input input = { 0 };
+    OSProcessIdentity_t                  identity = { 0 };
     struct PEImageLoadContext*           loadContext;
     Process_t*                           process;
     OSHandle_t                           handle;
@@ -626,6 +627,11 @@ __CreateProcess(
         goto exit;
     }
 
+    // Capture the identity before the child can run. After publication, a child
+    // that exits immediately may release its load context before this call returns.
+    identity.Process = handle.ID;
+    identity.Principal = (uint64_t)loadContext->SecurityGroupID;
+
     // acquire the processes lock before starting it as we need to add the process entry
     // to the hashtable, but we need the thread id before adding it. So to avoid any data races
     // in a multicore environment, hold the lock untill we've added it.
@@ -649,7 +655,7 @@ __CreateProcess(
     });
     usched_mtx_unlock(&g_processesLock);
 
-    *handleOut = handle.ID;
+    *resultOut = identity;
 exit:
     free(arguments);
     sys_process_inheritance_input_destroy(&input);
@@ -693,7 +699,7 @@ PmCreateProcess(
     _In_  const char*                          path,
     _In_  const char*                          args,
     _In_  struct ProcessOptions*               procOpts,
-    _Out_ uuid_t*                              handleOut)
+    _Out_ OSProcessIdentity_t*                 resultOut)
 {
     oserr_t status;
 
@@ -701,7 +707,7 @@ PmCreateProcess(
     if (status != OS_EOK) {
         return status;
     }
-    return __CreateProcess(path, args, procOpts, handleOut);
+    return __CreateProcess(path, args, procOpts, resultOut);
 }
 
 oserr_t
@@ -711,11 +717,18 @@ PmCreateServiceProcess(
     _In_  struct ProcessOptions* procOpts,
     _Out_ uuid_t*                handleOut)
 {
+    OSProcessIdentity_t identity;
+    oserr_t             status;
+
     if ((uint32_t)procOpts->Capabilities & ~(uint32_t)CAPABILITY_ALL) {
         return OS_EINVALPARAMS;
     }
     TRACE("processd: bootstrap service %s capabilities=0x%x", path, procOpts->Capabilities);
-    return __CreateProcess(path, args, procOpts, handleOut);
+    status = __CreateProcess(path, args, procOpts, &identity);
+    if (status == OS_EOK) {
+        *handleOut = identity.Process;
+    }
+    return status;
 }
 
 static void

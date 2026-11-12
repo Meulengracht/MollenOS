@@ -118,10 +118,11 @@ __TryLoadModule(
     struct __ModuleLoaderEntry  newEntry;
     struct __ModuleLoaderEntry* entry;
     struct usched_cnd           condition;
+    OSProcessIdentity_t         identity = { .Process = UUID_INVALID };
     char                        tmp[256];
     int                         i;
-    uuid_t                      processID = UUID_INVALID;
-    uuid_t                      handle    = UUID_INVALID;
+    uuid_t                      handle = UUID_INVALID;
+    oserr_t                     oserr;
     ENTRY("__TryLoadModule()");
 
     // Pre-initialize the module newEntry so we don't spend time after
@@ -132,15 +133,15 @@ __TryLoadModule(
     i = 0;
     while (g_modulePaths[i]) {
         snprintf(&tmp[0], sizeof(tmp), "%s/%s.dll", g_modulePaths[i], module->Name);
-        oserr_t oserr = OSProcessSpawn(&tmp[0], NULL, &processID);
+        oserr = OSProcessSpawn(&tmp[0], NULL, &identity);
         if (oserr == OS_EOK) {
-            newEntry.ProcessID = processID;
+            newEntry.ProcessID = identity.Process;
             break;
         }
         i++;
     }
 
-    if (processID == UUID_INVALID) {
+    if (identity.Process == UUID_INVALID) {
         ERROR("__TryLoadModule no module could be located for %s", module->Name);
         goto exit;
     }
@@ -150,19 +151,28 @@ __TryLoadModule(
 
     // wait for the module to report loaded
     usched_mtx_lock(&g_moduleLoadersMutex);
-    entry = hashtable_get(&g_moduleLoaders, &(struct __ModuleLoaderEntry) { .ProcessID = processID });
+    entry = hashtable_get(
+        &g_moduleLoaders,
+        &(struct __ModuleLoaderEntry) { .ProcessID = identity.Process }
+    );
     if (!entry) {
         hashtable_set(&g_moduleLoaders, &newEntry);
 
         // TODO use timedwait here, as waiting indefinitely will be bad.
         usched_cnd_wait(&condition, &g_moduleLoadersMutex);
-        entry = hashtable_get(&g_moduleLoaders, &(struct __ModuleLoaderEntry) { .ProcessID = processID });
+        entry = hashtable_get(
+            &g_moduleLoaders,
+            &(struct __ModuleLoaderEntry) { .ProcessID = identity.Process }
+        );
     }
 
     if (entry) {
         module->State = __ModuleState_LOADED;
         handle = entry->ServerHandle;
-        hashtable_remove(&g_moduleLoaders, &(struct __ModuleLoaderEntry) { .ProcessID = processID });
+        hashtable_remove(
+            &g_moduleLoaders,
+            &(struct __ModuleLoaderEntry) { .ProcessID = identity.Process }
+        );
     } else {
         module->State = __ModuleState_UNLOADED;
     }

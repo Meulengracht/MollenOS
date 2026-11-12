@@ -111,23 +111,22 @@ PmAuthorizeSpawn(
     _In_ Capabilities_t                        capabilities);
 
 /**
- * @brief Spawns a new process with the given configuration. The process assumes a valid PE image
- * and builds all required tables for the new process.
+ * @brief Spawn a process and return its kernel-assigned security-group identity.
  *
- * @param[In] caller Transport-authenticated send-time credentials. NULL carries no authority.
- * @param[In] path
- * @param[In] args
- * @param[In] procOpts
- * @param[Out] handleOut
- * @return
+ * @param caller Transport-authenticated request context. NULL carries no authority.
+ * @param path Executable path.
+ * @param args Process arguments.
+ * @param procOpts Validated process configuration and copied startup input.
+ * @param resultOut Receives the process handle and principal only on success.
+ * @return Creation status; resultOut is unchanged on failure.
  */
 extern oserr_t
 PmCreateProcess(
-        _In_  const struct gracht_security_context* caller,
-        _In_  const char*            path,
-        _In_  const char*            args,
-        _In_  struct ProcessOptions* procOpts,
-        _Out_ uuid_t*                handleOut);
+    _In_  const struct gracht_security_context* caller,
+    _In_  const char*                           path,
+    _In_  const char*                           args,
+    _In_  struct ProcessOptions*                procOpts,
+    _Out_ OSProcessIdentity_t*                  resultOut);
 
 /**
  * @brief Create a service from processd's trusted boot service configuration.

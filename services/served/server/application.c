@@ -471,8 +471,8 @@ static oserr_t __SpawnService(
         _In_ struct Command*     command)
 {
     OSProcessOptions_t* procOpts;
+    OSProcessIdentity_t identity;
     oserr_t             oserr;
-    uuid_t              handle;
     char*               path;
     char*               args;
     char**              environment;
@@ -517,7 +517,7 @@ static oserr_t __SpawnService(
     // processes spawned, so we can make sure to kill them again later. Or maybe
     // this should be tracked somewhere else
     // TODO not implemented
-    oserr = OSProcessSpawnOpts(path,  procOpts, &handle);
+    oserr = OSProcessSpawn(path, procOpts, &identity);
     OSProcessOptionsDelete(procOpts);
 
 cleanup:

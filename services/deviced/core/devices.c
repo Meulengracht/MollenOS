@@ -49,6 +49,7 @@ struct __DmDeviceProtocol {
 struct __DmDevice {
     element_t                 Header;
     uuid_t                    DriverId;
+    uint64_t                  DriverPrincipal;
     bool                      HasDriver; // A driver search is pending or succeeded.
     unsigned int              Flags;
     Device_t*                 Device;
@@ -103,8 +104,9 @@ __GetDeviceUnsafe(
 
 oserr_t
 DmDevicesRegister(
-    _In_ uuid_t driverHandle,
-    _In_ uuid_t deviceId)
+    _In_ uint64_t principal,
+    _In_ uuid_t   driverHandle,
+    _In_ uuid_t   deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
     struct __DmDevice*       device;
@@ -139,7 +141,10 @@ DmDevicesRegister(
         return status;
     }
 
+    // Publish both fields before sending: the driver may immediately use the
+    // device after receiving its registration message.
     device->DriverId = driverHandle;
+    device->DriverPrincipal = principal;
     usched_mtx_unlock(&g_devicesLock);
 
     sent = ctt_driver_register_device(GetGrachtClient(), &msg.base, &protoDevice);
@@ -151,6 +156,7 @@ DmDevicesRegister(
         device = __GetDeviceUnsafe(deviceId);
         if (device != NULL) {
             device->DriverId = UUID_INVALID;
+            device->DriverPrincipal = 0;
             device->HasDriver = false;
         }
         usched_mtx_unlock(&g_devicesLock);
@@ -796,6 +802,7 @@ DmDeviceCreateWithBus(
     description = registration->Description;
     ELEMENT_INIT(&deviceNode->Header, 0, deviceNode);
     deviceNode->DriverId = UUID_INVALID;
+    deviceNode->DriverPrincipal = 0;
     deviceNode->Device = description;
     deviceNode->Kind = registration->Kind;
     deviceNode->Flags = flags;

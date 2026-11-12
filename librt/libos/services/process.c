@@ -19,7 +19,6 @@
 #define __need_minmax
 
 #include <assert.h>
-#include <errno.h>
 #include <ddk/convert/grants.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
@@ -149,28 +148,6 @@ OSProcessOptionsSetCapabilities(
     options->Capabilities = capabilities;
 }
 
-oserr_t
-OSProcessSpawn(
-        _In_     const char* path,
-        _In_Opt_ const char* arguments,
-        _Out_    uuid_t*     handleOut)
-{
-    OSProcessOptions_t options;
-
-    if (path == NULL) {
-        _set_errno(EINVAL);
-        return UUID_INVALID;
-    }
-
-    __OSProcessOptionsConstruct(&options);
-    OSProcessOptionsSetArguments(&options, arguments);
-    return OSProcessSpawnOpts(
-            path,
-            &options,
-            handleOut
-    );
-}
-
 static oserr_t
 __WriteFlattenedEnvironment(
     _In_  const char* const* environment,
@@ -285,21 +262,28 @@ __to_sys_process_configuration(
 }
 
 oserr_t
-OSProcessSpawnOpts(
-    _In_  const char*         path,
-    _In_  OSProcessOptions_t* options,
-    _Out_ uuid_t*             handleOut)
+OSProcessSpawn(
+    _In_     const char*          path,
+    _In_Opt_ OSProcessOptions_t*  options,
+    _Out_    OSProcessIdentity_t* identityOut)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     struct sys_process_configuration configuration = { 0 };
+    OSProcessIdentity_t              identity = { .Process = UUID_INVALID };
+    OSProcessOptions_t               defaultOptions;
     SHMTransfer_t                    transfer;
     struct inheritance_export        exported = { 0 };
     OSHandle_t                       buffer;
-    uuid_t                           handle = UUID_INVALID;
     oserr_t                          oserr;
+    int                              status;
 
-    if (path == NULL || options == NULL || handleOut == NULL) {
+    if (path == NULL || identityOut == NULL) {
         return OS_EINVALPARAMS;
+    }
+
+    if (options == NULL) {
+        __OSProcessOptionsConstruct(&defaultOptions);
+        options = &defaultOptions;
     }
 
     if (strnlen(path, PROCESS_STARTUP_MAX_SIZE) == PROCESS_STARTUP_MAX_SIZE ||
@@ -320,8 +304,14 @@ OSProcessSpawnOpts(
         goto cleanup;
     }
 
-    if (sys_process_spawn(GetGrachtClient(), &msg.base, path,
-                          options->Arguments, &configuration) != 0) {
+    status = sys_process_spawn(
+        GetGrachtClient(),
+        &msg.base,
+        path,
+        options->Arguments,
+        &configuration
+    );
+    if (status != 0) {
         oserr = OS_EUNKNOWN;
         goto cleanup;
     }
@@ -331,12 +321,19 @@ OSProcessSpawnOpts(
         goto cleanup;
     }
 
-    if (sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, &handle) != 0) {
+    status = sys_process_spawn_result(
+        GetGrachtClient(),
+        &msg.base,
+        &oserr,
+        &identity.Process,
+        &identity.Principal
+    );
+    if (status != 0) {
         oserr = OS_EPROTOCOL;
     }
     
     if (oserr == OS_EOK) {
-        *handleOut = handle;
+        *identityOut = identity;
     }
 
 cleanup:

@@ -44,6 +44,8 @@ struct __DmDriver {
     element_t                   ListHeader;
     uuid_t                      Id;
     uuid_t                      Handle;
+    uuid_t                      Process;
+    uint64_t                    Principal;
     enum DmDriverState          State;
     mstring_t*                  Path;
     struct DriverConfiguration* Configuration;
@@ -110,6 +112,8 @@ DmDiscoverAddDriver(
     ELEMENT_INIT(&driver->ListHeader, 0, driver);
     driver->Id            = g_driverId++;
     driver->Handle        = UUID_INVALID;
+    driver->Process       = UUID_INVALID;
+    driver->Principal     = 0;
     driver->State         = DmDriverState_NOTLOADED;
     driver->Configuration = driverConfig;
     list_construct(&driver->Devices);
@@ -162,8 +166,8 @@ static oserr_t
 __SpawnDriver(
     _In_ struct __DmDriver* driver)
 {
+    OSProcessIdentity_t identity;
     OSProcessOptions_t* options;
-    uuid_t              handle;
     oserr_t             osStatus;
     char                args[32];
     char*               driverPath;
@@ -188,10 +192,16 @@ __SpawnDriver(
     OSProcessOptionsSetCapabilities(options, driver->Configuration->Capabilities);
 
     TRACE("__SpawnDriver: requested capabilities=0x%x", driver->Configuration->Capabilities);
-    osStatus = OSProcessSpawnOpts(driverPath, options, &handle);
+    
+    // The caller holds g_driversLock across the RPC and identity publication.
+    // A lost reply can leave a running child. Record the attempt before sending
+    // so discovery cannot spawn a second child or accept an unknown principal.
+    driver->State = DmDriverState_LOADING;
+    osStatus = OSProcessSpawn(driverPath, options, &identity);
     if (osStatus != OS_EOK) {
         ERROR("__SpawnDriver: driver %u (%s) process creation failed (%i), capabilities=0x%x",
               driver->Id, driverPath, osStatus, driver->Configuration->Capabilities);
+        WARNING("__SpawnDriver: driver %u remains unavailable; spawn attempt requires cleanup", driver->Id);
         OSProcessOptionsDelete(options);
         free(driverPath);
         return osStatus;
@@ -200,8 +210,9 @@ __SpawnDriver(
     free(driverPath);
 
     // Wait for DmHandleNotify before registering devices with this process.
-    driver->State = DmDriverState_LOADING;
-    TRACE("__SpawnDriver: driver %u is loading with handle %u", driver->Id, handle);
+    driver->Process = identity.Process;
+    driver->Principal = identity.Principal;
+    TRACE("__SpawnDriver: driver %u is loading with process %u", driver->Id, driver->Process);
 
     return OS_EOK;
 }
@@ -323,7 +334,7 @@ DmDiscoverFindDriver(
             goto error;
         }
     } else if (selected->State == DmDriverState_AVAILABLE) {
-        status = DmDevicesRegister(selected->Handle, deviceId);
+        status = DmDevicesRegister(selected->Principal, selected->Handle, deviceId);
         if (status != OS_EOK && status != OS_EEXISTS) {
             WARNING("DmDiscoverFindDriver: registering device %u with driver %u failed: %u",
                     deviceId, selected->Id, status);
@@ -340,6 +351,7 @@ error:
     return status;
 }
 
+// Requires g_driversLock. The entry remains valid while that lock is held.
 static struct __DmDriver*
 __GetDriver(
     _In_ uuid_t id)
@@ -347,7 +359,6 @@ __GetDriver(
     struct __DmDriver* result = NULL;
     struct __DmDriver* driver;
 
-    usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
         driver = i->value;
         if (driver->Id == id) {
@@ -355,7 +366,6 @@ __GetDriver(
             break;
         }
     }
-    usched_mtx_unlock(&g_driversLock);
     return result;
 }
 
@@ -384,7 +394,7 @@ __NotifyDevices(
     usched_mtx_lock(&driver->DevicesLock);
     foreach (i, &driver->Devices) {
         device = i->value;
-        oserr = DmDevicesRegister(driver->Handle, device->Id);
+        oserr = DmDevicesRegister(driver->Principal, driver->Handle, device->Id);
         if (oserr != OS_EOK) {
             WARNING("__NotifyDevices: notifying driver %u of device %u failed: %u",
                     driver->Id, device->Id, oserr);
@@ -395,20 +405,46 @@ __NotifyDevices(
 
 void
 DmHandleNotify(
-    _In_ uuid_t driverId,
-    _In_ uuid_t driverHandle)
+    _In_ uint64_t principal,
+    _In_ uuid_t   driverId,
+    _In_ uuid_t   driverHandle)
 {
     struct __DmDriver* driver;
     TRACE("DmHandleNotify(driver=%u, handle=%u)", driverId, driverHandle);
 
+    // Lookup and authentication share the spawn lock. A ready message that
+    // arrives during spawn waits until the identity is published or fails.
+    usched_mtx_lock(&g_driversLock);
     driver = __GetDriver(driverId);
     if (!driver) {
         WARNING("DmHandleNotify: driver %u with handle %u was not found", driverId, driverHandle);
-        return;
+        goto exit;
     }
 
-    // The ready notification supplies the handle used for driver service calls.
-    usched_mtx_lock(&g_driversLock);
+    if (driver->Process == UUID_INVALID || driver->Principal == 0) {
+        WARNING("DmHandleNotify: driver %u has no confirmed spawn identity", driverId);
+        goto exit;
+    }
+
+    if (principal != driver->Principal || driverHandle == UUID_INVALID) {
+        WARNING("DmHandleNotify: driver %u sent an invalid identity or endpoint", driverId);
+        goto exit;
+    }
+
+    if (driver->State == DmDriverState_AVAILABLE) {
+        // A duplicate must not subscribe or register the devices again.
+        if (driver->Handle != driverHandle) {
+            WARNING("DmHandleNotify: driver %u sent a conflicting endpoint", driverId);
+        }
+        goto exit;
+    }
+
+    if (driver->State != DmDriverState_LOADING) {
+        WARNING("DmHandleNotify: driver %u is not waiting for readiness", driverId);
+        goto exit;
+    }
+
+    // Only the verified process may supply the endpoint used for service calls.
     driver->Handle = driverHandle;
     driver->State = DmDriverState_AVAILABLE;
     TRACE("DmHandleNotify: driver %u is available", driverId);
@@ -416,5 +452,7 @@ DmHandleNotify(
 
     // Register devices that were queued while the driver was starting.
     __NotifyDevices(driver);
+
+exit:
     usched_mtx_unlock(&g_driversLock);
 }

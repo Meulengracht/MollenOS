@@ -25,10 +25,10 @@
 #include <ddk/utils.h>
 #include <gracht/client.h>
 #include <devices.h>
+#include <discover.h>
 
 #include <sys_device_service_server.h>
 
-extern void DmHandleNotify(uuid_t, uuid_t);
 extern void DmHandleGetDevicesByProtocol(struct gracht_message*, uint8_t);
 extern oserr_t DmHandleIoctl(uuid_t, uuid_t, enum OSIOCtlRequest, void*, size_t);
 extern oserr_t DmHandleIoctl2(uuid_t, int, unsigned int, size_t, unsigned int, size_t*);
@@ -41,7 +41,11 @@ sys_device_notify_invocation(
     _In_ const uuid_t           driverHandle)
 {
     TRACE("sys_device_notify_invocation(driver=%u, handle=%u)", driverId, driverHandle);
-    DmHandleNotify(driverId, driverHandle);
+    if (message->security.source != GRACHT_SECURITY_KERNEL) {
+        WARNING("sys_device_notify_invocation: driver %u sent no authenticated credentials", driverId);
+        return;
+    }
+    DmHandleNotify(message->security.principal, driverId, driverHandle);
 }
 
 void
