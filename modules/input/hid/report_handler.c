@@ -20,7 +20,7 @@
  * Human Input Device Driver (Generic)
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include "hid.h"
 #include <ddk/utils.h>
