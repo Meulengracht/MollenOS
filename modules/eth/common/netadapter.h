@@ -29,10 +29,16 @@ DECL_STRUCT(EthernetSlot);
 struct EthernetAdapterState;
 
 // Largest Ethernet payload supported by this adapter, in bytes.
-#define ETHERNET_MTU 1500
+#define ETHERNET_MTU         1500
+#define ETHERNET_HEADER_SIZE 14U
+#define ETHERNET_FCS_SIZE    4U
+
+// Minimum transmitted frame, excluding the FCS appended by the MAC.
+#define ETHERNET_MIN_FRAME_SIZE (64U - ETHERNET_FCS_SIZE)
+
 // Largest frame: 1500 payload bytes and a 14-byte header. Excludes the FCS.
 // VLAN tags and jumbo frames are not supported by this configuration.
-#define ETHERNET_FRAME_SIZE 1514
+#define ETHERNET_FRAME_SIZE (ETHERNET_MTU + ETHERNET_HEADER_SIZE)
 
 /**
  * @brief MAC requirements used when publishing and starting an adapter.
