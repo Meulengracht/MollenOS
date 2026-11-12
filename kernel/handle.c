@@ -599,6 +599,22 @@ __DestroyGlobalHandle(
     return OS_EOK;
 }
 
+static inline bool
+__CanHandleBeGranted(
+    _In_ HandleType_t handleType)
+{
+    switch (handleType) {
+        case HandleTypeSHMAccess:
+        case HandleTypeGrantToken:
+        case HandleTypeProvider:
+        case HandleTypeDMAManager:
+        case HandleTypeDMABinding:
+            return false;
+        default:
+            return true;
+    }
+}
+
 oserr_t
 GrantHandle(
     _In_ MSContextSecurity_t* securityContext,
@@ -626,8 +642,7 @@ GrantHandle(
         return OS_ENOENT;
     }
 
-    if (handle->Type == HandleTypeSHMAccess || handle->Type == HandleTypeGrantToken ||
-        handle->Type == HandleTypeProvider) {
+    if (!__CanHandleBeGranted(handle->Type)) {
         SpinlockReleaseIrq(&currentContext->HandleTable->Lock);
         return OS_EPERMISSIONS;
     }

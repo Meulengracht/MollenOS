@@ -24,6 +24,20 @@ struct DMAAddressSpace;
 struct DMAAddressMapping;
 
 /**
+ * @brief Validate fixed physical-to-device ranges without allocating an address space.
+ *
+ * @param ranges Kernel array with count entries, unchanged until this call returns.
+ * @param count Number of entries, from 1 through DMA_MAX_RANGES.
+ * @return OS_EOK, OS_EINVALPARAMS for NULL/empty ranges, endpoint overflow or
+ * overlapping device ranges, or OS_ENOTSUPPORTED for too many entries.
+ * Physical aliases are permitted. No memory is allocated and no output is changed.
+ */
+oserr_t
+DMAAddressRangesValidate(
+    _In_ const struct SHMDeviceRange* ranges,
+    _In_ uint32_t                     count);
+
+/**
  * @brief Validate and copy fixed physical-to-device address ranges.
  *
  * @param ranges Array in kernel memory. Keep its entries unchanged until this

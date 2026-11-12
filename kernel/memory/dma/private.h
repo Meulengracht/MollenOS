@@ -35,19 +35,6 @@ struct DMAAddressSpace {
 };
 
 /**
- * @brief Check address ranges before copying them or converting addresses.
- *
- * @param ranges Kernel array with at least count entries.
- * @param count Must already be checked to be between 1 and DMA_MAX_RANGES.
- * @return OS_EOK on success. OS_EINVALPARAMS for an empty range, physical or
- *         device address overflow, or overlapping device ranges.
- */
-oserr_t
-DMADirectValidateRanges(
-    _In_ const struct SHMDeviceRange* ranges,
-    _In_ uint32_t                     count);
-
-/**
  * @brief Find one device address range that covers all the requested bytes.
  *
  * @param space Address space. Hold a reference until the call returns.

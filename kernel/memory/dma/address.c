@@ -88,15 +88,7 @@ DMAAddressSpaceCreateDirect(
         return OS_EBUSY;
     }
 
-    if (ranges == NULL || count == 0) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (count > DMA_MAX_RANGES) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    status = DMADirectValidateRanges(ranges, count);
+    status = DMAAddressRangesValidate(ranges, count);
     if (status != OS_EOK) {
         return status;
     }

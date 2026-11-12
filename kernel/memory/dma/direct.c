@@ -29,10 +29,18 @@ __ExtentFits(
 }
 
 oserr_t
-DMADirectValidateRanges(
+DMAAddressRangesValidate(
     _In_ const struct SHMDeviceRange* ranges,
     _In_ uint32_t                     count)
 {
+    if (ranges == NULL || count == 0) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (count > DMA_MAX_RANGES) {
+        return OS_ENOTSUPPORTED;
+    }
+
     // Device ranges must not overlap. Physical ranges may overlap when the
     // same physical bytes can be reached through different device addresses.
     for (uint32_t i = 0; i < count; i++) {
