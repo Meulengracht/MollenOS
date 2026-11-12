@@ -5,21 +5,28 @@ add_subdirectory(services)
 
 # setup primary library
 add_library(libos STATIC
-        device.c
-        error_codes.c
-        event.c
-        futex.c
-        handles.c
-        ipc.c
-        memory.c
-        notification_queue.c
-        sha1.c
-        shm.c
-        spinlock.c
-        syscalls.c
-        system.c
-        time.c
-        unwind.c
+    buffer_access.c
+    device.c
+    error_codes.c
+    event.c
+    fence.c
+    fence_pool.c
+    fence_storage.c
+    futex.c
+    grants.c
+    handles.c
+    handle_provider.c
+    ipc.c
+    memory.c
+    notification_queue.c
+    sha1.c
+    shm.c
+    shm_access.c
+    spinlock.c
+    syscalls.c
+    system.c
+    time.c
+    unwind.c
 )
 target_include_directories(libos PUBLIC
         include

@@ -42,13 +42,23 @@ struct DMAUse {
 };
 
 /**
- * @brief A use and its completion fence, stored in a driver job. Must be zeroed
- * before first use, and only DMABeginUseFenced and DMAEndUseFenced may change it.
- * Do not copy an active use, and do not pass its inner Use to the unfenced functions.
+ * @brief One persistent DMA use and its completion fence, stored in a driver job.
+ *
+ * Must be zeroed before first use. Only DMABeginUseFenced and DMAEndUseFenced may
+ * change it. Calls on the token and mapping must be serialized. Do not copy an
+ * active token or pass its inner Use to the unfenced begin/end functions. Its
+ * memory must stay valid until DMAEndUseFenced succeeds.
+ *
+ * Begin sets both fields on success. End clears Use.Mapping after DMAEndUse
+ * succeeds, then signals the fence. Fence stays set until waiter notification
+ * succeeds. If only Fence is set, notification must be retried before reuse.
+ * The token is empty when both Use.Mapping and Fence are NULL.
  */
 struct DMAFencedUse {
-    struct DMAUse   Use;
-    struct OSFence* Fence;
+    // One counted use of the persistent mapping.
+    struct DMAUse Use;
+    // Fence reference held until the result is set and waiters are notified.
+    OSFence_t*    Fence;
 };
 
 /**
@@ -326,25 +336,37 @@ DMAEndUse(
     _InOut_ struct DMAUse* use));
 
 /**
- * @brief Begins a persistent use and attaches an idle fence. Must be called before
- * the job is submitted. Wait behavior is described by SHMWaitMode.
- * Nothing is allocated on this path. The use holds a reference on the fence until
- * it ends, so the caller can drop its own fence reference once begin succeeds.
+ * @brief Begins a persistent DMA use and makes its completion fence pending.
+ *
+ * Must be called before hardware can see the job. Adds a fence reference and
+ * reserves the idle fence before calling DMABeginUse. The fence becomes pending
+ * only after begin succeeds. Makes no allocation. Waiting and cache work follow
+ * DMABeginUse and SHMWaitMode.
+ *
+ * The token keeps its fence reference until completion notification succeeds.
+ * After begin succeeds, the caller may release its original reference. Give
+ * consumers separate references first and notify them after begin succeeds,
+ * before they poll or wait. The driver must detect completion and call
+ * DMAEndUseFenced.
  *
  * Preconditions:
  * - The mapping and token requirements of DMABeginUse must be met.
  * - The fence must be idle, and the caller must hold a reference on it.
- * - For shared fences, the SHM mapping must stay valid until end.
+ * - Only this token may prepare, cancel, submit or signal the fence while active.
+ *   Do not call those functions separately.
+ * - For shared fences, keep the local SHM mapping valid until DMAEndUseFenced and
+ *   all other local users finish. A fence reference does not keep that mapping alive.
  *
  * Errors:
  * - Same errors as DMABeginUse.
  * - OS_EBUSY for a fence that is not idle, or a token that is active.
- * Rejected inputs are left unchanged. If the kernel begin fails, the fence is made
- * idle again and the token empty, so the call can be retried.
+ * - OS_EOVERFLOW if the local fence reference count cannot be increased.
+ * Invalid inputs are left unchanged. If kernel begin fails, the fence returns to
+ * idle and the token stays empty so the call can be retried.
  *
  * @param mapping Persistent mapping. Calls on it must be serialized.
- * @param use Empty job token.
- * @param fence Idle fence, signaled when the job completes.
+ * @param use Zeroed job token. Must stay valid until end succeeds, also on retry.
+ * @param fence Idle fence, signaled by DMAEndUseFenced after this use ends.
  * @param mode How to handle conflicts, see SHMWaitMode.
  * @param deadline Absolute timeout, or NULL to wait forever. Ignored for SHMWaitNonBlocking.
  * @return OS_EOK or an error described above.
@@ -353,20 +375,33 @@ DDKDECL(oserr_t,
 DMABeginUseFenced(
     _In_    struct DMAMapping*   mapping,
     _InOut_ struct DMAFencedUse* use,
-    _In_    struct OSFence*      fence,
+    _In_    OSFence_t*           fence,
     _In_    enum SHMWaitMode     mode,
     _In_    const OSTimestamp_t* deadline));
 
 /**
  * @brief Ends a completed or stopped use, and signals the fence with its result.
- * @param use Active token. On failure it stays active and the fence stays pending,
- *            so the call can be retried. On success the token is empty and can be
- *            used again.
+ *
+ * Hardware must have completed or be confirmed stopped for this job. After a
+ * failed submission, end may only be called if hardware could not have started
+ * the job. An error result does not stop the device. Calls on the token and
+ * mapping must be serialized.
+ *
+ * Calls DMAEndUse before setting the result. Other uses of the mapping may still
+ * be active. Only the last end synchronizes the cache, so a completed fence alone
+ * does not allow CPU access. Use SHMAccessBeginCpu after conflicting DMA uses end.
+ *
+ * If DMAEndUse fails, the use stays active and the fence stays pending. If waiter
+ * notification fails, the DMA use has ended and consumers can already read the
+ * result. The token keeps its fence reference so notification can be retried
+ * without ending the use twice. Retry with the same result.
+ *
+ * @param use Active token or token awaiting notification retry. Empty and reusable
+ *            on success.
  * @param result Result of the job, such as OS_EOK, OS_ECANCELLED or OS_EDEVFAULT.
- *               For error results, hardware must still be confirmed stopped (or the
- *               job was never submitted).
- * @return OS_EOK or a DMAEndUse error. The fence completes one use only. CPU access
- *         still requires SHMAccessBeginCpu. Does not stop or wait for hardware.
+ *               Must match the previous result when retrying notification.
+ * @return OS_EOK, a DMAEndUse or notification error, or OS_EINVALPARAMS for an empty
+ *         token or a changed result on retry. Does not stop or wait for hardware.
  */
 DDKDECL(oserr_t,
 DMAEndUseFenced(
