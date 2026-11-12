@@ -141,7 +141,7 @@ extern oserr_t ScSHMMetrics(uuid_t, int*, SHMSG_t*);
 
 extern oserr_t ScCreateHandle(uuid_t, uint32_t, uuid_t*);
 extern oserr_t ScHandleRegisterProvider(uuid_t, uuid_t*);
-extern oserr_t ScHandleImport(const GrantToken_t*, uuid_t*);
+extern oserr_t ScHandleImport(const GrantToken_t*, uuid_t, uuid_t*);
 extern oserr_t ScHandleValidate(uuid_t, const uint64_t*, uuid_t, uint32_t, uuid_t*);
 extern oserr_t ScHandleProviderGetEvents(uuid_t, uuid_t*, uint32_t, uint32_t*);
 extern oserr_t ScDestroyHandle(uuid_t Handle);
@@ -176,142 +176,113 @@ extern oserr_t ScShmAccessEnd(uuid_t, enum SHMAccessKind, size_t);
 extern oserr_t ScShmAccessBegin(OSAsyncContext_t*, uuid_t, const struct SHMAccessBeginParameters*);
 extern oserr_t ScShmAccessCreate(uuid_t, size_t, size_t, uuid_t*);
 
+// BEGIN GENERATED SYSCALL COUNT - tools/generate_syscalls.py
 #define SYSTEM_CALL_COUNT 91
+// END GENERATED SYSCALL COUNT
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
 #define DefineSyscall(Index, Fn) { Index, #Fn, ((uintptr_t)&(Fn)) }
 
-// Syscall numbers must match librt/libc/include/internal/_syscalls.h.
+// Syscall numbers and handlers are defined in syscalls.table.
 static struct SystemCallDescriptor {
     int         Index;
     const char* Name;
     uintptr_t   HandlerAddress;
 } g_systemCallsTable[SYSTEM_CALL_COUNT] = {
-        ///////////////////////////////////////////////
-        // Operating System Interface
-        // - Protected, services/modules
-
-        // System specific system calls
-        DefineSyscall(0, ScSystemDebug),
-        DefineSyscall(1, ScMigrateKernelLog),
-        DefineSyscall(2, ScMapBootFramebuffer),
-        DefineSyscall(3, ScMapRamdisk),
-        DefineSyscall(4, ScCapabilityGrant),
-
-        DefineSyscall(5, ScCreateMemorySpace),
-        DefineSyscall(6, ScGetThreadMemorySpaceHandle),
-        DefineSyscall(7, ScCreateMemorySpaceMapping),
-
-        // Driver system calls
-        DefineSyscall(8, ScFirmwareQuery),
-        DefineSyscall(9, ScFirmwareTableLocate),
-        DefineSyscall(10, ScFirmwareTableRead),
-        DefineSyscall(11, ScFirmwareTableMap),
-        
-        DefineSyscall(12, ScAcpiQueryPci),
-        DefineSyscall(13, ScIoSpaceRegister),
-        DefineSyscall(14, ScIoSpaceAcquire),
-        DefineSyscall(15, ScIoSpaceMap),
-        DefineSyscall(16, ScIoSpaceRelease),
-        DefineSyscall(17, ScIoSpaceDestroy),
-
-        DefineSyscall(18, ScInterruptAllocate),
-        DefineSyscall(19, ScInterruptBind),
-        DefineSyscall(20, ScInterruptEnable),
-        DefineSyscall(21, ScInterruptDisable),
-        DefineSyscall(22, ScInterruptLineSourceResolve),
-        DefineSyscall(23, ScInterruptRelease),
-        DefineSyscall(24, ScInterruptGetMessage),
-        DefineSyscall(25, ScInterruptReap),
-        DefineSyscall(26, ScInterruptBusHandlerCreate),
-        DefineSyscall(27, ScInterruptBusHandlerBind),
-        DefineSyscall(28, ScInterruptBusHandlerRelease),
-        DefineSyscall(29, ScInterruptBusAttach),
-        DefineSyscall(30, ScInterruptBusStatus),
-        DefineSyscall(31, ScInterruptBusClose),
-        DefineSyscall(32, ScInterruptMessageControllerResolve),
-        
-        DefineSyscall(33, ScGetProcessBaseAddress),
-        DefineSyscall(34, ScMapThreadMemoryRegion),
-
-        ///////////////////////////////////////////////
-        // Operating System Interface
-        // - Unprotected, all
-
-        // Threading interface
-        DefineSyscall(35, ScThreadCreate),
-        DefineSyscall(36, ScThreadExit),
-        DefineSyscall(37, ScThreadSignal),
-        DefineSyscall(38, ScThreadJoin),
-        DefineSyscall(39, ScThreadDetach),
-        DefineSyscall(40, ScThreadYield),
-        DefineSyscall(41, ScThreadGetCurrentId),
-        DefineSyscall(42, ScThreadCookie),
-        DefineSyscall(43, ScThreadSetCurrentName),
-        DefineSyscall(44, ScThreadGetCurrentName),
-
-        // Synchronization interface
-        DefineSyscall(45, ScFutexWait),
-        DefineSyscall(46, ScFutexWake),
-        DefineSyscall(47, ScEventCreate),
-
-        // Communication interface
-        DefineSyscall(48, IpcContextSendMultiple),
-
-        // Memory interface
-        DefineSyscall(49, ScMemoryAllocate),
-        DefineSyscall(50, ScMemoryFree),
-        DefineSyscall(51, ScMemoryProtect),
-        DefineSyscall(52, ScMemoryQueryAllocation),
-        DefineSyscall(53, ScMemoryQueryAttributes),
-    
-        DefineSyscall(54, ScSHMCreate),
-        DefineSyscall(55, ScSHMAttachToken),
-        DefineSyscall(56, ScSHMAttach),
-        DefineSyscall(57, ScSHMMap),
-        DefineSyscall(58, ScSHMCommit),
-        DefineSyscall(59, ScSHMUnmap),
-        DefineSyscall(60, ScSHMDetach),
-        DefineSyscall(61, ScSHMMetrics),
-    
-        DefineSyscall(62, ScCreateHandle),
-        DefineSyscall(63, ScHandleImport),
-        DefineSyscall(64, ScDestroyHandle),
-        DefineSyscall(65, ScLookupHandle),
-        DefineSyscall(66, ScSetHandleActivity),
-        DefineSyscall(67, ScHandleRegisterProvider),
-        DefineSyscall(68, ScHandleValidate),
-        DefineSyscall(69, ScHandleProviderGetEvents),
-
-        DefineSyscall(70, ScGrantTokenCreate),
-        DefineSyscall(71, ScGrantTokenRevoke),
-
-        DefineSyscall(72, ScCreateHandleSet),
-        DefineSyscall(73, ScControlHandleSet),
-        DefineSyscall(74, ScListenHandleSet),
-    
-        // Misc interface
-        DefineSyscall(75, ScInstallSignalHandler),
-        DefineSyscall(76, ScFlushHardwareCache),
-        DefineSyscall(77, ScSystemQuery),
-
-        // Timing interface
-        DefineSyscall(78, ScSystemClockTick),
-        DefineSyscall(79, ScSystemClockFrequency),
-        DefineSyscall(80, ScSystemTime),
-        DefineSyscall(81, ScTimeSleep),
-        DefineSyscall(82, ScTimeStall),
-
-        // DMA mappings and shared range access
-        DefineSyscall(83, ScDmaOpen),
-        DefineSyscall(84, ScDmaAllocate),
-        DefineSyscall(85, ScDmaMapShm),
-        DefineSyscall(86, ScDmaGetSegments),
-        DefineSyscall(87, ScShmAccessCreate),
-        DefineSyscall(88, ScShmAccessBegin),
-        DefineSyscall(89, ScShmAccessEnd),
-        DefineSyscall(90, ScResourceRelease),
+// BEGIN GENERATED SYSCALL TABLE - tools/generate_syscalls.py
+    DefineSyscall(0, ScSystemDebug),
+    DefineSyscall(1, ScMigrateKernelLog),
+    DefineSyscall(2, ScMapBootFramebuffer),
+    DefineSyscall(3, ScMapRamdisk),
+    DefineSyscall(4, ScCapabilityGrant),
+    DefineSyscall(5, ScCreateMemorySpace),
+    DefineSyscall(6, ScGetThreadMemorySpaceHandle),
+    DefineSyscall(7, ScCreateMemorySpaceMapping),
+    DefineSyscall(8, ScFirmwareQuery),
+    DefineSyscall(9, ScFirmwareTableLocate),
+    DefineSyscall(10, ScFirmwareTableRead),
+    DefineSyscall(11, ScFirmwareTableMap),
+    DefineSyscall(12, ScAcpiQueryPci),
+    DefineSyscall(13, ScIoSpaceRegister),
+    DefineSyscall(14, ScIoSpaceAcquire),
+    DefineSyscall(15, ScIoSpaceMap),
+    DefineSyscall(16, ScIoSpaceRelease),
+    DefineSyscall(17, ScIoSpaceDestroy),
+    DefineSyscall(18, ScInterruptAllocate),
+    DefineSyscall(19, ScInterruptBind),
+    DefineSyscall(20, ScInterruptEnable),
+    DefineSyscall(21, ScInterruptDisable),
+    DefineSyscall(22, ScInterruptLineSourceResolve),
+    DefineSyscall(23, ScInterruptRelease),
+    DefineSyscall(24, ScInterruptGetMessage),
+    DefineSyscall(25, ScInterruptReap),
+    DefineSyscall(26, ScInterruptBusHandlerCreate),
+    DefineSyscall(27, ScInterruptBusHandlerBind),
+    DefineSyscall(28, ScInterruptBusHandlerRelease),
+    DefineSyscall(29, ScInterruptBusAttach),
+    DefineSyscall(30, ScInterruptBusStatus),
+    DefineSyscall(31, ScInterruptBusClose),
+    DefineSyscall(32, ScInterruptMessageControllerResolve),
+    DefineSyscall(33, ScGetProcessBaseAddress),
+    DefineSyscall(34, ScMapThreadMemoryRegion),
+    DefineSyscall(35, ScThreadCreate),
+    DefineSyscall(36, ScThreadExit),
+    DefineSyscall(37, ScThreadSignal),
+    DefineSyscall(38, ScThreadJoin),
+    DefineSyscall(39, ScThreadDetach),
+    DefineSyscall(40, ScThreadYield),
+    DefineSyscall(41, ScThreadGetCurrentId),
+    DefineSyscall(42, ScThreadCookie),
+    DefineSyscall(43, ScThreadSetCurrentName),
+    DefineSyscall(44, ScThreadGetCurrentName),
+    DefineSyscall(45, ScFutexWait),
+    DefineSyscall(46, ScFutexWake),
+    DefineSyscall(47, ScEventCreate),
+    DefineSyscall(48, IpcContextSendMultiple),
+    DefineSyscall(49, ScMemoryAllocate),
+    DefineSyscall(50, ScMemoryFree),
+    DefineSyscall(51, ScMemoryProtect),
+    DefineSyscall(52, ScMemoryQueryAllocation),
+    DefineSyscall(53, ScMemoryQueryAttributes),
+    DefineSyscall(54, ScSHMCreate),
+    DefineSyscall(55, ScSHMAttachToken),
+    DefineSyscall(56, ScSHMAttach),
+    DefineSyscall(57, ScSHMMap),
+    DefineSyscall(58, ScSHMCommit),
+    DefineSyscall(59, ScSHMUnmap),
+    DefineSyscall(60, ScSHMDetach),
+    DefineSyscall(61, ScSHMMetrics),
+    DefineSyscall(62, ScCreateHandle),
+    DefineSyscall(63, ScHandleImport),
+    DefineSyscall(64, ScDestroyHandle),
+    DefineSyscall(65, ScLookupHandle),
+    DefineSyscall(66, ScSetHandleActivity),
+    DefineSyscall(67, ScHandleRegisterProvider),
+    DefineSyscall(68, ScHandleValidate),
+    DefineSyscall(69, ScHandleProviderGetEvents),
+    DefineSyscall(70, ScGrantTokenCreate),
+    DefineSyscall(71, ScGrantTokenRevoke),
+    DefineSyscall(72, ScCreateHandleSet),
+    DefineSyscall(73, ScControlHandleSet),
+    DefineSyscall(74, ScListenHandleSet),
+    DefineSyscall(75, ScInstallSignalHandler),
+    DefineSyscall(76, ScFlushHardwareCache),
+    DefineSyscall(77, ScSystemQuery),
+    DefineSyscall(78, ScSystemClockTick),
+    DefineSyscall(79, ScSystemClockFrequency),
+    DefineSyscall(80, ScSystemTime),
+    DefineSyscall(81, ScTimeSleep),
+    DefineSyscall(82, ScTimeStall),
+    DefineSyscall(83, ScDmaOpen),
+    DefineSyscall(84, ScDmaAllocate),
+    DefineSyscall(85, ScDmaMapShm),
+    DefineSyscall(86, ScDmaGetSegments),
+    DefineSyscall(87, ScShmAccessCreate),
+    DefineSyscall(88, ScShmAccessBegin),
+    DefineSyscall(89, ScShmAccessEnd),
+    DefineSyscall(90, ScResourceRelease),
+// END GENERATED SYSCALL TABLE
 };
 
 Context_t*
@@ -320,6 +291,8 @@ SyscallHandle(
 {
     struct SystemCallDescriptor* handler;
     Thread_t*                    thread;
+    OSAsyncContext_t*            asyncContext;
+    uuid_t                       notificationHandle;
     size_t                       index = CONTEXT_SC_FUNC(context);
     size_t                       returnValue;
 
@@ -343,14 +316,14 @@ SyscallHandle(
     // than we were on entry.
     thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     if (ThreadFlags(thread) & THREADING_FORKED) {
-        OSAsyncContext_t* asyncContext = ThreadSyscallContext(thread);
-        asyncContext->ErrorCode = (oserr_t)returnValue;
-        (void)MarkHandle(asyncContext->NotificationHandle, 0x8);
-        (void)ThreadTerminate(ThreadCurrentHandle(), 0, 1);
-        ArchThreadYield();
+        asyncContext = ThreadSyscallContext(thread);
+        notificationHandle = asyncContext->NotificationHandle;
 
-        // catch all, the thread must not escape
-        for (;;) { }
+        // Publishing completion allows another execution unit to resume and
+        // release the job's context. Do not read it after the release store.
+        __atomic_store_n(&asyncContext->ErrorCode, (oserr_t)returnValue, __ATOMIC_RELEASE);
+        (void)MarkHandle(notificationHandle, 0x8);
+        ThreadExit(0);
     }
 
     // Set the return code for the context before exitting the syscall handler

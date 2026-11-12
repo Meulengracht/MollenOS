@@ -1,0 +1,124 @@
+# Vali syscall definitions.
+#
+# Columns: number  wrapper name (without Syscall_)  kernel handler  return cast  arguments
+# Arguments are comma-separated C identifiers. Use - for no arguments (maximum five).
+# Names and return casts describe the libc macro; kernel prototypes remain in entry.c.
+# Numbers are ABI values: keep existing numbers and append new calls at the end.
+# All numbers from zero through the last entry must be present. Row order is ignored.
+# Comments start with #. Python 3 and its standard library are sufficient.
+#
+# Regenerate: python3 tools/generate_syscalls.py
+# Verify:     python3 tools/generate_syscalls.py --check
+
+# Operating System (Module) Interface
+0      Debug                                ScSystemDebug                          oserr_t   _level, _msg
+1      MigrateLogs                          ScMigrateKernelLog                     oserr_t   _buffer, _size, _readOut
+2      MapBootFramebuffer                   ScMapBootFramebuffer                   oserr_t   BufferOut
+3      MapRamdisk                           ScMapRamdisk                           oserr_t   BufferOut, LengthOut
+4      CapabilityGrant                      ScCapabilityGrant                      oserr_t   _capability, _handle
+
+5      CreateMemorySpace                    ScCreateMemorySpace                    oserr_t   Flags, ResultOut
+6      GetMemorySpaceForThread              ScGetThreadMemorySpaceHandle           oserr_t   ThreadHandle, HandleOut
+7      CreateMemorySpaceMapping             ScCreateMemorySpaceMapping             oserr_t   Handle, Parameters, AddressOut
+
+8      FirmwareQuery                        ScFirmwareQuery                        oserr_t   InfoOut
+9      FirmwareTableLocate                  ScFirmwareTableLocate                  oserr_t   Key, TableOut
+10     FirmwareTableRead                    ScFirmwareTableRead                    oserr_t   Key, Buffer, Size, LengthOut
+11     FirmwareTableMap                     ScFirmwareTableMap                     oserr_t   Key, MappingOut, LengthOut
+12     AcpiQueryPci                         ScAcpiQueryPci                         oserr_t   Query, Result
+
+13     IoSpaceRegister                      ScIoSpaceRegister                      oserr_t   IoSpace
+14     IoSpaceAcquire                       ScIoSpaceAcquire                       oserr_t   IoSpace
+15     IoSpaceMap                           ScIoSpaceMap                           oserr_t   Id, Offset, Length, Mapping
+16     IoSpaceRelease                       ScIoSpaceRelease                       oserr_t   IoSpace
+17     IoSpaceDestroy                       ScIoSpaceDestroy                       oserr_t   IoSpaceId
+
+18     InterruptAllocate                    ScInterruptAllocate                    oserr_t   Request, Result
+19     InterruptBind                        ScInterruptBind                        oserr_t   Handle, Request
+20     InterruptEnable                      ScInterruptEnable                      oserr_t   Handle
+21     InterruptDisable                     ScInterruptDisable                     oserr_t   Handle
+22     InterruptLineSourceResolve           ScInterruptLineSourceResolve           oserr_t   Query, Controller
+23     InterruptRelease                     ScInterruptRelease                     oserr_t   Handle
+24     InterruptGetMessage                  ScInterruptGetMessage                  oserr_t   Handle, Index, Message
+25     InterruptReap                        ScInterruptReap                        oserr_t   Handle
+26     InterruptBusHandlerCreate            ScInterruptBusHandlerCreate            oserr_t   HandleOut
+27     InterruptBusHandlerBind              ScInterruptBusHandlerBind              oserr_t   Handle, Resources
+28     InterruptBusHandlerRelease           ScInterruptBusHandlerRelease           oserr_t   Handle
+29     InterruptBusAttach                   ScInterruptBusAttach                   oserr_t   Request
+30     InterruptBusStatus                   ScInterruptBusStatus                   oserr_t   Handle, Principal, Device
+31     InterruptBusClose                    ScInterruptBusClose                    oserr_t   Handle, Principal, Device
+32     InterruptMessageControllerResolve    ScInterruptMessageControllerResolve    oserr_t   Query, Controller
+
+33     GetProcessBaseAddress                ScGetProcessBaseAddress                oserr_t   BaseAddressOut
+34     MapThreadMemoryRegion                ScMapThreadMemoryRegion                oserr_t   ThreadHandle, Address, TopOfStack, PointerOut
+
+# Operating System (Process) Interface
+35     ThreadCreate                         ScThreadCreate                         oserr_t   Entry, Argument, Parameters, HandleOut
+36     ThreadExit                           ScThreadExit                           oserr_t   ExitCode
+37     ThreadSignal                         ScThreadSignal                         oserr_t   ThreadId, Signal
+38     ThreadJoin                           ScThreadJoin                           oserr_t   ThreadId, ExitCode
+39     ThreadDetach                         ScThreadDetach                         oserr_t   ThreadId
+40     ThreadYield                          ScThreadYield                          oserr_t   -
+41     ThreadId                             ScThreadGetCurrentId                   uuid_t    -
+42     ThreadCookie                         ScThreadCookie                         UUId_t    -
+43     ThreadSetCurrentName                 ScThreadSetCurrentName                 uuid_t    Name
+44     ThreadGetCurrentName                 ScThreadGetCurrentName                 uuid_t    NameBuffer, MaxLength
+
+45     FutexWait                            ScFutexWait                            oserr_t   context, params
+46     FutexWake                            ScFutexWake                            oserr_t   Parameters
+47     EventCreate                          ScEventCreate                          oserr_t   InitialValue, Flags, HandleOut, SyncAddress
+48     IPCSend                              IpcContextSendMultiple                 oserr_t   Messages, MessageCount, Deadline, Context
+
+49     MemoryAllocate                       ScMemoryAllocate                       oserr_t   Hint, Size, Flags, MemoryOut
+50     MemoryFree                           ScMemoryFree                           oserr_t   Pointer, Size
+51     MemoryProtect                        ScMemoryProtect                        oserr_t   MemoryPointer, Length, Flags, PreviousFlags
+52     MemoryQueryAllocation                ScMemoryQueryAllocation                oserr_t   MemoryPointer, Descriptor
+53     MemoryQueryAttributes                ScMemoryQueryAttributes                oserr_t   MemoryPointer, Length, Attributes
+
+54     SHMCreate                            ScSHMCreate                            oserr_t   _shm, _handle
+55     SHMAttachToken                       ScSHMAttachToken                       oserr_t   _token, _handleOut
+56     SHMAttach                            ScSHMAttach                            oserr_t   _key, _handle
+57     SHMMap                               ScSHMMap                               oserr_t   _handle, _offset, _length, _flags
+58     SHMCommit                            ScSHMCommit                            oserr_t   _handle, _address, _length
+59     SHMUnmap                             ScSHMUnmap                             oserr_t   _handle, _address, _length
+60     SHMDetach                            ScSHMDetach                            oserr_t   _handle
+61     SHMMetrics                           ScSHMMetrics                           oserr_t   _handle, _sizeOut, _vectorsOut
+
+62     HandleCreate                         ScCreateHandle                         oserr_t   Registration, Access, HandleOut
+63     HandleImport                         ScHandleImport                         oserr_t   _token, _memorySpace, _out
+64     HandleDestroy                        ScDestroyHandle                        oserr_t   _handle
+65     HandleLookup                         ScLookupHandle                         oserr_t   _path, _handleOut
+66     HandleSetActivity                    ScSetHandleActivity                    oserr_t   _handle, _flags
+67     HandleProviderRegister               ScHandleRegisterProvider               oserr_t   _queue, _out
+68     HandleValidate                       ScHandleValidate                       oserr_t   _registration, _group, _reference, _access, _out
+69     HandleProviderGetEvents              ScHandleProviderGetEvents              oserr_t   _registration, _ids, _capacity, _count
+
+70     GrantTokenCreate                     ScGrantTokenCreate                     oserr_t   Handle, Options, TokenOut
+71     GrantTokenRevoke                     ScGrantTokenRevoke                     oserr_t   ControlHandle
+
+72     CreateHandleSet                      ScCreateHandleSet                      oserr_t   Flags, HandleOut
+73     ControlHandleSet                     ScControlHandleSet                     oserr_t   SetHandle, Operation, Handle, Event
+74     ListenHandleSet                      ScListenHandleSet                      oserr_t   handle, context, params, eventsOut
+
+75     InstallSignalHandler                 ScInstallSignalHandler                 oserr_t   HandlerAddress
+76     FlushHardwareCache                   ScFlushHardwareCache                   oserr_t   CacheType, AddressStart, Length
+77     SystemQuery                          ScSystemQuery                          oserr_t   _req, _buffer, _size, _sizeOut
+78     ClockTick                            ScSystemClockTick                      oserr_t   Source, TickOut
+79     ClockFrequency                       ScSystemClockFrequency                 oserr_t   Source, FrequencyOut
+80     Time                                 ScSystemTime                           oserr_t   source, timeOut
+81     Sleep                                ScTimeSleep                            oserr_t   DurationNs, RemainingNs
+82     Stall                                ScTimeStall                            oserr_t   DurationNs
+
+83     DmaOpen                              ScDmaOpen                              oserr_t   Device, Parameters, ContextOut
+84     DmaAllocate                          ScDmaAllocate                          oserr_t   Context, Requirements, ResultOut
+85     DmaMapShm                            ScDmaMapShm                            oserr_t   Context, Shm, Parameters, ResultOut
+86     DmaGetSegments                       ScDmaGetSegments                       oserr_t   Mapping, Entries, Capacity, CountOut
+87     ShmAccessCreate                      ScShmAccessCreate                      oserr_t   Shm, Offset, Length, Handle
+88     ShmAccessBegin                       ScShmAccessBegin                       oserr_t   Async, Handle, Parameters
+89     ShmAccessEnd                         ScShmAccessEnd                         oserr_t   Handle, Kind, CompletedLength
+90     ResourceRelease                      ScResourceRelease                      oserr_t   Handle
+
+91     ShmRegionsRegister                   ScShmRegionsRegister                   oserr_t   Shm, Ranges, Count
+92     ShmRegionSessionOpen                 ScShmRegionSessionOpen                 oserr_t   Shm, Region, Capacity, Result
+93     ShmRegionBeginCpu                    ScShmRegionBeginCpu                    oserr_t   Handle, Slot, Generation, Access
+94     ShmRegionEndCpu                      ScShmRegionEndCpu                      oserr_t   Handle, Slot, Generation

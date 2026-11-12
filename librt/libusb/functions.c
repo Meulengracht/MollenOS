@@ -24,6 +24,9 @@
 //#define __TRACE
 
 #include <usb/usb.h>
+#include <usb/convert.h>
+#include <internal/_gracht.h>
+#include <internal/_shm_transfer.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
@@ -123,6 +126,104 @@ UsbTransferInitialize(
     transfer->PeriodicInterval        = endpointInterval;
 }
 
+static oserr_t
+__QueueTransfer(
+    _In_  usb_device_context_t* device,
+    _In_  USBTransfer_t*        transfer,
+    _In_  uuid_t                transferID,
+    _In_  bool                  periodic,
+    _Out_ enum USBTransferCode* resultOut,
+    _Out_ size_t*               bytesOut)
+{
+    struct vali_link_message     msg = VALI_MSG_INIT_HANDLE(device->controller_driver_id);
+    struct ctt_usb_transfer      description;
+    SHMTransfer_t                buffer;
+    enum ctt_usb_transfer_status result = CTT_USB_TRANSFER_STATUS_NORESPONSE;
+    size_t                       completed = 0;
+    oserr_t                      status;
+    int                          rpcStatus;
+
+    // reset output values
+    *resultOut = USBTRANSFERCODE_INVALID;
+    *bytesOut = 0;
+
+    if (!__USBTransferFieldsValid(transfer)) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = __SHMTransferCreate(
+        transfer->BufferHandle,
+        transfer->BufferOffset,
+        transfer->Length,
+        __USBTransferScope(transfer),
+        &buffer
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = __ToUSBTransfer(transfer, &buffer, &description);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    if (periodic) {
+        rpcStatus = ctt_usbhost_queue_periodic(
+            GetGrachtClient(), &msg.base,
+            OSProcessCurrentID(),
+            device->controller_device_id,
+            transferID,
+            &description
+        );
+    } else {
+        rpcStatus = ctt_usbhost_queue(
+            GetGrachtClient(), &msg.base,
+            OSProcessCurrentID(),
+            device->controller_device_id,
+            transferID,
+            &description
+        );
+    }
+    if (rpcStatus != 0) {
+        status = OS_EUNKNOWN;
+        goto cleanup;
+    }
+
+    status = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    if (periodic) {
+        rpcStatus = ctt_usbhost_queue_periodic_result(
+            GetGrachtClient(), &msg.base,
+            &status
+        );
+    } else {
+        rpcStatus = ctt_usbhost_queue_result(
+            GetGrachtClient(), &msg.base,
+            &status,
+            &result,
+            &completed
+        );
+    }
+    
+    if (rpcStatus != 0 || completed > transfer->Length ||
+        (unsigned int)result > CTT_USB_TRANSFER_STATUS_BABBLE) {
+        status = OS_EPROTOCOL;
+        goto cleanup;
+    }
+
+    *bytesOut = completed;
+    *resultOut = to_usbcode(result);
+
+cleanup:
+    // Successful periodic submission has already imported the buffer. Revoking
+    // prevents later imports without disrupting its DMA mapping or reset path.
+    OSGrantTokenRevoke(buffer.Token.ControlHandleID);
+    return status;
+}
+
 oserr_t
 UsbTransferQueue(
     _In_  usb_device_context_t* deviceContext,
@@ -130,18 +231,16 @@ UsbTransferQueue(
     _Out_ enum USBTransferCode* transferResultOut,
     _Out_ size_t*               bytesTransferredOut)
 {
-    struct vali_link_message     msg            = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    uuid_t                       transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
-    enum ctt_usb_transfer_status transferResult = CTT_USB_TRANSFER_STATUS_NORESPONSE;
-    oserr_t                      oserr;
+    uuid_t transferID = atomic_fetch_add(&TransferIdGenerator, 1);
 
-    ctt_usbhost_queue(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
-        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(USBTransfer_t));
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &oserr, &transferResult, bytesTransferredOut);
-
-    *transferResultOut = to_usbcode(transferResult);
-    return oserr;
+    return __QueueTransfer(
+        deviceContext,
+        transfer,
+        transferID,
+        false,
+        transferResultOut,
+        bytesTransferredOut
+    );
 }
 
 oserr_t
@@ -150,17 +249,25 @@ UsbTransferQueuePeriodic(
     _In_  USBTransfer_t*        transfer,
     _Out_ uuid_t*               transferIdOut)
 {
-    struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    uuid_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
-    oserr_t                  oserr;
+    uuid_t               transferID = atomic_fetch_add(&TransferIdGenerator, 1);
+    enum USBTransferCode result;
+    size_t               completed;
+    oserr_t              status;
 
-    ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
-        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(USBTransfer_t));
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhost_queue_periodic_result(GetGrachtClient(), &msg.base, &oserr);
-    
-    *transferIdOut = transferId;
-    return oserr;
+    *transferIdOut = UUID_INVALID;
+
+    status = __QueueTransfer(
+        deviceContext,
+        transfer,
+        transferID,
+        true,
+        &result,
+        &completed
+    );
+    if (status == OS_EOK) {
+        *transferIdOut = transferID;
+    }
+    return status;
 }
 
 oserr_t

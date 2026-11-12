@@ -264,9 +264,8 @@ __MapUserBuffer(
         return status;
     }
 
-    *offset = transfer.RangeMode == SHMTransferRangeFull ? 0 : transfer.RelativeOffset;
-    *length = transfer.RangeMode == SHMTransferRangeFull
-        ? transfer.Token.Options.Data.SHM.Length : transfer.RequestedLength;
+    *offset = transfer.RelativeOffset;
+    *length = __SHMTransferLength(&transfer);
     
     status = SHMAttachToken(&transfer.Token, shm);
     if (status != OS_EOK) {

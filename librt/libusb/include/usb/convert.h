@@ -119,9 +119,8 @@ __FromUSBTransfer(
         .MaxPacketSize = in->max_packet_size,
         .Flags = in->flags,
         .BufferHandle = UUID_INVALID,
-        .BufferOffset = buffer->RangeMode == SHMTransferRangeFull ? 0 : buffer->RelativeOffset,
-        .Length = buffer->RangeMode == SHMTransferRangeFull ?
-            buffer->Token.Options.Data.SHM.Length : buffer->RequestedLength,
+        .BufferOffset = buffer->RelativeOffset,
+        .Length = __SHMTransferLength(buffer),
         .PeriodicBandwith = in->periodic_bandwidth,
         .PeriodicInterval = in->periodic_interval
     };

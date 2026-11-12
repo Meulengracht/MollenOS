@@ -22,6 +22,7 @@
 #include <os/fence_pool.h>
 #include <limits.h>
 #include <stdint.h>
+#include <string.h>
 #include "fence_private.h"
 
 #define FENCE_POOL_VERSION 1U

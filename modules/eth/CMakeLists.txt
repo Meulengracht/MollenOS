@@ -3,3 +3,5 @@ if (NOT DEFINED VALI_BUILD)
     include(../../cmake/SetupEnvironment.cmake)
     project(vali-modules-eth)
 endif ()
+
+add_subdirectory(common)

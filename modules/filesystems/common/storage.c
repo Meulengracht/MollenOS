@@ -22,6 +22,7 @@
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <gracht/link/vali.h>
+#include <internal/_gracht.h>
 #include <internal/_utils.h>
 #include <internal/_storage.h>
 #include <os/services/process.h>
@@ -45,10 +46,9 @@ __StatDevice(
         return OS_EUNKNOWN;
     }
 
-    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
-        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
-        gracht_client_abandon(GetGrachtClient(), &msg.base);
-        return OS_EUNKNOWN;
+    osStatus = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (osStatus != OS_EOK) {
+        return osStatus;
     }
 
     if (ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor) != 0) {
@@ -148,10 +148,9 @@ __StatFile(
         return OS_EUNKNOWN;
     }
 
-    if (gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
-        gracht_client_get_status(GetGrachtClient(), &msg.base) != GRACHT_MESSAGE_COMPLETED) {
-        gracht_client_abandon(GetGrachtClient(), &msg.base);
-        return OS_EUNKNOWN;
+    osStatus = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (osStatus != OS_EOK) {
+        return osStatus;
     }
 
     if (sys_file_fstat_result(GetGrachtClient(), &msg.base, &osStatus, &fstats) != 0) {
