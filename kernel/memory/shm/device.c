@@ -671,6 +671,13 @@ SHMDeviceMap(
     }
     
     buffer = source.Buffer;
+
+    // Region-backed buffers need region-aware device mappings.
+    if (buffer->Flags & SHM_REGIONS) {
+        ReleaseGlobalHandle(source.GlobalHandleID);
+        return OS_ENOTSUPPORTED;
+    }
+
     scope = direction == DMAToDevice ? GrantTokenScopeRead : GrantTokenScopeWrite;
     
     if (direction == DMABidirectional) {

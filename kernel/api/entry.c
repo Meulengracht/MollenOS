@@ -51,6 +51,8 @@ DECL_STRUCT(DeviceInterruptMessage);
 DECL_STRUCT(InterruptBusAttachRequest);
 
 struct MemoryMappingParameters;
+struct SHMRegionRange;
+struct SHMRegionSession;
 
 ///////////////////////////////////////////////
 // Operating System Interface
@@ -176,8 +178,13 @@ extern oserr_t ScShmAccessEnd(uuid_t, enum SHMAccessKind, size_t);
 extern oserr_t ScShmAccessBegin(OSAsyncContext_t*, uuid_t, const struct SHMAccessBeginParameters*);
 extern oserr_t ScShmAccessCreate(uuid_t, size_t, size_t, uuid_t*);
 
+extern oserr_t ScShmRegionsRegister(uuid_t, const struct SHMRegionRange*, unsigned int);
+extern oserr_t ScShmRegionSessionOpen(uuid_t, unsigned int, unsigned int, struct SHMRegionSession*);
+extern oserr_t ScShmRegionBeginCpu(uuid_t, unsigned int, unsigned int, enum SHMCpuAccess);
+extern oserr_t ScShmRegionEndCpu(uuid_t, unsigned int, unsigned int);
+
 // BEGIN GENERATED SYSCALL COUNT - tools/generate_syscalls.py
-#define SYSTEM_CALL_COUNT 91
+#define SYSTEM_CALL_COUNT 95
 // END GENERATED SYSCALL COUNT
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
@@ -282,6 +289,10 @@ static struct SystemCallDescriptor {
     DefineSyscall(88, ScShmAccessBegin),
     DefineSyscall(89, ScShmAccessEnd),
     DefineSyscall(90, ScResourceRelease),
+    DefineSyscall(91, ScShmRegionsRegister),
+    DefineSyscall(92, ScShmRegionSessionOpen),
+    DefineSyscall(93, ScShmRegionBeginCpu),
+    DefineSyscall(94, ScShmRegionEndCpu),
 // END GENERATED SYSCALL TABLE
 };
 

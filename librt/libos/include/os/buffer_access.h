@@ -19,32 +19,12 @@
 #define __OS_BUFFER_ACCESS_H__
 
 #include <os/fence_pool.h>
+#include <os/types/buffer_identity.h>
 
 _CODE_BEGIN
 
 // Opaque forward declaration of internal data
 struct __OSBufferReservation;
-
-/**
- * @brief Shared identity for one buffer region.
- *
- * Buffer identifies the shared buffer. Region is an agreed region number, which
- * can be zero. Callers agree on its byte range separately. Generation distinguishes
- * different uses of the identity. Buffer must not be UUID_INVALID and Generation
- * must be nonzero. Initialize the whole structure, including padding, before
- * setting fields. Binding validation compares the identity bytes with the local copy.
- *
- * All aliases of a region must use the same shared reservation record. Separate
- * regions must not share cache lines. The caller must check aliases, byte ranges
- * and buffer IDs. Keep the identity unchanged until all users and references to
- * the region finish. Calls documented as making no syscalls may still write
- * errors or enabled traces to the system log.
- */
-typedef struct OSBufferIdentity {
-    uuid_t       Buffer;
-    unsigned int Region;
-    unsigned int Generation;
-} OSBufferIdentity_t;
 
 /**
  * @brief Local binding to the shared access record for a buffer region.
@@ -54,6 +34,12 @@ typedef struct OSBufferIdentity {
  * binding and mapping valid during publish and reclaim calls, and while any job's
  * scratch array uses the binding. Storage holds counted pool references for the
  * last writer and a fixed number of readers.
+ *
+ * Binding validation compares the identity bytes with the local copy. All aliases
+ * of a region must use the same shared reservation record. Separate regions must
+ * not share cache lines. The caller must check aliases, byte ranges and buffer IDs.
+ * Calls documented as making no syscalls may still write errors or enabled traces
+ * to the system log.
  *
  * All users of the buffer must follow this protocol and the kernel's CPU/DMA
  * access rules. Reservations order jobs but do not prevent CPU or device access

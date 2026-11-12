@@ -40,6 +40,7 @@ add_kernel_library (vali-core-memory ""
     shm/shm.c
     shm/view.c
     shm/access.c
+    shm/region.c
     shm/device.c
     shm/device_context.c
 )

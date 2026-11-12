@@ -26,6 +26,7 @@
 #include "range.h"
 
 struct SHMAccess;
+struct SHMRegionTable;
 
 /** Range reservations in submission order, protected by the buffer mutex. */
 struct SHMBufferAccess {
@@ -46,6 +47,7 @@ struct SHMBuffer {
     MemorySpace_t*                Owner;
     Mutex_t                       Mutex;
     struct SHMBufferAccess        Access;
+    struct SHMRegionTable*        Regions;
     vaddr_t                       KernelMapping;
     vaddr_t                       PageMapping;
     size_t                        Offset;

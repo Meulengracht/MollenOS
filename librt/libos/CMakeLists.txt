@@ -22,6 +22,7 @@ add_library(libos STATIC
     sha1.c
     shm.c
     shm_access.c
+    shm_region.c
     spinlock.c
     syscalls.c
     system.c

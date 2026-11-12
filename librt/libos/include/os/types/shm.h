@@ -106,10 +106,13 @@ struct SHMAccessEndParameters {
  * SHM_TRAP        marks a trap region. Used only by OS services.
  * SHM_IPC         marks an IPC region, which needs a kernel-accessible copy.
  * SHM_PRIVATE     makes the region private to the process memory space.
+ * SHM_REGIONS     marks a fixed region that requires committed regular storage 
+ *                 and excludes legacy access.
  */
 #define SHM_COMMIT       0x00000001U
 #define SHM_CLEAN        0x00000002U
 #define SHM_PRIVATE      0x00000004U
+#define SHM_REGIONS      0x00000008U
 #define SHM_BIGPAGES_2MB 0x00000010U
 #define SHM_BIGPAGES_1GB 0x00000020U
 #define SHM_TRAP         0x00000100U

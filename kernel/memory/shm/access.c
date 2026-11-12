@@ -79,6 +79,13 @@ SHMAccessCreate(
     }
 
     buffer = source.Buffer;
+
+    // Region-backed buffers need region-aware access tracking.
+    if (buffer->Flags & SHM_REGIONS) {
+        ReleaseGlobalHandle(source.GlobalHandleID);
+        return OS_ENOTSUPPORTED;
+    }
+
     if (length == 0 || !__SHMRangeContains(0, source.Length, offset, length)) {
         ReleaseGlobalHandle(shm);
         return OS_EINVALPARAMS;
@@ -263,6 +270,10 @@ SHMAccessBegin(
     oserr_t              status;
     oserr_t              waitStatus = OS_EOK;
     int                  event = 0;
+
+    if (buffer->Flags & SHM_REGIONS) {
+        return OS_ENOTSUPPORTED;
+    }
 
     if (holder == SHMAccessHolderCpu) {
         if (!(access->Scope & GrantTokenScopeRead) ||

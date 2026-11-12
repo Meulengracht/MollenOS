@@ -128,6 +128,10 @@ _CODE_END
 #define Syscall_ShmAccessBegin(Async, Handle, Parameters) (oserr_t)syscall3(88, SCPARAM(Async), SCPARAM(Handle), SCPARAM(Parameters))
 #define Syscall_ShmAccessEnd(Handle, Kind, CompletedLength) (oserr_t)syscall3(89, SCPARAM(Handle), SCPARAM(Kind), SCPARAM(CompletedLength))
 #define Syscall_ResourceRelease(Handle) (oserr_t)syscall1(90, SCPARAM(Handle))
+#define Syscall_ShmRegionsRegister(Shm, Ranges, Count) (oserr_t)syscall3(91, SCPARAM(Shm), SCPARAM(Ranges), SCPARAM(Count))
+#define Syscall_ShmRegionSessionOpen(Shm, Region, Capacity, Result) (oserr_t)syscall4(92, SCPARAM(Shm), SCPARAM(Region), SCPARAM(Capacity), SCPARAM(Result))
+#define Syscall_ShmRegionBeginCpu(Handle, Slot, Generation, Access) (oserr_t)syscall4(93, SCPARAM(Handle), SCPARAM(Slot), SCPARAM(Generation), SCPARAM(Access))
+#define Syscall_ShmRegionEndCpu(Handle, Slot, Generation) (oserr_t)syscall3(94, SCPARAM(Handle), SCPARAM(Slot), SCPARAM(Generation))
 // END GENERATED SYSCALL WRAPPERS
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

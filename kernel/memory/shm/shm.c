@@ -96,6 +96,9 @@ __SHMBufferDelete(
         FreePhysicalMemory(shmBuffer->PageCount, &shmBuffer->Pages[0]);
     }
 
+    if (shmBuffer->Regions != NULL) {
+        kfree(shmBuffer->Regions);
+    }
     MutexDestruct(&shmBuffer->Mutex);
     kfree(shmBuffer);
 }
@@ -387,6 +390,13 @@ SHMCreate(
     // The retired device kind must not fall through to ordinary allocation.
     if (SHM_KIND(shm->Flags) > SHM_IPC) {
         return OS_ENOTSUPPORTED;
+    }
+
+    // Region layouts require ordinary SHM with pages committed at creation.
+    if (shm->Flags & SHM_REGIONS) {
+        if (SHM_KIND(shm->Flags) != 0 || !(shm->Flags & SHM_COMMIT)) {
+            return OS_EINVALPARAMS;
+        }
     }
 
     // An IPC buffer needs room for the stream header and at least one data
