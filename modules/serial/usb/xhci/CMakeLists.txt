@@ -4,6 +4,7 @@ add_module_target(xhci ""
     dma.c
     dwc3.c
     endpoint.c
+    hub.c
     interrupt.c
     port.c
     queue.c

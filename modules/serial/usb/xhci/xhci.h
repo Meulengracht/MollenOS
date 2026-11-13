@@ -20,6 +20,7 @@
 
 #include <os/osdefs.h>
 #include <ddk/dma.h>
+#include <ddk/io.h>
 #include <ddk/resources.h>
 #include <os/types/handle.h>
 #include <os/types/shm.h>
@@ -207,7 +208,7 @@ typedef XhciTransferRequestBlock_t XhciTrb_t;
 #define XHCI_TRB_ENDPOINT_ID(n)          (((n) >> 16) & 0x1F)
 #define XHCI_TRB_ADDRESS_BSR             (1 << 9)
 #define XHCI_SLOT_CONTEXT_ROOT_PORT(n)   (((n) & 0xFF) << 16)
-#define XHCI_SLOT_CONTEXT_NUM_PORTS(n)   (((n) & 0xFF) << 24)
+#define XHCI_SLOT_CONTEXT_NUM_PORTS(n)   (((n) & 0xFFU) << 24)
 #define XHCI_SLOT_CONTEXT_TT_HUB(n)      ((n) & 0xFF)
 #define XHCI_SLOT_CONTEXT_TT_PORT(n)     (((n) & 0xFF) << 8)
 #define XHCI_SLOT_CONTEXT_TT_THINK(n)    (((n) & 0x3) << 16)
@@ -416,8 +417,6 @@ typedef struct XhciDevice {
     uint8_t               DetachPending;
     uint32_t              RouteString;
     XhciDevice_t*         Parent;
-    uint8_t               HubPortCount;
-    uint16_t              HubCharacteristics;
     enum XhciDeviceState  State;
     
     /* Highest Device Context Index configured so far. Used for the slot
@@ -437,6 +436,13 @@ typedef struct XhciDevice {
     struct DMABuffer*     DeviceContextDMA;
     uint64_t              DeviceContextDeviceAddress;
     uint8_t*              DeviceContext;
+
+    // Command completion and lifetime of the cooperative hub-registration wait.
+    struct {
+        bool    Pending;
+        bool    Waiting;
+        oserr_t Status;
+    } HubConfiguration;
 } XhciDevice_t;
 
 enum XhciCommandType {
@@ -444,7 +450,7 @@ enum XhciCommandType {
     XHCI_COMMAND_ENABLE_SLOT,
     XHCI_COMMAND_ADDRESS_DEVICE,
     XHCI_COMMAND_CONFIGURE_ENDPOINT,
-    XHCI_COMMAND_EVALUATE_CONTEXT,
+    XHCI_COMMAND_CONFIGURE_HUB,
     XHCI_COMMAND_RESET_ENDPOINT,
     XHCI_COMMAND_STOP_ENDPOINT,
     XHCI_COMMAND_SET_TR_DEQUEUE,
@@ -573,13 +579,54 @@ extern void    XhciTransferCleanup(_In_ XhciController_t* controller, _In_ UsbMa
 extern bool    XhciTransferIsSetAddress(_In_ UsbManagerTransfer_t* transfer, _Out_ uint8_t* addressOut);
 extern void    XhciTransferCompleteSoftware(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
 extern void    XhciTransferMarkCancelled(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
-extern oserr_t XhciTransferSubmit(_In_ XhciController_t* controller, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
+/**
+ * @brief Begin DMA and publish the prepared transfer's TRBs.
+ * @param controller Running controller.
+ * @param endpoint Endpoint with room for the prepared TRBs.
+ * @param transfer Prepared transfer linked to the endpoint.
+ * @return OS_EOK on publication, OS_EINCOMPLETE for DMA contention before
+ * publication, or an error. Deferred requests must be placed on the wait queue.
+ */
+extern oserr_t
+XhciTransferSubmit(
+    _In_ XhciController_t* controller,
+    _In_ XhciEndpoint_t* endpoint,
+    _In_ UsbManagerTransfer_t* transfer);
 extern bool    XhciTransferHandleEvent(_In_ XhciController_t* controller, _In_ XhciTrb_t* eventTrb);
 
 extern oserr_t XhciDeviceEnsure(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer, _In_ XhciEndpoint_t* endpoint, _Out_ XhciDevice_t** deviceOut);
 extern oserr_t XhciDeviceSetAddress(_In_ XhciController_t* controller, _In_ XhciDevice_t* device, _In_ UsbManagerTransfer_t* transfer, _In_ uint8_t address);
 extern oserr_t XhciDeviceConfigureEndpoint(_In_ XhciController_t* controller, _In_ XhciDevice_t* device, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
 extern oserr_t XhciDeviceDestroyAll(_In_ XhciController_t* controller);
+/**
+ * @brief Publish a command and record its device and optional endpoint.
+ * @param controller Running controller.
+ * @param device Device whose context must remain valid until completion.
+ * @param endpoint Endpoint for endpoint-scoped commands, otherwise NULL.
+ * @param type Software completion action.
+ * @param trb Command to publish.
+ * @return Submission status. OS_EOK does not indicate hardware completion.
+ */
+extern oserr_t
+XhciCommandSubmit(
+    _In_ XhciController_t* controller,
+    _In_ XhciDevice_t* device,
+    _In_ XhciEndpoint_t* endpoint,
+    _In_ enum XhciCommandType type,
+    _In_ XhciTrb_t* trb);
+
+/**
+ * @brief Record a hub command result and report the hardware slot context.
+ * @param controller Controller that delivered the completion.
+ * @param device Hub being configured.
+ * @param completionCode Hardware command completion code.
+ */
+extern void
+XhciHubConfigurationComplete(
+    _In_ XhciController_t* controller,
+    _In_ XhciDevice_t* device,
+    _In_ unsigned int completionCode);
+
 extern void    XhciCommandHandleCompletion(_In_ XhciController_t* controller, _In_ XhciTrb_t* eventTrb);
 extern oserr_t XhciEndpointReset(_In_ XhciController_t* controller, _In_ XhciEndpoint_t* endpoint);
 extern oserr_t XhciEndpointCancelTransfer(_In_ XhciController_t* controller, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);

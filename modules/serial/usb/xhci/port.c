@@ -15,11 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/io.h>
 #include <ddk/utils.h>
 #include <threads.h>
+
 #include "xhci.h"
 
 static enum USBSpeed
@@ -68,6 +69,7 @@ HCIPortReset(
     }
 
     status = READ_VOLATILE(controller->Ports[index].StatusControl);
+    TRACE("XHCI port reset: port=%u begin PORTSC=0x%08x", (unsigned int)index, status);
     if (!(status & XHCI_PORT_STATUS_CONNECTED)) {
         return OS_ENOENT;
     }
@@ -93,6 +95,7 @@ HCIPortReset(
     }
 
     status = READ_VOLATILE(controller->Ports[index].StatusControl);
+    TRACE("XHCI port reset: port=%u complete PORTSC=0x%08x", (unsigned int)index, status);
     XhciPortClearChanges(controller, (size_t)index, status);
     return (status & XHCI_PORT_STATUS_ENABLED) ? OS_EOK : OS_EUNKNOWN;
 }

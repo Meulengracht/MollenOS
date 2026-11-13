@@ -1,6 +1,21 @@
 /**
  * Copyright 2026, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#define __TRACE
 
 #include <ddk/barrier.h>
 #include <ddk/io.h>
@@ -21,10 +36,10 @@
 #define XHCI_INPUT_ADD_EP0          (1 << 1)
 #define XHCI_INPUT_DROP_DCI(dci)     (1u << (dci))
 #define XHCI_INPUT_ADD_DCI(dci)      (1u << (dci))
-#define XHCI_SLOT_CONTEXT_ENTRIES(n) (((n) & 0x1F) << 27)
+#define XHCI_SLOT_CONTEXT_ENTRIES(n) (((n) & 0x1FU) << 27)
 #define XHCI_SLOT_CONTEXT_SPEED(n)   (((n) & 0xF) << 20)
 #define XHCI_SLOT_CONTEXT_PORT(n)    (((n) & 0xFF) << 16)
-#define XHCI_SLOT_CONTEXT_ENTRIES(n) (((n) & 0x1F) << 27)
+#define XHCI_SLOT_CONTEXT_ENTRIES(n) (((n) & 0x1FU) << 27)
 #define XHCI_SLOT_CONTEXT_SPEED(n)   (((n) & 0xF) << 20)
 #define XHCI_EP_CONTEXT_CERR(n)      (((n) & 0x3) << 1)
 #define XHCI_EP_CONTEXT_TYPE(n)      (((n) & 0x7) << 3)
@@ -111,13 +126,13 @@ __DeviceGetByUsbAddress(
     return NULL;
 }
 
-static oserr_t
-__SubmitCommand(
-    _In_ XhciController_t*  controller,
-    _In_ XhciDevice_t*      device,
-    _In_ XhciEndpoint_t*    endpoint,
+oserr_t
+XhciCommandSubmit(
+    _In_ XhciController_t*    controller,
+    _In_ XhciDevice_t*        device,
+    _In_ XhciEndpoint_t*      endpoint,
     _In_ enum XhciCommandType type,
-    _In_ XhciTrb_t*         trb)
+    _In_ XhciTrb_t*           trb)
 {
     uint16_t commandIndex;
     oserr_t  oserr;
@@ -126,6 +141,7 @@ __SubmitCommand(
         device->State == XHCI_DEVICE_RELEASE_PENDING) {
         return OS_EBUSY;
     }
+
     oserr = XhciRingEnqueue(&controller->CommandRing, trb, &commandIndex);
     if (oserr != OS_EOK) {
         return oserr;
@@ -134,8 +150,16 @@ __SubmitCommand(
     controller->Commands[commandIndex].Type = type;
     controller->Commands[commandIndex].Device = device;
     controller->Commands[commandIndex].Endpoint = endpoint;
+    
+    if (type == XHCI_COMMAND_RESET_ENDPOINT ||
+        type == XHCI_COMMAND_SET_TR_DEQUEUE) {
+        TRACE("XHCI command submit: type=%u index=%u control=0x%08x",
+            type, (unsigned int)commandIndex, trb->Control);
+    }
+    
     dma_mb();
     WRITE_VOLATILE(controller->Doorbells[0], 0);
+
     return OS_EOK;
 }
 
@@ -191,15 +215,17 @@ __CompletePendingDma(
     // Recovery owns these transfers until every mapping is CPU-owned; neither
     // stale events nor the common completion queue may rearm a partial rebuild.
     __ResetRingOwnership(endpoint);
+    
     foreach(node, &endpoint->Pending) {
         descriptor = node->value;
         transfer = descriptor->Transfer;
         transfer->Dma.HardwareActive = false;
         UsbManagerForgetTransferWork(transfer);
     }
+
     foreach(node, &endpoint->Pending) {
         descriptor = node->value;
-        status = USBTransferDmaComplete(descriptor->Transfer, 0);
+        status = UsbTransferDmaComplete(descriptor->Transfer, 0);
         if (status != OS_EOK) {
             controller->RecoveryPending = true;
             return status;
@@ -231,13 +257,16 @@ __FailAllPending(
     oserr_t status;
 
     endpoint->State = XHCI_ENDPOINT_RETIRE_PENDING;
+    
     status = __CompletePendingDma(controller, endpoint);
     if (status != OS_EOK) {
         return status;
     }
+
     while (endpoint->Pending.head != NULL) {
         __RetireTransfer(controller, endpoint->Pending.head->value);
     }
+
     endpoint->State = XHCI_ENDPOINT_FAILED;
     __FinishEndpointRecovery(controller, endpoint);
     return OS_EOK;
@@ -254,11 +283,19 @@ __SubmitResetEndpoint(
     trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_RESET_ENDPOINT) |
             XHCI_TRB_CONTROL_EP_ID(endpoint->DeviceContextIndex) |
             XHCI_TRB_CONTROL_SLOT_ID(endpoint->SlotId);
-    oserr = __SubmitCommand(controller, endpoint->Device, endpoint, XHCI_COMMAND_RESET_ENDPOINT, &trb);
+    
+    oserr = XhciCommandSubmit(
+        controller,
+        endpoint->Device,
+        endpoint,
+        XHCI_COMMAND_RESET_ENDPOINT,
+        &trb
+    );
     if (oserr != OS_EOK) {
         endpoint->State = XHCI_ENDPOINT_FAILED;
         return oserr;
     }
+
     endpoint->State = XHCI_ENDPOINT_RESET_PENDING;
     return OS_EOK;
 }
@@ -274,11 +311,19 @@ __SubmitStopEndpoint(
     trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_STOP_ENDPOINT) |
             XHCI_TRB_CONTROL_EP_ID(endpoint->DeviceContextIndex) |
             XHCI_TRB_CONTROL_SLOT_ID(endpoint->SlotId);
-    oserr = __SubmitCommand(controller, endpoint->Device, endpoint, XHCI_COMMAND_STOP_ENDPOINT, &trb);
+    
+    oserr = XhciCommandSubmit(
+        controller,
+        endpoint->Device,
+        endpoint,
+        XHCI_COMMAND_STOP_ENDPOINT,
+        &trb
+    );
     if (oserr != OS_EOK) {
         endpoint->State = XHCI_ENDPOINT_FAILED;
         return oserr;
     }
+
     endpoint->State = XHCI_ENDPOINT_STOP_PENDING;
     return OS_EOK;
 }
@@ -302,11 +347,19 @@ __SubmitSetTRDequeuePointer(
     trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_SET_TR_DEQUEUE) |
             XHCI_TRB_CONTROL_EP_ID(endpoint->DeviceContextIndex) |
             XHCI_TRB_CONTROL_SLOT_ID(endpoint->SlotId);
-    oserr = __SubmitCommand(controller, endpoint->Device, endpoint, XHCI_COMMAND_SET_TR_DEQUEUE, &trb);
+    
+    oserr = XhciCommandSubmit(
+        controller,
+        endpoint->Device,
+        endpoint,
+        XHCI_COMMAND_SET_TR_DEQUEUE,
+        &trb
+    );
     if (oserr != OS_EOK) {
         endpoint->State = XHCI_ENDPOINT_FAILED;
         return oserr;
     }
+
     endpoint->State = XHCI_ENDPOINT_DEQUEUE_PENDING;
     return OS_EOK;
 }
@@ -320,7 +373,13 @@ __SubmitDisableSlot(
 
     trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_DISABLE_SLOT) |
             XHCI_TRB_CONTROL_SLOT_ID(device->SlotId);
-    return __SubmitCommand(controller, device, NULL, XHCI_COMMAND_DISABLE_SLOT, &trb);
+    return XhciCommandSubmit(
+        controller,
+        device,
+        NULL,
+        XHCI_COMMAND_DISABLE_SLOT,
+        &trb
+    );
 }
 
 static void
@@ -340,10 +399,12 @@ __DetachComplete(
             }
         }
     }
+
     if (XhciEndpointDestroyDevice(controller, device) != OS_EOK) {
         controller->RecoveryPending = true;
         return;
     }
+
     if (__DestroyDevice(controller, device) != OS_EOK) {
         controller->RecoveryPending = true;
     }
@@ -393,8 +454,17 @@ __RebuildAndRequeuePending(
             if (transfer->State == USBTRANSFER_STATE_STALLED) {
                 __Transfer_Reset(transfer);
             }
-            status = XhciTransferSubmit(controller, endpoint, transfer);
-            if (status != OS_EOK) {
+            
+            status = XhciTransferSubmit(
+                controller,
+                endpoint,
+                transfer
+            );
+            if (status == OS_EINCOMPLETE) {
+                // DMA contention happened before any TRBs were published.
+                XhciTransferCleanup(controller, transfer);
+                UsbManagerWaitTransfer(&controller->Base, transfer);
+            } else if (status != OS_EOK) {
                 // Hardware is stopped and this TD was not published.
                 __RetireTransfer(controller, descriptor);
             }
@@ -413,16 +483,18 @@ HciTimerCallback(
     XhciController_t* controller = (XhciController_t*)baseController;
     XhciEndpoint_t*   endpoint;
     XhciDevice_t*     device;
-    element_t*       node;
-    element_t*       next;
+    element_t*        node;
+    element_t*        next;
 
     if (controller->State != XHCI_CONTROLLER_RUNNING) {
         return;
     }
+
     // The shared monitor provides bounded retries even on a quiet controller.
     // Healthy controllers do no list scans, allocation or DMA work here.
     if (controller->RecoveryPending) {
         controller->RecoveryPending = false;
+        
         foreach(item, &controller->XhciEndpoints) {
             endpoint = item->value;
             if (endpoint->Device != NULL && endpoint->Device->State == XHCI_DEVICE_RELEASE_PENDING) {
@@ -434,6 +506,7 @@ HciTimerCallback(
                 __FailAllPending(controller, endpoint);
             }
         }
+        
         node = controller->Devices.head;
         while (node != NULL) {
             next = node->next;
@@ -446,6 +519,10 @@ HciTimerCallback(
             node = next;
         }
     }
+
+    // CPU access or another controller may release a conflicting DMA range
+    // without producing an interrupt here. Try each waiter once per timer tick.
+    UsbManagerWakeTransfers(baseController);
     if (baseController->ReadyTransfers.head != NULL) {
         UsbManagerProcessTransfers(baseController);
     }
@@ -606,17 +683,12 @@ __BuildConfigureEndpointContext(
         inputControl[0] = XHCI_INPUT_DROP_DCI(dci);
     }
 
-    slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(device->ContextEntries) |
-            XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed)) | device->RouteString;
-    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(device->RootPort);
-    if (device->HubPortCount != 0) {
-        slotContext[0] |= XHCI_SLOT_CONTEXT_HUB;
-        slotContext[1] |= XHCI_SLOT_CONTEXT_NUM_PORTS(device->HubPortCount);
-        slotContext[2] = XHCI_SLOT_CONTEXT_TT_THINK((device->HubCharacteristics >> 5) & 0x3);
-        if (device->HubCharacteristics & 0x4) {
-            slotContext[2] |= XHCI_SLOT_CONTEXT_MTT;
-        }
-    }
+    // Keep routing, speed, hub and translator fields from the controller context.
+    dma_rmb();
+    memcpy(slotContext, device->DeviceContext, controller->ContextSize);
+    slotContext[0] &= ~XHCI_SLOT_CONTEXT_ENTRIES(0x1FU);
+    slotContext[0] |= XHCI_SLOT_CONTEXT_ENTRIES(device->ContextEntries);
+    slotContext[3] = 0;
 
     __BuildEndpointContext(endpoint, transfer, endpointContext);
     dma_mb();
@@ -675,51 +747,6 @@ __BuildAddressContext(
 }
 
 static oserr_t
-__SubmitEvaluateContext(
-    _In_ XhciController_t* controller,
-    _In_ XhciDevice_t*     device)
-{
-    XhciTrb_t trb = { 0 };
-    trb.Parameter = device->InputContextDeviceAddress;
-    trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_EVALUATE_CONTEXT) |
-            XHCI_TRB_CONTROL_SLOT_ID(device->SlotId);
-    return __SubmitCommand(controller, device, NULL, XHCI_COMMAND_EVALUATE_CONTEXT, &trb);
-}
-
-oserr_t
-HCIConfigureHub(
-    _In_ UsbManagerController_t* controllerBase,
-    _In_ uint8_t                 hubAddress,
-    _In_ uint8_t                 portCount,
-    _In_ uint16_t                characteristics)
-{
-    XhciController_t* controller = (XhciController_t*)controllerBase;
-    XhciDevice_t* hub = __DeviceGetByUsbAddress(controller, hubAddress);
-    reg32_t* slotContext;
-
-    if (hub == NULL || hub->SlotId == 0) {
-        return OS_ENOENT;
-    }
-    hub->HubPortCount = portCount;
-    hub->HubCharacteristics = characteristics;
-    memset(hub->InputContext, 0, XHCI_INPUT_CONTEXT_ENTRIES * controller->ContextSize);
-    ((reg32_t*)hub->InputContext)[1] = XHCI_INPUT_ADD_SLOT;
-    slotContext = (reg32_t*)(hub->InputContext + XHCI_CONTEXT_SLOT * controller->ContextSize);
-        slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(hub->ContextEntries) |
-            XHCI_SLOT_CONTEXT_HUB;
-    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(hub->RootPort) |
-            XHCI_SLOT_CONTEXT_NUM_PORTS(portCount);
-    slotContext[2] = XHCI_SLOT_CONTEXT_TT_THINK((characteristics >> 5) & 0x3);
-    /* The descriptor's compound-device bit is the only hub-level capability
-     * available through this contract; preserve it as the MTT indication. */
-    if (characteristics & 0x4) {
-        slotContext[2] |= XHCI_SLOT_CONTEXT_MTT;
-    }
-    dma_mb();
-    return __SubmitEvaluateContext(controller, hub);
-}
-
-static oserr_t
 __SubmitAddressDevice(
     _In_ XhciController_t* controller,
     _In_ XhciDevice_t*     device,
@@ -733,7 +760,14 @@ __SubmitAddressDevice(
     if (blockSetAddress) {
         trb.Control |= XHCI_TRB_ADDRESS_BSR;
     }
-    return __SubmitCommand(controller, device, NULL, XHCI_COMMAND_ADDRESS_DEVICE, &trb);
+
+    return XhciCommandSubmit(
+        controller,
+        device,
+        NULL,
+        XHCI_COMMAND_ADDRESS_DEVICE,
+        &trb
+    );
 }
 
 oserr_t
@@ -747,17 +781,32 @@ XhciDeviceConfigureEndpoint(
     bool      reconfigure = endpoint->State != XHCI_ENDPOINT_UNCONFIGURED;
     oserr_t   oserr;
 
+    if (device->HubConfiguration.Pending) {
+        return OS_EINCOMPLETE;
+    }
+
+    if (device->State != XHCI_DEVICE_ADDRESSED) {
+        return OS_EBUSY;
+    }
+
     __BuildConfigureEndpointContext(controller, device, endpoint, transfer, reconfigure);
 
     trb.Parameter = device->InputContextDeviceAddress;
     trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_CONFIGURE_ENDPOINT) |
             ((reg32_t)device->SlotId << 24);
 
-    oserr = __SubmitCommand(controller, device, endpoint, XHCI_COMMAND_CONFIGURE_ENDPOINT, &trb);
+    oserr = XhciCommandSubmit(
+        controller,
+        device,
+        endpoint,
+        XHCI_COMMAND_CONFIGURE_ENDPOINT,
+        &trb
+    );
     if (oserr != OS_EOK) {
         endpoint->State = XHCI_ENDPOINT_FAILED;
         return oserr;
     }
+
     endpoint->State = XHCI_ENDPOINT_CONFIGURE_PENDING;
     return OS_EINCOMPLETE;
 }
@@ -772,18 +821,25 @@ XhciDeviceEnsure(
     XhciDevice_t* device = __DeviceGet(controller, &transfer->Address);
     XhciTrb_t     trb = { 0 };
     oserr_t       oserr;
-    unsigned int routePort;
+    unsigned int  routePort;
 
     if (device != NULL) {
         endpoint->Device = device;
         endpoint->SlotId = device->SlotId;
         device->Endpoints[endpoint->DeviceContextIndex] = endpoint;
+        
         *deviceOut = device;
+        
         if (device->State == XHCI_DEVICE_DETACHING || device->State == XHCI_DEVICE_RELEASE_PENDING) {
             return OS_EBUSY;
         }
+        
         if (device->State == XHCI_DEVICE_FAILED) {
             return OS_EUNKNOWN;
+        }
+        
+        if (device->HubConfiguration.Pending) {
+            return OS_EINCOMPLETE;
         }
         return (device->State == XHCI_DEVICE_DEFAULT || device->State == XHCI_DEVICE_ADDRESSED) ?
                 OS_EOK : OS_EINCOMPLETE;
@@ -797,28 +853,33 @@ XhciDeviceEnsure(
     device->HubAddress = transfer->Address.HubAddress;
     device->PortAddress = transfer->Address.PortAddress;
     device->Speed = transfer->Speed;
+    
     // Address zero identifies the root hub, even while another root device
     // has not yet received its USB address.
     if (device->HubAddress != 0) {
         device->Parent = __DeviceGetByUsbAddress(controller, device->HubAddress);
     }
+
     if (device->Parent != NULL) {
         if (device->PortAddress == 0) {
             free(device);
             return OS_EINVALPARAMS;
         }
+
         device->RootPort = device->Parent->RootPort;
         device->Depth = device->Parent->Depth + 1;
         if (device->Depth > 5) {
             free(device);
             return OS_EINVALPARAMS;
         }
+
         // Each tier consumes one nibble, starting with the least significant.
         // External hubs already report one-based ports; xHCI saturates above 15.
         routePort = device->PortAddress;
         if (routePort > 15) {
             routePort = 15;
         }
+
         device->RouteString = device->Parent->RouteString |
                 ((uint32_t)routePort << ((device->Depth - 1) * 4));
     } else {
@@ -826,33 +887,42 @@ XhciDeviceEnsure(
             free(device);
             return OS_EINVALPARAMS;
         }
+
         device->RootPort = device->PortAddress + 1;
         // The root port has its own slot-context field. Route nibbles only
         // describe downstream hub ports; a directly attached device has none.
         device->RouteString = 0;
     }
+
     device->DefaultEndpoint = endpoint;
     device->InitTransfer = transfer;
     device->State = XHCI_DEVICE_ENABLE_PENDING;
     endpoint->Device = device;
     device->Endpoints[endpoint->DeviceContextIndex] = endpoint;
+    
     ELEMENT_INIT(&device->Header, (uintptr_t)transfer->Address.PortAddress, device);
 
     list_append(&controller->Devices, &device->Header);
-    oserr = XhciDmaAllocate(controller->Base.DmaContext,
-            XHCI_INPUT_CONTEXT_ENTRIES * controller->ContextSize,
-            &device->InputContextDMA,
-            &device->InputContextDeviceAddress,
-            (void**)&device->InputContext
+    oserr = XhciDmaAllocate(
+        controller->Base.DmaContext,
+        XHCI_INPUT_CONTEXT_ENTRIES * controller->ContextSize,
+        &device->InputContextDMA,
+        &device->InputContextDeviceAddress,
+        (void**)&device->InputContext
     );
-    if (oserr == OS_EOK) {
-        oserr = XhciDmaAllocate(controller->Base.DmaContext,
-                XHCI_DEVICE_CONTEXT_ENTRIES * controller->ContextSize,
-                &device->DeviceContextDMA,
-                &device->DeviceContextDeviceAddress,
-                (void**)&device->DeviceContext
-        );
+    if (oserr != OS_EOK) {
+        device->State = XHCI_DEVICE_FAILED;
+        device->InitTransfer = NULL;
+        return oserr;
     }
+
+    oserr = XhciDmaAllocate(
+        controller->Base.DmaContext,
+        XHCI_DEVICE_CONTEXT_ENTRIES * controller->ContextSize,
+        &device->DeviceContextDMA,
+        &device->DeviceContextDeviceAddress,
+        (void**)&device->DeviceContext
+    );
     if (oserr != OS_EOK) {
         device->State = XHCI_DEVICE_FAILED;
         device->InitTransfer = NULL;
@@ -860,7 +930,13 @@ XhciDeviceEnsure(
     }
 
     trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_ENABLE_SLOT);
-    oserr = __SubmitCommand(controller, device, NULL, XHCI_COMMAND_ENABLE_SLOT, &trb);
+    oserr = XhciCommandSubmit(
+        controller,
+        device,
+        NULL,
+        XHCI_COMMAND_ENABLE_SLOT,
+        &trb
+    );
     if (oserr != OS_EOK) {
         device->State = XHCI_DEVICE_FAILED;
         device->InitTransfer = NULL;
@@ -971,10 +1047,12 @@ XhciCommandHandleCompletion(
     if (commandAddress < controller->CommandRing.DeviceBase) {
         return;
     }
+
     commandOffset = commandAddress - controller->CommandRing.DeviceBase;
     if ((commandOffset % sizeof(XhciTrb_t)) != 0) {
         return;
     }
+    
     commandIndex = (uint16_t)(commandOffset / sizeof(XhciTrb_t));
     if (commandIndex >= XHCI_COMMAND_RING_ENTRIES - 1) {
         return;
@@ -984,6 +1062,19 @@ XhciCommandHandleCompletion(
     device = command->Device;
     if (command->Type == XHCI_COMMAND_NONE || device == NULL) {
         return;
+    }
+
+    if (command->Type == XHCI_COMMAND_RESET_ENDPOINT ||
+        command->Type == XHCI_COMMAND_SET_TR_DEQUEUE) {
+        TRACE("XHCI command complete: type=%u index=%u code=%u control=0x%08x",
+            command->Type, (unsigned int)commandIndex,
+            XHCI_TRB_COMPLETION_CODE(eventTrb->Status), eventTrb->Control);
+    }
+
+    if (command->Type == XHCI_COMMAND_CONFIGURE_HUB) {
+        XhciHubConfigurationComplete(controller, device,
+            XHCI_TRB_COMPLETION_CODE(eventTrb->Status));
+        goto commandHandled;
     }
 
     if (XHCI_TRB_COMPLETION_CODE(eventTrb->Status) != XHCI_TRB_COMPLETION_SUCCESS) {
@@ -1032,8 +1123,6 @@ XhciCommandHandleCompletion(
         if (command->Endpoint != NULL) {
             command->Endpoint->State = XHCI_ENDPOINT_RUNNING;
         }
-    } else if (command->Type == XHCI_COMMAND_EVALUATE_CONTEXT) {
-        /* The hub context update is complete. */
     } else if (command->Type == XHCI_COMMAND_RESET_ENDPOINT || command->Type == XHCI_COMMAND_STOP_ENDPOINT) {
         /* Endpoint is now Stopped; realign the ring dequeue pointer before
          * rebuilding software state and requeuing pending transfers. */
@@ -1099,17 +1188,24 @@ __DestroyDevice(
 {
     oserr_t status;
 
+    if (device->HubConfiguration.Waiting) {
+        return OS_EBUSY;
+    }
+
     status = DMAFree(&device->DeviceContextDMA);
     if (status != OS_EOK) {
         return status;
     }
+
     status = DMAFree(&device->InputContextDMA);
     if (status != OS_EOK) {
         return status;
     }
+
     if (controller->Slots[device->SlotId] == device) {
         controller->Slots[device->SlotId] = NULL;
     }
+
     list_remove(&controller->Devices, &device->Header);
     free(device);
     return OS_EOK;
@@ -1122,7 +1218,10 @@ XhciDeviceDestroyAll(
     oserr_t status;
 
     while (controller->Devices.head != NULL) {
-        status = __DestroyDevice(controller, controller->Devices.head->value);
+        status = __DestroyDevice(
+            controller,
+            controller->Devices.head->value
+        );
         if (status != OS_EOK) {
             return status;
         }

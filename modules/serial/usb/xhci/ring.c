@@ -99,12 +99,20 @@ XhciRingEnqueue(
     }
 
     if (ring->EnqueueIndex == (uint16_t)(ring->TrbCount - 1)) {
-        control = ring->Trbs[ring->EnqueueIndex].Control & ~XHCI_TRB_CONTROL_CYCLE;
-        control |= ring->CycleState ? XHCI_TRB_CONTROL_CYCLE : 0;
-        dma_wmb();
-        WRITE_VOLATILE(ring->Trbs[ring->EnqueueIndex].Control, control);
         ring->EnqueueIndex = 0;
         ring->CycleState ^= 1;
+    }
+
+    if (ring->EnqueueIndex == (uint16_t)(ring->TrbCount - 2)) {
+        // Prepare the Link before publishing the preceding TRB. An active
+        // controller may reach it immediately, without another doorbell.
+        // Continue data fragments across the wrap, but end control stages.
+        control = ring->Trbs[ring->TrbCount - 1].Control &
+            ~(XHCI_TRB_CONTROL_CYCLE | XHCI_TRB_CONTROL_CHAIN);
+        control |= trb->Control & XHCI_TRB_CONTROL_CHAIN;
+        control |= ring->CycleState ? XHCI_TRB_CONTROL_CYCLE : 0;
+        dma_wmb();
+        WRITE_VOLATILE(ring->Trbs[ring->TrbCount - 1].Control, control);
     }
 
     // Publish cycle last: an active controller may fetch without a new doorbell.

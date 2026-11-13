@@ -137,14 +137,15 @@ XhciRun(
 
     dma_wmb();
     WRITE_VOLATILE(controller->OpRegisters->Configure, XHCI_OP_CONFIG_MAXSLOTS(controller->SlotCount));
-    WRITE_VOLATILE(controller->OpRegisters->DeviceContextBaseAddressArray, controller->DCBaaDeviceAddress);
-    WRITE_VOLATILE(controller->OpRegisters->CommandRingControl,
+    WRITE_VOLATILE_LOW_HIGH(controller->OpRegisters->DeviceContextBaseAddressArray,
+            controller->DCBaaDeviceAddress);
+    WRITE_VOLATILE_LOW_HIGH(controller->OpRegisters->CommandRingControl,
             controller->CommandRing.DeviceBase | XHCI_OP_CRCR_RING_CYCLE);
 
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableSize, XHCI_ERST_ENTRIES);
-    WRITE_VOLATILE(controller->InterrupterRegisters->EventRingDequeuePointer,
+    WRITE_VOLATILE_LOW_HIGH(controller->InterrupterRegisters->EventRingDequeuePointer,
             controller->EventRingDeviceAddress | XHCI_INTERRUPTER_ERDP_BUSY);
-    WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableBaseAddress,
+    WRITE_VOLATILE_LOW_HIGH(controller->InterrupterRegisters->EventRingSegmentTableBaseAddress,
             controller->ErstDeviceAddress);
     WRITE_VOLATILE(controller->InterrupterRegisters->Management, XHCI_INTERRUPTER_MANAGEMENT_ENABLE);
 
@@ -183,10 +184,6 @@ __SetupController(
         controller->Base.PortCount = USB_MAX_PORTS;
     }
 
-    controller->Base.IORequirements.BufferAlignment = XHCI_CONTEXT_ALIGNMENT;
-    controller->Base.IORequirements.Conformity = (controller->HccParams1 & XHCI_HCCPARAMS1_AC64) ?
-            OSMEMORYCONFORMITY_BITS64 : OSMEMORYCONFORMITY_BITS32;
-
     oserr = __XhciDisableLegacySupport(controller);
     if (oserr != OS_EOK) {
         return oserr;
@@ -215,6 +212,24 @@ __SetupController(
     if (oserr != OS_EOK) {
         return oserr;
     }
+    
+    if (controller->Base.State.Phase != USB_CONTROLLER_INITIALIZING ||
+        controller->State != XHCI_CONTROLLER_RUNNING) {
+        return OS_EUNKNOWN;
+    }
+
+    // Keep delivery disabled through reset and bus-master setup. Bind and enable
+    // the interrupt only after DMA queues exist, immediately before starting xHCI.
+    oserr = DeviceInterruptEnable(&controller->Base.Interrupt);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (controller->Base.State.Phase != USB_CONTROLLER_INITIALIZING ||
+        controller->State != XHCI_CONTROLLER_RUNNING) {
+        return OS_EUNKNOWN;
+    }
+
     oserr = XhciRun(controller);
     if (oserr != OS_EOK) {
         return oserr;
@@ -258,6 +273,10 @@ HCIControllerCreate(
     if (controller == NULL) {
         return NULL;
     }
+
+    // Setup RPCs can yield to removal requests. Defer teardown until this
+    // initialization attempt has stopped using the controller and its mappings.
+    controller->Base.State.OperationsInFlight++;
     controller->State = XHCI_CONTROLLER_RUNNING;
     
     list_construct(&controller->XhciEndpoints);
@@ -342,10 +361,6 @@ HCIControllerCreate(
         sizeof(XhciController_t)
     );
     if (status == OS_EOK) {
-        status = DeviceInterruptEnable(&controller->Base.Interrupt);
-    }
-
-    if (status == OS_EOK) {
         status = __SetupController(controller);
     }
     
@@ -356,9 +371,12 @@ HCIControllerCreate(
     if (!UsbManagerCompleteControllerInitialization(&controller->Base)) {
         goto error;
     }
+    
+    controller->Base.State.OperationsInFlight--;
     return &controller->Base;
 
 error:
+    controller->Base.State.OperationsInFlight--;
     HCIControllerDestroy(&controller->Base);
     return NULL;
 }

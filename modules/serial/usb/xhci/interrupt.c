@@ -15,12 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
-
 #include <ddk/interrupts/interrupt.h>
 #include <ddk/io.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
+
 #include "xhci.h"
 
 static uintptr_t
@@ -69,14 +68,20 @@ __ProcessEventRing(
         }
     }
 
-    WRITE_VOLATILE(controller->InterrupterRegisters->EventRingDequeuePointer,
-            __EventRingDequeueAddress(controller) | XHCI_INTERRUPTER_ERDP_BUSY);
+    WRITE_VOLATILE_LOW_HIGH(
+        controller->InterrupterRegisters->EventRingDequeuePointer,
+        __EventRingDequeueAddress(controller) | XHCI_INTERRUPTER_ERDP_BUSY
+    );
 
     if (portEvent) {
         bool initial = false;
         XhciPortScan(controller, initial);
     }
+
     if (transferEvent) {
+        // Completed transfers are queued first, so their DMA reservations are
+        // released before the waiting submissions are retried in the same pass.
+        UsbManagerWakeTransfers(&controller->Base);
         UsbManagerProcessTransfers(&controller->Base);
     }
 }
@@ -86,12 +91,13 @@ OnFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
 {
-    XhciController_t* controller = (XhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
-    uintptr_t         registerBase = INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
-    XhciCapabilityRegisters_t* capRegisters = (XhciCapabilityRegisters_t*)registerBase;
+    XhciController_t*           controller = (XhciController_t*)INTERRUPT_RESOURCE(ResourceTable, 0);
+    uintptr_t                   registerBase = INTERRUPT_IOSPACE(ResourceTable, 0)->Access.Memory.VirtualBase;
+    XhciCapabilityRegisters_t*  capRegisters = (XhciCapabilityRegisters_t*)registerBase;
     XhciOperationalRegisters_t* opRegisters = (XhciOperationalRegisters_t*)(registerBase + capRegisters->CapLength);
-    XhciRuntimeRegisters_t* runtimeRegisters = (XhciRuntimeRegisters_t*)(registerBase + (capRegisters->RuntimeOffset & ~0x1FUL));
+    XhciRuntimeRegisters_t*     runtimeRegisters = (XhciRuntimeRegisters_t*)(registerBase + (capRegisters->RuntimeOffset & ~0x1FUL));
     XhciInterrupterRegisters_t* interrupterRegisters = (XhciInterrupterRegisters_t*)((uintptr_t)runtimeRegisters + 0x20);
+    
     reg32_t status = opRegisters->UsbStatus;
     reg32_t management = interrupterRegisters->Management;
 

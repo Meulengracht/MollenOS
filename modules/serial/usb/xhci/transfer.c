@@ -16,12 +16,16 @@
  */
 
 #define __need_minmax
+#define __TRACE
+
 #include <ddk/barrier.h>
 #include <ddk/io.h>
+#include <ddk/utils.h>
 #include <os/shm.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "xhci.h"
 
 static int
@@ -93,8 +97,9 @@ __BuildTrb(
         if (elementIndex == 0) {
             memcpy(&trbOut->Parameter, &transfer->Dma.Setup, sizeof(usb_packet_t));
             trbOut->Status = sizeof(usb_packet_t);
+            // Setup is a separate TD. Bits 4:1 are reserved, including Chain.
             trbOut->Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_SETUP_STAGE) |
-                    XHCI_TRB_CONTROL_IDT | XHCI_TRB_CONTROL_CHAIN;
+                    XHCI_TRB_CONTROL_IDT;
             if (transfer->ElementCount > 2) {
                 trbOut->Control |= transfer->Direction == USBTRANSFER_DIRECTION_IN ?
                         XHCI_TRB_CONTROL_TRT_IN : XHCI_TRB_CONTROL_TRT_OUT;
@@ -115,10 +120,20 @@ __BuildTrb(
             return;
         }
 
-        trbOut->Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_DATA_STAGE) |
-                XHCI_TRB_CONTROL_CHAIN | XHCI_TRB_CONTROL_ISP;
-        if (element->Type == TRANSFERELEMENT_TYPE_IN) {
-            trbOut->Control |= XHCI_TRB_CONTROL_DIR_IN;
+        // The data TD starts with one Data Stage TRB. Continuations are Normal
+        // TRBs and inherit its direction. End this TD before the Status stage.
+        trbOut->Control = XHCI_TRB_CONTROL_ISP;
+        if (elementIndex == 1) {
+            trbOut->Control |= XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_DATA_STAGE);
+            if (element->Type == TRANSFERELEMENT_TYPE_IN) {
+                trbOut->Control |= XHCI_TRB_CONTROL_DIR_IN;
+            }
+        } else {
+            trbOut->Control |= XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_NORMAL);
+        }
+
+        if (elementIndex < transfer->ElementCount - 2) {
+            trbOut->Control |= XHCI_TRB_CONTROL_CHAIN;
         }
         return;
     }
@@ -186,9 +201,10 @@ __BuildTransferElements(
         offset += chunk;
         remaining -= chunk;
 
-        // Add a final zero-length element for isochronous transfers and for
-        // OUT transfers whose last chunk matches the maximum packet size.
-        if (remaining == 0 && (transfer->Type == USBTRANSFER_TYPE_ISOC ||
+        // Control data ends at wLength; its Status stage supplies the handshake.
+        // Other transfers keep their existing zero-length packet behavior.
+        if (remaining == 0 && transfer->Type != USBTRANSFER_TYPE_CONTROL &&
+            (transfer->Type == USBTRANSFER_TYPE_ISOC ||
             (transfer->Direction == USBTRANSFER_DIRECTION_OUT && chunk == transfer->MaxPacketSize))) {
             if (count == INT_MAX) {
                 return OS_EOVERFLOW;
@@ -360,8 +376,17 @@ XhciTransferSubmit(
     // The payload must be ready for DMA before a TRB cycle bit allows the
     // controller to access it.
     if (!transfer->Dma.DeviceOwned) {
-        status = DMABeginTransfer(transfer->Dma.Mapping, 0, transfer->Dma.Length);
-        if (status != OS_EOK) {
+        status = DMABeginTransfer(
+            transfer->Dma.Mapping,
+            0,
+            transfer->Dma.Length,
+            SHMWaitNonBlocking,
+            NULL
+        );
+        if (status == OS_EBUSY) {
+            // Nothing has been published. Retry after a completion or timer tick.
+            return OS_EINCOMPLETE;
+        } else if (status != OS_EOK) {
             return status;
         }
         transfer->Dma.DeviceOwned = true;
@@ -401,21 +426,21 @@ XhciTransferHandleEvent(
     _In_ XhciController_t* controller,
     _In_ XhciTrb_t*        eventTrb)
 {
-    XhciDevice_t*            device;
-    XhciEndpoint_t*          endpoint;
+    XhciDevice_t*             device;
+    XhciEndpoint_t*           endpoint;
     XhciTransferDescriptor_t* eventDescriptor;
     XhciTransferDescriptor_t* descriptor;
     XhciTransferDescriptor_t* next;
-    UsbManagerTransfer_t*    transfer;
-    uint64_t                address = eventTrb->Parameter;
-    uint64_t                offset;
-    uint32_t                code = XHCI_TRB_COMPLETION_CODE(eventTrb->Status);
-    uint32_t                remaining = XHCI_TRB_TRANSFER_LENGTH(eventTrb->Status);
-    uint16_t                index;
-    uint16_t                released;
-    uint8_t                 slotId = XHCI_TRB_SLOT_ID(eventTrb->Control);
-    uint8_t                 endpointId = XHCI_TRB_ENDPOINT_ID(eventTrb->Control);
-    bool                    failed = code != XHCI_TRB_COMPLETION_SUCCESS && code != XHCI_TRB_COMPLETION_SHORT_PACKET;
+    UsbManagerTransfer_t*     transfer;
+    uint64_t                  address = eventTrb->Parameter;
+    uint64_t                  offset;
+    uint32_t                  code = XHCI_TRB_COMPLETION_CODE(eventTrb->Status);
+    uint32_t                  remaining = XHCI_TRB_TRANSFER_LENGTH(eventTrb->Status);
+    uint16_t                  index;
+    uint16_t                  released;
+    uint8_t                   slotId = XHCI_TRB_SLOT_ID(eventTrb->Control);
+    uint8_t                   endpointId = XHCI_TRB_ENDPOINT_ID(eventTrb->Control);
+    bool                      failed = code != XHCI_TRB_COMPLETION_SUCCESS && code != XHCI_TRB_COMPLETION_SHORT_PACKET;
 
     if (slotId == 0 || slotId > controller->SlotCount || endpointId == 0) {
         return false;
@@ -440,6 +465,7 @@ XhciTransferHandleEvent(
     if (eventDescriptor == NULL) {
         return false;
     }
+    
     transfer = eventDescriptor->Transfer;
     descriptor = transfer->RootElement;
     while (descriptor != NULL) {
@@ -456,11 +482,13 @@ XhciTransferHandleEvent(
         }
         descriptor = __DescriptorNext(controller, descriptor);
     }
+
     next = __DescriptorNext(controller, eventDescriptor);
     if (failed) {
         eventDescriptor->Flags |= XHCI_TD_FLAG_FAILED;
         endpoint->State = XHCI_ENDPOINT_HALTED;
     }
+
     if (code == XHCI_TRB_COMPLETION_SHORT_PACKET) {
         // Hardware skips the remaining data TRBs after a short packet.
         // Exclude skipped data from the byte count. Control transfers must
@@ -494,6 +522,7 @@ XhciTransferHandleEvent(
         }
         descriptor = __DescriptorNext(controller, descriptor);
     }
+
     XhciRingRelease(&endpoint->TransferRing, released);
     transfer->Dma.HardwareActive = false;
     UsbManagerQueueTransferWork(&controller->Base, transfer);
@@ -580,7 +609,7 @@ HCITransferFinalize(
     bool              keepDescriptors;
     oserr_t           status;
 
-    status = USBTransferDmaComplete(transfer, 0);
+    status = UsbTransferDmaComplete(transfer, 0);
     if (status != OS_EOK) {
         return status;
     }
@@ -641,6 +670,20 @@ HCITransferQueue(
         // Before submitting new TRBs, recovery must finish DMA on every old
         // mapping so the CPU can access it. Recovery completion wakes waiters.
         switch (endpoint->State) {
+            case XHCI_ENDPOINT_HALTED:
+                if (endpoint->DeviceContextIndex != 1) {
+                    break;
+                }
+
+                // A new SETUP clears a USB control-pipe protocol stall, but xHCI
+                // cannot fetch it while its endpoint context is Halted. Reset
+                // EP0 and advance past the failed TD before publishing the retry.
+                oserr = XhciEndpointReset(controller, endpoint);
+                if (oserr != OS_EOK) {
+                    return oserr;
+                }
+                UsbManagerWaitTransfer(&controller->Base, transfer);
+                return OS_EOK;
             case XHCI_ENDPOINT_RESET_PENDING:
             case XHCI_ENDPOINT_STOP_PENDING:
             case XHCI_ENDPOINT_DEQUEUE_PENDING:
@@ -707,6 +750,10 @@ HCITransferQueue(
     oserr = XhciTransferSubmit(controller, endpoint, transfer);
     if (oserr != OS_EOK) {
         XhciTransferCleanup(controller, transfer);
+        if (oserr == OS_EINCOMPLETE) {
+            UsbManagerWaitTransfer(&controller->Base, transfer);
+            return OS_EOK;
+        }
         return oserr;
     }
 
