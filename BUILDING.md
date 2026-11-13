@@ -22,7 +22,7 @@ the project. This is only true if you do not do development with a docker contai
 
 | Variable              | Required |                        Description                         |
 |-----------------------|:---------|:----------------------------------------------------------:|
-| CROSS                 | Yes      |      Points to where the cross-compiler is installed.      |
+| VALICC                | Yes      | Points to the Vali cross-compiler installation root. |
 | VALI_APPLICATION_PATH | No\*     | Points to where the Vali applications/libraries are built. |
 
 \* Can be supplied to include built applications in the kernel image
