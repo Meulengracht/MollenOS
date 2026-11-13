@@ -29,6 +29,11 @@
 #include <ddk/barrier.h>
 #include <string.h>
 
+#if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && \
+        (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#error Split 64-bit device I/O requires little-endian access
+#endif
+
 #define READ_VOLATILE(var) ({                                       \
         union { typeof(var) Value; char Data[1]; } ValueRep;         \
         ReadVolatileMemory(&(var), &ValueRep.Data[0], sizeof(var)); \
@@ -40,6 +45,18 @@
             { .Value = (x) };                                      \
         WriteVolatileMemory(&(var), &ValueRep.Data[0], sizeof(var)); \
         ValueRep.Value;                                              \
+    })
+
+#define READ_VOLATILE_LOW_HIGH(var) ({                               \
+        _Static_assert(sizeof(var) == sizeof(uint64_t),              \
+                       "64-bit register required");                 \
+        __ReadVolatileLowHigh64(&(var));                             \
+    })
+
+#define WRITE_VOLATILE_LOW_HIGH(var, x) ({                           \
+        _Static_assert(sizeof(var) == sizeof(uint64_t),              \
+                       "64-bit register required");                 \
+        __WriteVolatileLowHigh64(&(var), (x));                       \
     })
 
 typedef enum DeviceIoType {
@@ -82,6 +99,54 @@ void WriteVolatileMemory(
     _In_ volatile void* Pointer,
     _In_ void*          Data,
     _In_ size_t         Length);
+
+/**
+ * @brief Read a 64-bit device register as two 32-bit accesses, low word first.
+ *
+ * The register must be mapped little-endian device memory aligned to at least
+ * four bytes. The reads are not atomic.
+ *
+ * @param Address Address of the low word.
+ * @return The combined register value.
+ */
+static inline uint64_t
+__ReadVolatileLowHigh64(
+    _In_ const volatile void* Address)
+{
+    const volatile uint32_t* words = Address;
+    uint32_t                 low;
+    uint32_t                 high;
+
+    ReadVolatileMemory(&words[0], &low, sizeof(low));
+    rmb();
+    ReadVolatileMemory(&words[1], &high, sizeof(high));
+    return ((uint64_t)high << 32) | low;
+}
+
+/**
+ * @brief Write a 64-bit device register as two 32-bit accesses, low word first.
+ *
+ * The register must be mapped little-endian device memory aligned to at least
+ * four bytes. The writes are not atomic.
+ *
+ * @param Address Address of the low word.
+ * @param Value Full register value.
+ */
+static inline void
+__WriteVolatileLowHigh64(
+    _In_ volatile void* Address,
+    _In_ uint64_t       Value)
+{
+    volatile uint32_t* words = Address;
+    uint32_t           low;
+    uint32_t           high;
+
+    low = (uint32_t)Value;
+    high = (uint32_t)(Value >> 32);
+    WriteVolatileMemory(&words[0], &low, sizeof(low));
+    wmb();
+    WriteVolatileMemory(&words[1], &high, sizeof(high));
+}
 
 /**
  * @brief Registers a new device memory io with the operating system. If this memory range
@@ -173,6 +238,56 @@ WriteDeviceIo(
     _In_ size_t         Offset,
     _In_ size_t         Value,
     _In_ size_t         Length));
+
+/**
+ * @brief Read a 64-bit device I/O register as two 32-bit accesses, low word first.
+ *
+ * @param IoSpace Device I/O space containing the register.
+ * @param Offset Byte offset of the low word.
+ * @return The combined register value.
+ */
+static inline uint64_t
+__ReadDeviceIoLowHigh64(
+    _In_ DeviceIo_t* IoSpace,
+    _In_ size_t     Offset)
+{
+    uint32_t low;
+    uint32_t high;
+
+    low = (uint32_t)ReadDeviceIo(IoSpace, Offset, sizeof(low));
+    rmb();
+    high = (uint32_t)ReadDeviceIo(IoSpace, Offset + sizeof(low), sizeof(high));
+    return ((uint64_t)high << 32) | low;
+}
+
+/**
+ * @brief Write a 64-bit device I/O register as two 32-bit accesses, low word first.
+ *
+ * @param IoSpace Device I/O space containing the register.
+ * @param Offset Byte offset of the low word.
+ * @param Value Full register value.
+ * @return OS_EOK on success, or the error from either 32-bit write.
+ */
+static inline oserr_t
+__WriteDeviceIoLowHigh64(
+    _In_ DeviceIo_t* IoSpace,
+    _In_ size_t     Offset,
+    _In_ uint64_t   Value)
+{
+    oserr_t oserr;
+
+    oserr = WriteDeviceIo(IoSpace, Offset, (uint32_t)Value, sizeof(uint32_t));
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    wmb();
+    return WriteDeviceIo(
+        IoSpace,
+        Offset + sizeof(uint32_t),
+        (uint32_t)(Value >> 32),
+        sizeof(uint32_t));
+}
 
 _CODE_END
 

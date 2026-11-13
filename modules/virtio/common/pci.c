@@ -92,14 +92,9 @@ VirtioPciRegionRead(
         case 4:
             *valueOut = ReadDeviceIo(region->IoSpace, absoluteOffset, width);
             break;
-        case 8: {
-            uint32_t lower = (uint32_t)ReadDeviceIo(region->IoSpace, absoluteOffset, 4);
-            uint32_t upper;
-
-            rmb();
-            upper = (uint32_t)ReadDeviceIo(region->IoSpace, absoluteOffset + 4, 4);
-            *valueOut = ((uint64_t)upper << 32) | lower;
-        } break;
+        case 8:
+            *valueOut = __ReadDeviceIoLowHigh64(region->IoSpace, absoluteOffset);
+            break;
         default:
             return OS_EINVALPARAMS;
     }
@@ -134,14 +129,7 @@ VirtioPciRegionWrite(
             oserr = WriteDeviceIo(region->IoSpace, absoluteOffset, (size_t)value, width);
             break;
         case 8:
-            oserr = WriteDeviceIo(region->IoSpace, absoluteOffset, (uint32_t)value, 4);
-            if (oserr != OS_EOK) {
-                return oserr;
-            }
-
-            wmb();
-            return WriteDeviceIo(region->IoSpace, absoluteOffset + 4,
-                                 (uint32_t)(value >> 32), 4);
+            oserr = __WriteDeviceIoLowHigh64(region->IoSpace, absoluteOffset, value);
             break;
         default:
             return OS_EINVALPARAMS;

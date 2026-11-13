@@ -116,19 +116,6 @@ typedef struct UsbTransferWork {
 } UsbTransferWork_t;
 
 /**
- * @brief Trace counters for a selected enumeration request and its DMA calls.
- * The counters limit how many events are logged for that request.
- */
-struct UsbTransferDmaDiagnostics {
-    bool         Enabled;
-    bool         EndpointSampled;
-    unsigned int Preparations;
-    unsigned int Submissions;
-    unsigned int Completions;
-    unsigned int Events;
-};
-
-/**
  * @brief Transfer state, HCI descriptors, DMA mappings and client completion data.
  */
 typedef struct UsbManagerTransfer {
@@ -205,7 +192,6 @@ typedef struct UsbManagerTransfer {
         UsbTransferBouncePool_t*         PacketPool;
         UsbTransferPacketBounce_t*       Packets;
         UsbTransferDmaLayout_t           Layout;
-        struct UsbTransferDmaDiagnostics Diagnostics;
     } Dma;
 
     // Saved message for the asynchronous response.

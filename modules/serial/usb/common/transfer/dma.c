@@ -16,7 +16,6 @@
  *
  */
 
-#define __TRACE
 #include <os/handle.h>
 #include <os/memory.h>
 #include <os/shm.h>
@@ -375,11 +374,6 @@ UsbTransferDmaComplete(
         return OS_EINVALPARAMS;
     }
     status = DMAEndTransfer(transfer->Dma.Mapping, bytes);
-    if (transfer->Dma.Diagnostics.Enabled && transfer->Dma.Diagnostics.Completions < 3) {
-        transfer->Dma.Diagnostics.Completions++;
-        TRACE("USB EP0 DMA end: transfer=%u status=%u bytes=%u length=%u",
-            transfer->ID, status, (unsigned int)bytes, transfer->Dma.Length);
-    }
     if (status == OS_EOK) {
         transfer->Dma.DeviceOwned = false;
         transfer->Dma.HardwareActive = false;

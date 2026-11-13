@@ -397,8 +397,8 @@ UsbExecutePacket(
     _In_ uint16_t              length,
     _In_ void*                 buffer)
 {
-    enum USBTransferCode transferStatus;
-    size_t               bytesTransferred;
+    enum USBTransferCode transferStatus = USBTRANSFERCODE_INVALID;
+    size_t               bytesTransferred = 0;
     uint8_t              dataDirection;
     void*                dmaStorage;
     usb_packet_t*        packet;
