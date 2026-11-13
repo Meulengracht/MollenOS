@@ -50,5 +50,4 @@ struct OSIOCtlBusControl {
     unsigned int Flags;
 };
 
-
 #endif //!__OS_TYPES_DEVICE_H__

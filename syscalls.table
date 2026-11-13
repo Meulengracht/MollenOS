@@ -122,3 +122,10 @@
 92     ShmRegionSessionOpen                 ScShmRegionSessionOpen                 oserr_t   Shm, Region, Capacity, Result
 93     ShmRegionBeginCpu                    ScShmRegionBeginCpu                    oserr_t   Handle, Slot, Generation, Access
 94     ShmRegionEndCpu                      ScShmRegionEndCpu                      oserr_t   Handle, Slot, Generation
+95     DmaManagerCreate                     ScDmaManagerCreate                     oserr_t   managerOut
+96     DmaAttachmentRegister                ScDmaAttachmentRegister                oserr_t   manager, parameters, attachmentOut
+97     DmaManagerReadEvents                 ScDmaManagerReadEvents                 oserr_t   manager, entries, capacity, countOut
+98     DmaAttachmentRemove                  ScDmaAttachmentRemove                  oserr_t   manager, attachment
+
+# Authenticated DMA binding setup.
+99     DmaAttachmentBind                    ScDmaAttachmentBind                    oserr_t   manager, parameters, bindingOut

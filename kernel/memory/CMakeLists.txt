@@ -36,6 +36,12 @@ add_kernel_library (vali-core-memory ""
     dma/address.c
     dma/direct.c
 
+    # Privileged DMA manager lifetime and attachment administration.
+    dma/manager.c
+    dma/binding.c
+    dma/recovery.c
+    dma/events.c
+
     # Shared buffers, restricted views and device access.
     shm/shm.c
     shm/view.c

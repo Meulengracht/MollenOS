@@ -49,6 +49,11 @@ DECL_STRUCT(InterruptResourceTable);
 DECL_STRUCT(InterruptMessageControllerIdentity);
 DECL_STRUCT(DeviceInterruptMessage);
 DECL_STRUCT(InterruptBusAttachRequest);
+DECL_STRUCT(OSDmaAttachmentParameters);
+DECL_STRUCT(OSDmaAttachmentId);
+DECL_STRUCT(OSDmaAttachmentEvent);
+DECL_STRUCT(OSDmaBindParameters);
+DECL_STRUCT(OSDmaBindingResult);
 
 struct MemoryMappingParameters;
 struct SHMRegionRange;
@@ -169,6 +174,12 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
+extern oserr_t ScDmaManagerCreate(uuid_t*);
+extern oserr_t ScDmaAttachmentRegister(uuid_t, const OSDmaAttachmentParameters_t*, OSDmaAttachmentId_t*);
+extern oserr_t ScDmaManagerReadEvents(uuid_t, OSDmaAttachmentEvent_t*, uint32_t, uint32_t*);
+extern oserr_t ScDmaAttachmentRemove(uuid_t, const OSDmaAttachmentId_t*);
+extern oserr_t ScDmaAttachmentBind(uuid_t, const OSDmaBindParameters_t*, OSDmaBindingResult_t*);
+
 extern oserr_t ScDmaOpen(uuid_t, const struct OSDmaOpenParameters*, uuid_t*);
 extern oserr_t ScDmaAllocate(uuid_t, const struct DMARequirements*, struct OSDmaAllocationResult*);
 extern oserr_t ScDmaMapShm(uuid_t, uuid_t, const struct OSDmaMapParameters*, struct OSDmaMappingResult*);
@@ -184,7 +195,7 @@ extern oserr_t ScShmRegionBeginCpu(uuid_t, unsigned int, unsigned int, enum SHMC
 extern oserr_t ScShmRegionEndCpu(uuid_t, unsigned int, unsigned int);
 
 // BEGIN GENERATED SYSCALL COUNT - tools/generate_syscalls.py
-#define SYSTEM_CALL_COUNT 95
+#define SYSTEM_CALL_COUNT 100
 // END GENERATED SYSCALL COUNT
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
@@ -293,6 +304,11 @@ static struct SystemCallDescriptor {
     DefineSyscall(92, ScShmRegionSessionOpen),
     DefineSyscall(93, ScShmRegionBeginCpu),
     DefineSyscall(94, ScShmRegionEndCpu),
+    DefineSyscall(95, ScDmaManagerCreate),
+    DefineSyscall(96, ScDmaAttachmentRegister),
+    DefineSyscall(97, ScDmaManagerReadEvents),
+    DefineSyscall(98, ScDmaAttachmentRemove),
+    DefineSyscall(99, ScDmaAttachmentBind),
 // END GENERATED SYSCALL TABLE
 };
 

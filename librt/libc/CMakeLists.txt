@@ -140,6 +140,7 @@ target_link_libraries(libc PUBLIC libos libm libds libddk gracht_static)
 add_library(c SHARED ${ASM_SOURCES} ${LIBC_SHARED_OBJS} main.c)
 target_compile_definitions(c PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION)
 target_include_directories(c PUBLIC include)
+set_property(TARGET c APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/libc.def")
 target_link_options(c PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def")
 target_link_libraries(c PRIVATE libos gracht_static libds libddk libm librt)
 

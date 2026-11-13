@@ -49,6 +49,7 @@ add_library(libddk
     ${GENERATED_SOURCES}
     ${ASM_SOURCES}
 
+    dma/attachment.c
     dma/context.c
     dma/dma.c
     # DMA begin/end calls with completion fences. Fence state and waits are in libos.

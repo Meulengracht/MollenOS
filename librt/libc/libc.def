@@ -49,3 +49,54 @@ optind=_optind
 optopt=_optopt
 optreset=_optreset
 optarg=_optarg
+SHMAccessOpen
+SHMAccessBeginCpu
+SHMAccessEndCpu
+SHMAccessClose
+OSFenceInitializeShared
+OSFenceAttachShared
+OSFenceCreate
+OSFenceAcquire
+OSFenceRelease
+OSFenceReset
+OSFencePoll
+OSFenceWait
+OSFencePrepare
+OSFenceCancel
+OSFenceSubmit
+OSFenceSignal
+OSFencePoolSize
+OSFencePoolInitialize
+OSFencePoolBind
+OSFencePoolTryTake
+OSFencePoolAcquire
+OSFencePoolRelease
+OSFencePoolSubmit
+OSFencePoolPoll
+OSFencePoolWait
+OSFencePoolSignal
+OSBufferReservationSize
+OSBufferReservationInitialize
+OSBufferReservationBind
+OSBufferReservationReclaim
+OSBufferAccessTryPublish
+OSBufferAccessPoll
+OSBufferAccessFinish
+OSGrantTokenCreate
+OSGrantTokenRevoke
+SHMAttachToken
+SHMAdopt
+OSSocketAcquire
+OSTransferFileBuffer
+OSTransferFileBufferAt
+OSTransferFileAt
+OSHandleRegisterProvider
+OSHandleImport
+OSHandleValidate
+OSHandleReadCleanup
+
+    SHMRegionsRegister
+    SHMRegionSessionOpen
+    SHMRegionTryBeginCpu
+    SHMRegionEndCpu
+    SHMRegionSessionClose

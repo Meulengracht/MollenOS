@@ -132,6 +132,11 @@ _CODE_END
 #define Syscall_ShmRegionSessionOpen(Shm, Region, Capacity, Result) (oserr_t)syscall4(92, SCPARAM(Shm), SCPARAM(Region), SCPARAM(Capacity), SCPARAM(Result))
 #define Syscall_ShmRegionBeginCpu(Handle, Slot, Generation, Access) (oserr_t)syscall4(93, SCPARAM(Handle), SCPARAM(Slot), SCPARAM(Generation), SCPARAM(Access))
 #define Syscall_ShmRegionEndCpu(Handle, Slot, Generation) (oserr_t)syscall3(94, SCPARAM(Handle), SCPARAM(Slot), SCPARAM(Generation))
+#define Syscall_DmaManagerCreate(managerOut) (oserr_t)syscall1(95, SCPARAM(managerOut))
+#define Syscall_DmaAttachmentRegister(manager, parameters, attachmentOut) (oserr_t)syscall3(96, SCPARAM(manager), SCPARAM(parameters), SCPARAM(attachmentOut))
+#define Syscall_DmaManagerReadEvents(manager, entries, capacity, countOut) (oserr_t)syscall4(97, SCPARAM(manager), SCPARAM(entries), SCPARAM(capacity), SCPARAM(countOut))
+#define Syscall_DmaAttachmentRemove(manager, attachment) (oserr_t)syscall2(98, SCPARAM(manager), SCPARAM(attachment))
+#define Syscall_DmaAttachmentBind(manager, parameters, bindingOut) (oserr_t)syscall3(99, SCPARAM(manager), SCPARAM(parameters), SCPARAM(bindingOut))
 // END GENERATED SYSCALL WRAPPERS
 
 #endif //!__INTERNAL_CRT_SYSCALLS__
