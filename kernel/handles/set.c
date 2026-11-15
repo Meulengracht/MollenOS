@@ -66,8 +66,8 @@
 #include <shm/view.h>
 #include <string.h>
 
-#include "handle_private.h"
-#include "memory/shm/private.h"
+#include "private.h"
+#include "../memory/shm/private.h"
 
 #define VOID_KEY(key) (void*)(uintptr_t)key
 

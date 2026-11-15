@@ -37,7 +37,7 @@
 #include <handles/paths.h>
 #include <handles/init.h>
 #include <handles/grants.h>
-#include "handle_private.h"
+#include "private.h"
 
 // Handle is being destroyed
 #define __HANDLE_FLAG_DESTROYING 0x1

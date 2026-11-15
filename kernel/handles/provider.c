@@ -43,7 +43,7 @@
 #include <mutex.h>
 #include <limits.h>
 
-#include "handle_private.h"
+#include "private.h"
 
 static Mutex_t g_providerLock = OS_MUTEX_INIT(MUTEX_FLAG_PLAIN);
 
