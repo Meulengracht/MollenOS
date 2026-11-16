@@ -33,8 +33,6 @@
 #include <string.h>
 
 #include "private.h"
-#include "device_private.h"
-#include "../utils.h"
 
 static bool
 __IsPowerOfTwoOrZero(

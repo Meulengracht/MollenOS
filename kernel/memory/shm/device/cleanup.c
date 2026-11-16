@@ -24,8 +24,6 @@
 #include <memoryspace.h>
 
 #include "private.h"
-#include "device_private.h"
-#include "../utils.h"
 
 void
 SHMDeviceReleaseBounce(

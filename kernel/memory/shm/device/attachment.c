@@ -15,12 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "device_private.h"
 #include <heap.h>
 #include <assert.h>
 #include <debug.h>
 #include <shm/record.h>
 #include <string.h>
+
+#include "private.h"
 
 oserr_t
 SHMDeviceContextPrepareBound(

@@ -36,6 +36,9 @@ add_kernel_library (vali-core-memory ""
     dma/address.c
     dma/direct.c
 
+    # Device-address reservations for translated DMA mappings.
+    dma/iova.c
+
     # Privileged DMA manager lifetime and attachment administration.
     dma/manager.c
     dma/binding.c
@@ -48,8 +51,8 @@ add_kernel_library (vali-core-memory ""
     shm/view.c
     shm/access.c
     shm/region.c
-    shm/device.c
-    shm/device_cleanup.c
-    shm/device_attachment.c
-    shm/device_context.c
+    shm/device/device.c
+    shm/device/cleanup.c
+    shm/device/attachment.c
+    shm/device/context.c
 )

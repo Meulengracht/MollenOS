@@ -26,6 +26,9 @@
 #include <dma/attachment.h>
 #include <stdatomic.h>
 
+#include "../private.h"
+#include "../../utils.h"
+
 enum SHMDeviceOperationPhase {
     SHMDeviceOperationRunning,
     SHMDeviceOperationRangeAdmission

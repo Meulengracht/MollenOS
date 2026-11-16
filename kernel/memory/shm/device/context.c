@@ -18,8 +18,9 @@
 #include <heap.h>
 #include <limits.h>
 #include <string.h>
-#include "device_private.h"
-#include "../dma/private.h"
+
+#include "private.h"
+#include "../../dma/private.h"
 
 void
 SHMDeviceContextInitialize(
