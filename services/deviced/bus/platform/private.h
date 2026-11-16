@@ -133,14 +133,40 @@ PlatformInterruptControl(
     _In_    size_t                length);
 
 /**
- * @brief Describe reachable RAM and keep device dependencies in use for DMA.
+ * @brief Reads a platform device's DMA settings from the device tree before
+ * a driver loads or clocks and power are turned on.
  *
- * @param context Prepared PlatformEntry kept alive by the registry request guard.
- * @param principal Authenticated driver, or zero for a trusted internal query.
- * @param description Output changed only on success.
- * @return OS_EOK or a preparation, access, firmware or reference-count
- *         error. Call PlatformReleaseDma once for each successful call.
- *         Both callbacks lock Bus->Lock internally.
+ * Takes Bus->Lock internally. Leaves DmaReferences unchanged and touches no
+ * clocks, power, or reset lines. An active registry request must keep context
+ * alive for this call.
+ *
+ * @param context PlatformEntry on a registered bus that is not being removed.
+ * @param description Filled in with the DMA ranges, host ID, address limit,
+ *                    and cache policy only on success. PlatformReleaseDma is
+ *                    never called after this query.
+ * @return OS_EOK on success, OS_EBUSY if the bus is unregistered or removing,
+ *         or a device tree lookup error.
+ */
+__EXTERN oserr_t
+PlatformDescribeDma(
+    _In_  void*               context,
+    _Out_ DmDmaDescription_t* description);
+
+/**
+ * @brief Reads a platform device's DMA settings and increments DmaReferences
+ * so clocks and power dependencies stay active while DMA is in use.
+ *
+ * Takes Bus->Lock internally.
+ *
+ * @param context Prepared PlatformEntry whose bus stays alive via an active
+ *                registry request.
+ * @param principal Calling process ID verified by the IPC server (checked
+ *                  against the process that prepared the device), or
+ *                  UUID_INVALID for a trusted internal call.
+ * @param description Filled in with the DMA settings only on success.
+ * @return OS_EOK on success, or a preparation, permission, device tree, or
+ *         reference-count overflow error. Call PlatformReleaseDma once for each
+ *         PlatformPrepareDma call that succeeds.
  */
 __EXTERN oserr_t
 PlatformPrepareDma(
@@ -149,8 +175,9 @@ PlatformPrepareDma(
     _Out_ struct DmDmaDescription* description);
 
 /**
- * @brief Release one DMA reference without accessing hardware.
- * Call once for each successful PlatformPrepareDma call.
+ * @brief Decrements DmaReferences by one without touching hardware.
+ * Takes Bus->Lock internally. Call once for every PlatformPrepareDma call that
+ * returned OS_EOK.
  *
  * @param context PlatformEntry from the matching PlatformPrepareDma call.
  */

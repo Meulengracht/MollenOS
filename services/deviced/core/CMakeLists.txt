@@ -6,6 +6,7 @@ add_library(deviced-core STATIC
     io.c
     devices.c
     dma.c
+    dma-device.c
     publication.c
     requests.c
 )

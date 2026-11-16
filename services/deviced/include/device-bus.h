@@ -23,9 +23,7 @@
 
 #include <ddk/devices/device.h>
 #include <os/types/device.h>
-
-// Forward declarations
-struct DmDmaDescription;
+#include <dma-types.h>
 
 typedef enum DmDeviceDescriptionKind {
     DmDeviceDescriptionGeneric,
@@ -36,32 +34,36 @@ typedef enum DmDeviceDescriptionKind {
 
 typedef struct DmDeviceBusOperations {
     /**
-     * @brief Adds one owner reference. Failure must leave ownership unchanged.
+     * @brief Increments the bus driver's reference count for this device so the
+     * context pointer stays valid while the device is registered. If this fails,
+     * the reference count must stay unchanged.
      *
-     * @param context Owner state to keep alive for the registry.
-     * @return OS_EOK on success, or an owner error without adding a reference.
+     * @param context Bus-specific state passed when registering the device.
+     * @return OS_EOK on success, or an error code from the bus code.
      */
     oserr_t (*AddReference)(
         _In_ void* context);
 
     /**
-     * @brief Drops the registry's reference after its last request has ended.
+     * @brief Drops the device manager's reference once the device is removed and
+     * all in-flight requests have finished.
      *
-     * @param context Owner state from the matching reference increment.
+     * @param context Bus-specific state passed to AddReference.
      */
     void (*Release)(
         _In_ void* context);
 
     /**
-     * @brief Handles a control request, or returns OS_ENOTSUPPORTED.
+     * @brief Handles a device control (ioctl) request from a driver or service.
      *
-     * @param context Owner state for the target device.
-     * @param principal Process identity verified by the transport, or UUID_INVALID.
-     * @param request Control operation to perform.
-     * @param buffer Request and result storage, interpreted according to request.
-     * @param length Buffer size in bytes.
-     * @return OS_EOK on success, OS_ENOTSUPPORTED for an unsupported operation,
-     *         or an error from the device owner.
+     * @param context Bus-specific state for the target device.
+     * @param principal Calling process ID verified by the IPC server, or
+     *                  UUID_INVALID when called internally by deviced.
+     * @param request Control request code to run.
+     * @param buffer Input and output buffer whose layout depends on request.
+     * @param length Size of buffer in bytes.
+     * @return OS_EOK on success, OS_ENOTSUPPORTED if the request is unknown,
+     *         or a bus-specific error.
      */
     oserr_t (*Control)(
         _In_    void*               context,
@@ -71,14 +73,16 @@ typedef struct DmDeviceBusOperations {
         _In_    size_t              length);
 
     /**
-     * @brief Reads or writes a register. The device owner validates the operation.
+     * @brief Reads or writes a device configuration register.
+     * The bus code is responsible for checking that the offset and access width
+     * are valid for this device.
      *
-     * @param context Owner state for the target device.
-     * @param direction Read or write operation from the device request.
+     * @param context Bus-specific state for the target device.
+     * @param direction Whether to read or write the register.
      * @param reg Register offset.
-     * @param value Value to write, or storage for the value read.
+     * @param value Holds the value to write, or receives the value read.
      * @param width Access size in bytes.
-     * @return OS_EOK on success, or a validation or register-access error.
+     * @return OS_EOK on success, or a validation or hardware access error.
      */
     oserr_t (*AccessRegister)(
         _In_    void*        context,
@@ -88,21 +92,50 @@ typedef struct DmDeviceBusOperations {
         _In_    size_t       width);
 
     /**
-     * @brief Copies the configured DMA path for this device.
+     * @brief Reads a device's DMA settings without starting hardware or drivers.
      *
-     * Do not allocate hardware resources, enable hardware or change pending
-     * flags. When ReleaseDma is supplied, this callback may hold an activation
-     * guard on success. Failed preparation must leave no guard. Supply RAM ranges,
-     * a registered host identity and an established cache policy. The core assigns DeviceId.
-     * The owning bus must exclude reset while preparing and using this result.
-     * If activation requires an owner, check a supplied principal before taking
-     * the guard.
+     * Used during device setup (such as publication) when deviced needs to know
+     * which RAM ranges, parent host, address limit, and cache policy a device
+     * uses before a driver loads. Do not power on hardware, prepare driver
+     * resources, or bump any active DMA reference count here. The device
+     * manager keeps context valid for the length of this call and fills in
+     * description->DeviceId after it returns. Callers that need the host routing
+     * to stay fixed across multiple steps must guard against host changes on
+     * their own.
      *
-     * @param context Owner state kept alive by the registry request.
-     * @param principal Process identity verified by the transport, or UUID_INVALID
-     *                  for a trusted internal query.
-     * @param description Receives configured DMA ranges, host and cache policy.
-     * @return OS_EOK on success, or an owner error with no activation guard held.
+     * @param context Bus-specific state kept alive by the in-flight request.
+     * @param description Filled in with the DMA ranges, host ID, address limit,
+     *                    and cache policy when returning OS_EOK. ReleaseDma is
+     *                    never called after DescribeDma.
+     * @return OS_EOK on success, OS_ENOTSUPPORTED if the device has no DMA route,
+     *         or a bus error. On failure, hardware state and reference counts
+     *         stay untouched.
+     */
+    oserr_t (*DescribeDma)(
+        _In_  void*               context,
+        _Out_ DmDmaDescription_t* description);
+
+    /**
+     * @brief Prepares a device for active DMA and returns its DMA settings.
+     *
+     * Drivers call into this path when they are ready to set up DMA buffers.
+     * Unlike DescribeDma, this may take a usage reference (paired with
+     * ReleaseDma) so the bus keeps clocks, power, or shared state active while
+     * DMA is in use. Do not allocate hardware resources, enable the device, or
+     * clear pending setup flags here. If ReleaseDma is set, you may take a busy
+     * reference on success, and if you fail you must leave no reference behind.
+     * Fill in the RAM ranges, a registered HostId, AddressLimit, and a known
+     * CachePolicy (the device manager sets DeviceId). If the bus restricts DMA
+     * setup to the driver that prepared the device, check principal before
+     * taking any reference. The bus code must also prevent a device reset while
+     * PrepareDma is running and until ReleaseDma drops the reference.
+     *
+     * @param context Bus-specific state kept alive by the in-flight request.
+     * @param principal Calling process ID verified by the IPC server, or
+     *                  UUID_INVALID for a trusted internal call.
+     * @param description Filled in with the DMA ranges, host ID, address limit,
+     *                    and cache policy on success.
+     * @return OS_EOK on success, or an error with no DMA usage reference held.
      */
     oserr_t (*PrepareDma)(
         _In_  void*                    context,
@@ -110,15 +143,17 @@ typedef struct DmDeviceBusOperations {
         _Out_ struct DmDmaDescription* description);
 
     /**
-     * @brief Releases a guard acquired by a successful PrepareDma, if supplied.
-     * Called exactly once after each successful PrepareDma, even when the registry
-     * cannot record the lease. Runs outside the registry lock while a request or
-     * DMA lease keeps the device alive. Must not fail or perform hardware teardown.
-     * Consumers must stop DMA before releasing their lease. Leave this callback
-     * NULL when PrepareDma only describes the DMA path and holds no guard.
-     * The callback must not call back into device removal.
+     * @brief Drops the DMA usage reference taken by a successful PrepareDma.
      *
-     * @param context Owner state from the matching PrepareDma call.
+     * Called once for every PrepareDma that returned OS_EOK, even if the device
+     * manager could not record the lease (for example, because removal started
+     * mid-call). Runs outside the device registry lock while the active request
+     * or lease still keeps context alive. Must never fail, power down hardware
+     * directly, or call back into device removal. Callers are responsible for
+     * stopping DMA transfers before releasing their lease. Leave this NULL if
+     * PrepareDma only reads settings and takes no reference.
+     *
+     * @param context Bus-specific state from the matching PrepareDma call.
      */
     void (*ReleaseDma)(
         _In_ void* context);

@@ -21,6 +21,59 @@
 
 #include "private.h"
 
+// Caller must hold Bus->Lock on a registered bus that is not being removed.
+// Reads static DMA ranges from the device tree without preparing hardware or
+// bumping DmaReferences.
+static oserr_t
+__PlatformDescribeDmaLocked(
+    _In_  struct PlatformEntry* entry,
+    _Out_ DmDmaDescription_t*   description)
+{
+    DmDmaDescription_t result = { 0 };
+    oserr_t            status;
+
+    status = FdtPlatformDma(entry->Bus->Tree, entry->Firmware.FirmwareNode, &result.Map);
+    if (status != OS_EOK) {
+        ERROR("__PlatformDescribeDmaLocked: node %u FdtPlatformDma failed: %u",
+              entry->Firmware.FirmwareNode, status);
+        return status;
+    }
+
+    result.HostId = entry->Bus->DeviceId;
+    result.AddressLimit = UINT64_MAX;
+    // Treat the path as non-coherent until we can check cache coherency along
+    // every bridge and bus hop, even if the device tree marks this node dma-coherent.
+    result.CachePolicy = DmDmaCacheNonCoherent;
+    
+    *description = result;
+    return OS_EOK;
+}
+
+oserr_t
+PlatformDescribeDma(
+    _In_  void*               context,
+    _Out_ DmDmaDescription_t* description)
+{
+    struct PlatformEntry* entry = context;
+    oserr_t               status;
+
+    usched_mtx_lock(&entry->Bus->Lock);
+    if (entry->Bus->Removing || entry->Bus->DeviceId == UUID_INVALID) {
+        usched_mtx_unlock(&entry->Bus->Lock);
+        return OS_EBUSY;
+    }
+
+    // Device publication queries DMA before a driver loads or calls
+    // DevicePrepare. Skip clock and power checks and leave DmaReferences alone.
+    status = __PlatformDescribeDmaLocked(entry, description);
+    if (status != OS_EOK) {
+        WARNING("PlatformDescribeDma: node %u description failed: %u",
+                entry->Firmware.FirmwareNode, status);
+    }
+    usched_mtx_unlock(&entry->Bus->Lock);
+    return status;
+}
+
 oserr_t
 PlatformPrepareDma(
     _In_  void*                    context,
@@ -47,8 +100,9 @@ PlatformPrepareDma(
         return OS_EOVERFLOW;
     }
 
-    // The trusted internal lease API supplies no principal. Session queries
-    // always carry one and must match the prepared activation owner.
+    // Driver queries pass a process ID (principal), so verify that this process
+    // already prepared the device before letting it start DMA. Internal callers
+    // can pass UUID_INVALID once they have done their own checks.
     if (principal != UUID_INVALID) {
         status = PlatformActivationControl(entry, principal, DevicePrepare);
         if (status != OS_EOK) {
@@ -59,18 +113,14 @@ PlatformPrepareDma(
         }
     }
 
-    status = FdtPlatformDma(bus->Tree, entry->Firmware.FirmwareNode, &result.Map);
+    status = __PlatformDescribeDmaLocked(entry, &result);
     if (status != OS_EOK) {
-        ERROR("PlatformPrepareDma: node %u DMA map query failed (%u)",
+        ERROR("PlatformPrepareDma: node %u description failed: %u",
               entry->Firmware.FirmwareNode, status);
         usched_mtx_unlock(&bus->Lock);
         return status;
     }
 
-    result.HostId = bus->DeviceId;
-    // Require software cache synchronization even for dma-coherent nodes
-    // until the backend can verify coherency for the entire DMA path.
-    result.CachePolicy = DmDmaCacheNonCoherent;
     entry->DmaReferences++;
     *description = result;
     usched_mtx_unlock(&bus->Lock);

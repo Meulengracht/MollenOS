@@ -502,34 +502,50 @@ __PciBusAccessRegister(
 }
 
 static oserr_t
-__PciPrepareDma(
+__PciDescribeDma(
     _In_  void*                    context,
-    _In_  uuid_t                   principal,
     _Out_ struct DmDmaDescription* description)
 {
     PciDevice_t*             device = context;
     struct PciDmaDescription configured;
+    DmDmaDescription_t       result = { 0 };
     oserr_t                  status;
-
-    (void)principal;
 
     PciCriticalSectionEnter();
     status = PciHostGetDmaDescription(device->Host, &configured);
     PciCriticalSectionLeave();
     if (status != OS_EOK) {
-        ERROR("__PciPrepareDma: DMA description lookup failed for %u:%u:%u.%u (%u)",
+        ERROR("__PciDescribeDma: DMA description lookup failed for %u:%u:%u.%u (%u)",
             device->Host->Identification.Segment, device->Bus, device->Slot,
             device->Function, status);
         return status;
     }
+
+    // Copy the host's configured DMA ranges and cache rules without turning on
+    // bus mastering or changing the PCI command register.
+    result.HostId = configured.Host.HostId;
+    result.AddressLimit = UINT64_MAX;
+    result.CachePolicy = configured.CachePolicy;
+    result.Map = configured.Map;
     
-    description->HostId = configured.Host.HostId;
-    description->CachePolicy = configured.CachePolicy;
-    description->Map = configured.Map;
+    *description = result;
     return OS_EOK;
 }
 
+static oserr_t
+__PciPrepareDma(
+    _In_  void*                    context,
+    _In_  uuid_t                   principal,
+    _Out_ struct DmDmaDescription* description)
+{
+    // PCI devices do not need extra clock or power references for DMA, so
+    // preparing DMA returns the same route description as DescribeDma.
+    (void)principal;
+    return __PciDescribeDma(context, description);
+}
+
 const DmDeviceBusOperations_t g_pciDeviceBusOperations = {
+    .DescribeDma = __PciDescribeDma,
     .PrepareDma = __PciPrepareDma,
     .AddReference = __PciBusAddReference,
     .Release = __PciBusRelease,

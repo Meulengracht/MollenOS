@@ -164,6 +164,7 @@ __PlatformControl(
 }
 
 static const DmDeviceBusOperations_t g_platformOperations = {
+    .DescribeDma = PlatformDescribeDma,
     .PrepareDma = PlatformPrepareDma,
     .ReleaseDma = PlatformReleaseDma,
     .AddReference = __PlatformAddReference,

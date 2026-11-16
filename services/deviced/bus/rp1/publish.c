@@ -79,16 +79,16 @@ __Rp1BusRelease(
 }
 
 static oserr_t
-__Rp1BusPrepareDma(
+__Rp1BusDescribeDma(
     _In_  void*                    context,
-    _In_  uuid_t                   principal,
     _Out_ struct DmDmaDescription* description)
 {
     struct Rp1Child*         child = context;
     struct PciDmaDescription configured;
+    DmDmaDescription_t       result = { 0 };
     oserr_t                  status;
 
-    TRACE("__Rp1BusPrepareDma(child=%u)", child->Firmware.NodeOffset);
+    TRACE("__Rp1BusDescribeDma(child=%u)", child->Firmware.NodeOffset);
     
     // Use this child's PCI device to read the DMA map configured for its hardware.
     status = Rp1GetDmaDescription(
@@ -97,48 +97,80 @@ __Rp1BusPrepareDma(
         &configured
     );
     if (status != OS_EOK) {
-        WARNING("__Rp1BusPrepareDma: child %u DMA description unavailable (%u)",
+        WARNING("__Rp1BusDescribeDma: child %u DMA description unavailable (%u)",
             child->Firmware.NodeOffset, status);
         return status;
     }
 
     // DMA setup requires a registered host and a known cache policy.
     if (configured.Host.HostId == UUID_INVALID) {
-        WARNING("__Rp1BusPrepareDma: child %u host is not registered", child->Firmware.NodeOffset);
+        WARNING("__Rp1BusDescribeDma: child %u host is not registered", child->Firmware.NodeOffset);
         return OS_EBUSY;
     }
 
     if (configured.CachePolicy == DmDmaCacheUnknown) {
-        WARNING("__Rp1BusPrepareDma: child %u cache policy is unknown", child->Firmware.NodeOffset);
+        WARNING("__Rp1BusDescribeDma: child %u cache policy is unknown", child->Firmware.NodeOffset);
         return OS_ENOTSUPPORTED;
     }
 
-    // Hold the bus lock while checking readiness and adding the DMA reference.
-    // Stop must not disable the Ethernet clocks between these two operations.
-    usched_mtx_lock(&child->Bus->Lock);
-    if (!child->Bus->Ready ||
-        (child->Bus->Runtime != NULL && child->Bus->Runtime->Quiescing)) {
-        status = OS_EBUSY;
-    } else {
-        status = Rp1EthernetStatus(child, principal);
-    }
+    // The RP1 firmware ranges and parent PCI host are known before the shared
+    // RP1 runtime starts. Read them here without incrementing DmaReferences or
+    // preparing the Ethernet MAC.
+    result.HostId = configured.Host.HostId;
+    result.AddressLimit = UINT64_MAX;
+    result.CachePolicy = configured.CachePolicy;
+    result.Map = configured.Map;
 
-    if (status == OS_EOK && child->Resources.DmaReferences == UINT32_MAX) {
-        status = OS_EOVERFLOW;
-    }
+    *description = result;
+    return OS_EOK;
+}
 
-    if (status == OS_EOK) {
-        child->Resources.DmaReferences++;
-    }
+static oserr_t
+__Rp1BusPrepareDma(
+    _In_  void*                    context,
+    _In_  uuid_t                   principal,
+    _Out_ struct DmDmaDescription* description)
+{
+    struct Rp1Child*   child = context;
+    DmDmaDescription_t result;
+    oserr_t            status;
 
-    usched_mtx_unlock(&child->Bus->Lock);
+    status = __Rp1BusDescribeDma(context, &result);
     if (status != OS_EOK) {
+        WARNING("__Rp1BusPrepareDma: route for child %u failed: %u",
+                child->Firmware.NodeOffset, status);
         return status;
     }
 
-    description->HostId = configured.Host.HostId;
-    description->CachePolicy = configured.CachePolicy;
-    description->Map = configured.Map;
+    // Hold the bus lock across the readiness check and DmaReferences increment
+    // so a concurrent stop cannot shut off Ethernet clocks in between.
+    usched_mtx_lock(&child->Bus->Lock);
+    if (!child->Bus->Ready ||
+        (child->Bus->Runtime != NULL && child->Bus->Runtime->Quiescing)) {
+        TRACE("__Rp1BusPrepareDma: child %u bus is not ready for DMA", child->Firmware.NodeOffset);
+        usched_mtx_unlock(&child->Bus->Lock);
+        return OS_EBUSY;
+    }
+
+    status = Rp1EthernetStatus(child, principal);
+    if (status != OS_EOK) {
+        WARNING("__Rp1BusPrepareDma: child %u Ethernet status failed: %u",
+                child->Firmware.NodeOffset, status);
+        usched_mtx_unlock(&child->Bus->Lock);
+        return status;
+    }
+
+    if (child->Resources.DmaReferences == UINT32_MAX) {
+        ERROR("__Rp1BusPrepareDma: child %u DMA reference count overflow",
+              child->Firmware.NodeOffset);
+        usched_mtx_unlock(&child->Bus->Lock);
+        return OS_EOVERFLOW;
+    }
+
+    child->Resources.DmaReferences++;
+    usched_mtx_unlock(&child->Bus->Lock);
+    
+    *description = result;
     return OS_EOK;
 }
 
@@ -269,10 +301,12 @@ __Rp1BusControl(
     return status;
 }
 
-// Preparing a description supplies no register access or permission to run DMA.
+// RP1 child devices expose control requests and DMA queries, with no direct
+// register access callback.
 static const DmDeviceBusOperations_t g_rp1ChildBusOperations = {
     .AddReference = __Rp1BusAddReference,
     .Release = __Rp1BusRelease,
+    .DescribeDma = __Rp1BusDescribeDma,
     .PrepareDma = __Rp1BusPrepareDma,
     .ReleaseDma = __Rp1BusReleaseDma,
     .Control = __Rp1BusControl
