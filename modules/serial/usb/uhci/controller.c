@@ -143,13 +143,12 @@ HCIControllerCreate(
         return NULL;
     }
 
-    // Enable the underlying bus device
+    // Turn on register access only. The device still cannot read or write memory.
     oserr = OSDeviceIOCtl(
         controller->Base.Device->Id,
         OSIOCTLREQUEST_BUS_CONTROL,
         &(struct OSIOCtlBusControl) {
-            .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE |
-                        __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+            .Flags = (__DEVICEMANAGER_IOCTL_IO_ENABLE)
         }, sizeof(struct OSIOCtlBusControl)
     );
     if (oserr != OS_EOK) {
@@ -372,6 +371,23 @@ UhciSetup(
     // Use the same DMA address limit for queue pools and client requests.
     oserr = DMAOpen(controller->Base.Device->Id, INT32_MAX, &controller->Base.DmaContext);
     if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // The DMA binding is created before bus mastering (the device's ability to
+    // read and write memory) is turned on. The queues and buffers set up below
+    // must only use addresses that came from this binding.
+    oserr = OSDeviceIOCtl(
+        controller->Base.Device->Id,
+        OSIOCTLREQUEST_BUS_CONTROL,
+        &(struct OSIOCtlBusControl) {
+            .Flags = __DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE |
+                     __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE
+        },
+        sizeof(struct OSIOCtlBusControl)
+    );
+    if (oserr != OS_EOK) {
+        ERROR("DMA bus enable failed: %u", oserr);
         return oserr;
     }
 

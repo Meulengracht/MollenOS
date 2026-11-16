@@ -52,9 +52,9 @@ DmDeviceDescribeDma(
         return OS_ENOTSUPPORTED;
     }
 
-    // The active request keeps device and its bus context alive while
-    // DescribeDma runs, without preparing hardware or taking a DMA lease.
-    // Only write to descriptionOut if the callback succeeds.
+    // The active request keeps the device and its bus state alive while
+    // DescribeDma runs. This does not prepare hardware or take a DMA lease.
+    // descriptionOut is only written if the callback succeeds.
     status = operations->DescribeDma(device->Bus.Context, &description);
     if (status != OS_EOK) {
         WARNING("DmDeviceDescribeDma: DescribeDma device %u failed: %u", deviceId, status);
@@ -79,7 +79,7 @@ DmDeviceDescribeDma(
 static oserr_t
 __DevicePrepareDma(
     _In_    uuid_t              deviceId,
-    _In_    uuid_t              principal,
+    _In_    uint64_t            principal,
     _InOut_ struct DmDmaLease** leaseOut)
 {
     DmDevice_t*                    device;
@@ -105,6 +105,27 @@ __DevicePrepareDma(
         return status;
     }
 
+    // Check the full 64-bit principal first. It is only narrowed to 32 bits
+    // later, because the existing bus interface takes a smaller ID. The caller
+    // already holds g_dmDmaLock, so the assignment cannot change under us. Our
+    // request keeps the device entry alive until it turns into a lease.
+    usched_mtx_lock(&g_dmDevicesLock);
+    if (device->DriverId == UUID_INVALID || device->DriverPrincipal != principal) {
+        usched_mtx_unlock(&g_dmDevicesLock);
+        WARNING("__DevicePrepareDma: device %u principal %llu is not assigned",
+                deviceId, (unsigned long long)principal);
+        DmDeviceRequestRelease(device);
+        return OS_EPERMISSIONS;
+    }
+    usched_mtx_unlock(&g_dmDevicesLock);
+
+    if (principal > UINT32_MAX) {
+        WARNING("__DevicePrepareDma: device %u principal %llu exceeds the bus interface",
+                deviceId, (unsigned long long)principal);
+        DmDeviceRequestRelease(device);
+        return OS_EOVERFLOW;
+    }
+
     operations = device->Bus.Operations;
     if (operations == NULL || operations->PrepareDma == NULL) {
         TRACE("__DevicePrepareDma: device %u has no DMA preparation callback", deviceId);
@@ -124,7 +145,7 @@ __DevicePrepareDma(
     // alive. Hand the lease back to the caller only after DmaLeases increases.
     status = operations->PrepareDma(
         device->Bus.Context,
-        principal,
+        (uuid_t)principal,
         &lease->Description
     );
     if (status != OS_EOK) {
@@ -171,12 +192,12 @@ __DevicePrepareDma(
 oserr_t
 DmDevicePrepareDmaForPrincipal(
     _In_    uuid_t              deviceId,
-    _In_    uuid_t              principal,
+    _In_    uint64_t            principal,
     _InOut_ struct DmDmaLease** leaseOut)
 {
     if (principal == UUID_INVALID) {
-        WARNING("DmDevicePrepareDmaForPrincipal: invalid principal %u for device %u",
-                principal, deviceId);
+        WARNING("DmDevicePrepareDmaForPrincipal: invalid principal %llu for device %u",
+                (unsigned long long)principal, deviceId);
         return OS_EPERMISSIONS;
     }
     return __DevicePrepareDma(deviceId, principal, leaseOut);
@@ -222,3 +243,42 @@ DmDmaLeaseRelease(
     free(current);
 }
 
+
+oserr_t
+DmDeviceStopDma(
+    _In_ uuid_t host)
+{
+    DmDevice_t* device;
+    oserr_t     status;
+
+    // A DMA stop must still work once removal has started. Count this request
+    // by hand, because the normal way of taking one refuses devices that are
+    // being removed.
+    usched_mtx_lock(&g_dmDevicesLock);
+
+    device = DmDeviceFindLocked(host);
+    if (device == NULL) {
+        usched_mtx_unlock(&g_dmDevicesLock);
+        return OS_ENOENT;
+    }
+
+    if (device->ActiveRequests == UINT_MAX) {
+        usched_mtx_unlock(&g_dmDevicesLock);
+        return OS_EOVERFLOW;
+    }
+    device->ActiveRequests++;
+
+    usched_mtx_unlock(&g_dmDevicesLock);
+
+    if (device->Bus.Operations == NULL || device->Bus.Operations->StopDma == NULL) {
+        status = OS_ENOTSUPPORTED;
+    } else {
+        status = device->Bus.Operations->StopDma(device->Bus.Context);
+        if (status != OS_EOK) {
+            WARNING("DmDeviceStopDma: host %u physical stop failed: %u", host, status);
+        }
+    }
+
+    DmDeviceRequestRelease(device);
+    return status;
+}

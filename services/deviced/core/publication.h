@@ -48,6 +48,7 @@ struct DmPublicationGroup {
     struct __DmPublicationEntry* First;
     struct __DmPublicationEntry* Last;
     enum DmPublicationState      State;
+    bool                         DmaPrepared;
 };
 
 /**
@@ -79,9 +80,21 @@ DmPublicationFinish(
     _InOut_ struct DmPublicationGroup* group);
 
 /**
+ * @brief Register DMA routes for every device in the group before any driver starts.
+ * Each finished entry remembers that it was registered, even when the device has
+ * no usable route. If one registration fails, the earlier ones are kept so they
+ * can be retried or removed later.
+ * @param group Finished publication group. Removal must not have started.
+ * @return OS_EOK once every entry is handled, or the first registration error.
+ */
+__EXTERN oserr_t
+DmPublicationPrepareDma(
+    _InOut_ struct DmPublicationGroup* group);
+
+/**
  * @brief Enables eligible entries, remembering each success for later retries.
  *
- * @param group Finished group. Removal must not have started.
+ * @param group Finished group with DMA publication complete. Removal must not have started.
  * @return OS_EOK on success, OS_EBUSY for an unfinished or removing group, or the
  *         first binding error. An error leaves every description registered.
  */

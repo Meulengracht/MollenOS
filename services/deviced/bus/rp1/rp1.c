@@ -25,6 +25,8 @@
 #include <bus/pci/device.h>
 #include <bus/pci/function.h>
 #include <bus/pci/host.h>
+#include <bus/pci/host-private.h>
+#include <core/dma.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
@@ -347,6 +349,15 @@ __Rp1PrepareHardware(
     struct Rp1Bus* bus = attachment;
     oserr_t        status;
 
+    // Publishing registers the whole host before we get here. The same check
+    // also covers startup retries that run later, after a recovery event.
+    status = DmDmaBeginHostStart(bus->Parent->Host->RootDevice->DeviceId);
+    if (status != OS_EOK) {
+        WARNING("__Rp1PrepareHardware: host DMA admission failed: %u", status);
+        __DmStartupFromStatus(status, result);
+        return;
+    }
+
     usched_mtx_lock(&bus->Lock);
     status = Rp1RuntimeStart(bus);
     __DmStartupFromStatus(status, result);
@@ -359,6 +370,7 @@ __Rp1PrepareHardware(
         }
     }
     usched_mtx_unlock(&bus->Lock);
+    DmDmaEndHostStart();
 }
 
 static oserr_t

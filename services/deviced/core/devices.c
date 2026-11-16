@@ -25,17 +25,20 @@
 
 #include <assert.h>
 #include <core/dma.h>
-#include "device-private.h"
 #include <limits.h>
 #include <devices.h>
 #include <discover.h>
 #include <ddk/devices/bus.h>
+#include <ddk/resources.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/usched/mutex.h>
 #include <os/device.h>
+
+#include "device-private.h"
+#include "dma-private.h"
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
@@ -56,7 +59,7 @@ DmDevicesInitialize(void)
 {
     TRACE("DmDevicesInitialize()");
     usched_mtx_init(&g_dmDevicesLock, USCHED_MUTEX_PLAIN);
-    DmDmaSessionsInitialize();
+    usched_mtx_init(&g_dmDmaLock, USCHED_MUTEX_PLAIN);
 }
 
 // Requires g_dmDevicesLock. The returned entry stays valid while that lock
@@ -92,6 +95,14 @@ DmDevicesRegister(
     int                      sent;
     TRACE("DmDevicesRegister(driver=%u, device=%u)", driverHandle, deviceId);
 
+    usched_mtx_lock(&g_dmDmaLock);
+    status = DmDmaCheckAssignmentLocked(deviceId, principal);
+    if (status != OS_EOK) {
+        WARNING("DmDevicesRegister: device %u assignment rejected: %u", deviceId, status);
+        usched_mtx_unlock(&g_dmDmaLock);
+        return status;
+    }
+
     // Copy the description under the registry lock. Sending a driver message
     // may yield, so the message must use its own copy after the lock is released.
     usched_mtx_lock(&g_dmDevicesLock);
@@ -100,12 +111,14 @@ DmDevicesRegister(
     if (device == NULL || device->Removing || !(device->Flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
         TRACE("DmDevicesRegister: device %u is not available for binding", deviceId);
         usched_mtx_unlock(&g_dmDevicesLock);
+        usched_mtx_unlock(&g_dmDmaLock);
         return OS_ENOENT;
     }
 
     if (device->DriverId != UUID_INVALID) {
         TRACE("DmDevicesRegister: device %u already has driver %u", deviceId, device->DriverId);
         usched_mtx_unlock(&g_dmDevicesLock);
+        usched_mtx_unlock(&g_dmDmaLock);
         return OS_EEXISTS;
     }
 
@@ -115,6 +128,7 @@ DmDevicesRegister(
               deviceId, driverHandle, status);
         device->HasDriver = false;
         usched_mtx_unlock(&g_dmDevicesLock);
+        usched_mtx_unlock(&g_dmDmaLock);
         return status;
     }
 
@@ -123,20 +137,16 @@ DmDevicesRegister(
     device->DriverId = driverHandle;
     device->DriverPrincipal = principal;
     usched_mtx_unlock(&g_dmDevicesLock);
+    usched_mtx_unlock(&g_dmDmaLock);
 
     sent = ctt_driver_register_device(GetGrachtClient(), &msg.base, &protoDevice);
     if (sent != 0) {
         WARNING("DmDevicesRegister: sending device %u to driver %u failed: %i",
                 deviceId, driverHandle, sent);
         sys_device_destroy(&protoDevice);
-        usched_mtx_lock(&g_dmDevicesLock);
-        device = DmDeviceFindLocked(deviceId);
-        if (device != NULL) {
-            device->DriverId = UUID_INVALID;
-            device->DriverPrincipal = 0;
-            device->HasDriver = false;
-        }
-        usched_mtx_unlock(&g_dmDevicesLock);
+        // The driver may have received the device even though the send reported
+        // a failure. Keep the assignment, and do not hand the device to a
+        // different driver automatically.
         return OS_EUNKNOWN;
     }
 
@@ -241,58 +251,86 @@ DmDeviceRequestRelease(
 
 oserr_t
 DmHandleIoctl(
-    _In_ uuid_t              principal,
-    _In_ uuid_t              deviceId,
+    _In_ uint64_t           principal,
+    _In_ uuid_t             deviceId,
     _In_ enum OSIOCtlRequest request,
-    _In_ void*               buffer,
-    _In_ size_t              length)
+    _In_ void*              buffer,
+    _In_ size_t             length)
 {
     DmDevice_t*                    device;
     const DmDeviceBusOperations_t* operations;
     oserr_t                        status;
-    
-    TRACE("DmHandleIoctl(principal=%u, device=%u, request=0x%x, length=%zu)",
-          principal, deviceId, request, length);
+    bool                           enableDma = false;
 
-    if (request == OSIOCTLREQUEST_DMA_QUERY || request == OSIOCTLREQUEST_DMA_RELEASE) {
-        return DmDmaControl(principal, deviceId, request, buffer, length);
+    // The driver check, the DMA permission check and the hardware write all run
+    // under the DMA lock, so recovery cannot change things halfway through. The
+    // device is kept alive with a request count instead of the registry mutex,
+    // because that mutex must not be held during a syscall or a bus callback.
+    usched_mtx_lock(&g_dmDmaLock);
+    status = DmDmaCheckControlLocked(deviceId, principal, false);
+    if (status != OS_EOK) {
+        goto done;
     }
 
+    if (principal > UINT32_MAX) {
+        status = OS_EOVERFLOW;
+        goto done;
+    }
+
+    status = DmDmaDrainEventsLocked();
+    if (status != OS_EOK) {
+        // Even if the DMA manager is lost, the assigned driver must still be
+        // able to stop its hardware and release interrupts. Turning DMA on is
+        // checked separately below.
+        WARNING("DmHandleIoctl: device %u event drain failed: %u", deviceId, status);
+    }
+
+    if (request == OSIOCTLREQUEST_BUS_CONTROL) {
+        if (buffer == NULL || length < sizeof(struct OSIOCtlBusControl)) {
+            status = OS_EINVALPARAMS;
+            goto done;
+        }
+        enableDma = (((struct OSIOCtlBusControl*)buffer)->Flags &
+                     __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE) != 0;
+    } else if (request == OSIOCTLREQUEST_DEVICE_ACTIVATE) {
+        if (buffer == NULL || length != sizeof(enum DeviceActivation)) {
+            status = OS_EINVALPARAMS;
+            goto done;
+        }
+        enableDma = *(enum DeviceActivation*)buffer == DeviceStart;
+    }
+    if (enableDma) {
+        status = DmDmaCheckControlLocked(deviceId, principal, true);
+        if (status != OS_EOK) {
+            goto done;
+        }
+    }
+    
     status = DmDeviceRequestAcquire(deviceId, &device);
     if (status != OS_EOK) {
-        WARNING("DmHandleIoctl: could not acquire device %u for request 0x%x: %u",
-                deviceId, request, status);
-        return status;
+        goto done;
     }
-    operations = device->Bus.Operations;
 
-    if (request == OSIOCTLREQUEST_BUS_CONTROL &&
-        (buffer == NULL || length < sizeof(struct OSIOCtlBusControl))) {
-        WARNING("DmHandleIoctl: invalid bus-control buffer for device %u, length %zu", deviceId, length);
-        status = OS_EINVALPARAMS;
-    } else if (operations != NULL && operations->Control != NULL) {
-        status = operations->Control(
-            device->Bus.Context,
-            principal,
-            request,
-            buffer,
-            length
-        );
-        if (status != OS_EOK) {
-            WARNING("DmHandleIoctl: bus failed request 0x%x for device %u, principal %u: %u",
-                    request, deviceId, principal, status);
-        }
+    operations = device->Bus.Operations;
+    if (operations != NULL && operations->Control != NULL) {
+        status = operations->Control(device->Bus.Context, (uuid_t)principal, request, buffer, length);
     } else {
-        TRACE("DmHandleIoctl: device %u has no bus control callback for request 0x%x", deviceId, request);
         status = OS_ENOTSUPPORTED;
     }
-
     DmDeviceRequestRelease(device);
+
+done:
+    if (status != OS_EOK) {
+        WARNING("DmHandleIoctl: device %u caller %llu request 0x%x failed: %u",
+                deviceId, (unsigned long long)principal, request, status);
+    }
+    usched_mtx_unlock(&g_dmDmaLock);
     return status;
 }
 
 oserr_t
 DmHandleIoctl2(
+    _In_  uint64_t     principal,
     _In_  uuid_t       deviceId,
     _In_  int          direction,
     _In_  unsigned int command,
@@ -303,20 +341,32 @@ DmHandleIoctl2(
     DmDevice_t*                    device;
     const DmDeviceBusOperations_t* operations;
     oserr_t                        status;
-    TRACE("DmHandleIoctl2(device=%u, direction=%i, command=0x%x, width=%u)",
-          deviceId, direction, command, width);
+
+    if (valueOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
 
     *valueOut = value;
+
+    usched_mtx_lock(&g_dmDmaLock);
+    status = DmDmaCheckControlLocked(deviceId, principal, false);
+    if (status != OS_EOK) {
+        goto done;
+    }
+
+    if (principal > UINT32_MAX) {
+        status = OS_EOVERFLOW;
+        goto done;
+    }
+
     status = DmDeviceRequestAcquire(deviceId, &device);
     if (status != OS_EOK) {
-        WARNING("DmHandleIoctl2: could not acquire device %u for command 0x%x: %u",
-                deviceId, command, status);
-        return status;
+        goto done;
     }
 
     operations = device->Bus.Operations;
+
     if (operations == NULL || operations->AccessRegister == NULL) {
-        TRACE("DmHandleIoctl2: device %u has no register bus", deviceId);
         status = OS_ENOTSUPPORTED;
     } else {
         status = operations->AccessRegister(
@@ -326,13 +376,15 @@ DmHandleIoctl2(
             valueOut,
             width
         );
-        if (status != OS_EOK) {
-            WARNING("DmHandleIoctl2: bus failed command 0x%x for device %u: %u",
-                    command, deviceId, status);
-        }
     }
-
     DmDeviceRequestRelease(device);
+
+done:
+    if (status != OS_EOK) {
+        WARNING("DmHandleIoctl2: device %u caller %llu register 0x%x failed: %u",
+                deviceId, (unsigned long long)principal, command, status);
+    }
+    usched_mtx_unlock(&g_dmDmaLock);
     return status;
 }
 
@@ -743,6 +795,7 @@ DmDeviceDestroy(
     DmDevice_t*                device;
     struct __DmDeviceProtocol* protocol;
     DeviceIdentification_t*    identification;
+    oserr_t                    status;
     TRACE("DmDeviceDestroy(device=%u)", deviceId);
 
     usched_mtx_lock(&g_dmDevicesLock);
@@ -773,6 +826,30 @@ DmDeviceDestroy(
             return OS_EBUSY;
         }
     }
+
+    // Hold one request on the device while its kernel registration is removed.
+    // A second destroy call sees this count and will not free the entry. The
+    // registry mutex is released first, because the DMA mutex and the kernel
+    // calls below must not run while it is held.
+    device->ActiveRequests++;
+    usched_mtx_unlock(&g_dmDevicesLock);
+    status = DmDmaRemoveDevice(deviceId);
+    if (status != OS_EOK) {
+        WARNING("DmDeviceDestroy: device %u DMA removal failed: %u", deviceId, status);
+        DmDeviceRequestRelease(device);
+        return status;
+    }
+    usched_mtx_lock(&g_dmDevicesLock);
+
+    if (device->ActiveRequests != 1) {
+        // A DMA stop is still allowed while the device is being removed, so it
+        // may have added its own request while the registry mutex was released.
+        // Leave the device state in place for it.
+        device->ActiveRequests--;
+        usched_mtx_unlock(&g_dmDevicesLock);
+        return OS_EBUSY;
+    }
+    device->ActiveRequests--;
 
     list_remove(&g_devices, &device->Header);
     usched_mtx_unlock(&g_dmDevicesLock);

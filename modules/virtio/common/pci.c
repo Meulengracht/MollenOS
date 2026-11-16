@@ -569,9 +569,10 @@ VirtioPciTransportInitialize(
     _In_  BusDevice_t*          device,
     _Out_ VirtioPciTransport_t* transport)
 {
-    unsigned int controlFlags = __DEVICEMANAGER_IOCTL_ENABLE |
-            __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE;
-    oserr_t oserr;
+    unsigned int controlFlags = 0;
+    oserr_t      oserr;
+    oserr_t      cleanupStatus;
+
     TRACE("VirtioPciTransportInitialize()");
 
     if (device == NULL || transport == NULL) {
@@ -598,7 +599,7 @@ VirtioPciTransportInitialize(
         if (!(transport->AcquiredBars & (1U << bar))) {
             continue;
         }
-        
+
         if (device->IoSpaces[bar].Type == DeviceIoMemoryBased) {
             controlFlags |= __DEVICEMANAGER_IOCTL_MMIO_ENABLE;
         } else if (device->IoSpaces[bar].Type == DeviceIoPortBased) {
@@ -615,7 +616,7 @@ VirtioPciTransportInitialize(
         sizeof(struct OSIOCtlBusControl)
     );
     if (oserr != OS_EOK) {
-        ERROR("VirtioPciTransportInitialize: Failed to enable device: %d", oserr);
+        ERROR("VirtioPciTransportInitialize: register decoding failed: %d", oserr);
         goto error;
     }
 
@@ -626,10 +627,29 @@ VirtioPciTransportInitialize(
         ERROR("Virtio DMA context creation failed: %u", oserr);
         goto error;
     }
+    // With register access on, the driver can read the device's capability list
+    // before the DMA binding exists. Bus mastering (the device's ability to read
+    // and write memory) is only allowed once the kernel has accepted the binding.
+    oserr = OSDeviceIOCtl(
+        device->Base.Id,
+        OSIOCTLREQUEST_BUS_CONTROL,
+        &(struct OSIOCtlBusControl) {
+            .Flags = controlFlags | __DEVICEMANAGER_IOCTL_ENABLE |
+                     __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE
+        },
+        sizeof(struct OSIOCtlBusControl)
+    );
+    if (oserr != OS_EOK) {
+        ERROR("VirtioPciTransportInitialize: DMA enable failed: %u", oserr);
+        goto error;
+    }
     return OS_EOK;
 
 error:
-    VirtioPciTransportDestroy(transport);
+    cleanupStatus = VirtioPciTransportDestroy(transport);
+    if (cleanupStatus != OS_EOK) {
+        WARNING("VirtioPciTransportInitialize: cleanup remains pending: %u", cleanupStatus);
+    }
     return oserr;
 }
 

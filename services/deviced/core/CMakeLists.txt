@@ -7,6 +7,7 @@ add_library(deviced-core STATIC
     devices.c
     dma.c
     dma-device.c
+    dma-recovery.c
     publication.c
     requests.c
 )

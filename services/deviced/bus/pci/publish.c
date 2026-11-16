@@ -569,6 +569,13 @@ PciPublishDevice(
         }
     }
 
+    status = DmPublicationPrepareDma(group);
+    if (status != OS_EOK) {
+        ERROR("PciPublishDevice: DMA publication failed for root %u: %u", device->DeviceId, status);
+        __DmStartupFromStatus(status, result);
+        return;
+    }
+
     // Retry hardware preparation against the same descriptions. No new drivers
     // may bind until every attachment in this host is ready.
     if (device->Host->InterruptControllerId == UUID_INVALID && PciIsMsiAvailable()) {

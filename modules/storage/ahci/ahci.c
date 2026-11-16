@@ -157,13 +157,12 @@ AhciControllerCreate(
         return osStatus;
     }
 
-    // Enable device
+    // Turn on register access only. The device still cannot read or write memory.
     osStatus = OSDeviceIOCtl(
             controller->Device->Base.Id,
             OSIOCTLREQUEST_BUS_CONTROL,
             &(struct OSIOCtlBusControl) {
-                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
-                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+                    .Flags = (__DEVICEMANAGER_IOCTL_MMIO_ENABLE)
             }, sizeof(struct OSIOCtlBusControl)
     );
     if (osStatus != OS_EOK) {
@@ -418,6 +417,23 @@ AhciSetup(
         &controller->DmaContext
     );
     if (status != OS_EOK) {
+        return status;
+    }
+
+    // The DMA binding is created before bus mastering (the device's ability to
+    // read and write memory) is turned on. The queues and buffers set up below
+    // must only use addresses that came from this binding.
+    status = OSDeviceIOCtl(
+        controller->Device->Base.Id,
+        OSIOCTLREQUEST_BUS_CONTROL,
+        &(struct OSIOCtlBusControl) {
+            .Flags = __DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
+                     __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE
+        },
+        sizeof(struct OSIOCtlBusControl)
+    );
+    if (status != OS_EOK) {
+        ERROR("DMA bus enable failed: %u", status);
         return status;
     }
 

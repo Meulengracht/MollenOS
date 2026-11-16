@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <assert.h>
+#include <core/dma.h>
 #include <bus/pci/discovery.h>
 #include <bus/pci/host.h>
 #include <bus/rp1/rp1.h>
@@ -197,6 +198,10 @@ ServiceInitialize(
     // Initialize device tracking and driver discovery before enumerating buses.
     PciInitialize(g_pciFunctionHandlers, SIZEOF_ARRAY(g_pciFunctionHandlers));
     DmDevicesInitialize();
+    status = DmDmaInitialize();
+    if (status != OS_EOK) {
+        ERROR("ServiceInitialize: DMA manager startup failed: %i", status);
+    }
     DmDiscoverInitialize();
 
     TRACE("ServiceInitialize: enumerating buses");

@@ -37,6 +37,8 @@
 #include <bus/pci/dma.h>
 #include <devices.h>
 
+#include "registers.h"
+
 static oserr_t
 __PciSetBusControl(
     _In_ PciDevice_t*              device,
@@ -150,6 +152,15 @@ __PciIoctlDevice(
     if (direction == __DEVICEMANAGER_IOCTL_EXT_READ) {
         *value = PciDeviceRead(device, reg, width);
         return OS_EOK;
+    }
+
+    // The first 0x40 bytes hold the command, BAR and routing registers. Drivers
+    // must change these through the bus control calls, never with a raw write.
+    // The offset is unsigned and already range-checked, so reg < 0x40 also
+    // catches wide writes that start below 0x40 and run past it.
+    if (reg < PCI_STANDARD_HEADER_SIZE) {
+        WARNING("__PciIoctlDevice: raw header write at 0x%x is forbidden", reg);
+        return OS_EPERMISSIONS;
     }
 
     // Block writes while MSI or MSI-X is reserved. The interrupt code must be
@@ -523,7 +534,14 @@ __PciDescribeDma(
 
     // Copy the host's configured DMA ranges and cache rules without turning on
     // bus mastering or changing the PCI command register.
-    result.HostId = configured.Host.HostId;
+    // PCI host numbers only make sense inside the PCI code. Recovery and stop
+    // requests use the root device's registry ID, which is the same kind of ID
+    // for every bus.
+    if (device->Host->RootDevice == NULL || device->Host->RootDevice->DeviceId == UUID_INVALID) {
+        return OS_EBUSY;
+    }
+
+    result.HostId = device->Host->RootDevice->DeviceId;
     result.AddressLimit = UINT64_MAX;
     result.CachePolicy = configured.CachePolicy;
     result.Map = configured.Map;

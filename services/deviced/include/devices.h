@@ -47,7 +47,9 @@ DmDeviceRefreshDrivers(void);
 /**
  * @brief Sends a device description to its selected driver.
  * Call only after authenticating readiness against the driver's spawn identity.
- * The assignment records the principal before sending. A failed send clears it.
+ * The driver's principal is saved before the send. If the result of the send is
+ * unclear, the assignment stays and the device must not be given to another
+ * driver automatically.
  *
  * @param principal Verified principal stored in the driver entry.
  * @param driverHandle Service endpoint that should receive the device.

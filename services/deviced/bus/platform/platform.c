@@ -363,6 +363,12 @@ PlatformBusPublish(
         }
     }
 
+    status = DmPublicationPrepareDma(&bus->Publication);
+    if (status != OS_EOK) {
+        ERROR("PlatformBusPublish: bus %u DMA publication failed: %u", bus->DeviceId, status);
+        return status;
+    }
+
     // Drivers may request resources as soon as binding begins. Publish the
     // complete parent/child inventory before allowing any of them to start.
     status = DmPublicationEnableBinding(&bus->Publication);

@@ -28,6 +28,9 @@
 // in the 4096-byte configuration space.
 #define PCI_CONFIG_SPACE_SIZE                 256U
 
+// Every byte below this offset belongs to the common command, BAR and routing registers.
+#define PCI_STANDARD_HEADER_SIZE              0x40U
+
 // PCI standard header offsets.
 #define PCI_VENDOR_ID_OFFSET                  0x00U
 #define PCI_DEVICE_ID_OFFSET                  0x02U

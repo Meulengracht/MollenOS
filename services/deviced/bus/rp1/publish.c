@@ -116,7 +116,14 @@ __Rp1BusDescribeDma(
     // The RP1 firmware ranges and parent PCI host are known before the shared
     // RP1 runtime starts. Read them here without incrementing DmaReferences or
     // preparing the Ethernet MAC.
-    result.HostId = configured.Host.HostId;
+    // Use the same registered root device as ordinary PCI functions. The host
+    // number in configured.Host is only for log messages and is not a registry ID.
+    if (child->Bus->Parent->Host->RootDevice == NULL ||
+        child->Bus->Parent->Host->RootDevice->DeviceId == UUID_INVALID) {
+        return OS_EBUSY;
+    }
+
+    result.HostId = child->Bus->Parent->Host->RootDevice->DeviceId;
     result.AddressLimit = UINT64_MAX;
     result.CachePolicy = configured.CachePolicy;
     result.Map = configured.Map;

@@ -21,6 +21,7 @@
 //#define __TRACE
 
 #include <core/publication.h>
+#include <core/dma.h>
 #include <ddk/utils.h>
 #include <devices.h>
 #include <stdlib.h>
@@ -30,6 +31,7 @@ struct __DmPublicationEntry {
     struct __DmPublicationEntry* Next;
     uuid_t*                      DeviceId;
     int                          BindingPending;
+    bool                         DmaPrepared;
 };
 
 oserr_t
@@ -100,6 +102,34 @@ DmPublicationFinish(
 }
 
 oserr_t
+DmPublicationPrepareDma(
+    _InOut_ struct DmPublicationGroup* group)
+{
+    struct __DmPublicationEntry* entry;
+    oserr_t                      status;
+
+    if (group->State != DmPublicationReady) {
+        return OS_EBUSY;
+    }
+
+    for (entry = group->First; entry != NULL; entry = entry->Next) {
+        if (entry->DmaPrepared) {
+            continue;
+        }
+
+        status = DmDmaRegisterDevice(*entry->DeviceId);
+        if (status != OS_EOK) {
+            WARNING("DmPublicationPrepareDma: device %u registration failed: %u", *entry->DeviceId, status);
+            return status;
+        }
+        entry->DmaPrepared = true;
+    }
+
+    group->DmaPrepared = true;
+    return OS_EOK;
+}
+
+oserr_t
 DmPublicationEnableBinding(
     _InOut_ struct DmPublicationGroup* group)
 {
@@ -109,7 +139,7 @@ DmPublicationEnableBinding(
     TRACE("DmPublicationEnableBinding(group=%p, state=%i)", group, group->State);
 
     // Drivers need the complete set, and must never start during removal.
-    if (group->State != DmPublicationReady) {
+    if (group->State != DmPublicationReady || !group->DmaPrepared) {
         WARNING("DmPublicationEnableBinding: group %p is not ready in state %i",
                 group, group->State);
         return OS_EBUSY;
@@ -145,6 +175,8 @@ DmPublicationRemove(
     TRACE("DmPublicationRemove(group=%p, state=%i)", group, group->State);
 
     group->State = DmPublicationRemoving;
+    group->DmaPrepared = false;
+
     while (group->Last != NULL) {
         entry = group->Last;
 
@@ -169,7 +201,9 @@ DmPublicationRemove(
         }
         free(entry);
     }
-    // All devices are removed and their saved IDs cleared. The group can be reused.
+
+    // Every device has been removed and its saved ID cleared, so the group can
+    // be used again.
     group->State = DmPublicationCollecting;
     return OS_EOK;
 }

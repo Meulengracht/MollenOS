@@ -73,6 +73,19 @@ typedef struct DmDeviceBusOperations {
         _In_    size_t              length);
 
     /**
+     * @brief Stop all hardware under this host from reading or writing memory.
+     * OS_EOK means no new memory access can start and none that already started
+     * can finish. This includes devices without a driver and hardware shared
+     * between devices. The stopped state is kept until the host is deliberately
+     * set up again. After an error the stop may only be partly done.
+     * This is separate from the normal DeviceStop. NULL means the bus cannot do it.
+     * @param context Registered host state, kept alive by a request count.
+     * @return OS_EOK only when everything has stopped, otherwise a stop error.
+     */
+    oserr_t (*StopDma)(
+        _In_ void* context);
+
+    /**
      * @brief Reads or writes a device configuration register.
      * The bus code is responsible for checking that the offset and access width
      * are valid for this device.

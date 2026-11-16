@@ -109,13 +109,12 @@ HCIControllerCreate(
         return NULL;
     }
 
-    // Enable device
+    // Turn on register access only. The device still cannot read or write memory.
     oserr = OSDeviceIOCtl(
             controller->Base.Device->Id,
             OSIOCTLREQUEST_BUS_CONTROL,
             &(struct OSIOCtlBusControl) {
-                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
-                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+                    .Flags = (__DEVICEMANAGER_IOCTL_MMIO_ENABLE)
             }, sizeof(struct OSIOCtlBusControl)
     );
     if (oserr != OS_EOK) {
@@ -227,7 +226,7 @@ EhciDisableLegacySupport(
         // Follow the extended capability list to find USB legacy support.
         while (1) {
             // Retrieve capability id
-            if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp, &capId, 1) != OS_EOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Id, __DEVICEMANAGER_IOCTL_EXT_READ, eecp, &capId, 1) != OS_EOK) {
                 return;
             }
 
@@ -237,7 +236,7 @@ EhciDisableLegacySupport(
             }
 
             // Read the next capability offset.
-            if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp + 0x1, &nextEecp, 1) != OS_EOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Id, __DEVICEMANAGER_IOCTL_EXT_READ, eecp + 0x1, &nextEecp, 1) != OS_EOK) {
                 return;
             }
 
@@ -253,7 +252,7 @@ EhciDisableLegacySupport(
         // Only continue if Id == 0x01
         if (capId == 0x01) {
             size_t Zero = 0;
-            if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp + 0x2, &semaphore, 1) != OS_EOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Id, __DEVICEMANAGER_IOCTL_EXT_READ, eecp + 0x2, &semaphore, 1) != OS_EOK) {
                 return;
             }
 
@@ -261,13 +260,13 @@ EhciDisableLegacySupport(
             if (semaphore & 0x1) {
                 // Set the OS semaphore at EECP+3 to request control from BIOS.
                 size_t One = 0x1;
-                if (IoctlDeviceEx(Controller->Base.Device->Id, 1, eecp + 0x3, &One, 1) != OS_EOK) {
+                if (IoctlDeviceEx(Controller->Base.Device->Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, eecp + 0x3, &One, 1) != OS_EOK) {
                     return;
                 }
 
                 // Wait for BIOS to clear its semaphore.
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp + 0x2, &semaphore, 1) != OS_EOK) {
+                    if (IoctlDeviceEx(Controller->Base.Device->Id, __DEVICEMANAGER_IOCTL_EXT_READ, eecp + 0x2, &semaphore, 1) != OS_EOK) {
                         return;
                     }
                     if ((semaphore & 0x1) == 0) {
@@ -281,7 +280,7 @@ EhciDisableLegacySupport(
                 }
                 One = 1;
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device->Id, 0, eecp + 0x3, &semaphore, 1) != OS_EOK) {
+                    if (IoctlDeviceEx(Controller->Base.Device->Id, __DEVICEMANAGER_IOCTL_EXT_READ, eecp + 0x3, &semaphore, 1) != OS_EOK) {
                         return;
                     }
                     if ((semaphore & 0x1) == 1) {
@@ -296,7 +295,7 @@ EhciDisableLegacySupport(
             }
 
             // Disable SMI by setting all lower 16 bits to 0 of EECP+4
-            if (IoctlDeviceEx(Controller->Base.Device->Id, 1, eecp + 0x4, &Zero, 2) != OS_EOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Id, __DEVICEMANAGER_IOCTL_EXT_WRITE, eecp + 0x4, &Zero, 2) != OS_EOK) {
                 return;
             }
         }
@@ -520,7 +519,8 @@ oserr_t
 EhciSetup(
     _In_ EhciController_t* Controller)
 {
-    size_t i = 0;
+    size_t  i = 0;
+    oserr_t status;
 
     // Debug
     TRACE("EhciSetup()");
@@ -531,6 +531,7 @@ EhciSetup(
     // Are we configured to disable ehci?
 #ifdef __OSCONFIG_DISABLE_EHCI
     _CRT_UNUSED(i);
+    _CRT_UNUSED(status);
     EhciSilence(Controller);
 #else
     // Save some read-only but often accessed information
@@ -540,8 +541,31 @@ EhciSetup(
 
     // Schedule links share CTRLDSSEGMENT. Keep descriptors and payloads within
     // the existing INT32_MAX address limit, including on 32-bit hosts.
-    if (DMAOpen(Controller->Base.Device->Id, INT32_MAX, &Controller->Base.DmaContext) != OS_EOK) {
-        return OS_EUNKNOWN;
+    status = DMAOpen(
+        Controller->Base.Device->Id,
+        INT32_MAX,
+        &Controller->Base.DmaContext
+    );
+    if (status != OS_EOK) {
+        ERROR("EhciSetup: DMA open failed: %u", status);
+        return status;
+    }
+
+    // The DMA binding is created before bus mastering (the device's ability to
+    // read and write memory) is turned on. The queues and buffers set up below
+    // must only use addresses that came from this binding.
+    status = OSDeviceIOCtl(
+        Controller->Base.Device->Id,
+        OSIOCTLREQUEST_BUS_CONTROL,
+        &(struct OSIOCtlBusControl) {
+            .Flags = __DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
+                     __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE
+        },
+        sizeof(struct OSIOCtlBusControl)
+    );
+    if (status != OS_EOK) {
+        ERROR("DMA bus enable failed: %u", status);
+        return status;
     }
 
     // Scheduler setup and restart must succeed before registration or port power.

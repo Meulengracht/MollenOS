@@ -22,6 +22,7 @@
 //#define __TRACE
 
 #include <ddk/convert.h>
+#include <core/dma.h>
 #include <ddk/utils.h>
 #include <gracht/client.h>
 #include <devices.h>
@@ -30,8 +31,8 @@
 #include <sys_device_service_server.h>
 
 extern void DmHandleGetDevicesByProtocol(struct gracht_message*, uint8_t);
-extern oserr_t DmHandleIoctl(uuid_t, uuid_t, enum OSIOCtlRequest, void*, size_t);
-extern oserr_t DmHandleIoctl2(uuid_t, int, unsigned int, size_t, unsigned int, size_t*);
+extern oserr_t DmHandleIoctl(uint64_t, uuid_t, enum OSIOCtlRequest, void*, size_t);
+extern oserr_t DmHandleIoctl2(uint64_t, uuid_t, int, unsigned int, size_t, unsigned int, size_t*);
 extern void DmHandleRegisterProtocol(uuid_t, const char*, uint8_t);
 
 void
@@ -117,23 +118,17 @@ sys_device_ioctl_invocation(
     _In_ const uint8_t*         data,
     _In_ const uint32_t         data_count)
 {
-    uuid_t  principal = UUID_INVALID;
-    oserr_t oserr;
-    int     status;
+    uint64_t principal = 0;
+    oserr_t  oserr;
+    int      status;
     TRACE("sys_device_ioctl_invocation(device=%u, request=0x%x, length=%u)",
           deviceId, request, data_count);
 
-    // Only the transport's kernel-supplied sender identity can establish who
-    // owns an interrupt group. The reply endpoint and request body cannot.
-    if (message->security.source == GRACHT_SECURITY_KERNEL &&
-        message->security.principal <= UINT32_MAX) {
-        principal = (uuid_t)message->security.principal;
-    }
-
-    TRACE("sys_device_ioctl_invocation: resolved principal %u for device %u", principal, deviceId);
-    if (request == OSIOCTLREQUEST_INTERRUPT_CONTROL && principal == UUID_INVALID) {
-        WARNING("sys_device_ioctl_invocation: interrupt control for device %u has no valid kernel-supplied principal",
-                deviceId);
+    // The request body and reply endpoint say nothing reliable about who the
+    // driver is. Only the kernel-supplied principal does. Keep all of its bits
+    // until the registry has finished checking it.
+    if (message->security.source == GRACHT_SECURITY_KERNEL) {
+        principal = message->security.principal;
     }
 
     // Input requests return device data in the response buffer.
@@ -188,17 +183,31 @@ sys_device_ioctlex_invocation(
     _In_ const size_t           value,
     _In_ const unsigned int     width)
 {
-    size_t  result;
-    oserr_t oserr;
-    int     status;
+    uint64_t principal = 0;
+    size_t   result = 0;
+    oserr_t  oserr;
+    int      status;
     TRACE("sys_device_ioctlex_invocation(device=%u, direction=%i, command=0x%x, width=%u)",
           deviceId, direction, command, width);
 
-    oserr = DmHandleIoctl2(deviceId, direction, command, value, width, &result);
+    if (message->security.source == GRACHT_SECURITY_KERNEL) {
+        principal = message->security.principal;
+    }
+
+    oserr = DmHandleIoctl2(
+        principal,
+        deviceId,
+        direction,
+        command,
+        value,
+        width,
+        &result
+    );
     if (oserr != OS_EOK) {
         WARNING("sys_device_ioctlex_invocation: device %u command 0x%x failed: %u",
                 deviceId, command, oserr);
     }
+
     status = sys_device_ioctlex_response(message, oserr, result);
     if (status != 0) {
         WARNING("sys_device_ioctlex_invocation: response for device %u failed: %i", deviceId, status);
@@ -224,4 +233,39 @@ ctt_driver_event_device_protocol_invocation(
     TRACE("ctt_driver_event_device_protocol_invocation(device=%u, protocol=%u, name=%s)",
           deviceId, protocolId, protocolName);
     DmHandleRegisterProtocol(deviceId, protocolName, protocolId);
+}
+
+void
+sys_device_dma_bind_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           deviceId,
+    _In_ const uint64_t         requestId)
+{
+    OSDmaBindingResult_t binding = { 0 };
+    oserr_t              status;
+    int                  sent;
+
+    if (message->security.source != GRACHT_SECURITY_KERNEL) {
+        status = OS_EPERMISSIONS;
+    } else {
+        status = DmDmaBind(message->security.principal, deviceId, requestId, &binding);
+    }
+
+    if (status != OS_EOK) {
+        WARNING("sys_device_dma_bind_invocation: device %u request %llu failed: %u",
+                deviceId, (unsigned long long)requestId, status);
+    }
+
+    // The binding is saved before we send the reply. If the send fails, the
+    // saved binding stays, so the driver can repeat the same request and get
+    // the reply again.
+    sent = sys_device_dma_bind_response(
+        message,
+        status,
+        binding.Handle,
+        binding.Generation
+    );
+    if (sent != 0) {
+        WARNING("sys_device_dma_bind_invocation: device %u reply failed: %i", deviceId, sent);
+    }
 }
