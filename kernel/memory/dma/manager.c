@@ -23,7 +23,9 @@
 #include <heap.h>
 #include <memoryspace.h>
 #include <string.h>
+
 #include "attachment_private.h"
+#include "../utils.h"
 
 static Mutex_t       g_managerRegistryLock = OS_MUTEX_INIT(MUTEX_FLAG_PLAIN);
 static DMAManager_t* g_manager;
@@ -34,9 +36,9 @@ __DetachClosedManager(
 {
     bool releaseRegistryReference = false;
 
-    // Requires both UpdateLock and Lock to be released. Close and cancellation
-    // can both reach here. Clear the registry pointer so only one call releases
-    // the registry reference.
+    // Call with both UpdateLock and manager->Lock unlocked. Both handle close and
+    // failed creation can reach here, so clear g_manager under the locks to
+    // make sure only one path drops the global registry reference.
     MutexLock(&g_managerRegistryLock);
     MutexLock(&manager->Lock);
     if (g_manager == manager && manager->State == DMAManagerClosed &&
@@ -48,23 +50,41 @@ __DetachClosedManager(
     MutexUnlock(&g_managerRegistryLock);
 
     if (releaseRegistryReference) {
-        ReleaseGlobalHandle(manager->ID);
+        __ReleaseMemoryHandleReference(manager->ID, __func__);
     }
 }
 
-// Requires Lock. Close current bindings whenever the service is lost.
-// Grant callbacks use this lock too, without waiting for UpdateLock.
+// Hold manager->Lock. Block all recovery groups whenever the manager closes.
+// Handle close callbacks use this lock too and must not wait for UpdateLock.
 static void
 __CloseManagerLocked(
     _In_ DMAManager_t* manager)
 {
     manager->State = DMAManagerClosed;
 
-    foreach (node, &manager->Registry.Attachments) {
-        DMAAttachment_t* attachment = node->value;
-        if (attachment->Binding.Current != NULL) {
-            DMABindingCloseLocked(attachment->Binding.Current);
-        }
+    foreach (node, &manager->Registry.Groups) {
+        DMARecoveryBlockLocked(manager, node->value);
+    }
+}
+
+// Once the manager closes, its group list can no longer change. The registry
+// reference keeps the manager and all groups alive while cancelling outside Lock.
+static void
+__CancelClosedManager(
+    _In_ DMAManager_t* manager)
+{
+    DMARecoveryGroup_t* groups[DMA_MANAGER_MAX_ATTACHMENTS];
+    uint32_t            count = 0;
+
+    MutexLock(&manager->Lock);
+    assert(manager->State == DMAManagerClosed);
+    foreach (node, &manager->Registry.Groups) {
+        groups[count++] = node->value;
+    }
+    MutexUnlock(&manager->Lock);
+    
+    for (uint32_t i = 0; i < count; i++) {
+        DMARecoveryCancel(groups[i]);
     }
 }
 
@@ -74,12 +94,13 @@ __CloseManager(
 {
     DMAManager_t* manager = resource;
 
-    // Close without UpdateLock so a registration copying its result cannot
-    // delay grant cleanup. Published attachments keep the registry reference
-    // until reboot.
+    // Run without UpdateLock so a registration stalled on copying to user space
+    // cannot block handle cleanup. Any attachments still registered keep the
+    // global registry reference alive until reboot.
     MutexLock(&manager->Lock);
     __CloseManagerLocked(manager);
     MutexUnlock(&manager->Lock);
+    __CancelClosedManager(manager);
     __DetachClosedManager(manager);
 }
 
@@ -89,16 +110,18 @@ __DeleteManager(
 {
     DMAManager_t* manager = resource;
 
-    // The registry keeps the manager alive while it still has attachments.
+    // The global registry keeps the manager alive as long as attachments remain.
     assert(manager->State == DMAManagerClosed);
     assert(manager->Registry.Count == 0);
+    assert(manager->Registry.Groups.count == 0);
     assert(manager->PendingEvents.count == 0);
     MutexDestruct(&manager->UpdateLock);
     MutexDestruct(&manager->Lock);
     kfree(manager);
 }
 
-// Requires Lock. Check that the security group still exists separately, without Lock.
+// Hold manager->Lock. Check separately (without Lock) whether the service's
+// security group is still alive.
 static oserr_t
 __CheckManagerStateLocked(
     _In_ DMAManager_t* manager)
@@ -122,6 +145,8 @@ DMAManagerPrepareCreate(
     uuid_t               handle;
     oserr_t              status;
     bool                 hasOperationReference = false;
+    uuid_t               releasedHandle;
+    oserr_t              releaseStatus;
 
     serviceContext = MemorySpaceGetSecurityContext();
     if (serviceContext == NULL) {
@@ -141,6 +166,7 @@ DMAManagerPrepareCreate(
     manager->Registry.NextRecoveryGroupID = 1;
     manager->Registry.NextBindingGeneration = 1;
     list_construct(&manager->Registry.Attachments);
+    list_construct(&manager->Registry.Groups);
     list_construct(&manager->PendingEvents);
     MutexConstruct(&manager->Lock, MUTEX_FLAG_PLAIN);
     MutexConstruct(&manager->UpdateLock, MUTEX_FLAG_PLAIN);
@@ -153,9 +179,9 @@ DMAManagerPrepareCreate(
         return OS_EBUSY;
     }
 
-    // The service may guess the handle and close it as soon as CreateHandle
-    // installs the grant. Hold Lock until the ID and references are ready so
-    // the close callback cannot run during setup.
+    // The caller could guess the handle ID and close it right after CreateHandle
+    // installs it. Hold manager->Lock until the ID and references are set so
+    // the close callback cannot run mid-setup.
     MutexLock(&manager->Lock);
     handle = CreateHandle(HandleTypeDMAManager, __CloseManager, __DeleteManager, manager);
     if (handle == UUID_INVALID) {
@@ -195,11 +221,18 @@ error:
     MutexUnlock(&manager->Lock);
     MutexUnlock(&g_managerRegistryLock);
 
-    // The manager was never added to the registry. Use the saved handle because
-    // grant cleanup can schedule destruction before this function returns.
-    DestroyHandle(handle);
+    // The manager was never added to the global registry. Clean up via the saved
+    // handle ID because handle cleanup can schedule deletion before this returns.
+    releasedHandle = handle;
+    releaseStatus = DestroyHandle(releasedHandle);
+
+    // Another thread may have already closed this unpublished handle.
+    if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE && releaseStatus != OS_ENOENT) {
+        ERROR("%s: DestroyHandle %u failed: %u", __func__, releasedHandle, releaseStatus);
+    }
+    
     if (hasOperationReference) {
-        ReleaseGlobalHandle(handle);
+        __ReleaseMemoryHandleReference(handle, __func__);
     }
     return status;
 }
@@ -211,8 +244,9 @@ DMAManagerPublish(
     MSContextSecurity_t* serviceContext;
     oserr_t              status;
 
-    // Take a temporary group reference to check that destruction has not begun.
-    // Release it after this check so the manager does not keep the group alive.
+    // Take a temporary reference to the service's security group to make sure
+    // it is not shutting down, then drop it so the manager does not keep the
+    // security group alive.
     status = MSContextAcquireSecurity(manager->Principal, &serviceContext);
     if (status != OS_EOK) {
         ERROR("DMAManagerPublish: MSContextAcquireSecurity for manager %u failed: %u",
@@ -220,6 +254,7 @@ DMAManagerPublish(
         MutexLock(&manager->Lock);
         __CloseManagerLocked(manager);
         MutexUnlock(&manager->Lock);
+        __CancelClosedManager(manager);
         return OS_ECANCELLED;
     }
 
@@ -232,7 +267,11 @@ DMAManagerPublish(
         status = OS_ECANCELLED;
     }
     MutexUnlock(&manager->Lock);
-    ReleaseGlobalHandle(serviceContext->GlobalHandleID);
+
+    __ReleaseMemoryHandleReference(
+        serviceContext->GlobalHandleID,
+        __func__
+    );
     return status;
 }
 
@@ -240,8 +279,18 @@ void
 DMAManagerCancelCreate(
     _In_ DMAManager_t* manager)
 {
+    uuid_t  releasedHandle;
+    oserr_t releaseStatus;
+
     __CloseManager(manager);
-    DestroyHandle(manager->ID);
+
+    releasedHandle = manager->ID;
+    releaseStatus = DestroyHandle(releasedHandle);
+
+    // Another thread may have already closed this unpublished handle.
+    if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE && releaseStatus != OS_ENOENT) {
+        ERROR("%s: DestroyHandle %u failed: %u", __func__, releasedHandle, releaseStatus);
+    }
 }
 
 oserr_t
@@ -276,6 +325,7 @@ DMAManagerReference(
         MutexLock(&manager->Lock);
         __CloseManagerLocked(manager);
         MutexUnlock(&manager->Lock);
+        __CancelClosedManager(manager);
         DMAManagerRelease(&manager);
         return OS_ECANCELLED;
     }
@@ -286,11 +336,11 @@ DMAManagerReference(
     if (status != OS_EOK) {
         ERROR("DMAManagerReference: __CheckManagerStateLocked for manager %u failed: %u",
               handle, status);
-        ReleaseGlobalHandle(serviceContext->GlobalHandleID);
+        __ReleaseMemoryHandleReference(serviceContext->GlobalHandleID, __func__);
         DMAManagerRelease(&manager);
         return status;
     }
-    ReleaseGlobalHandle(serviceContext->GlobalHandleID);
+    __ReleaseMemoryHandleReference(serviceContext->GlobalHandleID, __func__);
 
     *managerOut = manager;
     return OS_EOK;
@@ -311,7 +361,7 @@ DMAManagerRelease(
 
     handle = released->ID;
     __DetachClosedManager(released);
-    ReleaseGlobalHandle(handle);
+    __ReleaseMemoryHandleReference(handle, __func__);
 }
 
 static oserr_t
@@ -370,8 +420,8 @@ __SameAttachmentConfiguration(
         return false;
     }
 
-    // Version, Reserved and unused entries have already been checked. Each
-    // range has three uint64_t fields with no padding, so memcmp is safe here.
+    // Version, Reserved, and trailing zeroed entries were checked earlier. Each
+    // SHMDeviceRange has three uint64_t fields with no padding, so memcmp is safe.
     return memcmp(
         first->Ranges,
         second->Ranges,
@@ -379,7 +429,7 @@ __SameAttachmentConfiguration(
     ) == 0;
 }
 
-// Requires Lock. Keep UpdateLock held while using the returned attachment
+// Hold manager->Lock, and keep UpdateLock held while using the returned pointer
 // so another update cannot remove it.
 static DMAAttachment_t*
 __FindAttachmentByDevice(
@@ -397,7 +447,7 @@ __FindAttachmentByDevice(
     return NULL;
 }
 
-// Requires Lock. Keep UpdateLock held while using the returned attachment.
+// Hold manager->Lock, and keep UpdateLock held while using the returned pointer.
 static DMAAttachment_t*
 __FindAttachmentByID(
     _In_ DMAManager_t* manager,
@@ -412,9 +462,9 @@ __FindAttachmentByID(
     return NULL;
 }
 
-// Requires Lock. Recheck events because they may change while the prepared
-// update's ID is being copied to the caller.
-// A NULL update is a registration retry and only requires a live manager.
+// Hold manager->Lock. Recheck events because new events can arrive while copying
+// a prepared ID to user space. A NULL update means this is a retry and only
+// needs the manager to be live.
 static oserr_t
 __CheckRecoveryUpdateLocked(
     _In_ DMAManager_t*        manager,
@@ -429,21 +479,34 @@ __CheckRecoveryUpdateLocked(
 
     for (uint32_t i = 0; i < update->Count; i++) {
         DMAAttachment_t* attachment = update->Entries[i].Attachment;
-        if (attachment->Event.Exhausted) {
+        if (attachment->Event.Sequence == UINT64_MAX) {
             return OS_EOVERFLOW;
         }
 
-        // A closed binding still blocks changes until its last reference is
-        // released. Check the remaining entries so event sequence exhaustion
-        // returns OS_EOVERFLOW even if an earlier entry was busy.
+        // A closed binding still blocks group changes until its last handle
+        // reference drops. Keep checking the rest of the entries so a full
+        // event counter still reports OS_EOVERFLOW even if an earlier entry was busy.
         if (attachment->Event.Queued || attachment->Binding.Current != NULL) {
             status = OS_EBUSY;
+        }
+
+        if (attachment->RecoveryGroup != NULL) {
+            DMARecoveryGroup_t* group = attachment->RecoveryGroup;
+
+            MutexLock(&group->Lock);
+            if (group->Gate.State == DMARecoveryBlocked ||
+                group->Gate.State == DMARecoveryConfirmed ||
+                group->Gate.Operations != 0 || group->Stop.Phase != DMARecoveryStopIdle) {
+                status = OS_EBUSY;
+            }
+            MutexUnlock(&group->Lock);
         }
     }
     return status;
 }
 
-// Requires Lock and UpdateLock. A retry does not need a free slot or a new ID.
+// Hold manager->Lock and UpdateLock. Retrying an identical setup needs neither
+// a free registry slot nor a new attachment ID.
 static oserr_t
 __PrepareAttachmentRequestLocked(
     _In_    DMAManager_t*                      manager,
@@ -495,8 +558,8 @@ DMAManagerPrepareAttachment(
     uint64_t                     attachmentID;
     oserr_t                      status;
 
-    // The syscall checked the grant, but the manager can close without taking
-    // UpdateLock. Check its state again before validating the copied parameters.
+    // The syscall already checked the handle, but the manager can close without
+    // waiting for UpdateLock. Recheck the state before validating parameters.
     MutexLock(&manager->UpdateLock);
     MutexLock(&manager->Lock);
     status = __CheckManagerStateLocked(manager);
@@ -520,7 +583,12 @@ DMAManagerPrepareAttachment(
     registration->Manager = manager;
 
     MutexLock(&manager->Lock);
-    status = __PrepareAttachmentRequestLocked(manager, parameters, registration, &attachmentID);
+    status = __PrepareAttachmentRequestLocked(
+        manager,
+        parameters,
+        registration,
+        &attachmentID
+    );
     MutexUnlock(&manager->Lock);
     if (status != OS_EOK) {
         goto cancel;
@@ -540,7 +608,11 @@ DMAManagerPrepareAttachment(
         attachment->Configuration = *parameters;
         registration->Attachment = attachment;
 
-        status = DMARecoveryPrepareRegistration(manager, attachment, &registration->RecoveryUpdate);
+        status = DMARecoveryPrepareRegistration(
+            manager,
+            attachment,
+            &registration->RecoveryUpdate
+        );
         if (status != OS_EOK) {
             goto cancel;
         }
@@ -586,9 +658,9 @@ DMAManagerPublishAttachment(
     }
 
     if (prepared->CreatesAttachment) {
-        // The ID has been copied and the manager is still live. Update the
-        // recovery groups and registry together under Lock so readers see
-        // the complete registration.
+        // The ID copied cleanly and the manager is still live. Swap the new
+        // recovery groups and attachment into the registry together under Lock
+        // so readers never see a half-updated state.
         DMARecoveryApplyUpdate(prepared->RecoveryUpdate);
         list_append(&manager->Registry.Attachments, &prepared->Attachment->Link);
         manager->Registry.Count++;

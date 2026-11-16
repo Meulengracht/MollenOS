@@ -22,14 +22,19 @@
 
 // Forward declarations for opaque types
 DECL_STRUCT(DMAManager);
+DECL_STRUCT(DMABinding);
+DECL_STRUCT(SHMDeviceContext);
 DECL_STRUCT(DMAAttachmentRegistration);
 DECL_STRUCT(DMABindingRegistration);
 
 /**
- * @brief Copies of pending events and the sequence numbers used to acknowledge them.
- * The batch contains no attachment pointers. Keep it unchanged and hold a manager
- * operation reference until the snapshot, user copies and finish call are complete.
- * Entries and Sequences use matching indices from zero through Count - 1.
+ * @brief Copied batch of waiting attachment events and their sequence numbers.
+ *
+ * Holds copies of the event structs so the caller can work with them after
+ * dropping the manager lock. Keep the batch unchanged and keep a manager
+ * reference alive across the snapshot, user-space copies, and the
+ * DMAManagerFinishEvents call. Entries and Sequences line up by index from 0
+ * to Count - 1.
  */
 typedef struct DMAAttachmentEventBatch {
     uint32_t               Count;
@@ -38,15 +43,21 @@ typedef struct DMAAttachmentEventBatch {
 } DMAAttachmentEventBatch_t;
 
 /**
- * @brief Prepare a manager grant without enabling administration.
- * Requires a current security context and a syscall check of
- * CAPABILITY_DEVICEIO_MANAGEMENT. The registry and returned operation each hold
- * a separate reference, in addition to the service grant.
+ * @brief Allocates the DMA manager and creates its handle before enabling it.
  *
- * @param managerOut Receives an operation reference. Release it after publish or cancel.
- * @param handleOut Receives the service handle to copy to the caller.
- * @return OS_EOK, OS_EBUSY if a manager is already registered, or a security-context
- * or allocation error. Failure leaves the outputs unchanged and adds no registry entry.
+ * Requires an active security context (the process group owning the handle)
+ * and CAPABILITY_DEVICEIO_MANAGEMENT. Creation happens in two steps (prepare,
+ * then publish) so the handle can be copied to user space before the manager
+ * begins accepting commands. Both the global registry and managerOut hold a
+ * handle reference, alongside the handle installed in the caller's handle
+ * table, keeping the manager alive while the caller uses it and while any
+ * attachments remain registered.
+ *
+ * @param managerOut Receives a handle reference for this system call. Call
+ *                   DMAManagerRelease after publishing or cancelling.
+ * @param handleOut  Receives the new handle ID to copy back to user space.
+ * @return OS_EOK, OS_EBUSY if a manager already exists, or a security or
+ *         memory error. Failure leaves both outputs unchanged.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerPrepareCreate(
@@ -54,36 +65,39 @@ DMAManagerPrepareCreate(
     _Out_ uuid_t*        handleOut);
 
 /**
- * @brief Enable a prepared manager after its handle was copied to the caller.
+ * @brief Enables a prepared manager once its handle has been copied to user space.
  *
- * @param manager Prepared manager held by an operation reference.
- * @return OS_EOK or OS_ECANCELLED if its grant or security group has closed. On failure,
- * call DMAManagerCancelCreate before releasing the operation reference.
+ * @param manager Prepared manager kept alive by DMAManagerPrepareCreate.
+ * @return OS_EOK, or OS_ECANCELLED if the handle or caller's security group
+ *         closed in the meantime. On failure, call DMAManagerCancelCreate
+ *         before calling DMAManagerRelease.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerPublish(
     _In_ DMAManager_t* manager);
 
 /**
- * @brief Close a manager whose creation failed and release its original service grant.
- * Call only after failed creation. The manager closes immediately, even if temporary
- * grant references delay the close callback. The operation reference remains held.
+ * @brief Closes a manager whose setup failed and removes its user handle.
  *
- * @param manager Prepared manager, including one closed during publication.
+ * Call this only when creating the manager or copying its handle failed. Marks
+ * the manager closed right away even if temporary handle references delay final
+ * freeing. You still need to drop the caller's own handle reference with
+ * DMAManagerRelease.
+ *
+ * @param manager Prepared manager, including one that failed during publish.
  */
 void
 DMAManagerCancelCreate(
     _In_ DMAManager_t* manager);
 
 /**
- * @brief Reference a live manager after checking the caller's grant and full
- * security-group identity.
+ * @brief Looks up a live manager and checks the caller's handle and security group.
  *
- * @param handle Manager handle supplied by the service.
- * @param managerOut Receives an independent operation reference only on success.
- * @return Grant or handle-type errors, OS_EPERMISSIONS if the security group is
- * missing or different, OS_EBUSY before publication, or OS_ECANCELLED after the
- * service or grant is lost.
+ * @param handle     Manager handle passed from user space.
+ * @param managerOut Receives a reference that keeps the manager alive during the
+ *                   call. Unchanged on failure.
+ * @return Handle errors, OS_EPERMISSIONS if the caller is in a different security
+ *         group, OS_EBUSY if still being created, or OS_ECANCELLED if closed.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerReference(
@@ -91,31 +105,34 @@ DMAManagerReference(
     _Out_ DMAManager_t** managerOut);
 
 /**
- * @brief Release an operation reference and clear its pointer, including after close.
- * Requires all manager locks to be released. Publish or cancel any attachment
- * update before calling.
+ * @brief Drops the caller's manager reference and clears *manager to NULL.
  *
- * @param manager Operation reference to release. Does nothing if *manager is NULL.
+ * Call this only after releasing all manager locks and finishing or cancelling
+ * any pending attachment or binding update. Safe to call after the manager closes.
+ *
+ * @param manager Reference pointer to release. Does nothing if *manager is NULL.
  */
 KERNELABI void KERNELAPI
 DMAManagerRelease(
     _InOut_ DMAManager_t** manager);
 
 /**
- * @brief Check a copied attachment description and prepare a new registration or retry.
- * Requires a manager operation reference until publish or cancel finishes.
- * Parameters must stay unchanged in kernel memory until this call returns.
- * On success, UpdateLock stays held until publication succeeds or cancellation
- * finishes. The same thread must finish this update before starting another.
+ * @brief Checks an attachment setup and prepares a new entry or matching retry.
  *
- * @param manager Live manager referenced by the caller.
- * @param parameters Complete fixed-width description, including unused entries.
- * @param registrationOut Receives the prepared operation only on success.
- * @param attachmentOut Receives its new or existing ID only on success.
- * @return Validation or allocation errors, OS_EBUSY for conflicting state,
- * OS_ENOTSUPPORTED at the entry limit, OS_EOVERFLOW when IDs or event sequences
- * are exhausted, or OS_ECANCELLED after manager close. Failure releases temporary
- * resources.
+ * Keep the caller's manager reference alive until publish or cancel finishes,
+ * and keep parameters unchanged in kernel memory until this returns. On success,
+ * UpdateLock stays held until DMAManagerPublishAttachment or
+ * DMAManagerCancelAttachment runs, so the same thread must finish this update
+ * before starting another.
+ *
+ * @param manager         Live manager from DMAManagerReference.
+ * @param parameters      Fixed-size device description (unused entries must be 0).
+ * @param registrationOut Receives the prepared update handle on success.
+ * @param attachmentOut   Receives the new or existing attachment ID on success.
+ * @return Validation or memory errors, OS_EBUSY if a conflicting setup or active
+ *         work blocks the change, OS_ENOTSUPPORTED if the manager is full,
+ *         OS_EOVERFLOW if IDs or event counters ran out, or OS_ECANCELLED if
+ *         the manager closed. Temporary allocations are freed on failure.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerPrepareAttachment(
@@ -125,36 +142,40 @@ DMAManagerPrepareAttachment(
     _Out_ OSDmaAttachmentId_t*               attachmentOut);
 
 /**
- * @brief Publish an attachment and its group changes after copying its ID to the caller.
+ * @brief Commits a prepared attachment and its recovery group changes.
  *
- * @param registration Prepared operation. Success frees it, clears the pointer and
- * releases UpdateLock.
- * @return OS_EOK or a state or event error. On failure, cancel the prepared operation.
+ * Call after copying the attachment ID to user space succeeds.
+ *
+ * @param registration Prepared update from DMAManagerPrepareAttachment. On
+ *                     success, frees it, sets *registration to NULL, and unlocks UpdateLock.
+ * @return OS_EOK, or an error if state changed while copying. On failure, call
+ *         DMAManagerCancelAttachment to undo the update and unlock UpdateLock.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerPublishAttachment(
     _InOut_ DMAAttachmentRegistration_t** registration);
 
 /**
- * @brief Cancel a prepared attachment registration and release UpdateLock.
- * Requires the caller's manager reference until cancellation finishes.
- * Cancelling an identical retry leaves the existing attachment in place.
+ * @brief Cancels a prepared attachment update and unlocks UpdateLock.
  *
- * @param registration Prepared operation, cleared on return. Does nothing if
- * *registration is NULL.
+ * Keep the manager reference held until this returns. Cancelling a retry of an
+ * already registered attachment leaves the existing attachment intact.
+ *
+ * @param registration Prepared update to discard, cleared on return. No-op if NULL.
  */
 KERNELABI void KERNELAPI
 DMAManagerCancelAttachment(
     _InOut_ DMAAttachmentRegistration_t** registration);
 
 /**
- * @brief Remove an attachment and rebuild its recovery group.
+ * @brief Removes an attachment and rebuilds recovery groups for remaining devices.
  *
- * @param manager Live manager held by an operation reference.
- * @param attachmentID Nonzero manager-local ID.
- * @return OS_EOK, OS_ENOENT, OS_EINVALPARAMS for zero, OS_EBUSY for a pending
- * event or current binding in the affected group, OS_EOVERFLOW, OS_EOOM or
- * OS_ECANCELLED. A closed binding blocks removal until its final reference is released.
+ * @param manager      Live manager referenced by the caller.
+ * @param attachmentID Nonzero attachment ID within this manager.
+ * @return OS_EOK, OS_ENOENT if missing, OS_EINVALPARAMS for 0, OS_EBUSY if
+ *         the affected recovery group has waiting events or active bindings
+ *         (including closed bindings whose handle references have not dropped
+ *         yet), OS_EOVERFLOW, OS_EOOM, or OS_ECANCELLED.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerRemoveAttachment(
@@ -162,14 +183,17 @@ DMAManagerRemoveAttachment(
     _In_ uint64_t      attachmentID);
 
 /**
- * @brief Copy up to DMA_MANAGER_MAX_EVENTS pending events, leaving them queued.
+ * @brief Copies up to DMA_MANAGER_MAX_EVENTS waiting events without removing them.
  *
- * @param manager Referenced manager.
- * @param capacity Number of available output entries. Must be positive and is capped
- * at DMA_MANAGER_MAX_EVENTS.
- * @param batchOut Receives the event copies on success. The batch may be empty.
- * @return OS_EOK, OS_EINVALPARAMS for zero capacity or OS_ECANCELLED after close.
- * A failed snapshot sends another notification if the manager is live and events remain.
+ * Reading events in two steps lets the system call copy them to user space
+ * without holding the manager lock, keeping events queued if copying fails.
+ *
+ * @param manager  Live manager referenced by the caller.
+ * @param capacity Space available in the caller's array (must be > 0, capped at
+ *                 DMA_MANAGER_MAX_EVENTS).
+ * @param batchOut Receives the copied events and sequence numbers (may be 0 events).
+ * @return OS_EOK, OS_EINVALPARAMS if capacity is 0, or OS_ECANCELLED if closed.
+ *         If this fails while events are still waiting, it signals the handle again.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerSnapshotEvents(
@@ -178,15 +202,18 @@ DMAManagerSnapshotEvents(
     _Out_ DMAAttachmentEventBatch_t* batchOut);
 
 /**
- * @brief Acknowledge copied events that are unchanged and notify if events remain.
- * Call after every successful snapshot, even when copying outputs failed.
+ * @brief Removes acknowledged events after copying them to user space.
  *
- * @param manager Same referenced manager used for the snapshot.
- * @param batch Unchanged batch returned by the snapshot call.
- * @param outputsCopied True only after both the event array and count were copied successfully.
- * @return OS_EOK or OS_ECANCELLED after close. Events are removed only if both
- * output copies succeeded and their sequences still match. Events whose sequence
- * is exhausted stay queued.
+ * Always call this after a successful DMAManagerSnapshotEvents, even if copying
+ * to user space failed. An event is removed only when outputsCopied is true, its
+ * sequence number still matches what was copied (so newer updates are never
+ * lost), and the sequence counter has not hit its limit. Signals the manager
+ * handle again if any events remain queued.
+ *
+ * @param manager       Same referenced manager passed to DMAManagerSnapshotEvents.
+ * @param batch         Unmodified batch returned by DMAManagerSnapshotEvents.
+ * @param outputsCopied True only if both the event array and count copied to user space.
+ * @return OS_EOK, or OS_ECANCELLED if the manager closed.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerFinishEvents(
@@ -195,18 +222,18 @@ DMAManagerFinishEvents(
     _In_ bool                             outputsCopied);
 
 /**
- * @brief Prepare a new receiver grant or reference an identical live binding.
- * Requires a live manager held by an operation reference. Parameters must stay
- * unchanged in kernel memory until return. On success, UpdateLock stays held
- * until publication succeeds or cancellation finishes. The same thread must
- * finish this update before starting another.
+ * @brief Prepares a new binding handle for a driver or looks up an active retry.
  *
- * @param manager Manager referenced by the administrative caller.
- * @param parameters Copied, authenticated binding request.
- * @param registrationOut Receives the prepared operation only on success.
- * @param bindingOut Receives the new or existing handle and generation.
- * @return OS_EOK or a validation, permission, state or allocation error.
- * Failure leaves outputs unchanged and releases temporary resources.
+ * Keeps parameters unchanged until return, and holds UpdateLock until publish
+ * or cancel finishes so the same thread must complete this update before
+ * starting another.
+ *
+ * @param manager         Live manager referenced by the service caller.
+ * @param parameters      Copied bind request with attachment ID, driver group ID, and RequestId.
+ * @param registrationOut Receives the prepared binding update on success.
+ * @param bindingOut      Receives the driver's binding handle and generation on success.
+ * @return OS_EOK, or a validation, permission, state, or memory error. Failure
+ *         leaves outputs unchanged and cleans up temporary allocations.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerPrepareBinding(
@@ -216,27 +243,144 @@ DMAManagerPrepareBinding(
     _Out_ OSDmaBindingResult_t*        bindingOut);
 
 /**
- * @brief Publish a prepared binding after copying the result to the caller.
- * Checks the manager and binding state again. For a retry, the grant must still be live.
+ * @brief Commits a prepared binding after copying its result back to the service.
  *
- * @param registration Prepared operation. Success frees it, clears the pointer and
- * releases UpdateLock.
- * @return OS_EOK or OS_ECANCELLED. On failure, cancel the prepared operation.
+ * Checks again that neither the manager nor the binding closed while copying.
+ *
+ * @param registration Prepared binding from DMAManagerPrepareBinding. On success,
+ *                     frees it, clears *registration, and releases UpdateLock.
+ * @return OS_EOK, or OS_ECANCELLED if closed. On failure, call DMAManagerCancelBinding.
  */
 KERNELABI oserr_t KERNELAPI
 DMAManagerPublishBinding(
     _InOut_ DMABindingRegistration_t** registration);
 
 /**
- * @brief Cancel a prepared binding and release UpdateLock.
- * Closes a new grant in the receiver's group. Cancelling an identical retry leaves
- * the existing grant unchanged. Releases UpdateLock before releasing references.
+ * @brief Cancels a prepared binding and unlocks UpdateLock.
  *
- * @param registration Prepared operation, cleared on return. Does nothing if
- * *registration is NULL.
+ * For a new binding, closes the handle installed in the driver's handle table.
+ * Cancelling an identical retry leaves the existing active binding untouched.
+ * Unlocks UpdateLock before dropping references so handle cleanup cannot
+ * deadlock on manager locks.
+ *
+ * @param registration Prepared binding to cancel, cleared on return. No-op if NULL.
  */
 KERNELABI void KERNELAPI
 DMAManagerCancelBinding(
     _InOut_ DMABindingRegistration_t** registration);
+
+/**
+ * @brief Attaches a new bound DMA context to a driver's binding handle.
+ *
+ * Verifies that the caller holds the binding handle, belongs to its security
+ * group, and passed the exact generation. On success, takes a binding
+ * reference, counts this open as an active operation so a stop pass waits for
+ * it to finish, and copies the attachment configuration (lowering AddressLimit
+ * if the caller asked for a smaller ceiling). Fails without changing outputs.
+ * Does not hold UpdateLock while setting up the address space.
+ */
+KERNELABI oserr_t KERNELAPI
+DMABindingAttachContext(
+    _In_  uuid_t                            handle,
+    _In_  const OSDmaBoundOpenParameters_t* parameters,
+    _In_  SHMDeviceContext_t*               context,
+    _Out_ DMABinding_t**                    bindingOut,
+    _Out_ OSDmaAttachmentParameters_t*      configurationOut);
+
+/**
+ * @brief Finishes opening a bound context once its handle is copied to user space.
+ *
+ * Rechecks that the binding is still live and lowers the active operation count
+ * added by DMABindingAttachContext.
+ */
+KERNELABI oserr_t KERNELAPI
+DMABindingPublishContext(
+    _In_ DMABinding_t* binding);
+
+/**
+ * @brief Detaches a context from its binding and drops the context's binding reference.
+ *
+ * Call only when freeing the context (after all mappings are gone) or when
+ * cancelling an open that failed. If the context never finished publishing,
+ * this also clears the setup operation count. Drops references outside all
+ * manager and group locks.
+ */
+KERNELABI void KERNELAPI
+DMABindingDetachContext(
+    _InOut_ DMABinding_t**      binding,
+    _In_    SHMDeviceContext_t* context);
+
+/**
+ * @brief Checks permission and counts a new DMA operation on a bound context.
+ *
+ * Normal operations (creating mappings, reading segments, or starting transfers)
+ * require the recovery group to be live. Release operations (unmapping existing
+ * mappings) are also allowed after hardware stop is confirmed, provided no
+ * stop-cleanup pass is currently running. Returns OS_EOVERFLOW if the counter
+ * would wrap. On success, *stoppedOut is true when hardware stop was already
+ * confirmed at the time the operation was counted.
+ */
+KERNELABI oserr_t KERNELAPI
+DMABindingBeginOperation(
+    _In_  DMABinding_t* binding,
+    _In_  bool          release,
+    _Out_ bool*         stoppedOut);
+
+/**
+ * @brief Rechecks that a bound context is still live before committing work.
+ */
+KERNELABI oserr_t KERNELAPI
+DMABindingCheckOperation(
+    _In_ DMABinding_t* binding);
+
+/**
+ * @brief Lowers the active operation count for one finished operation.
+ *
+ * If the recovery group is blocked and this was the last active operation,
+ * triggers another cancellation and event pass so a waiting stop request can
+ * proceed.
+ */
+KERNELABI void KERNELAPI
+DMABindingEndOperation(
+    _In_ DMABinding_t* binding);
+
+/**
+ * @brief Blocks the whole recovery group and cuts off all of its bound contexts.
+ *
+ * Cancels contexts after dropping manager and group locks.
+ */
+KERNELABI void KERNELAPI
+DMABindingRevoke(
+    _In_ DMABinding_t* binding);
+
+/**
+ * @brief Blocks an attachment's recovery group from starting DMA and returns a stop ticket.
+ *
+ * Calling this again while the group is blocked returns the same ticket until
+ * the group is cleaned and reused or reshaped. Invalid IDs leave groups unchanged.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAManagerPrepareStop(
+    _In_  DMAManager_t*      manager,
+    _In_  uint64_t           attachmentID,
+    _Out_ OSDmaStopTicket_t* ticketOut);
+
+/**
+ * @brief Confirms hardware stop and cleans up every mapping in the ticket's group.
+ *
+ * Before calling this, physically stop every device in the group so none of
+ * them can touch RAM. A driver message or disabled interrupts do not prove that
+ * transfers have stopped.
+ *
+ * Returns OS_EBUSY if system calls are still finishing up or cancellation is
+ * running. Keep the hardware stopped and retry with the same ticket after
+ * OS_EBUSY or any cleanup error. Cleanup runs outside manager and group locks.
+ * Calling this again on an already finished ticket returns OS_EOK without
+ * repeating work.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAManagerCompleteStop(
+    _In_ DMAManager_t*            manager,
+    _In_ const OSDmaStopTicket_t* ticket);
 
 #endif //!__DMA_ATTACHMENT_H__

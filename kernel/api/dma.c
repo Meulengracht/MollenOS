@@ -32,21 +32,21 @@
 
 static oserr_t
 __CleanupContext(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**            object)
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
     struct SHMDeviceContext* context = *object;
     (void)record;
 
-    SHMDeviceContextRelease(&context);
+    SHMDeviceContextAbandon(&context);
     *object = context;
     return OS_EOK;
 }
 
 static oserr_t
 __ReleaseContext(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**            object)
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
     struct SHMDeviceContext* context = *object;
     oserr_t                  status;
@@ -59,8 +59,8 @@ __ReleaseContext(
 
 static oserr_t
 __CleanupMapping(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**            object)
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
     struct SHMDeviceMapping* mapping = *object;
     oserr_t                  status;
@@ -73,24 +73,41 @@ __CleanupMapping(
 
 static oserr_t
 __UnmapMapping(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**            object)
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
-    struct SHMDeviceMapping* mapping = *object;
-    oserr_t                  status;
-    (void)record;
+    SHMDeviceMapping_t*   mapping = *object;
+    SHMDeviceOperation_t* operation = NULL;
+    oserr_t               status;
 
-    status = SHMDeviceUnmap(&mapping);
+    status = SHMDeviceMappingBeginOperation(record, mapping, SHMDeviceOperationRelease, &operation);
+    if (status != OS_EOK) {
+        ERROR("__UnmapMapping: SHMDeviceMappingBeginOperation resource %u failed: %u", record->Handle, status);
+        return status;
+    }
+
+    status = SHMDeviceUnmap(operation, &mapping);
+    if (status != OS_EOK) {
+        ERROR("__UnmapMapping: SHMDeviceUnmap resource %u failed: %u", record->Handle, status);
+    }
+
     *object = mapping;
+
+    // SHMDeviceUnmap can drop the mapping's initial reference, so the operation
+    // token keeps the mapping struct alive until SHMDeviceOperationEnd returns.
+    SHMDeviceOperationEnd(&operation);
     return status;
 }
 
 static oserr_t
 __BeginMappingAccess(
-    _In_ struct SHMRecord*                      record,
+    _In_ SHMRecord_t*                           record,
     _In_ const struct SHMAccessBeginParameters* parameters,
     _In_ OSAsyncContext_t*                      async)
 {
+    SHMDeviceOperation_t* operation = NULL;
+    oserr_t               status;
+
     struct SHMAccessWait wait = {
         .Blocking = parameters->Mode == SHMWaitUntilAvailable,
         .Async = async,
@@ -101,55 +118,127 @@ __BeginMappingAccess(
         return OS_EINVALPARAMS;
     }
 
+    status = SHMDeviceMappingBeginOperation(
+        record,
+        record->Object,
+        SHMDeviceOperationSubmit,
+        &operation
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
     switch (parameters->Kind) {
         case DMAAccessTransfer:
-            return SHMDeviceSyncForDevice(
+            status = SHMDeviceSyncForDevice(
+                operation,
                 record->Object,
                 parameters->Offset,
                 parameters->Length,
                 &wait
             );
+            if (status == OS_EFORKED) {
+                goto exit;
+            } else if (status != OS_EOK) {
+                ERROR("__BeginMappingAccess: SHMDeviceSyncForDevice resource %u failed: %u", record->Handle, status);
+                goto exit;
+            }
+            break;
         case DMAAccessUse:
             if (parameters->Offset != 0 || parameters->Length != 0) {
-                return OS_EINVALPARAMS;
+                status = OS_EINVALPARAMS;
+                goto exit;
             }
-            return SHMDeviceBeginUse(record->Object, &wait);
+
+            status = SHMDeviceBeginUse(operation, record->Object, &wait);
+            if (status == OS_EFORKED) {
+                goto exit;
+            } else if (status != OS_EOK) {
+                ERROR("__BeginMappingAccess: SHMDeviceBeginUse resource %u failed: %u", record->Handle, status);
+                goto exit;
+            }
+            break;
         default:
-            return OS_EINVALPARAMS;
+            status = OS_EINVALPARAMS;
+            goto exit;
     }
+
+    status = SHMDeviceOperationCheck(operation);
+    if (status != OS_EOK) {
+        ERROR("__BeginMappingAccess: SHMDeviceOperationCheck resource %u failed: %u", record->Handle, status);
+    }
+
+exit:
+    if (status != OS_EFORKED) {
+        SHMDeviceOperationEnd(&operation);
+    }
+    return status;
 }
 
 static oserr_t
 __EndMappingAccess(
-    _In_ struct SHMRecord*                    record,
+    _In_ SHMRecord_t*                         record,
     _In_ const struct SHMAccessEndParameters* parameters)
 {
+    SHMDeviceOperation_t* operation = NULL;
+    oserr_t               status;
+
+    status = SHMDeviceMappingBeginOperation(
+        record,
+        record->Object,
+        SHMDeviceOperationComplete,
+        &operation
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
     switch (parameters->Kind) {
         case DMAAccessTransfer:
-            return SHMDeviceSyncForCpu(
+            status = SHMDeviceSyncForCpu(
+                operation,
                 record->Object,
                 parameters->Length
             );
+            if (status != OS_EOK) {
+                ERROR("__EndMappingAccess: SHMDeviceSyncForCpu resource %u failed: %u", record->Handle, status);
+            }
+            break;
         case DMAAccessUse:
             if (parameters->Length != 0) {
-                return OS_EINVALPARAMS;
+                status = OS_EINVALPARAMS;
+                break;
             }
-            return SHMDeviceEndUse(record->Object);
+
+            status = SHMDeviceEndUse(operation, record->Object);
+            if (status != OS_EOK) {
+                ERROR("__EndMappingAccess: SHMDeviceEndUse resource %u failed: %u", record->Handle, status);
+            }
+            break;
         default:
-            return OS_EINVALPARAMS;
+            status = OS_EINVALPARAMS;
+            break;
     }
+
+    // If the binding closes while this call is running, the caller already
+    // confirmed the hardware finished this transfer. Stop confirmation waits for
+    // this operation to finish before releasing memory.
+    SHMDeviceOperationEnd(&operation);
+    return status;
 }
 
-static const struct SHMRecordOps g_contextOps = {
+static const SHMRecordOps_t g_contextOps = {
     .Release = __ReleaseContext,
-    .Abandon = __CleanupContext
+    .Cleanup = __CleanupContext,
+    .CancelOperation = SHMDeviceOperationCancel
 };
 
-static const struct SHMRecordOps g_mappingOps = {
+static const SHMRecordOps_t g_mappingOps = {
     .Release = __UnmapMapping,
-    .Abandon = __CleanupMapping,
+    .Cleanup = __CleanupMapping,
     .Begin = __BeginMappingAccess,
-    .End = __EndMappingAccess
+    .End = __EndMappingAccess,
+    .CancelOperation = SHMDeviceOperationCancel
 };
 
 oserr_t
@@ -159,9 +248,10 @@ ScDmaOpen(
     _Out_ uuid_t*                           contextOut)
 {
     struct OSDmaOpenParameters parameters;
-    struct SHMRecord*          record;
+    SHMRecord_t*               record;
     struct SHMDeviceContext*   context = NULL;
     oserr_t                    status;
+    oserr_t                    cleanupStatus;
 
     TRACE("ScDmaOpen(device=%u)", device);
 
@@ -224,20 +314,83 @@ ScDmaOpen(
     return OS_EOK;
 
 error:
-    SHMRecordRelease(record);
+    cleanupStatus = SHMRecordRelease(record);
+    if (cleanupStatus != OS_EOK) {
+        ERROR("ScDmaOpen: SHMRecordRelease context %u failed: %u (open status %u)",
+                record->Handle, cleanupStatus, status);
+    }
+
+    SHMRecordRemove(record);
+    return status;
+}
+
+oserr_t
+ScDmaOpenBound(
+    _In_  uuid_t                            binding,
+    _In_  const OSDmaBoundOpenParameters_t* userParameters,
+    _Out_ uuid_t*                           contextOut)
+{
+    OSDmaBoundOpenParameters_t parameters;
+    SHMRecord_t*               record;
+    SHMDeviceContext_t*        context = NULL;
+    oserr_t                    status;
+
+    // The binding handle carries the device's registered rules, so drivers cannot
+    // swap in their own ranges or cache policy, or raise the address limit.
+    status = MemorySpaceCopyFromUser(&parameters, userParameters, sizeof(parameters));
+    if (status != OS_EOK) {
+        ERROR("ScDmaOpenBound: MemorySpaceCopyFromUser binding %u failed: %u", binding, status);
+        return status;
+    }
+
+    status = SHMRecordCreate(&g_contextOps, &record);
+    if (status != OS_EOK) {
+        ERROR("ScDmaOpenBound: SHMRecordCreate binding %u failed: %u", binding, status);
+        return status;
+    }
+
+    status = SHMDeviceContextPrepareBound(binding, &parameters, &context);
+    if (status != OS_EOK) {
+        ERROR("ScDmaOpenBound: SHMDeviceContextPrepareBound binding %u failed: %u", binding, status);
+        goto error;
+    }
+
+    record->Object = context;
+    status = MemorySpaceCopyToUser(contextOut, &record->Handle, sizeof(record->Handle));
+    if (status != OS_EOK) {
+        ERROR("ScDmaOpenBound: MemorySpaceCopyToUser binding %u failed: %u", binding, status);
+        goto error;
+    }
+
+    status = SHMDeviceContextPublishBound(context);
+    if (status != OS_EOK) {
+        ERROR("ScDmaOpenBound: SHMDeviceContextPublishBound binding %u failed: %u", binding, status);
+        goto error;
+    }
+
+    // The context is now published under the group lock, and setting the record
+    // to Idle cannot fail. If the binding closes right here, cleanup will still
+    // see a valid context and cancel it cleanly.
+    atomic_store(&record->State, SHMRecordIdle);
+    return OS_EOK;
+
+error:
+    record->Object = NULL;
+    SHMDeviceContextCancelBound(&context);
     SHMRecordRemove(record);
     return status;
 }
 
 static void
 __MappingResult(
-    _In_  struct SHMRecord*          record,
+    _In_  SHMDeviceOperation_t*      operation,
+    _In_  SHMRecord_t*               record,
     _Out_ struct OSDmaMappingResult* result)
 {
     const struct DMASegment* segments;
 
     result->Handle = record->Handle;
-    segments = SHMDeviceMappingSegments(record->Object, &result->SegmentCount);
+    segments = SHMDeviceMappingSegments(operation, record->Object, &result->SegmentCount);
     memset(&result->InlineSegment, 0, sizeof(result->InlineSegment));
     if (result->SegmentCount == 1) {
         result->InlineSegment = segments[0];
@@ -246,22 +399,30 @@ __MappingResult(
 
 static oserr_t
 __CreateMappingRecord(
-    _In_  uuid_t             context,
-    _Out_ struct SHMRecord** parentOut,
-    _Out_ struct SHMRecord** recordOut)
+    _In_  uuid_t        context,
+    _Out_ SHMRecord_t** parentOut,
+    _Out_ SHMRecord_t** recordOut)
 {
-    struct SHMRecord* parent;
-    struct SHMRecord* record;
-    oserr_t           status;
+    SHMRecord_t*          parent;
+    SHMRecord_t*          record;
+    SHMDeviceOperation_t* operation = NULL;
+    oserr_t               status;
 
     status = SHMRecordBegin(context, &g_contextOps, &parent);
     if (status != OS_EOK) {
         return status;
     }
 
+    status = SHMDeviceContextBeginOperation(parent, parent->Object, SHMDeviceOperationSubmit, &operation);
+    if (status != OS_EOK) {
+        SHMRecordEnd(parent);
+        return status;
+    }
+
     status = SHMRecordCreate(&g_mappingOps, &record);
     if (status != OS_EOK) {
         ERROR("__CreateMappingRecord: SHMRecordCreate context %u failed: %u", context, status);
+        SHMDeviceOperationEnd(&operation);
         SHMRecordEnd(parent);
         return status;
     }
@@ -273,13 +434,14 @@ __CreateMappingRecord(
 
 static oserr_t
 __PublishMapping(
-    _In_  struct SHMRecord* parent,
-    _In_  struct SHMRecord* record,
-    _In_  const void*      result,
-    _In_  size_t           size,
-    _Out_ void*            userOut)
+    _In_  SHMRecord_t* parent,
+    _In_  SHMRecord_t* record,
+    _In_  const void*  result,
+    _In_  size_t       size,
+    _Out_ void*        userOut)
 {
-    oserr_t status;
+    SHMDeviceOperation_t* operation = parent->PendingOperation;
+    oserr_t               status;
 
     status = MemorySpaceCopyToUser(userOut, result, size);
     if (status != OS_EOK) {
@@ -288,26 +450,36 @@ __PublishMapping(
         return status;
     }
 
+    status = SHMDeviceOperationCheck(operation);
+    if (status != OS_EOK) {
+        return status;
+    }
+
     // Trace before we publish the mapping. Once it is idle, another syscall
     // may release it at any time.
     TRACE("__PublishMapping: publishing mapping %u, context %u",
           record->Handle, parent->Handle);
     atomic_store(&record->State, SHMRecordIdle);
+
+    SHMDeviceOperationEnd(&operation);
     SHMRecordEnd(parent);
     return OS_EOK;
 }
 
 static void
 __RollbackMapping(
-    _In_ struct SHMRecord* parent,
-    _In_ struct SHMRecord* record,
-    _In_ SHMHandle_t*      buffer,
-    _In_ oserr_t           status)
+    _In_ SHMRecord_t* parent,
+    _In_ SHMRecord_t* record,
+    _In_ SHMHandle_t* buffer,
+    _In_ oserr_t      status)
 {
-    oserr_t cleanupStatus;
+    SHMDeviceOperation_t* operation = parent->PendingOperation;
+    oserr_t               cleanupStatus;
 
-    // The mapping was never published, so no device can be using it yet. A
-    // normal release (unmap) is enough here.
+    // Try releasing normally while the binding is live. If the binding closed
+    // in the meantime, SHMRecordRemove hands the mapping over to stop cleanup.
+    // Keep the parent context operation open across both steps and return the
+    // original error.
     cleanupStatus = SHMRecordRelease(record);
     if (cleanupStatus != OS_EOK) {
         ERROR("__RollbackMapping: SHMDeviceUnmap mapping %u failed: %u (original status %u)",
@@ -323,6 +495,7 @@ __RollbackMapping(
     }
 
     SHMRecordRemove(record);
+    SHMDeviceOperationEnd(&operation);
     SHMRecordEnd(parent);
 }
 
@@ -334,13 +507,13 @@ ScDmaAllocate(
 {
     struct DMARequirements       requirements;
     struct OSDmaAllocationResult result = { 0 };
-    struct SHMRecord*            parent;
-    struct SHMRecord*            record;
+    SHMRecord_t*                 parent;
+    SHMRecord_t*                 record;
     struct SHMDeviceMapping*     mapping = NULL;
     oserr_t                      status;
 
     TRACE("ScDmaAllocate(context=%u)", context);
-    
+
     status = MemorySpaceCopyFromUser(
         &requirements,
         userRequirements,
@@ -356,7 +529,13 @@ ScDmaAllocate(
         return status;
     }
 
-    status = SHMDeviceAllocate(parent->Object, &requirements, &result.Buffer, &mapping);
+    status = SHMDeviceAllocate(
+        parent->PendingOperation,
+        parent->Object,
+        &requirements,
+        &result.Buffer,
+        &mapping
+    );
     if (status != OS_EOK) {
         ERROR("ScDmaAllocate: SHMDeviceAllocate context %u, length %zu failed: %u",
               context, requirements.Length, status);
@@ -364,7 +543,7 @@ ScDmaAllocate(
     }
     record->Object = mapping;
 
-    __MappingResult(record, &result.Mapping);
+    __MappingResult(parent->PendingOperation, record, &result.Mapping);
     status = __PublishMapping(parent, record, &result, sizeof(result), resultOut);
     if (status == OS_EOK) {
         return status;
@@ -384,14 +563,14 @@ ScDmaMapShm(
 {
     struct OSDmaMapParameters parameters;
     struct OSDmaMappingResult result;
-    struct SHMRecord*         parent;
-    struct SHMRecord*         record;
+    SHMRecord_t*              parent;
+    SHMRecord_t*              record;
     struct SHMDeviceMapping*  mapping = NULL;
     enum SHMDeviceMappingKind kind;
     oserr_t                   status;
 
     TRACE("ScDmaMapShm(context=%u, shm=%u)", context, shm);
-   
+
     status = MemorySpaceCopyFromUser(&parameters, userParameters, sizeof(parameters));
     if (status != OS_EOK) {
         ERROR("ScDmaMapShm: MemorySpaceCopyFromUser parameters for context %u, SHM %u failed: %u",
@@ -419,6 +598,7 @@ ScDmaMapShm(
     }
 
     status = SHMDeviceMap(
+        parent->PendingOperation,
         parent->Object,
         shm,
         parameters.Offset,
@@ -435,7 +615,7 @@ ScDmaMapShm(
     }
     record->Object = mapping;
 
-    __MappingResult(record, &result);
+    __MappingResult(parent->PendingOperation, record, &result);
     status = __PublishMapping(parent, record, &result, sizeof(result), resultOut);
     if (status == OS_EOK) {
         return status;
@@ -453,7 +633,8 @@ ScDmaGetSegments(
     _In_  uint32_t           capacity,
     _Out_ uint32_t*          countOut)
 {
-    struct SHMRecord*        record;
+    SHMRecord_t*             record;
+    SHMDeviceOperation_t*    operation = NULL;
     const struct DMASegment* segments;
     uint32_t                 count;
     oserr_t                  status;
@@ -464,7 +645,21 @@ ScDmaGetSegments(
         return status;
     }
 
-    segments = SHMDeviceMappingSegments(record->Object, &count);
+    status = SHMDeviceMappingBeginOperation(
+        record,
+        record->Object,
+        SHMDeviceOperationSubmit,
+        &operation
+    );
+    if (status != OS_EOK) {
+        goto exit;
+    }
+
+    segments = SHMDeviceMappingSegments(
+        operation,
+        record->Object,
+        &count
+    );
     if (segments == NULL) {
         // An earlier release may have stopped halfway through removing the
         // device addresses. In this case we keep the handle so the cleanup can
@@ -478,7 +673,7 @@ ScDmaGetSegments(
         ERROR("ScDmaGetSegments: MemorySpaceCopyToUser count for mapping %u failed: %u", mapping, status);
         goto exit;
     }
-    
+
     if (entries == NULL) {
         goto exit;
     }
@@ -496,6 +691,10 @@ ScDmaGetSegments(
     }
 
 exit:
+    if (status == OS_EOK) {
+        status = SHMDeviceOperationCheck(operation);
+    }
+    SHMDeviceOperationEnd(&operation);
     SHMRecordEnd(record);
     return status;
 }

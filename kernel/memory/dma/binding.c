@@ -18,21 +18,29 @@
 #include <assert.h>
 #include <debug.h>
 #include <handles/global.h>
-#include <handles/set.h>
-#include <ioset.h>
 #include <heap.h>
+#include <limits.h>
 #include <memoryspace.h>
 #include <string.h>
 
 #include "attachment_private.h"
+#include "../utils.h"
 
 void
 DMABindingCloseLocked(
     _In_ DMABinding_t* binding)
 {
-    // A closed binding stays closed. Keep the published request history so a
-    // late retry cannot reopen the grant after the close callback has run.
+    // Once closed, a binding stays closed. Keep the last published request ID
+    // intact so a late retry cannot reopen DMA after cleanup starts.
+    bool hasContext;
+
+    MutexLock(&binding->Group->Lock);
     binding->State = DMABindingClosed;
+    hasContext = binding->Context.Pointer != NULL;
+    MutexUnlock(&binding->Group->Lock);
+    if (hasContext) {
+        DMARecoveryBlockLocked(binding->Manager, binding->Group);
+    }
 }
 
 static void
@@ -44,6 +52,7 @@ __CloseBinding(
     MutexLock(&binding->Manager->Lock);
     DMABindingCloseLocked(binding);
     MutexUnlock(&binding->Manager->Lock);
+    DMARecoveryCancel(binding->Group);
 }
 
 static void
@@ -54,39 +63,62 @@ __DeleteBinding(
     DMAManager_t* manager = binding->Manager;
     bool          notifyManager = false;
 
-    // The attachment pointer does not keep the binding alive. Clear it under
-    // Lock before freeing the binding so registry updates cannot use freed memory.
+    // Attachment->Binding.Current does not hold a reference to this binding,
+    // so clear it under manager->Lock before freeing the memory.
     MutexLock(&manager->Lock);
+    MutexLock(&binding->Group->Lock);
     assert(binding->State == DMABindingClosed);
+    assert(binding->Context.Pointer == NULL);
     if (binding->Attachment != NULL) {
         assert(binding->Attachment->Binding.Current == binding);
         binding->Attachment->Binding.Current = NULL;
 
-        // Only published bindings point to an attachment. Queue the idle event
-        // here, after the last binding reference has been released.
+        // Only published bindings point back to an attachment. Queue the idle
+        // event now that the driver's last handle reference has dropped.
         DMAAttachmentQueueEventLocked(
             manager,
             binding->Attachment,
             binding->Generation,
-            0,
+            binding->Group->Gate.State == DMARecoveryLive ? 0 : binding->Group->Stop.Epoch,
             DMA_ATTACHMENT_IDLE
         );
         notifyManager = manager->State == DMAManagerLive;
     }
+    MutexUnlock(&binding->Group->Lock);
     MutexUnlock(&manager->Lock);
 
     if (notifyManager) {
-        // The binding keeps the manager alive while we notify without Lock.
-        // If notification fails, the event stays queued for the next read.
-        MarkHandle(manager->ID, IOSETIN);
+        // This binding holds a reference to manager, so it is safe to signal
+        // watchers without Lock. If signaling fails, the event stays queued.
+        DMAManagerNotifyEvents(manager, __func__);
     }
+    DMARecoveryGroupRelease(&binding->Group);
     kfree(binding);
     DMAManagerRelease(&manager);
 }
 
-// Requires Lock, UpdateLock and a temporary reference to the receiver's context.
-// Retry checks use the last published request. Failed preparation leaves it unchanged.
-// A retry references the current binding; a new request reserves newGenerationOut.
+static bool
+__IsBindingLive(
+    _In_ DMAAttachment_t* attachment,
+    _In_ DMAAttachmentBindingState_t* bindingState)
+{
+    bool isBindingLive = false;
+
+    MutexLock(&attachment->RecoveryGroup->Lock);
+    if (bindingState->Current != NULL) {
+        bool bindingLive = bindingState->Current->State == DMABindingLive;
+        bool groupLive = attachment->RecoveryGroup->Gate.State == DMARecoveryLive;
+        isBindingLive = bindingLive && groupLive;
+    }
+    MutexUnlock(&attachment->RecoveryGroup->Lock);
+
+    return isBindingLive;
+}
+
+// Requires manager->Lock, UpdateLock, and a reference to the driver's security
+// context. Retries check against the last published request, and a failed setup
+// leaves that history unchanged. On success, either takes a reference to the
+// active binding (retry) or reserves a new generation in newGenerationOut.
 static oserr_t
 __PrepareBindingRequestLocked(
     _In_    const OSDmaBindParameters_t* parameters,
@@ -119,16 +151,26 @@ __PrepareBindingRequestLocked(
         return OS_EPERMISSIONS;
     }
 
+    MutexLock(&attachment->RecoveryGroup->Lock);
+    if (attachment->RecoveryGroup->Gate.State == DMARecoveryBlocked ||
+        attachment->RecoveryGroup->Gate.State == DMARecoveryConfirmed) {
+        MutexUnlock(&attachment->RecoveryGroup->Lock);
+        return OS_ECANCELLED;
+    }
+    MutexUnlock(&attachment->RecoveryGroup->Lock);
+
     if (parameters->RequestId < bindingState->RequestId) {
         return OS_ECANCELLED;
     }
 
     if (parameters->RequestId == bindingState->RequestId) {
-        if (bindingState->Current == NULL || bindingState->Current->State != DMABindingLive) {
+        bool isBindingLive = __IsBindingLive(attachment, bindingState);
+        if (!isBindingLive) {
             return OS_ECANCELLED;
         }
-        // Check that the receiver still has the grant and take an operation
-        // reference to it. Retrying a lost reply must not add a driver grant.
+
+        // Check that the driver still holds the handle and take a reference to
+        // keep it alive, so retrying a lost reply returns the same handle.
         return AcquireHandleReferenceInContext(
             registration->Receiver,
             bindingState->Current->ID,
@@ -137,7 +179,7 @@ __PrepareBindingRequestLocked(
         );
     }
 
-    if (attachment->Event.Exhausted) {
+    if (attachment->Event.Sequence == UINT64_MAX) {
         return OS_EOVERFLOW;
     }
 
@@ -149,13 +191,48 @@ __PrepareBindingRequestLocked(
         return OS_EOVERFLOW;
     }
 
+    // A cleaned recovery group can only be reused after every old binding and
+    // waiting event in the group is gone. Advance the stop round counter before
+    // switching back to Live so old stop tickets can never match the new session.
+    MutexLock(&attachment->RecoveryGroup->Lock);
+    if (attachment->RecoveryGroup->Gate.State == DMARecoveryCleaned) {
+        foreach (node, &manager->Registry.Attachments) {
+            DMAAttachment_t* member = node->value;
+
+            if (member->RecoveryGroup == attachment->RecoveryGroup &&
+                (member->Binding.Current != NULL || member->Event.Queued)) {
+                MutexUnlock(&attachment->RecoveryGroup->Lock);
+                return OS_EBUSY;
+            }
+        }
+
+        if (attachment->RecoveryGroup->Gate.Operations != 0 ||
+            attachment->RecoveryGroup->Stop.Phase != DMARecoveryStopIdle) {
+            MutexUnlock(&attachment->RecoveryGroup->Lock);
+            return OS_EBUSY;
+        }
+
+        if (attachment->RecoveryGroup->Stop.Epoch >= UINT64_MAX - 1) {
+            MutexUnlock(&attachment->RecoveryGroup->Lock);
+            return OS_EOVERFLOW;
+        }
+
+        attachment->RecoveryGroup->Stop.Epoch++;
+        attachment->RecoveryGroup->Gate.State = DMARecoveryLive;
+    }
+    if (attachment->RecoveryGroup->Gate.State != DMARecoveryLive) {
+        MutexUnlock(&attachment->RecoveryGroup->Lock);
+        return OS_EBUSY;
+    }
+    MutexUnlock(&attachment->RecoveryGroup->Lock);
+
     registration->CreatesBinding = true;
     *newGenerationOut = manager->Registry.NextBindingGeneration++;
     return OS_EOK;
 }
 
-// Requires UpdateLock and the caller's manager operation reference.
-// Release UpdateLock before dropping references, which may run registry cleanup.
+// Requires UpdateLock and the caller's manager reference. Unlock UpdateLock
+// before dropping references so handle cleanup cannot deadlock on registry locks.
 static void
 __FinishBindingRegistration(
     _InOut_ DMABindingRegistration_t** registration,
@@ -168,10 +245,16 @@ __FinishBindingRegistration(
 
     MutexUnlock(&prepared->Manager->UpdateLock);
     if (cancel && prepared->CreatesBinding) {
-        DestroyHandleInContext(prepared->Receiver, bindingHandle);
+        uuid_t  releasedHandle = bindingHandle;
+        oserr_t releaseStatus = DestroyHandleInContext(prepared->Receiver, releasedHandle);
+
+        // Another thread may have already closed this unpublished handle.
+        if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE && releaseStatus != OS_ENOENT) {
+            ERROR("%s: DestroyHandleInContext %u failed: %u", __func__, releasedHandle, releaseStatus);
+        }
     }
-    ReleaseGlobalHandle(bindingHandle);
-    ReleaseGlobalHandle(prepared->Receiver->GlobalHandleID);
+    __ReleaseMemoryHandleReference(bindingHandle, __func__);
+    __ReleaseMemoryHandleReference(prepared->Receiver->GlobalHandleID, __func__);
     kfree(prepared);
 }
 
@@ -198,8 +281,8 @@ DMAManagerPrepareBinding(
         return OS_EOVERFLOW;
     }
 
-    // Resolve the full principal before casting it or reserving a generation.
-    // Keep the receiver's handle table alive until we publish or cancel.
+    // Look up the driver's security context before using its ID or reserving a
+    // generation. Keep its handle table alive until publish or cancel finishes.
     status = MSContextAcquireSecurity(parameters->Principal, &receiver);
     if (status != OS_EOK) {
         ERROR("DMAManagerPrepareBinding: MSContextAcquireSecurity principal %llu failed: %u",
@@ -209,7 +292,7 @@ DMAManagerPrepareBinding(
 
     registration = kmalloc(sizeof(DMABindingRegistration_t));
     if (registration == NULL) {
-        ReleaseGlobalHandle(receiver->GlobalHandleID);
+        __ReleaseMemoryHandleReference(receiver->GlobalHandleID, __func__);
         return OS_EOOM;
     }
 
@@ -246,6 +329,15 @@ DMAManagerPrepareBinding(
     binding->Generation = generation;
     binding->State = DMABindingPreparing;
 
+    // UpdateLock keeps this group registered until publish or cancel finishes.
+    // Acquire a reference before creating the handle in case the driver guesses
+    // the handle ID and closes it right away.
+    status = DMARecoveryGroupAcquire(registration->Attachment->RecoveryGroup);
+    if (status != OS_EOK) {
+        goto error;
+    }
+    binding->Group = registration->Attachment->RecoveryGroup;
+
     status = AcquireGlobalHandle(manager->ID, HandleTypeDMAManager, NULL);
     if (status != OS_EOK) {
         ERROR("DMAManagerPrepareBinding: AcquireGlobalHandle manager %u failed: %u",
@@ -261,9 +353,9 @@ DMAManagerPrepareBinding(
         goto close_binding;
     }
 
-    // The receiver may guess the handle and close it as soon as it exists.
-    // Hold Lock so the callback waits until we have stored the ID and taken
-    // the reference needed for publication.
+    // The driver could guess the handle ID and close it right after it is added.
+    // Hold manager->Lock so the close callback waits until we save the ID and
+    // take our publish reference.
     bindingHandle = CreateHandleInContext(
         HandleTypeDMABinding,
         __CloseBinding,
@@ -288,9 +380,9 @@ DMAManagerPrepareBinding(
     registration->Binding = binding;
 
 ready:
-    // Both new bindings and retries reach here with an operation reference.
-    // Publish checks for a close that happens later. Returning the handle and
-    // generation does not enable DMA.
+    // Both new bindings and retries reach here with a handle reference.
+    // Publish still checks if the handle closed later. Returning the handle ID
+    // and generation alone does not enable DMA yet.
     *bindingOut = (OSDmaBindingResult_t) {
         .Handle = registration->Binding->ID,
         .Generation = registration->Binding->Generation
@@ -305,17 +397,26 @@ close_binding:
 error:
     MutexUnlock(&manager->UpdateLock);
     if (bindingHandle != UUID_INVALID) {
-        // The grant was created, but taking the publication reference failed.
-        // The receiver may already have closed and freed the binding. Use the
-        // saved handle and the receiver reference without touching the binding.
-        DestroyHandleInContext(receiver, bindingHandle);
+        // The handle was created, but taking our publish reference failed. The
+        // driver might already have closed and freed the binding, so clean up
+        // via the saved handle ID without touching the binding pointer.
+        uuid_t releasedHandle = bindingHandle;
+        oserr_t releaseStatus = DestroyHandleInContext(receiver, releasedHandle);
+
+        // Another thread may have already closed this unpublished handle.
+        if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE && releaseStatus != OS_ENOENT) {
+            ERROR("%s: DestroyHandleInContext %u failed: %u", __func__, releasedHandle, releaseStatus);
+        }
     } else {
+        if (binding != NULL) {
+            DMARecoveryGroupRelease(&binding->Group);
+        }
         kfree(binding);
         if (hasManagerReference) {
-            ReleaseGlobalHandle(manager->ID);
+            __ReleaseMemoryHandleReference(manager->ID, __func__);
         }
     }
-    ReleaseGlobalHandle(receiver->GlobalHandleID);
+    __ReleaseMemoryHandleReference(receiver->GlobalHandleID, __func__);
     kfree(registration);
     return status;
 }
@@ -331,12 +432,13 @@ DMAManagerPublishBinding(
     oserr_t                      status = OS_EOK;
 
     MutexLock(&manager->Lock);
-    if (manager->State != DMAManagerLive || binding->State == DMABindingClosed) {
+    MutexLock(&binding->Group->Lock);
+    if (manager->State != DMAManagerLive || binding->State == DMABindingClosed ||
+        binding->Group->Gate.State != DMARecoveryLive) {
         status = OS_ECANCELLED;
     } else if (prepared->CreatesBinding) {
-        // UpdateLock prevents attachment removal and another publication.
-        // Make the grant live under Lock, together with the attachment pointer
-        // and request history.
+        // UpdateLock blocks attachment removal and other bind calls. Switch
+        // the binding to Live and save it on the attachment together under Lock.
         assert(binding->State == DMABindingPreparing);
         bindingState = &prepared->Attachment->Binding;
         assert(bindingState->Current == NULL);
@@ -347,6 +449,7 @@ DMAManagerPublishBinding(
         bindingState->Generation = binding->Generation;
         binding->State = DMABindingLive;
     }
+    MutexUnlock(&binding->Group->Lock);
     MutexUnlock(&manager->Lock);
     if (status != OS_EOK) {
         ERROR("DMAManagerPublishBinding: manager %u or binding %u closed before publication",
@@ -369,11 +472,190 @@ DMAManagerCancelBinding(
     }
 
     if (prepared->CreatesBinding) {
-        // Temporary grant references may delay the close callback. Mark the
-        // unpublished binding closed now and leave the published history intact.
+        // Extra handle references may delay the close callback. Mark this
+        // unpublished binding closed right away while keeping earlier request
+        // history intact.
         MutexLock(&prepared->Manager->Lock);
         DMABindingCloseLocked(prepared->Binding);
         MutexUnlock(&prepared->Manager->Lock);
     }
     __FinishBindingRegistration(registration, true);
+}
+
+// Requires group->Lock and a binding reference. Sharing this helper ensures
+// context publish and operation checks follow the exact same rules.
+static oserr_t
+__CheckBindingLiveLocked(
+    _In_ DMABinding_t* binding)
+{
+    if (binding->State != DMABindingLive || binding->Group->Gate.State != DMARecoveryLive) {
+        return OS_ECANCELLED;
+    }
+    return OS_EOK;
+}
+
+oserr_t
+DMABindingAttachContext(
+    _In_  uuid_t                            handle,
+    _In_  const OSDmaBoundOpenParameters_t* parameters,
+    _In_  SHMDeviceContext_t*               context,
+    _Out_ DMABinding_t**                    bindingOut,
+    _Out_ OSDmaAttachmentParameters_t*      configurationOut)
+{
+    MSContextSecurity_t* caller = MemorySpaceGetSecurityContext();
+    DMABinding_t*        binding;
+    oserr_t              status;
+
+    if (parameters->Generation == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (caller == NULL) {
+        return OS_EPERMISSIONS;
+    }
+
+    status = AcquireHandleReferenceInContext(caller, handle, HandleTypeDMABinding, (void**)&binding);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    MutexLock(&binding->Group->Lock);
+    if (binding->Principal != (uint64_t)caller->GlobalHandleID) {
+        status = OS_EPERMISSIONS;
+    } else if (binding->Generation != parameters->Generation) {
+        status = OS_ECANCELLED;
+    } else {
+        status = __CheckBindingLiveLocked(binding);
+    }
+
+    // If the context is already attached, we cannot attach another one.
+    if (status == OS_EOK && binding->Context.Pointer != NULL) {
+        status = OS_EBUSY;
+    } else if (status == OS_EOK && binding->Group->Gate.Operations == UINT_MAX) {
+        // If the number of active operations has reached the maximum, 
+        // we cannot attach a new context.
+        status = OS_EOVERFLOW;
+    } else if (status == OS_EOK) {
+        // Store the attachment configuration and update the address limit if necessary.
+        *configurationOut = binding->Attachment->Configuration;
+        if (parameters->AddressLimit < configurationOut->AddressLimit) {
+            configurationOut->AddressLimit = parameters->AddressLimit;
+        }
+
+        binding->Context.Pointer = context;
+        binding->Context.Phase = DMABindingContextPreparing;
+        binding->Group->Gate.Operations++;
+        *bindingOut = binding;
+    }
+    MutexUnlock(&binding->Group->Lock);
+    if (status != OS_EOK) {
+        __ReleaseMemoryHandleReference(binding->ID, __func__);
+    }
+    return status;
+}
+
+oserr_t
+DMABindingPublishContext(
+    _In_ DMABinding_t* binding)
+{
+    oserr_t status;
+
+    MutexLock(&binding->Group->Lock);
+    assert(binding->Context.Phase == DMABindingContextPreparing);
+    status = __CheckBindingLiveLocked(binding);
+    if (status == OS_EOK) {
+        binding->Context.Phase = DMABindingContextLive;
+        assert(binding->Group->Gate.Operations != 0);
+        binding->Group->Gate.Operations--;
+    }
+    MutexUnlock(&binding->Group->Lock);
+    return status;
+}
+
+void
+DMABindingDetachContext(
+    _InOut_ DMABinding_t**      binding,
+    _In_    SHMDeviceContext_t* context)
+{
+    DMABinding_t* current = *binding;
+    bool          preparing;
+
+    if (current == NULL) {
+        return;
+    }
+    
+    *binding = NULL;
+    
+    MutexLock(&current->Group->Lock);
+    assert(current->Context.Pointer == context);
+    preparing = current->Context.Phase == DMABindingContextPreparing;
+    memset(&current->Context, 0, sizeof(DMABindingContextState_t));
+    MutexUnlock(&current->Group->Lock);
+
+    if (preparing) {
+        // Cancelling an open before it finishes publishing may be the last
+        // active operation in the group. Use DMABindingEndOperation so any
+        // service waiting to retry stop gets notified.
+        DMABindingEndOperation(current);
+    }
+    __ReleaseMemoryHandleReference(current->ID, __func__);
+}
+
+oserr_t
+DMABindingBeginOperation(
+    _In_  DMABinding_t* binding,
+    _In_  bool          release,
+    _Out_ bool*         stoppedOut)
+{
+    DMARecoveryGroup_t* group = binding->Group;
+    oserr_t             status;
+
+    MutexLock(&group->Lock);
+    status = __CheckBindingLiveLocked(binding);
+    if (release && group->Gate.State != DMARecoveryLive) {
+        status = group->Gate.State == DMARecoveryBlocked ||
+            group->Stop.Phase == DMARecoveryStopCleaning ? OS_EBUSY : OS_EOK;
+    }
+
+    if (group->Gate.ManagerClosed) {
+        status = OS_ECANCELLED;
+    }
+
+    if (status == OS_EOK && binding->Context.Phase != DMABindingContextLive) {
+        status = OS_ECANCELLED;
+    }
+
+    if (status == OS_EOK) {
+        if (group->Gate.Operations == UINT_MAX) {
+            status = OS_EOVERFLOW;
+        } else {
+            group->Gate.Operations++;
+            *stoppedOut = release && (group->Gate.State == DMARecoveryConfirmed ||
+                                     group->Gate.State == DMARecoveryCleaned);
+        }
+    }
+    MutexUnlock(&group->Lock);
+    return status;
+}
+
+oserr_t
+DMABindingCheckOperation(
+    _In_ DMABinding_t* binding)
+{
+    oserr_t status;
+
+    MutexLock(&binding->Group->Lock);
+    status = __CheckBindingLiveLocked(binding);
+    MutexUnlock(&binding->Group->Lock);
+    return status;
+}
+
+void
+DMABindingRevoke(
+    _In_ DMABinding_t* binding)
+{
+    MutexLock(&binding->Manager->Lock);
+    DMARecoveryBlockLocked(binding->Manager, binding->Group);
+    MutexUnlock(&binding->Manager->Lock);
+    DMARecoveryCancel(binding->Group);
 }

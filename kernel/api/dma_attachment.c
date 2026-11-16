@@ -43,9 +43,9 @@ ScDmaManagerCreate(
         return status;
     }
 
-    // Publication enables administration only after the complete output copy.
-    // A concurrent close can still cancel publication; raw outputs then have
-    // no meaning, and the DDK wrapper keeps its caller's output unchanged.
+    // Only enable the manager after copying its handle to user space succeeds.
+    // If the caller closes the handle right before publish, cancel cleanly (the
+    // DDK wrapper leaves the caller's output untouched on error).
     status = MemorySpaceCopyToUser(managerOut, &handle, sizeof(handle));
     if (status != OS_EOK) {
         ERROR("ScDmaManagerCreate: MemorySpaceCopyToUser manager %u failed: %u", handle, status);
@@ -101,8 +101,9 @@ ScDmaAttachmentRegister(
         goto exit;
     }
 
-    // UpdateLock serializes registrations across this copy. The state lock is
-    // free so grant close and event production can invalidate publication.
+    // UpdateLock keeps other registrations from running while we copy the ID
+    // to user space. The manager's main Lock stays unlocked so a concurrent close
+    // or new event can still happen and block publication.
     status = MemorySpaceCopyToUser(attachmentOut, &attachment, sizeof(attachment));
     if (status != OS_EOK) {
         ERROR("ScDmaAttachmentRegister: MemorySpaceCopyToUser attachment %llu for manager %u failed: %u",
@@ -152,8 +153,9 @@ ScDmaManagerReadEvents(
         goto exit;
     }
 
-    // Copy values without a registry lock. A partially copied array or a failed
-    // count copy must leave every event pending, including its current version.
+    // Copy events to user space without holding any manager lock. If copying
+    // the array or the count fails, leave every event queued with its sequence
+    // number intact.
     if (batch.Count != 0) {
         status = MemorySpaceCopyToUser(entries, batch.Entries, batch.Count * sizeof(*entries));
         if (status != OS_EOK) {
@@ -255,8 +257,9 @@ ScDmaAttachmentBind(
         goto exit;
     }
 
-    // The service receives a numeric result; the grant is in the checked driver
-    // group. Cancellation must use that saved group, not the calling service.
+    // The service only gets back the handle ID and generation, while the handle
+    // itself lives in the driver's handle table. On error, cancel inside that
+    // driver security group because the calling service never owned the handle.
     status = MemorySpaceCopyToUser(bindingOut, &binding, sizeof(binding));
     if (status != OS_EOK) {
         ERROR("ScDmaAttachmentBind: MemorySpaceCopyToUser binding %u for manager %u failed: %u",
@@ -274,6 +277,81 @@ ScDmaAttachmentBind(
 
 cancel:
     DMAManagerCancelBinding(&registration);
+
+exit:
+    DMAManagerRelease(&manager);
+    return status;
+}
+
+oserr_t
+ScDmaAttachmentPrepareStop(
+    _In_  uuid_t                     managerID,
+    _In_  const OSDmaAttachmentId_t* userAttachment,
+    _Out_ OSDmaStopTicket_t*         ticketOut)
+{
+    DMAManager_t*       manager;
+    OSDmaAttachmentId_t attachment;
+    OSDmaStopTicket_t   ticket;
+    oserr_t             status;
+
+    status = DMAManagerReference(managerID, &manager);
+    if (status != OS_EOK) {
+        ERROR("%s: DMAManagerReference manager %u failed: %u", __func__, managerID, status);
+        return status;
+    }
+
+    status = MemorySpaceCopyFromUser(&attachment, userAttachment, sizeof(attachment));
+    if (status != OS_EOK) {
+        ERROR("ScDmaAttachmentPrepareStop: MemorySpaceCopyFromUser manager %u failed: %u", managerID, status);
+        goto exit;
+    }
+
+    status = DMAManagerPrepareStop(manager, attachment.Value, &ticket);
+    if (status != OS_EOK) {
+        ERROR("ScDmaAttachmentPrepareStop: DMAManagerPrepareStop manager %u, attachment %llu failed: %u",
+              managerID, (unsigned long long)attachment.Value, status);
+        goto exit;
+    }
+
+    // If copying the ticket fails, the recovery group stays blocked. Retrying
+    // PrepareStop returns the same ticket without reopening DMA.
+    status = MemorySpaceCopyToUser(ticketOut, &ticket, sizeof(ticket));
+    if (status != OS_EOK) {
+        ERROR("ScDmaAttachmentPrepareStop: MemorySpaceCopyToUser manager %u, group %llu, epoch %llu failed: %u",
+              managerID, (unsigned long long)ticket.RecoveryGroup, (unsigned long long)ticket.Epoch, status);
+    }
+
+exit:
+    DMAManagerRelease(&manager);
+    return status;
+}
+
+oserr_t
+ScDmaAttachmentCompleteStop(
+    _In_ uuid_t                   managerID,
+    _In_ const OSDmaStopTicket_t* userTicket)
+{
+    DMAManager_t*     manager;
+    OSDmaStopTicket_t ticket;
+    oserr_t           status;
+
+    status = DMAManagerReference(managerID, &manager);
+    if (status != OS_EOK) {
+        ERROR("%s: DMAManagerReference manager %u failed: %u", __func__, managerID, status);
+        return status;
+    }
+
+    status = MemorySpaceCopyFromUser(&ticket, userTicket, sizeof(ticket));
+    if (status != OS_EOK) {
+        ERROR("ScDmaAttachmentCompleteStop: MemorySpaceCopyFromUser manager %u failed: %u", managerID, status);
+        goto exit;
+    }
+
+    status = DMAManagerCompleteStop(manager, &ticket);
+    if (status != OS_EOK) {
+        ERROR("ScDmaAttachmentCompleteStop: DMAManagerCompleteStop manager %u, group %llu, epoch %llu failed: %u",
+              managerID, (unsigned long long)ticket.RecoveryGroup, (unsigned long long)ticket.Epoch, status);
+    }
 
 exit:
     DMAManagerRelease(&manager);

@@ -22,8 +22,8 @@
 
 static oserr_t
 __ReleaseRegionSession(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**            object)
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
     struct SHMRegionCpuSession* session = *object;
     oserr_t                     status;
@@ -35,9 +35,9 @@ __ReleaseRegionSession(
 }
 
 static oserr_t
-__AbandonRegionSession(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**            object)
+__CleanupRegionSession(
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
     struct SHMRegionCpuSession* session = *object;
     oserr_t                     status;
@@ -48,9 +48,9 @@ __AbandonRegionSession(
     return status;
 }
 
-static const struct SHMRecordOps g_regionSessionOps = {
+static const SHMRecordOps_t g_regionSessionOps = {
     .Release = __ReleaseRegionSession,
-    .Abandon = __AbandonRegionSession
+    .Cleanup = __CleanupRegionSession
 };
 
 oserr_t
@@ -89,7 +89,7 @@ ScShmRegionSessionOpen(
     _Out_ struct SHMRegionSession* userResult)
 {
     struct SHMRegionSession     result = { 0 };
-    struct SHMRecord*           record;
+    SHMRecord_t*                record;
     struct SHMRegionCpuSession* session;
     oserr_t                     status;
 
@@ -134,8 +134,8 @@ ScShmRegionBeginCpu(
     _In_ unsigned int      generation,
     _In_ enum SHMCpuAccess access)
 {
-    struct SHMRecord* record;
-    oserr_t           status;
+    SHMRecord_t* record;
+    oserr_t      status;
 
     status = SHMRecordBegin(handle, &g_regionSessionOps, &record);
     if (status != OS_EOK) {
@@ -153,8 +153,8 @@ ScShmRegionEndCpu(
     _In_ unsigned int slot,
     _In_ unsigned int generation)
 {
-    struct SHMRecord* record;
-    oserr_t           status;
+    SHMRecord_t* record;
+    oserr_t      status;
 
     status = SHMRecordBegin(handle, &g_regionSessionOps, &record);
     if (status != OS_EOK) {

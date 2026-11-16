@@ -19,6 +19,7 @@
 #include <shm/view.h>
 #include <arch/utils.h>
 #include <assert.h>
+#include <debug.h>
 #include <futex.h>
 #include <handles/global.h>
 #include <handles/handle.h>
@@ -26,6 +27,7 @@
 #include <string.h>
 
 #include "private.h"
+#include "../utils.h"
 
 void
 SHMAccessInitialize(
@@ -57,6 +59,7 @@ __AccessSetBounds(
     if (line == 0) {
         line = 1;
     }
+
     access->First = start & ~(line - 1);
     access->Last = (start + length - 1) | (line - 1);
 }
@@ -82,24 +85,25 @@ SHMAccessCreate(
 
     // Region-backed buffers need region-aware access tracking.
     if (buffer->Flags & SHM_REGIONS) {
-        ReleaseGlobalHandle(source.GlobalHandleID);
+        __ReleaseMemoryHandleReference(source.GlobalHandleID, __func__);
         return OS_ENOTSUPPORTED;
     }
 
     if (length == 0 || !__SHMRangeContains(0, source.Length, offset, length)) {
-        ReleaseGlobalHandle(shm);
+        __ReleaseMemoryHandleReference(source.GlobalHandleID, __func__);
         return OS_EINVALPARAMS;
     }
     
     access = kmalloc(sizeof(struct SHMAccess));
     if (access == NULL) {
-        ReleaseGlobalHandle(shm);
+        __ReleaseMemoryHandleReference(source.GlobalHandleID, __func__);
         return OS_EOOM;
     }
 
     SHMAccessInitialize(access, buffer, source.Offset + offset, length);
     access->ReferenceID = source.GlobalHandleID;
     access->Scope = source.Scope;
+    
     *accessOut = access;
     return OS_EOK;
 }
@@ -150,8 +154,8 @@ __AccessCheck(
         }
 
         if ((earlier || other->Phase == SHMAccessActive) && (other->Write || access->Write)) {
-            // Wait on the last conflicting access so queued writers wake one
-            // successor at a time instead of all waiting on the active writer.
+            // Link behind the last conflicting access so queued writers wake up
+            // one after another in order, avoiding a stampede on the active writer.
             access->BlockedBy = other;
         }
     }
@@ -163,7 +167,7 @@ __AccessRemove(
     _In_ struct SHMAccess* access)
 {
     struct SHMAccess** link = &access->Buffer->Access.First;
-    struct SHMAccess* previous = NULL;
+    struct SHMAccess*  previous = NULL;
 
     while (*link != access) {
         previous = *link;
@@ -213,6 +217,7 @@ __AccessWake(
     _In_ struct SHMAccess* changed)
 {
     struct SHMAccess* access;
+    oserr_t           wakeStatus;
 
     if (atomic_load(&buffer->Access.Waiting) == 0) {
         return;
@@ -227,10 +232,15 @@ __AccessWake(
         }
 
         atomic_fetch_add(&access->Event, 1);
-        // Keep the buffer mutex locked until FutexWake returns so the waiter
-        // cannot remove and free its event while FutexWake uses its address.
-        // Calls on a reservation are serialized, so only one caller waits.
-        FutexWake(&access->Event, 1, 0);
+        // Keep the buffer mutex locked until FutexWake returns so the woken
+        // caller cannot free this struct while FutexWake reads Event. Calls on
+        // one reservation never overlap, so at most one waiter sleeps here.
+        wakeStatus = FutexWake(&access->Event, 1, 0);
+
+        // A caller may observe the changed event before it starts sleeping.
+        if (wakeStatus != OS_EOK && wakeStatus != OS_ENOENT) {
+            ERROR("%s: FutexWake event %p failed: %u", __func__, (void*)&access->Event, wakeStatus);
+        }
     }
 }
 
@@ -286,10 +296,16 @@ SHMAccessBegin(
     assert(length != 0 && __SHMRangeContains(0, access->Length, offset, length));
 
     MutexLock(&buffer->Mutex);
+    if (access->Cancelled) {
+        MutexUnlock(&buffer->Mutex);
+        return OS_ECANCELLED;
+    }
+
     if (access->Phase != SHMAccessIdle) {
         MutexUnlock(&buffer->Mutex);
         return OS_EBUSY;
     }
+    
     __AccessSetBounds(access, offset, length);
     access->Deadline = deadline != NULL ? *deadline : *OS_DEADLINE_INFINITE;
     access->Write = write;
@@ -298,6 +314,14 @@ SHMAccessBegin(
     __AccessAppend(access);
 
     for (;;) {
+        // Check Cancelled under the same mutex before granting access. A wake
+        // must not grant access after cancellation, including when a background
+        // thread resumes this call after FutexWait returned OS_EFORKED.
+        if (access->Cancelled) {
+            status = OS_ECANCELLED;
+            break;
+        }
+
         status = __AccessCheck(access);
         if (status != OS_EBUSY || !blocking) {
             break;
@@ -328,7 +352,9 @@ SHMAccessBegin(
             atomic_fetch_sub(&buffer->Access.Waiting, 1);
         }
         access->Phase = SHMAccessActive;
-    } else {
+    } else if (access->Phase != SHMAccessQuarantined) {
+        // Locking the range (quarantine) already lowered the waiting count and
+        // must keep the range blocked until hardware stop cleanup runs.
         __AccessRemove(access);
         __AccessWake(buffer, access);
     }
@@ -344,14 +370,19 @@ SHMAccessExtend(
     struct SHMAccess* other;
     oserr_t           status = OS_EOK;
 
-    // Extending a counted use needs no mutex or list walk when there are no
-    // waiting or quarantined ranges.
-    if (atomic_load(&access->Buffer->Access.Waiting) == 0 &&
-        atomic_load(&access->Buffer->Access.Faults) == 0) {
-        return OS_EOK;
+    // Cancellation and extension must be ordered by the buffer mutex even
+    // when no other range is queued. The common case still skips the list walk.
+    MutexLock(&access->Buffer->Mutex);
+    if (access->Cancelled) {
+        status = OS_ECANCELLED;
+        goto exit;
     }
 
-    MutexLock(&access->Buffer->Mutex);
+    if (atomic_load(&access->Buffer->Access.Waiting) == 0 &&
+        atomic_load(&access->Buffer->Access.Faults) == 0) {
+        goto exit;
+    }
+
     for (other = access->Buffer->Access.First; other != NULL; other = other->Next) {
         if (!__AccessOverlaps(other, access)) {
             continue;
@@ -371,6 +402,8 @@ SHMAccessExtend(
             break;
         }
     }
+
+exit:
     MutexUnlock(&access->Buffer->Mutex);
 
     return status;
@@ -381,11 +414,54 @@ SHMAccessEnd(
     _In_ struct SHMAccess* access)
 {
     MutexLock(&access->Buffer->Mutex);
-    if (access->Phase != SHMAccessIdle) {
+    if (access->Phase != SHMAccessIdle && access->Phase != SHMAccessQuarantined) {
         __AccessRemove(access);
         __AccessWake(access->Buffer, access);
     }
     MutexUnlock(&access->Buffer->Mutex);
+}
+
+// Hold Buffer->Mutex. Wake this reservation right away, since the access
+// blocking it could stay active indefinitely.
+static void
+__AccessCancelLocked(
+    _In_ SHMAccess_t* access)
+{
+    if (access->Cancelled) {
+        return;
+    }
+
+    access->Cancelled = true;
+    atomic_fetch_add(&access->Event, 1);
+    if (access->Phase == SHMAccessWaiting) {
+        oserr_t wakeStatus = FutexWake(&access->Event, 1, 0);
+
+        // A caller may observe the changed event before it starts sleeping.
+        if (wakeStatus != OS_EOK && wakeStatus != OS_ENOENT) {
+            ERROR("%s: FutexWake event %p failed: %u", __func__, (void*)&access->Event, wakeStatus);
+        }
+    }
+}
+
+void
+SHMAccessCancel(
+    _In_ SHMAccess_t* access)
+{
+    MutexLock(&access->Buffer->Mutex);
+    __AccessCancelLocked(access);
+    MutexUnlock(&access->Buffer->Mutex);
+}
+
+enum SHMAccessPhase
+SHMAccessGetPhase(
+    _In_ SHMAccess_t* access)
+{
+    enum SHMAccessPhase phase;
+
+    MutexLock(&access->Buffer->Mutex);
+    phase = access->Phase;
+    MutexUnlock(&access->Buffer->Mutex);
+    return phase;
 }
 
 void
@@ -393,8 +469,9 @@ SHMAccessQuarantine(
     _In_ struct SHMAccess* access)
 {
     MutexLock(&access->Buffer->Mutex);
+    
+    __AccessCancelLocked(access);
     if (access->Phase == SHMAccessIdle) {
-        __AccessSetBounds(access, 0, access->Length);
         __AccessAppend(access);
     }
 
@@ -405,10 +482,28 @@ SHMAccessQuarantine(
     if (access->Phase != SHMAccessQuarantined) {
         atomic_fetch_add(&access->Buffer->Access.Faults, 1);
     }
-    
+
+    // When a binding is lost, we cannot assume the device stopped at the last
+    // submitted range. Block the entire mapping, including any idle part.
+    __AccessSetBounds(access, 0, access->Length);
     access->Holder = SHMAccessHolderDevice;
     access->Phase = SHMAccessQuarantined;
     __AccessWake(access->Buffer, access);
+    MutexUnlock(&access->Buffer->Mutex);
+}
+
+void
+SHMAccessCompleteStop(
+    _In_ SHMAccess_t* access)
+{
+    // By now the hardware is confirmed stopped, all background waiters have
+    // exited, and caches are synced. Keep Cancelled set so this reservation
+    // cannot be reused after removing it from the active list.
+    MutexLock(&access->Buffer->Mutex);
+    if (access->Phase != SHMAccessIdle) {
+        __AccessRemove(access);
+        __AccessWake(access->Buffer, access);
+    }
     MutexUnlock(&access->Buffer->Mutex);
 }
 
@@ -427,7 +522,7 @@ SHMAccessDestroy(
 
     *access = NULL;
     
-    ReleaseGlobalHandle(released->ReferenceID);
+    __ReleaseMemoryHandleReference(released->ReferenceID, __func__);
     kfree(released);
     return OS_EOK;
 }

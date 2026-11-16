@@ -24,94 +24,126 @@
 
 struct SHMAccessBeginParameters;
 struct SHMAccessEndParameters;
-struct SHMRecord;
+DECL_STRUCT(SHMRecord);
 
 /**
- * @brief CPU or DMA operations for a HandleTypeSHMAccess payload.
- * Release ends explicit use. On failure, the object stays available for retry.
- * Abandon runs after the final grant reference is dropped or all group threads exit.
- * It must cancel queued access and release or quarantine the object.
- * Both cleanup operations receive a detached slot and clear it on success.
- * Begin and End may be NULL when unsupported. Ops must outlive the record.
+ * @brief Callbacks for a kernel handle of type HandleTypeSHMAccess.
+ *
+ * Release runs when user code explicitly closes the resource. Returning an error
+ * leaves the object alive so the caller can try closing it again.
+ * Cleanup runs when the last handle reference goes away or when every thread
+ * in the process group exits. It must either free the object or lock down its
+ * memory range until hardware stops.
+ *
+ * Both Release and Cleanup receive a pointer to the object slot (void**) and
+ * must set that slot to NULL once cleanup finishes. Begin and End can be NULL
+ * if the resource does not support range access. Keep the Ops table valid in
+ * memory for as long as the record lives.
+ *
+ * CancelOperation is optional. It runs during process shutdown when a thread
+ * was interrupted inside a blocked system call (such as waiting for a busy
+ * memory range), and runs after all threads in the group have stopped even if
+ * Object is NULL. Returning an error leaves PendingOperation set and keeps the
+ * record alive, which prevents Cleanup from running on memory that might still
+ * be in use.
  */
-struct SHMRecordOps {
-    oserr_t (*Release)(struct SHMRecord*, void**);
-    oserr_t (*Abandon)(struct SHMRecord*, void**);
-    oserr_t (*Begin)(struct SHMRecord*, const struct SHMAccessBeginParameters*, OSAsyncContext_t*);
-    oserr_t (*End)(struct SHMRecord*, const struct SHMAccessEndParameters*);
-};
+typedef struct SHMRecordOps {
+    oserr_t (*Release)(SHMRecord_t*, void**);
+    oserr_t (*Cleanup)(SHMRecord_t*, void**);
+    oserr_t (*Begin)(SHMRecord_t*, const struct SHMAccessBeginParameters*, OSAsyncContext_t*);
+    oserr_t (*End)(SHMRecord_t*, const struct SHMAccessEndParameters*);
+    oserr_t (*CancelOperation)(SHMRecord_t*);
+} SHMRecordOps_t;
 
 enum SHMRecordState {
     SHMRecordIdle,
-    // Covers setup, copy-out and an entire operation, including an async child.
     SHMRecordUpdating,
     SHMRecordClosed
 };
 
 /**
- * @brief CPU session, DMA context or DMA mapping stored in a kernel handle.
- * The handle grant controls access and lifetime. State rejects concurrent calls
- * with OS_EBUSY instead of waiting for another operation to finish.
+ * @brief Wraps a CPU access session, DMA context, or DMA mapping in a kernel handle.
+ *
+ * The kernel handle table controls which process can look up this record and
+ * when it gets freed. State makes sure only one system call touches the record
+ * at a time, returning OS_EBUSY right away when another call is already running
+ * on it.
  */
-struct SHMRecord {
+typedef struct SHMRecord {
     uuid_t                       Handle;
-    _Atomic(enum SHMRecordState)  State;
-    const struct SHMRecordOps*    Ops;
+    _Atomic(enum SHMRecordState) State;
+    const SHMRecordOps_t*        Ops;
     void*                        Object;
-};
+    void*                        PendingOperation;
+} SHMRecord_t;
 
 /**
- * @brief Create an empty record in Updating state with its initial handle reference.
- * Set Object during setup. Store Idle only after the result is copied out successfully.
- * On failure, release any object and call SHMRecordRemove.
- * @param ops Static resource operations.
- * @param recordOut Receives the record on success.
- * @return OS_EOK or OS_EOOM.
+ * @brief Creates a new record in the Updating state with its initial handle reference.
+ *
+ * Store your object in Object during setup, and move State to SHMRecordIdle
+ * only after copying the handle ID back to user space succeeds. If setup or
+ * copying fails, clean up the object and call SHMRecordRemove.
+ *
+ * @param ops       Static callbacks for this resource type.
+ * @param recordOut Receives the new record on success.
+ * @return OS_EOK on success, or OS_EOOM if allocation fails.
  */
 oserr_t
 SHMRecordCreate(
-    _In_  const struct SHMRecordOps* ops,
-    _Out_ struct SHMRecord**        recordOut);
+    _In_  const SHMRecordOps_t* ops,
+    _Out_ SHMRecord_t**         recordOut);
 
 /**
- * @brief Check the caller's grant, add an operation reference and enter Updating.
- * @param handle Kernel access handle.
- * @param ops Required operations, or NULL to accept any access resource.
- * @param recordOut Receives the record until End or successful release.
- * @return OS_EOK, OS_ENOENT, OS_EINVALPARAMS or OS_EBUSY.
+ * @brief Looks up a handle, takes a reference for this call, and marks it Updating.
+ *
+ * @param handle    Kernel handle of type HandleTypeSHMAccess.
+ * @param ops       Expected callback table, or NULL to accept any SHM access resource.
+ * @param recordOut Receives the record pointer until SHMRecordEnd or release.
+ * @return OS_EOK, OS_ENOENT if closed, OS_EINVALPARAMS if invalid or wrong type,
+ *         or OS_EBUSY if another call is already using this record.
  */
 oserr_t
 SHMRecordBegin(
-    _In_  uuid_t                     handle,
-    _In_  const struct SHMRecordOps* ops,
-    _Out_ struct SHMRecord**        recordOut);
+    _In_  uuid_t                handle,
+    _In_  const SHMRecordOps_t* ops,
+    _Out_ SHMRecord_t**         recordOut);
 
 /**
- * @brief Return to Idle and drop the operation reference in the same context.
- * A forked parent leaves this to its child. Do not call after successful removal.
+ * @brief Returns a record to Idle and drops the reference from SHMRecordBegin.
+ *
+ * When a blocking wait hands off to a kernel worker thread (returning OS_EFORKED),
+ * that worker thread calls this once it finishes. Never call this after
+ * SHMRecordRemove has removed the handle.
+ *
  * @param record Record returned by SHMRecordBegin.
  */
 void
 SHMRecordEnd(
-    _In_ struct SHMRecord* record);
+    _In_ SHMRecord_t* record);
 
 /**
- * @brief Release the object. The record must be in Updating state.
- * On failure, the object stays available for retry.
- * @param record Record during setup or an operation.
- * @return OS_EOK or the resource's release error.
+ * @brief Runs the resource's Release callback while the record is Updating.
+ *
+ * If Release returns an error, the object stays attached so the caller can retry.
+ *
+ * @param record Record currently in the Updating state.
+ * @return OS_EOK or the error returned by the resource's Release callback.
  */
 oserr_t
 SHMRecordRelease(
-    _In_ struct SHMRecord* record);
+    _In_ SHMRecord_t* record);
 
 /**
- * @brief Mark Closed and drop the initial reference after setup failure or release.
- * Any operation reference must be dropped separately with DestroyHandle.
- * @param record Record in Updating state. Do not use after this call without a reference.
+ * @brief Marks a record Closed and drops its initial handle reference.
+ *
+ * Call this after a failed setup or a successful SHMRecordRelease. If you also
+ * entered through SHMRecordBegin, drop that separate reference with DestroyHandle.
+ *
+ * @param record Record in the Updating state. Do not read or write it afterward
+ *               unless you still hold another handle reference.
  */
 void
 SHMRecordRemove(
-    _In_ struct SHMRecord* record);
+    _In_ SHMRecord_t* record);
 
-#endif
+#endif //!__SHM_RECORD_H__

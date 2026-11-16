@@ -39,6 +39,7 @@ add_kernel_library (vali-core-memory ""
     # Privileged DMA manager lifetime and attachment administration.
     dma/manager.c
     dma/binding.c
+    dma/groups.c
     dma/recovery.c
     dma/events.c
 
@@ -48,5 +49,7 @@ add_kernel_library (vali-core-memory ""
     shm/access.c
     shm/region.c
     shm/device.c
+    shm/device_cleanup.c
+    shm/device_attachment.c
     shm/device_context.c
 )

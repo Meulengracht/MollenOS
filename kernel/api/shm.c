@@ -31,8 +31,8 @@
 
 static oserr_t
 __ReleaseObject(
-    _In_ struct SHMRecord* record,
-    _In_ oserr_t         (*operation)(struct SHMRecord*, void**))
+    _In_ SHMRecord_t* record,
+    _In_ oserr_t    (*operation)(SHMRecord_t*, void**))
 {
     void*   object = record->Object;
     oserr_t status;
@@ -57,16 +57,26 @@ static void
 __ExitRecord(
     _In_ void* resource)
 {
-    struct SHMRecord* record = resource;
-    oserr_t           status;
+    SHMRecord_t* record = resource;
+    oserr_t      status;
 
     // We end up here when the last reference is dropped, or when all threads
-    // in the group and any async children have stopped. Mark the record closed
-    // first, so SHMRecordBegin refuses it, then abandon the object.
+    // in the process group (including any background worker threads) have
+    // stopped. Mark the record closed first so SHMRecordBegin refuses new
+    // callers, then clean up the object.
     atomic_store(&record->State, SHMRecordClosed);
-    status = __ReleaseObject(record, record->Ops->Abandon);
+
+    if (record->Ops->CancelOperation != NULL) {
+        status = record->Ops->CancelOperation(record);
+        if (status != OS_EOK) {
+            ERROR("__ExitRecord: CancelOperation resource %u failed: %u", record->Handle, status);
+            return;
+        }
+    }
+
+    status = __ReleaseObject(record, record->Ops->Cleanup);
     if (status != OS_EOK) {
-        ERROR("SHM: abandoning resource %u failed: %u", record->Handle, status);
+        ERROR("__ExitRecord: object cleanup for resource %u failed: %u", record->Handle, status);
     }
 }
 
@@ -74,14 +84,23 @@ static void
 __DestroyRecord(
     _In_ void* resource)
 {
-    struct SHMRecord* record = resource;
-    oserr_t           status;
+    SHMRecord_t* record = resource;
+    oserr_t      status;
 
     // Grant cleanup has normally cleared the object by now. If releasing it
-    // fails here, we keep the record around instead of freeing it.
-    status = __ReleaseObject(record, record->Ops->Abandon);
+    // fails here, keep the record allocated so nothing frees memory that might
+    // still be in use.
+    if (record->Ops->CancelOperation != NULL) {
+        status = record->Ops->CancelOperation(record);
+        if (status != OS_EOK) {
+            ERROR("__DestroyRecord: CancelOperation resource %u failed: %u", record->Handle, status);
+            return;
+        }
+    }
+
+    status = __ReleaseObject(record, record->Ops->Cleanup);
     if (status != OS_EOK) {
-        ERROR("SHM: final cleanup of resource %u failed: %u", record->Handle, status);
+        ERROR("__DestroyRecord: object cleanup for resource %u failed: %u", record->Handle, status);
         return;
     }
     kfree(record);
@@ -89,20 +108,21 @@ __DestroyRecord(
 
 oserr_t
 SHMRecordCreate(
-    _In_  const struct SHMRecordOps* ops,
-    _Out_ struct SHMRecord**        recordOut)
+    _In_  const SHMRecordOps_t* ops,
+    _Out_ SHMRecord_t**        recordOut)
 {
-    struct SHMRecord* record;
+    SHMRecord_t* record;
 
-    record = kmalloc(sizeof(struct SHMRecord));
+    record = kmalloc(sizeof(SHMRecord_t));
     if (record == NULL) {
         return OS_EOOM;
     }
 
     record->Ops = ops;
     record->Object = NULL;
+    record->PendingOperation = NULL;
     atomic_init(&record->State, SHMRecordUpdating);
-    
+
     record->Handle = CreateHandle(
         HandleTypeSHMAccess,
         __ExitRecord,
@@ -120,11 +140,11 @@ SHMRecordCreate(
 
 oserr_t
 SHMRecordBegin(
-    _In_  uuid_t                     handle,
-    _In_  const struct SHMRecordOps* ops,
-    _Out_ struct SHMRecord**         recordOut)
+    _In_  uuid_t                handle,
+    _In_  const SHMRecordOps_t* ops,
+    _Out_ SHMRecord_t**         recordOut)
 {
-    struct SHMRecord*   record;
+    SHMRecord_t*        record;
     enum SHMRecordState expected = SHMRecordIdle;
     oserr_t             status;
 
@@ -134,12 +154,22 @@ SHMRecordBegin(
     }
 
     if (ops != NULL && record->Ops != ops) {
-        DestroyHandle(handle);
+        uuid_t releasedHandle = handle;
+        oserr_t releaseStatus = DestroyHandle(releasedHandle);
+
+        if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE) {
+            ERROR("%s: DestroyHandle %u failed: %u", __func__, releasedHandle, releaseStatus);
+        }
         return OS_EINVALPARAMS;
     }
 
     if (!atomic_compare_exchange_strong(&record->State, &expected, SHMRecordUpdating)) {
-        DestroyHandle(handle);
+        uuid_t  releasedHandle = handle;
+        oserr_t releaseStatus = DestroyHandle(releasedHandle);
+
+        if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE) {
+            ERROR("%s: DestroyHandle %u failed: %u", __func__, releasedHandle, releaseStatus);
+        }
         return expected == SHMRecordClosed ? OS_ENOENT : OS_EBUSY;
     }
 
@@ -149,33 +179,49 @@ SHMRecordBegin(
 
 void
 SHMRecordEnd(
-    _In_ struct SHMRecord* record)
+    _In_ SHMRecord_t* record)
 {
-    uuid_t handle = record->Handle;
+    uuid_t  handle = record->Handle;
+    uuid_t  releasedHandle;
+    oserr_t releaseStatus;
 
+    assert(record->PendingOperation == NULL);
     atomic_store(&record->State, SHMRecordIdle);
-    DestroyHandle(handle);
+
+    releasedHandle = handle;
+    releaseStatus = DestroyHandle(releasedHandle);
+    if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE) {
+        ERROR("%s: DestroyHandle %u failed: %u", __func__, releasedHandle, releaseStatus);
+    }
 }
 
 oserr_t
 SHMRecordRelease(
-    _In_ struct SHMRecord* record)
+    _In_ SHMRecord_t* record)
 {
     return __ReleaseObject(record, record->Ops->Release);
 }
 
 void
 SHMRecordRemove(
-    _In_ struct SHMRecord* record)
+    _In_ SHMRecord_t* record)
 {
+    uuid_t  releasedHandle;
+    oserr_t releaseStatus;
+
     atomic_store(&record->State, SHMRecordClosed);
-    DestroyHandle(record->Handle);
+
+    releasedHandle = record->Handle;
+    releaseStatus = DestroyHandle(releasedHandle);
+    if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE) {
+        ERROR("%s: DestroyHandle %u failed: %u", __func__, releasedHandle, releaseStatus);
+    }
 }
 
 static oserr_t
 __ReleaseCpu(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**           object)
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
     struct SHMAccess* access = *object;
     oserr_t           status;
@@ -187,9 +233,9 @@ __ReleaseCpu(
 }
 
 static oserr_t
-__AbandonCpu(
-    _In_    struct SHMRecord* record,
-    _InOut_ void**           object)
+__CleanupCpu(
+    _In_    SHMRecord_t* record,
+    _InOut_ void**       object)
 {
     dma_mb();
     SHMAccessEnd(*object);
@@ -198,7 +244,7 @@ __AbandonCpu(
 
 static oserr_t
 __EndCpu(
-    _In_ struct SHMRecord*                 session,
+    _In_ SHMRecord_t*                         session,
     _In_ const struct SHMAccessEndParameters* parameters)
 {
     struct SHMAccess* access = session->Object;
@@ -218,7 +264,7 @@ __EndCpu(
 
 static oserr_t
 __BeginCpu(
-    _In_ struct SHMRecord*                      session,
+    _In_ SHMRecord_t*                           session,
     _In_ const struct SHMAccessBeginParameters* parameters,
     _In_ OSAsyncContext_t*                      async)
 {
@@ -259,7 +305,7 @@ ScShmAccessBegin(
     _In_ const struct SHMAccessBeginParameters* userParameters)
 {
     struct SHMAccessBeginParameters parameters;
-    struct SHMRecord*               record;
+    SHMRecord_t*                    record;
     oserr_t                         status;
 
     status = MemorySpaceCopyFromUser(
@@ -293,8 +339,8 @@ ScShmAccessBegin(
         status = OS_EINVALPARAMS;
     }
 
-    // If the call was forked, the async child is still working on the record.
-    // In this case we leave the record pinned until the child is done.
+    // If the wait moved to a background thread (OS_EFORKED), leave the record
+    // pinned in Updating so that thread can finish and clean it up.
     if (status != OS_EFORKED) {
         if (status != OS_EOK && parameters.Mode == SHMWaitNonBlocking) {
             WARNING("ScShmAccessBegin: handle %u kind %u failed: %u",
@@ -315,8 +361,8 @@ ScShmAccessEnd(
         .Kind = kind,
         .Length = completedLength
     };
-    struct SHMRecord* record;
-    oserr_t           status;
+    SHMRecord_t* record;
+    oserr_t      status;
 
     status = SHMRecordBegin(handle, NULL, &record);
     if (status != OS_EOK) {
@@ -335,9 +381,9 @@ ScShmAccessEnd(
     return status;
 }
 
-static const struct SHMRecordOps g_cpuOps = {
+static const SHMRecordOps_t g_cpuOps = {
     .Release = __ReleaseCpu,
-    .Abandon = __AbandonCpu,
+    .Cleanup = __CleanupCpu,
     .Begin = __BeginCpu,
     .End = __EndCpu
 };
@@ -349,7 +395,7 @@ ScShmAccessCreate(
     _In_  size_t  length,
     _Out_ uuid_t* handleOut)
 {
-    struct SHMRecord* record;
+    SHMRecord_t*      record;
     struct SHMAccess* access = NULL;
     oserr_t           status;
 
@@ -357,7 +403,7 @@ ScShmAccessCreate(
     if (status != OS_EOK) {
         return status;
     }
-    
+
     status = SHMAccessCreate(shm, offset, length, &access);
     if (status != OS_EOK) {
         SHMRecordRemove(record);
@@ -365,7 +411,7 @@ ScShmAccessCreate(
     }
 
     record->Object = access;
-    
+
     status = MemorySpaceCopyToUser(
         handleOut,
         &record->Handle,
@@ -383,11 +429,13 @@ oserr_t
 ScResourceRelease(
     _In_ uuid_t handle)
 {
-    struct SHMRecord* record;
-    oserr_t           status;
+    SHMRecord_t* record;
+    oserr_t      status;
+    uuid_t       releasedHandle;
+    oserr_t      releaseStatus;
 
     TRACE("ScResourceRelease(handle=%u)", handle);
-    
+
     status = SHMRecordBegin(handle, NULL, &record);
     if (status != OS_EOK) {
         return status;
@@ -405,9 +453,15 @@ ScResourceRelease(
     }
 
     SHMRecordRemove(record);
+
     // SHMRecordRemove dropped the initial reference. Now drop the one we got
     // from SHMRecordBegin.
-    DestroyHandle(handle);
+    releasedHandle = handle;
+    releaseStatus = DestroyHandle(releasedHandle);
+    if (releaseStatus != OS_EOK && releaseStatus != OS_EINCOMPLETE) {
+        ERROR("%s: DestroyHandle %u failed: %u", __func__, releasedHandle, releaseStatus);
+    }
+
     TRACE("ScResourceRelease: handle %u released", handle);
     return OS_EOK;
 }

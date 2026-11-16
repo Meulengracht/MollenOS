@@ -1,7 +1,4 @@
-project (vali-kernel-threads)
-enable_language (C)
-
-# Configure source files
+# The kernel threads library
 add_kernel_library (vali-core-threads ""
-        threads.c
+    threads.c
 )

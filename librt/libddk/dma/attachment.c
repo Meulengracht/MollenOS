@@ -77,8 +77,9 @@ DMAManagerReadEvents(
         capacity = DMA_MANAGER_MAX_EVENTS;
     }
 
-    // The kernel can copy entries successfully and then fail the count copy or
-    // observe a close. Stage both outputs so errors expose no partial result.
+    // The syscall can fill batch and then fail when copying count or hitting a
+    // manager close. Stage both outputs locally so callers never see half-written
+    // results on error.
     status = Syscall_DmaManagerReadEvents(manager, batch, capacity, &count);
     if (status == OS_EOK) {
         memcpy(entries, batch, count * sizeof(*entries));
@@ -111,11 +112,47 @@ DMAAttachmentBind(
         return OS_EINVALPARAMS;
     }
 
-    // A successful raw copy can still be followed by receiver close. Publish
-    // the staged result only if the kernel also committed its binding history.
+    // Even if copying the result to user space works, the driver could close its
+    // binding before the kernel records it. Return the result only after the
+    // kernel confirms the binding.
     status = Syscall_DmaAttachmentBind(manager, parameters, &binding);
     if (status == OS_EOK) {
         *bindingOut = binding;
     }
     return status;
+}
+
+oserr_t
+DMAAttachmentPrepareStop(
+    _In_  uuid_t                     manager,
+    _In_  const OSDmaAttachmentId_t* attachment,
+    _Out_ OSDmaStopTicket_t*         ticketOut)
+{
+    OSDmaStopTicket_t ticket;
+    oserr_t           status;
+
+    if (attachment == NULL || ticketOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = Syscall_DmaAttachmentPrepareStop(
+        manager,
+        attachment,
+        &ticket
+    );
+    if (status == OS_EOK) {
+        *ticketOut = ticket;
+    }
+    return status;
+}
+
+oserr_t
+DMAAttachmentCompleteStop(
+    _In_ uuid_t                   manager,
+    _In_ const OSDmaStopTicket_t* ticket)
+{
+    if (ticket == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_DmaAttachmentCompleteStop(manager, ticket);
 }

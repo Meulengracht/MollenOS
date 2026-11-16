@@ -21,6 +21,7 @@
 #include <os/osdefs.h>
 #include <os/types/shm.h>
 #include <os/types/dma.h>
+#include <os/types/dma_attachment.h>
 #include <os/types/async.h>
 #include <os/types/time.h>
 #include <shm/access.h>
@@ -29,36 +30,61 @@
 #define SHM_DEVICE_MAX_RANGES DMA_MAX_RANGES
 
 // Opaque types
-struct SHMDeviceContext;
-struct SHMDeviceMapping;
+DECL_STRUCT(SHMDeviceContext);
+DECL_STRUCT(SHMDeviceMapping);
+DECL_STRUCT(SHMRecord);
 
-/** How a mapping uses buffer pages and synchronizes CPU caches. */
+/**
+ * @brief Tracks an active operation on a context or mapping record.
+ *
+ * A bound context is tied to a DMA manager binding (used by user-space
+ * drivers), while an unbound context is opened directly by kernel code without
+ * a manager. Bound contexts require a tracking token from
+ * SHMDeviceContextBeginOperation or SHMDeviceMappingBeginOperation so the
+ * recovery group counts running work. Pass that token to every device call,
+ * keep it alive until results are copied to user space and any cleanup on error
+ * finishes, then release it with SHMDeviceOperationEnd. Unbound kernel callers
+ * that already make sure their own calls do not overlap can pass NULL.
+ */
+typedef struct SHMDeviceOperation SHMDeviceOperation_t;
+
+/**
+ * @brief How a mapping uses buffer pages and handles CPU caches.
+ */
 enum SHMDeviceMappingKind {
-    // Each transfer may use temporary bounce pages instead of the original pages.
+    // One transfer at a time. Can copy data through extra device-reachable pages (bounce pages).
     SHMDeviceMappingStreamingBounce,
-    // Streaming transfers must use the original SHM pages.
+    // One transfer at a time, using the original SHM pages directly.
     SHMDeviceMappingStreamingDirect,
-    // Original pages with a use count. Cache sync covers the whole mapped range.
+    // Original pages with a use count so multiple jobs can overlap. Cache sync covers the whole range.
     SHMDeviceMappingPersistent,
-    // Pool pages shared by the CPU and device at the same time.
+    // Device-pool pages shared by the CPU and device at the same time without sync calls.
     SHMDeviceMappingShared
+};
+
+enum SHMDeviceOperationKind {
+    SHMDeviceOperationSubmit,
+    SHMDeviceOperationComplete,
+    SHMDeviceOperationRelease
 };
 
 /**
  * @brief Create a device context with a copy of the physical-to-device address ranges.
  *
- * Pass kernel pointers only. This call does not register or start the device,
- * reserve buffer pages, or change cache settings. The DDK DMA session must
- * hold its deviced lease until every mapping and the kernel context have been
- * released.
+ * Some buses offset or window RAM so devices see different addresses than the
+ * CPU. Pass kernel pointers only. This call sets up the translation table only.
+ * It does not register or start the device, reserve buffer pages, or change
+ * cache settings. The DDK DMA session must hold its device assignment from
+ * deviced until every mapping and the kernel context are released.
  *
  * @param ranges Physical-to-device ranges in any order. Keep them unchanged
  *               until the call returns.
  * @param count Number of ranges. Must be 1 through SHM_DEVICE_MAX_RANGES.
- * @param cachePolicy Known cache policy for the device and its bus path.
+ * @param cachePolicy Whether the device sees CPU caches automatically (coherent)
+ *                    or needs explicit cache flushes (non-coherent).
  * @param addressLimit Largest device address allowed, inclusive. Stored in the
  *                     context for all its mappings. UINT64_MAX means no limit.
- *                     Use UINT32_MAX for a device limited to 32-bit addresses.
+ *                     Use UINT32_MAX for a 32-bit-only device.
  * @param contextOut Address of an initially NULL pointer. Receives a context
  *                   with one reference for the caller to release.
  * @return OS_EOK on success. OS_EINVALPARAMS for invalid arguments, policy,
@@ -66,13 +92,13 @@ enum SHMDeviceMappingKind {
  *         OS_ENOTSUPPORTED for too many ranges. OS_EBUSY if *contextOut is not NULL.
  *         OS_EOOM on allocation failure. Failure leaves *contextOut unchanged.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceContextCreate(
     _In_    const struct SHMDeviceRange* ranges,
     _In_    uint32_t                     count,
     _In_    enum SHMDeviceCachePolicy    cachePolicy,
     _In_    uint64_t                     addressLimit,
-    _InOut_ struct SHMDeviceContext**    contextOut);
+    _InOut_ SHMDeviceContext_t**         contextOut);
 
 /**
  * @brief Add one reference to a device context.
@@ -83,9 +109,9 @@ SHMDeviceContextCreate(
  *         OS_EOVERFLOW if the reference count cannot increase.
  *         Failure adds no reference.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceContextAcquire(
-    _In_ struct SHMDeviceContext* context);
+    _In_ SHMDeviceContext_t* context);
 
 /**
  * @brief Release one context reference and set the caller's pointer to NULL.
@@ -95,22 +121,25 @@ SHMDeviceContextAcquire(
  * @param context Pointer to the reference to release. NULL or *context == NULL
  *                requires no work.
  */
-void
+KERNELABI void KERNELAPI
 SHMDeviceContextRelease(
-    _InOut_ struct SHMDeviceContext** context);
+    _InOut_ SHMDeviceContext_t** context);
 
 /**
- * @brief Close a context only when no mappings or other references remain.
+ * @brief Closes a context once all of its mappings have been released.
  *
- * The caller must prevent new mappings and references until the call returns.
+ * The caller must prevent new operations on the context until this returns.
+ * For bound contexts, a recovery pass may still hold temporary references that
+ * delay final cleanup. For unbound contexts, the caller must hold the only
+ * remaining reference.
  *
  * @param context Must point to a valid context. Set to NULL on success.
- * @return OS_EOK on success. OS_EBUSY if other references remain, leaving
- *         *context unchanged.
+ * @return OS_EOK on success, or OS_EBUSY if a mapping still exists (or an
+ *         unbound context still has other references). Unchanged on failure.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceContextClose(
-    _InOut_ struct SHMDeviceContext** context);
+    _InOut_ SHMDeviceContext_t** context);
 
 /**
  * @brief Read the device cache policy used by SHM.
@@ -118,24 +147,26 @@ SHMDeviceContextClose(
  * @return The policy, or SHMDeviceCacheUnknown for NULL. Reading the policy
  *         does not synchronize CPU caches or make writes visible to the device.
  */
-enum SHMDeviceCachePolicy
+KERNELABI enum SHMDeviceCachePolicy KERNELAPI
 SHMDeviceContextGetCachePolicy(
-    _In_ const struct SHMDeviceContext* context);
+    _In_ const SHMDeviceContext_t* context);
 
 /**
  * @brief Find a device address for an entire physical buffer.
  *
- * This query uses the fixed ranges of a direct-DMA context. It calculates an
- * address without reserving device addresses or changing hardware mappings.
- * Address spaces that require hardware translation need a mapping object.
+ * This lookup uses the fixed address windows of a direct-DMA context (one with
+ * fixed bus offsets, without an IOMMU page table). It computes the address
+ * without reserving space or touching hardware. Address spaces that need
+ * hardware page-table translation require a mapping object.
  *
- * The whole buffer must fit in one range. Use SHMDeviceContextBuildSegments
- * when it crosses range boundaries. If several device addresses reach the
- * same physical bytes, choose the lowest address that covers the whole buffer
- * within the context's limit. Range order does not affect the result.
+ * The whole buffer must fit inside a single range. Use
+ * SHMDeviceContextBuildSegments if it crosses range boundaries. When multiple
+ * device addresses reach the same physical bytes, this picks the lowest address
+ * that covers the whole buffer within AddressLimit. Input range order makes no
+ * difference.
  *
- * The caller must separately check that the memory exists and that the device
- * is allowed to use it. A calculated address grants no permission to transfer.
+ * Checking that the memory exists and that the device has permission to use it
+ * is up to the caller. Getting an address here grants no permission to run DMA.
  *
  * @param context Context. Hold a reference until the call returns.
  * @param physicalBase Physical address of the buffer's first byte.
@@ -145,28 +176,28 @@ SHMDeviceContextGetCachePolicy(
  *         OS_ENOENT if no single range covers the buffer within the limit.
  *         Failure leaves the output unchanged.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceContextTranslate(
-    _In_  const struct SHMDeviceContext* context,
-    _In_  uint64_t                       physicalBase,
-    _In_  uint64_t                       length,
-    _Out_ uint64_t*                      deviceAddressOut);
+    _In_  const SHMDeviceContext_t* context,
+    _In_  uint64_t                  physicalBase,
+    _In_  uint64_t                  length,
+    _Out_ uint64_t*                 deviceAddressOut);
 
 /**
  * @brief Convert a buffer's physical byte ranges into device segments.
  *
- * This query only calculates addresses for direct-DMA contexts. It does not
- * create a mapping or program hardware.
+ * Like SHMDeviceContextTranslate, this only computes addresses for fixed
+ * direct-DMA contexts and never allocates a mapping or programs hardware.
  *
- * Split the physical ranges at device address-range boundaries. Join pieces
- * with consecutive device addresses. If several ranges reach the same bytes,
- * choose the one that covers the most bytes. For equal lengths, choose the
- * lowest device address, as in SHMDeviceContextTranslate.
+ * Physical ranges are split at device address-range boundaries, and pieces that
+ * land at consecutive device addresses are joined back together. When multiple
+ * ranges reach the same bytes, the one covering the most bytes wins (ties go
+ * to the lowest device address).
  *
- * First call with segmentsOut NULL to get the count, then supply an array of
- * that size. Keep the inputs unchanged while counting and filling. The caller
- * must check that the memory is allocated, belongs to the buffer and stays
- * allocated while in use.
+ * First call with segmentsOut NULL to get the count, then pass an array of that
+ * size. Keep the inputs unchanged between counting and filling. Make sure the
+ * memory is already allocated, belongs to the buffer, and stays allocated while
+ * in use.
  *
  * @param context Context. Hold a reference until the call returns.
  * @param extents Allocated physical byte ranges in buffer order. Each length
@@ -184,129 +215,146 @@ SHMDeviceContextTranslate(
  *         OS_ENOTSUPPORTED if the count does not fit in uint32_t.
  *         segmentsOut is unchanged on failure.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceContextBuildSegments(
-    _In_    const struct SHMDeviceContext* context,
-    _In_    const SHMSG_t*                 extents,
-    _In_    int                            extentCount,
-    _InOut_ uint32_t*                      segmentCount,
-    _Out_   struct DMASegment*             segmentsOut);
+    _In_    const SHMDeviceContext_t* context,
+    _In_    const SHMSG_t*            extents,
+    _In_    int                       extentCount,
+    _InOut_ uint32_t*                 segmentCount,
+    _Out_   struct DMASegment*        segmentsOut);
 
 /**
  * @brief Prepare an SHM buffer range for device access.
  *
- * The mapping keeps the buffer and context alive. Buffer pages stay allocated
- * even if every process detaches the buffer. Creation leaves buffer contents
- * and cache settings unchanged. It synchronizes no caches and starts no transfer.
- * The caller must be kernel code that has already checked permission for the
- * device to use the buffer.
+ * Creating a mapping keeps the buffer and context alive so the buffer's pages
+ * stay allocated even if every process unmaps the buffer from its own space.
+ * Setup leaves buffer contents and cache settings alone without touching CPU
+ * caches or starting a transfer. Only kernel callers that have already checked
+ * device permission should call this.
  *
- * Only buffers whose pages are managed by SHM are accepted. Every page in the
- * range must already be allocated (for example with SHM_COMMIT). This call
- * never allocates buffer pages.
+ * Only SHM-managed buffers are allowed, and every page inside the range must
+ * already be allocated (for instance, with SHM_COMMIT) since this call never
+ * allocates pages on demand.
  *
- * StreamingBounce allows zeroed temporary pages, called bounce pages, in place
- * of the original buffer pages. Sync calls copy data between them. Use them
- * when the device cannot address the buffer or meet its segment requirements.
- * They are also needed for non-coherent device writes when the range starts
- * or ends inside a CPU cache line, because invalidating that line could discard
- * CPU changes to nearby bytes. The device segments then describe the bounce
- * pages. Uncached pool buffers need no such cache-line separation.
- * Ordinary SHM is cached.
+ * StreamingBounce lets the kernel allocate zeroed temporary pages (bounce
+ * pages) and point the device at those instead of the original buffer. Sync
+ * calls then copy bytes back and forth. Use bounce pages when the device cannot
+ * reach the buffer's physical addresses or satisfy segment alignment rules. You
+ * also need them when a non-coherent device writes to a range that starts or
+ * ends partway through a CPU cache line, because invalidating that cache line
+ * could wipe out CPU changes to neighboring bytes. Uncached device-pool buffers
+ * skip that cache-line rule, whereas normal SHM buffers are cached.
  *
- * StreamingDirect, Persistent and Shared use the original pages. For a
- * streaming mapping, call SHMDeviceSyncForDevice before each transfer and
- * SHMDeviceSyncForCpu after it completes. For a persistent mapping, pair
- * SHMDeviceBeginUse with SHMDeviceEndUse. The first begin and final end
- * synchronize caches for the whole mapped range.
+ * StreamingDirect, Persistent, and Shared work directly on the original pages.
+ * On a streaming mapping, bracket each transfer with SHMDeviceSyncForDevice
+ * before and SHMDeviceSyncForCpu after. On a persistent mapping, bracket each
+ * job with SHMDeviceBeginUse and SHMDeviceEndUse, which sync caches across the
+ * full mapped range on the first begin and the final end.
  *
- * Range conflict checks include whole cache lines. Readers may share a range,
- * but overlapping writes conflict. The caller must still order conflicting
- * jobs submitted through the same mapping. Calls on one mapping must not overlap.
+ * Conflict checks expand outward to whole cache lines. Multiple readers can
+ * share a range, while any overlapping write conflicts. If you submit multiple
+ * jobs through the same mapping, make sure their order is safe on the device
+ * and never run overlapping calls on one mapping.
  *
- * Create separate CPU sessions with SHMAccessCreate. Surround CPU buffer access
- * with SHMAccessBegin and SHMAccessEnd, using CPU memory barriers to keep the
- * accesses in order. Shared mappings require pool pages that are uncached or
- * used by a coherent device. SHMDeviceAllocate creates these mappings with new
- * pool pages.
+ * For CPU access, open separate CPU sessions with SHMAccessCreate and wrap
+ * CPU reads and writes in SHMAccessBegin and SHMAccessEnd with CPU memory
+ * barriers. Shared mappings only accept pool pages that are uncached or paired
+ * with a cache-coherent device (SHMDeviceAllocate sets these up for you).
  *
+ * @param operation Operation token for this context (required for bound contexts,
+ *                  or pass NULL for an unbound context with no overlapping calls).
  * @param context Context. Hold a reference until the call returns.
  * @param shmID Buffer to use.
  * @param offset First byte of the range, counted from the start of the buffer.
  * @param length Nonzero number of bytes. The range must fit in the buffer.
  * @param direction Which way data will move for this mapping.
- * @param kind How the mapping uses buffer pages and synchronizes caches.
+ * @param kind How the mapping uses buffer pages and handles CPU caches.
  * @param requirements Optional constraints on each completed device segment.
  *                     Zero fields add no constraint. Nonzero values must be
  *                     powers of two. The mapped length must be a multiple of
  *                     LengthAlignment and is never padded. Only streaming
- *                     bounce mappings may use a copy to meet these constraints.
+ *                     bounce mappings can use a copy to meet these constraints.
  * @param mappingOut Address of an initially NULL pointer. Receives a mapping
  *                   for the caller to release.
  * @return OS_EOK on success. OS_EINVALPARAMS for NULL arguments, a bad range,
- *         an unknown direction or kind, or invalid requirements.
+ *         an unknown direction or kind, invalid requirements, or a missing or
+ *         wrong operation token.
  *         OS_EBUSY if *mappingOut is not NULL. OS_ENOENT for an unknown buffer or
  *         bytes with no device address, even through bounce pages.
  *         OS_ENOTSUPPORTED for unsafe direct cache-line sharing, unmet alignment
  *         or incompatible shared storage. OS_EINCOMPLETE if a page in the range
  *         was never allocated. OS_EOVERFLOW if the context cannot take another
  *         reference. OS_EOOM on allocation failure.
- *         Failure leaves *mappingOut unchanged and keeps no new references.
+ *         OS_ECANCELLED if the binding closes while creating the mapping. In that
+ *         case, the context holds on to the new mapping and its pages until
+ *         hardware stop cleanup runs, and *mappingOut stays NULL. Other failures
+ *         free everything created so far.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceMap(
-    _In_    struct SHMDeviceContext*         context,
-    _In_    uuid_t                           shmID,
-    _In_    size_t                           offset,
-    _In_    size_t                           length,
-    _In_    enum DMADirection                direction,
-    _In_    enum SHMDeviceMappingKind        kind,
-    _In_    const struct DMAMapRequirements* requirements,
-    _InOut_ struct SHMDeviceMapping**        mappingOut);
+    _In_Opt_ SHMDeviceOperation_t*            operation,
+    _In_     SHMDeviceContext_t*              context,
+    _In_     uuid_t                           shmID,
+    _In_     size_t                           offset,
+    _In_     size_t                           length,
+    _In_     enum DMADirection                direction,
+    _In_     enum SHMDeviceMappingKind        kind,
+    _In_     const struct DMAMapRequirements* requirements,
+    _InOut_  SHMDeviceMapping_t**             mappingOut);
 
 /**
  * @brief Add one persistent use before submitting work to the device.
  *
- * Calls on this mapping must not overlap. Keep the CPU from using the mapped
- * range until every device use has ended.
+ * Calls on this mapping must not overlap. Keep the CPU from reading or writing
+ * the mapped range until every device use has ended.
  *
- * Wait behavior follows SHMWaitMode. OS_EFORKED means the call is still running
- * asynchronously. Keep the mapping valid until that call finishes.
+ * Wait behavior follows SHMWaitMode. Returning OS_EFORKED means a kernel worker
+ * thread took over the wait. Keep the mapping and operation token alive until
+ * that worker thread finishes.
  *
- * @param mapping Persistent mapping to use.
- * @param wait Wait options, or NULL for nonblocking access.
- * @return OS_EOK or OS_EFORKED. OS_EINVALPARAMS for NULL or a different mapping
- *         kind. OS_EOVERFLOW if the use count cannot increase.
+ * @param operation Mapping Submit token, or NULL for non-overlapping unbound calls.
+ * @param mapping   Persistent mapping to use.
+ * @param wait      Wait options, or NULL to fail immediately if busy.
+ * @return OS_EOK or OS_EFORKED. OS_EINVALPARAMS for NULL, a different mapping
+ *         kind, or an invalid operation token. OS_EOVERFLOW if the use count
+ *         cannot increase.
  *         OS_EBUSY if existing uses must finish before a conflicting queued
- *         request can run, or if address release has started.
+ *         request can run, or if cleanup has started.
+ *         OS_ECANCELLED if the binding was cancelled. The range stays locked down
+ *         until hardware stop cleanup completes.
  *         Errors from SHMAccessBegin and SHMAccessExtend pass through unchanged.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceBeginUse(
-    _In_ struct SHMDeviceMapping*    mapping,
-    _In_ const struct SHMAccessWait* wait);
+    _In_Opt_ SHMDeviceOperation_t*       operation,
+    _In_     SHMDeviceMapping_t*         mapping,
+    _In_     const struct SHMAccessWait* wait);
 
 /**
  * @brief End one persistent use after the device work has finished.
  *
- * Call only after completion, a confirmed stop, or cancellation before submission.
+ * Call only after the transfer completes, hardware stop is confirmed, or the
+ * job was cancelled before submission.
  *
- * @param mapping Persistent mapping with an active use. Calls must not overlap.
- *                CPU access stays blocked until the final use ends.
- * @return OS_EOK or OS_EINVALPARAMS for a different kind or no active uses.
+ * @param operation Mapping Complete token, or NULL for non-overlapping unbound calls.
+ * @param mapping   Persistent mapping with an active use. Calls must not overlap.
+ *                  CPU access stays blocked until the final use ends.
+ * @return OS_EOK, OS_EINVALPARAMS for a different kind, no active uses, or an
+ *         invalid token, or OS_ECANCELLED if stop cleanup already ran.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceEndUse(
-    _In_ struct SHMDeviceMapping* mapping);
+    _In_Opt_ SHMDeviceOperation_t* operation,
+    _In_     SHMDeviceMapping_t*   mapping);
 
 /**
  * @brief Allocate memory for continuous CPU and device access.
  *
  * Use this for long-lived device structures, such as command rings. The new
  * SHM buffer is zeroed and uses the device pool's cache policy (uncached on
- * ARM64). Neither side needs streaming sync calls to see the other's writes.
- * The mapping allows reads and writes in both directions. Both sides use the
- * same pages because a copy cannot track their concurrent writes.
+ * ARM64). Neither side needs sync calls before reading what the other wrote.
+ * The mapping allows reads and writes in both directions. Both sides share the
+ * same pages because a copy cannot keep up with concurrent writes from both.
  * Device segments cover the allocation rounded up to whole pages.
  *
  * Pages come from the reserved device pool and are consecutive in physical
@@ -318,145 +366,277 @@ SHMDeviceEndUse(
  * The buffer is created in, and mapped into, the calling process. Release with
  * SHMDeviceUnmap on the mapping and SHMDetach on the buffer, in that order.
  *
+ * @param operation Context Submit token, kept alive through result copy or
+ *                  cleanup on failure. NULL is allowed for non-overlapping unbound calls.
  * @param context Context. Hold a reference until the call returns.
  * @param requirements Memory constraints. See DMARequirements.
  * @param bufferOut Receives the buffer handle, including the CPU pointer.
  * @param mappingOut Address of an initially NULL pointer. Receives a mapping
  *                   for the caller to release.
  * @return OS_EOK on success. OS_EINVALPARAMS for NULL arguments or requirements
- *         no memory could meet. OS_EBUSY if *mappingOut is not NULL. OS_ENOENT if the
- *         device cannot reach the memory. OS_ENOTSUPPORTED if the memory did
- *         not meet the requirements. Errors from creating the buffer pass through.
+ *         no memory could meet, or an invalid token. OS_EBUSY if *mappingOut is
+ *         not NULL. OS_ENOENT if the device cannot reach the memory.
+ *         OS_ENOTSUPPORTED if the memory did not meet the requirements.
+ *         Errors from creating the buffer pass through.
  *         Failure leaves both outputs unchanged. If cleanup also fails, the
  *         context queues the mapping for another cleanup attempt and keeps its
  *         pages allocated.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceAllocate(
-    _In_    struct SHMDeviceContext*      context,
-    _In_    const struct DMARequirements* requirements,
-    _Out_   SHMHandle_t*                  bufferOut,
-    _InOut_ struct SHMDeviceMapping**     mappingOut);
+    _In_Opt_ SHMDeviceOperation_t*         operation,
+    _In_     SHMDeviceContext_t*           context,
+    _In_     const struct DMARequirements* requirements,
+    _Out_    SHMHandle_t*                  bufferOut,
+    _InOut_  SHMDeviceMapping_t**          mappingOut);
 
 /**
  * @brief Prepare a streaming mapping for a device transfer.
  *
- * Reserve the range for device use and make earlier CPU writes visible to it.
- * If the device reads through bounce pages, copy the range into those pages
- * first. For a non-coherent device, write cached CPU data back to memory.
- * Device writes also need the old cache entries invalidated. Uncached pool
- * memory skips those cache operations, but still needs memory barriers, access
- * checks and any required bounce copies.
+ * Reserves the range for the device and makes earlier CPU writes visible to it.
+ * If the mapping uses bounce pages and the device will read data, copies the
+ * range into those bounce pages first. For a non-coherent device, flushes CPU
+ * cache lines back to RAM (and invalidates them before device writes so old
+ * cached bytes cannot later overwrite what the device wrote). Uncached pool
+ * memory skips those cache calls, though it still runs memory barriers, access
+ * checks, and any bounce copies.
  *
  * The mapping must be idle and the range nonempty. Calls on one mapping must
  * not overlap. End conflicting CPU sessions before calling. Keep the mapping
  * valid until SHMDeviceSyncForCpu succeeds, then begin a CPU session before
- * accessing the data.
+ * touching the data.
  *
- * Wait behavior follows SHMWaitMode. OS_EFORKED means the call is still running
- * asynchronously. Keep the mapping valid until that call finishes.
+ * Wait behavior follows SHMWaitMode. Returning OS_EFORKED means a kernel worker
+ * thread took over the wait. Keep the mapping and operation token alive until
+ * that worker thread finishes.
  *
- * @param mapping Streaming mapping to submit.
- * @param offset First byte the device will use, counted from the mapping.
- * @param length Nonzero number of bytes. Must lie inside the mapping.
- * @param wait Wait options, or NULL for nonblocking access.
- * @return OS_EOK or OS_EFORKED. OS_EINVALPARAMS for NULL, a non-streaming mapping
- *         or an invalid range. OS_EBUSY if the mapping is already active or
- *         address release has started. Errors from SHMAccessBegin pass through.
+ * @param operation Mapping Submit token, or NULL for non-overlapping unbound calls.
+ * @param mapping   Streaming mapping to submit.
+ * @param offset    First byte the device will use, counted from the mapping.
+ * @param length    Nonzero number of bytes. Must lie inside the mapping.
+ * @param wait      Wait options, or NULL to fail immediately if busy.
+ * @return OS_EOK or OS_EFORKED. OS_EINVALPARAMS for NULL, a non-streaming mapping,
+ *         an invalid range, or an invalid operation token. OS_EBUSY if the
+ *         mapping is already active or cleanup has started. OS_ECANCELLED if
+ *         the binding was cancelled, leaving the range locked down until stop
+ *         cleanup. Errors from SHMAccessBegin pass through unchanged.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceSyncForDevice(
-    _In_ struct SHMDeviceMapping*    mapping,
-    _In_ size_t                      offset,
-    _In_ size_t                      length,
-    _In_ const struct SHMAccessWait* wait);
+    _In_Opt_ SHMDeviceOperation_t*       operation,
+    _In_     SHMDeviceMapping_t*         mapping,
+    _In_     size_t                      offset,
+    _In_     size_t                      length,
+    _In_     const struct SHMAccessWait* wait);
 
 /**
  * @brief Make completed device writes visible to the CPU and end device access.
  *
- * The driver must confirm that the device has finished, for example through a
- * completion event or by stopping the device, before making this call.
- * If a non-coherent device wrote data, discard old CPU cache entries for the
- * completed range. Copy completed writes from bounce pages back to the buffer,
- * leaving bytes outside that range untouched. Device access then ends.
- * Begin a CPU session before reading or writing the data. Treat only the
- * completed range as device output.
+ * Confirm that the device actually finished (via a completion interrupt/event
+ * or by stopping the hardware) before calling this. On a non-coherent device
+ * write, discards cached CPU lines for the completed range. If bounce pages
+ * were used, copies the completed bytes back to the buffer and leaves bytes
+ * outside that range untouched. Device access then ends. Begin a CPU session
+ * before reading or writing the buffer, and treat only the completed range as
+ * device output.
  *
- * @param mapping Streaming mapping. Shared and persistent mappings are rejected.
- *                Calls on one mapping must not overlap.
- * @param length Number of completed bytes from the start of the submitted
- *               range, at most the submitted length. Zero permits cancellation.
+ * @param operation Mapping Complete token, or NULL for non-overlapping unbound calls.
+ * @param mapping   Streaming mapping. Shared and persistent mappings are rejected.
+ *                  Calls on one mapping must not overlap.
+ * @param length    Number of completed bytes from the start of the submitted
+ *                  range, at most the submitted length. Passing 0 cancels the
+ *                  transfer and restores CPU access.
  * @return OS_EOK on success. OS_EINVALPARAMS for NULL, a non-streaming mapping,
- *         a bad range or a mapping without an active device transfer.
+ *         a bad range, an invalid token, or a mapping without an active transfer.
+ *         OS_ECANCELLED if stop cleanup already ran.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceSyncForCpu(
-    _In_ struct SHMDeviceMapping* mapping,
-    _In_ size_t                   length);
+    _In_Opt_ SHMDeviceOperation_t* operation,
+    _In_     SHMDeviceMapping_t*   mapping,
+    _In_     size_t                length);
 
 /**
  * @brief Release a mapping and its buffer and context references.
  *
- * Finish or stop all device work first. For a stream, call SHMDeviceSyncForCpu
- * before releasing. For a persistent mapping, call SHMDeviceEndUse for every
- * use. No device access may still be queued. This function does not stop hardware.
+ * Finish or stop all device work first. For a streaming mapping, call
+ * SHMDeviceSyncForCpu before unmapping. For a persistent mapping, end every use
+ * with SHMDeviceEndUse. No device access may still be queued. This call never
+ * stops hardware on its own.
  *
- * @param mapping Pointer set to NULL on success. NULL or *mapping == NULL
- *                requires no work. Calls on the mapping must not overlap.
- * @return OS_EOK, or OS_EBUSY while device work is active. Address release errors
- *         leave the pointer unchanged and the pages allocated for another
- *         release attempt. Once address release starts, the mapping cannot be
- *         used for transfers or segment queries, even if release fails.
+ * @param operation Mapping Release token, or the context Submit token when
+ *                  cleaning up a failed mapping creation. NULL is allowed for
+ *                  non-overlapping unbound calls. End the token after this call.
+ * @param mapping   Pointer set to NULL on success. NULL or *mapping == NULL
+ *                  does nothing. Calls on the mapping must not overlap.
+ * @return OS_EOK, OS_EINVALPARAMS for an invalid token, or OS_EBUSY while
+ *         device work is active. If freeing device addresses fails, the pointer
+ *         stays unchanged and pages stay allocated so cleanup can retry, while
+ *         the mapping can no longer be used for transfers or segment queries.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 SHMDeviceUnmap(
-    _InOut_ struct SHMDeviceMapping** mapping);
+    _In_Opt_ SHMDeviceOperation_t* operation,
+    _InOut_  SHMDeviceMapping_t**  mapping);
 
 /**
  * @brief Read the device segments covering the mapped range, in order.
  *
- * @param mapping Valid mapping. Release must not overlap this call.
- * @param countOut Receives the number of segments.
+ * @param operation Mapping Submit token, or the context Submit token while
+ *                  creating a mapping. Keep it valid while reading the returned
+ *                  segments. NULL is allowed for non-overlapping unbound calls.
+ * @param mapping   Valid mapping. Release must not overlap this call.
+ * @param countOut  Receives the number of segments.
  * @return The segment list, valid until release starts, or NULL for NULL
- *         arguments. After release starts, returns NULL and sets *countOut to zero.
+ *         arguments. An invalid token or started release returns NULL and sets
+ *         *countOut to 0. On bound contexts, backing memory stays pinned until
+ *         the token ends.
  */
-const struct DMASegment*
+KERNELABI KERNELAPI const struct DMASegment*
 SHMDeviceMappingSegments(
-    _In_  const struct SHMDeviceMapping* mapping,
-    _Out_ uint32_t*                      countOut);
+    _In_Opt_ SHMDeviceOperation_t*     operation,
+    _In_     const SHMDeviceMapping_t* mapping,
+    _Out_    uint32_t*                 countOut);
 
 /**
- * @brief Clean up a mapping after the last process thread has exited.
+ * @brief Cleans up a mapping after the process holding its handle exits.
  *
- * Release idle mappings immediately. If the device may still use the pages,
- * add the mapping to the context's quarantine list and keep the pages allocated.
- * This list holds mappings awaiting a confirmed device stop or another cleanup
- * attempt after a failed release.
+ * For a bound mapping, this shuts down the entire recovery group. If the
+ * mapping still holds device resources, it stays on the context list so stop
+ * cleanup can free them later. Idle unbound mappings are freed right away,
+ * while active unbound mappings stay listed until hardware stop is confirmed.
  *
- * @param mapping Must point to a mapping pointer. Set to NULL after release
- *                or after adding the mapping to the quarantine list.
- * @return OS_EOK after release or transfer to the quarantine list.
+ * @param mapping Must point to a mapping pointer. Set to NULL once freed or
+ *                handed over to context stop cleanup.
+ * @return OS_EOK once freed or handed over to stop cleanup.
  */
 oserr_t
 SHMDeviceAbandon(
-    _InOut_ struct SHMDeviceMapping** mapping);
+    _InOut_ SHMDeviceMapping_t** mapping);
 
 /**
- * @brief Free quarantined mappings after a confirmed device stop or reset.
+ * @brief Cancels waiting requests and locks down ranges on all mappings in a context.
  *
- * Stop all device access through this context before calling. Calls that add
- * mappings to the quarantine list must not overlap this call. Discard incomplete
- * bounce data and finish cache synchronization before allowing conflicting
- * buffer access again.
+ * Call this after the recovery group has already blocked new DMA work. Any
+ * mapping still being built will lock down its own range when it links into
+ * the list.
  *
- * @param context Context. Hold a reference until the call returns.
- * @return OS_EOK if cleanup completed, otherwise the first address release error.
- *         Failed mappings stay on the context's list with their pages allocated
- *         for another release attempt. Cache synchronization and ending device
- *         access are not repeated on a retry.
+ * @param context Context whose mapping list stays valid during the walk.
+ * @return OS_EOK if every mapping was visited. OS_EBUSY or OS_EOVERFLOW leaves
+ *         some work unblocked and means another cancellation pass is needed.
  */
-oserr_t
-SHMDeviceReleaseQuarantine(
-    _In_ struct SHMDeviceContext* context);
+KERNELABI oserr_t KERNELAPI
+SHMDeviceContextRevoke(
+    _In_ SHMDeviceContext_t* context);
+
+/**
+ * @brief Releases mapping resources after hardware has physically stopped.
+ *
+ * Call this only while holding a context reference and after confirming the
+ * device can no longer touch RAM (with no background wait able to wake up and
+ * resume). Unbound contexts clean only abandoned mappings. If freeing device
+ * addresses fails, the mapping's pages and range lock stay intact so cleanup
+ * can retry.
+ *
+ * @param context Context whose device has stopped accessing memory.
+ * @return OS_EOK, or the first reference, busy, or address-release error.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMDeviceContextCompleteStop(
+    _In_ SHMDeviceContext_t* context);
+
+/**
+ * @brief Prepares a bound device context from a driver's binding handle and generation.
+ *
+ * Sets up the context struct before attaching it to the binding, then builds
+ * its fixed direct-DMA address rules outside the group lock. Leaves *contextOut
+ * unchanged on error.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMDeviceContextPrepareBound(
+    _In_  uuid_t                            binding,
+    _In_  const OSDmaBoundOpenParameters_t* parameters,
+    _Out_ SHMDeviceContext_t**              contextOut);
+
+/**
+ * @brief Finishes publishing a bound context after copying its handle to user space.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMDeviceContextPublishBound(
+    _In_ SHMDeviceContext_t* context);
+
+/**
+ * @brief Cancels an unpublished bound context with no mappings and clears *context.
+ *
+ * Drops the setup operation count once the final temporary reference is released.
+ */
+KERNELABI void KERNELAPI
+SHMDeviceContextCancelBound(
+    _InOut_ SHMDeviceContext_t** context);
+
+/**
+ * @brief Cleans up a device context after all threads in its process have exited.
+ *
+ * If any mappings still exist on a bound context, shuts down the whole
+ * recovery group before dropping the context reference. Temporary references
+ * held by a recovery pass use SHMDeviceContextRelease.
+ */
+KERNELABI void KERNELAPI
+SHMDeviceContextAbandon(
+    _InOut_ SHMDeviceContext_t** context);
+
+/**
+ * @brief Starts an operation using storage embedded inside the context struct.
+ *
+ * The record must be in the Updating state with an empty PendingOperation slot.
+ * Because the token lives inside the context struct, this never allocates memory.
+ * Keep the token alive across setup, user-space copies, and failure cleanup,
+ * then end it with SHMDeviceOperationEnd. If a wait returns OS_EFORKED, the
+ * kernel worker thread keeps the token and ends it when finished.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMDeviceContextBeginOperation(
+    _In_  SHMRecord_t*           record,
+    _In_  SHMDeviceContext_t*         context,
+    _In_  enum SHMDeviceOperationKind kind,
+    _Out_ SHMDeviceOperation_t**      operationOut);
+
+/**
+ * @brief Starts an operation using storage embedded inside the mapping struct.
+ *
+ * Follows the same record and token rules as SHMDeviceContextBeginOperation.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMDeviceMappingBeginOperation(
+    _In_  SHMRecord_t*           record,
+    _In_  SHMDeviceMapping_t*         mapping,
+    _In_  enum SHMDeviceOperationKind kind,
+    _Out_ SHMDeviceOperation_t**      operationOut);
+
+/**
+ * @brief Checks that a bound context's binding is still live before committing work.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMDeviceOperationCheck(
+    _In_ const SHMDeviceOperation_t* operation);
+
+/**
+ * @brief Clears the token and record slot, lowers the group count, and drops references.
+ */
+KERNELABI void KERNELAPI
+SHMDeviceOperationEnd(
+    _InOut_ SHMDeviceOperation_t** operation);
+
+/**
+ * @brief Retires a blocked range wait when its owning process exits.
+ *
+ * Call this only after every thread in the process (including any background
+ * worker wait) has stopped. If the operation was interrupted outside a range
+ * wait (for example, while copying or flushing caches), returns OS_EBUSY and
+ * keeps its count and pages pinned because we cannot tell what state it left.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMDeviceOperationCancel(
+    _In_ SHMRecord_t* record);
 
 #endif //!__SHM_DEVICE_H__

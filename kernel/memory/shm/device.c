@@ -24,6 +24,8 @@
 #include <handles/global.h>
 #include <handles/handle.h>
 #include <heap.h>
+#include <assert.h>
+#include <debug.h>
 #include <limits.h>
 #include <machine.h>
 #include <shm/shm.h>
@@ -32,65 +34,7 @@
 
 #include "private.h"
 #include "device_private.h"
-
-/**
- * @brief Kernel views used to copy between the buffer and temporary device pages.
- *
- * Copy is zero when the device uses the original buffer pages. Allocation
- * describes the temporary pages to return to the device pool during cleanup.
- */
-struct __SHMDeviceBounce {
-    vaddr_t                       Source;       // Kernel view of the buffer's pages.
-    size_t                        SourceLength;
-    size_t                        SourceOffset; // Where the mapped range starts inside that view.
-    vaddr_t                       Copy;         // Kernel view of the bounce pages. The range starts at 0.
-    struct SystemMemoryAllocation Allocation;   // Allocation used for the bounce pages.
-};
-
-/**
- * @brief Byte range of the current streaming transfer and any temporary copy storage.
- */
-struct __SHMDeviceStream {
-    size_t                   Offset;
-    size_t                   Length;
-    struct __SHMDeviceBounce Bounce;
-};
-
-enum __SHMDeviceMappingState {
-    SHMDeviceMappingReady,
-    // Cleanup has started. Only another release attempt is allowed.
-    SHMDeviceMappingReleasing
-};
-
-/**
- * @brief Buffer range, transfer state and resources needed for a device mapping.
- *
- * Extents holds the physical ranges used for cache operations. AddressMapping
- * stores the device addresses. Access keeps the buffer allocated and tracks
- * conflicting use. Calls on one mapping must not overlap.
- */
-struct SHMDeviceMapping {
-    struct SHMAccess               Access;
-    struct SHMDeviceMapping*       QuarantineNext;
-    bool                           Cached;
-    struct SHMDeviceContext*       Context;
-    size_t                         Offset;
-    size_t                         Length;
-    enum DMADirection              Direction;
-    enum SHMDeviceMappingKind      Kind;
-    enum __SHMDeviceMappingState   State;
-    
-    union {
-        struct __SHMDeviceStream Stream;
-        struct {
-            unsigned int Uses;
-        } Persistent;
-    };
-
-    SHMSG_t*                       Extents;
-    int                            ExtentCount;
-    struct DMAAddressMapping*      AddressMapping;
-};
+#include "../utils.h"
 
 static bool
 __IsPowerOfTwoOrZero(
@@ -115,24 +59,6 @@ __MapRequirementsValid(
 
     return requirements->LengthAlignment == 0 ||
         (length & (requirements->LengthAlignment - 1)) == 0;
-}
-
-static void
-__QuarantineMapping(
-    _In_ struct SHMDeviceMapping* mapping)
-{
-    MutexLock(&mapping->Context->QuarantineLock);
-    mapping->QuarantineNext = mapping->Context->Quarantine;
-    mapping->Context->Quarantine = mapping;
-    MutexUnlock(&mapping->Context->QuarantineLock);
-}
-
-static bool
-__IsStreaming(
-    _In_ const struct SHMDeviceMapping* mapping)
-{
-    return mapping->Kind == SHMDeviceMappingStreamingBounce ||
-        mapping->Kind == SHMDeviceMappingStreamingDirect;
 }
 
 static oserr_t
@@ -248,24 +174,6 @@ __GatherExtents(
     return OS_EOK;
 }
 
-static void
-__ReleaseBounce(
-    _In_ struct __SHMDeviceBounce* bounce)
-{
-    // MAPPING_PERSISTENT keeps the pages allocated after these views are
-    // unmapped. Return the bounce pages to the pool separately.
-    if (bounce->Copy != 0) {
-        (void)MemorySpaceUnmap(GetDomainMemorySpace(), bounce->Copy, bounce->Allocation.Length);
-        bounce->Copy = 0;
-    }
-
-    (void)SystemMemoryReleaseAllocation(&bounce->Allocation);
-    if (bounce->Source != 0) {
-        (void)MemorySpaceUnmap(GetDomainMemorySpace(), bounce->Source, bounce->SourceLength);
-        bounce->Source = 0;
-    }
-}
-
 /**
  * @brief Map the buffer's pages into kernel memory for copying.
  *
@@ -274,11 +182,11 @@ __ReleaseBounce(
  */
 static oserr_t
 __MapSourceView(
-    _In_    struct SHMBuffer*         buffer,
-    _In_    size_t                    offset,
-    _In_    size_t                    length,
-    _In_    size_t                    pageSize,
-    _InOut_ struct __SHMDeviceBounce* bounce)
+    _In_    struct SHMBuffer*  buffer,
+    _In_    size_t             offset,
+    _In_    size_t             length,
+    _In_    size_t             pageSize,
+    _InOut_ SHMDeviceBounce_t* bounce)
 {
     size_t       start = buffer->Offset + offset;
     unsigned int flags = MAPPING_COMMIT | MAPPING_PERSISTENT;
@@ -290,18 +198,18 @@ __MapSourceView(
     }
 
     bounce->SourceOffset = start % pageSize;
-    bounce->SourceLength = DIVUP(bounce->SourceOffset + length, pageSize) * pageSize;
+    bounce->SourceMappingLength = DIVUP(bounce->SourceOffset + length, pageSize) * pageSize;
     return MemorySpaceMap(
         GetCurrentMemorySpace(),
         &(struct MemorySpaceMapOptions) {
             .SHMTag = buffer->ID,
             .Pages = &buffer->Pages[start / pageSize],
-            .Length = bounce->SourceLength,
+            .Length = bounce->SourceMappingLength,
             .Mask = __MASK,
             .Flags = flags,
             .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
         },
-        &bounce->Source
+        &bounce->SourceMapping
     );
 }
 
@@ -316,11 +224,11 @@ __MapSourceView(
  * @param extents Storage for one entry per bounce page. Filled on success.
  */
 static oserr_t
-__AllocateCopy(
+__AllocateBouncePages(
     _In_    size_t                           length,
     _In_    size_t                           pageSize,
     _In_    const struct DMAMapRequirements* requirements,
-    _InOut_ struct __SHMDeviceBounce*        bounce,
+    _InOut_ SHMDeviceBounce_t*               bounce,
     _Out_   SHMSG_t*                         extents,
     _Out_   int*                             extentCountOut)
 {
@@ -368,7 +276,7 @@ __AllocateCopy(
             .Flags = flags,
             .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
         },
-        &bounce->Copy
+        &bounce->BounceMapping
     );
     if (status != OS_EOK) {
         kfree(pages);
@@ -390,10 +298,11 @@ __AllocateCopy(
 /**
  * @brief Prepare bounce pages for a new mapping.
  *
- * Use this when the device cannot address the buffer, its address constraints
- * cannot be met, or cache operations could affect bytes outside the range.
- * The caller must check the device addresses for the bounce pages. On success,
- * extents describes those pages instead of the buffer.
+ * Use temporary copy pages (bounce pages) when the device cannot reach the
+ * buffer's addresses, cannot meet segment alignment rules, or when cache
+ * invalidation would touch neighboring bytes outside the range. The caller
+ * must still check device addresses for the bounce pages. On success, extents
+ * describes those bounce pages.
  */
 static oserr_t
 __PrepareBounce(
@@ -402,7 +311,7 @@ __PrepareBounce(
     _In_    size_t                           length,
     _In_    size_t                           pageSize,
     _In_    const struct DMAMapRequirements* requirements,
-    _InOut_ struct __SHMDeviceBounce*        bounce,
+    _InOut_ SHMDeviceBounce_t*               bounce,
     _Out_   SHMSG_t*                         extents,
     _Out_   int*                             extentCountOut)
 {
@@ -413,7 +322,7 @@ __PrepareBounce(
         return status;
     }
 
-    status = __AllocateCopy(
+    status = __AllocateBouncePages(
         length,
         pageSize,
         requirements,
@@ -422,7 +331,7 @@ __PrepareBounce(
         extentCountOut
     );
     if (status != OS_EOK) {
-        __ReleaseBounce(bounce);
+        SHMDeviceReleaseBounce(bounce);
     }
     return status;
 }
@@ -482,7 +391,7 @@ __CreateMapping(
 {
     struct SHMDeviceMapping*  mapping = NULL;
     struct DMAAddressMapping* addressMapping = NULL;
-    struct __SHMDeviceBounce  bounce = { 0 };
+    SHMDeviceBounce_t         bounce = { 0 };
     SHMSG_t*                  extents;
     size_t                    pageSize = GetMemorySpacePageSize();
     size_t                    pageCount;
@@ -530,6 +439,9 @@ __CreateMapping(
         status = OS_EOOM;
         goto cleanup;
     }
+
+    memset(mapping, 0, sizeof(struct SHMDeviceMapping));
+    atomic_init(&mapping->Lifetime.References, 1);
 
     if (!needsBounce) {
         // Check the physical ranges and build the device-visible segment list.
@@ -590,27 +502,27 @@ __CreateMapping(
     mapping->Cached = needsBounce ? bounce.Allocation.Cached : !SHMBufferUncached(buffer);
     mapping->Kind = kind;
     mapping->State = SHMDeviceMappingReady;
-    
-    if (__IsStreaming(mapping)) {
-        mapping->Stream = (struct __SHMDeviceStream) {
+
+    if (__SHMDeviceMappingIsStreaming(mapping)) {
+        mapping->Stream = (SHMDeviceStream_t) {
             .Bounce = bounce
         };
     } else {
         mapping->Persistent.Uses = 0;
     }
-    
+
     mapping->Direction = direction;
     mapping->Extents = extents;
     mapping->ExtentCount = extentCount;
     mapping->AddressMapping = addressMapping;
-    
+
     *mappingOut = mapping;
     return OS_EOK;
 
 cleanup:
     // Errors reach this label before a device address mapping is ready.
     // Release temporary bounce views and storage.
-    __ReleaseBounce(&bounce);
+    SHMDeviceReleaseBounce(&bounce);
     if (mapping != NULL) {
         kfree(mapping);
     }
@@ -620,14 +532,15 @@ cleanup:
 
 oserr_t
 SHMDeviceMap(
-    _In_    struct SHMDeviceContext*         context,
-    _In_    uuid_t                           shmID,
-    _In_    size_t                           offset,
-    _In_    size_t                           length,
-    _In_    enum DMADirection                direction,
-    _In_    enum SHMDeviceMappingKind        kind,
-    _In_    const struct DMAMapRequirements* requirements,
-    _InOut_ struct SHMDeviceMapping**        mappingOut)
+    _In_Opt_ SHMDeviceOperation_t*            operation,
+    _In_     struct SHMDeviceContext*         context,
+    _In_     uuid_t                           shmID,
+    _In_     size_t                           offset,
+    _In_     size_t                           length,
+    _In_     enum DMADirection                direction,
+    _In_     enum SHMDeviceMappingKind        kind,
+    _In_     const struct DMAMapRequirements* requirements,
+    _InOut_  struct SHMDeviceMapping**        mappingOut)
 {
     struct SHMBuffer*        buffer;
     struct SHMReference      source;
@@ -641,6 +554,10 @@ SHMDeviceMap(
     }
     if (*mappingOut != NULL) {
         return OS_EBUSY;
+    }
+
+    if (!SHMDeviceOperationIsValid(operation, context, NULL, SHMDeviceOperationSubmit)) {
+        return OS_EINVALPARAMS;
     }
 
     if (!__MapRequirementsValid(requirements, length)) {
@@ -669,17 +586,17 @@ SHMDeviceMap(
     if (status != OS_EOK) {
         return OS_ENOENT;
     }
-    
+
     buffer = source.Buffer;
 
     // Region-backed buffers need region-aware device mappings.
     if (buffer->Flags & SHM_REGIONS) {
-        ReleaseGlobalHandle(source.GlobalHandleID);
+        __ReleaseMemoryHandleReference(source.GlobalHandleID, __func__);
         return OS_ENOTSUPPORTED;
     }
 
     scope = direction == DMAToDevice ? GrantTokenScopeRead : GrantTokenScopeWrite;
-    
+
     if (direction == DMABidirectional) {
         scope |= GrantTokenScopeRead;
     }
@@ -717,11 +634,29 @@ SHMDeviceMap(
 
     mapping->Access.ReferenceID = source.GlobalHandleID;
     mapping->Access.Scope = source.Scope;
+
+    SHMDeviceMappingLink(mapping);
+    if (context->Binding != NULL) {
+        status = SHMDeviceOperationCheck(operation);
+        if (status != OS_EOK) {
+            // Mapping setup can finish right after a cancel pass walked the
+            // list. Lock down this new mapping's range before ending the active
+            // operation.
+            oserr_t cleanupStatus = SHMDeviceAbandon(&mapping);
+
+            if (cleanupStatus != OS_EOK) {
+                ERROR("SHMDeviceMap: SHMDeviceAbandon buffer %u after closure failed: %u",
+                      source.GlobalHandleID, cleanupStatus);
+            }
+            return status;
+        }
+    }
+
     *mappingOut = mapping;
     return OS_EOK;
 
 release:
-    (void)ReleaseGlobalHandle(source.GlobalHandleID);
+    __ReleaseMemoryHandleReference(source.GlobalHandleID, __func__);
     return status;
 }
 
@@ -759,13 +694,14 @@ __RequirementsValid(
  */
 static oserr_t
 __CheckRequirements(
-    _In_ const struct SHMDeviceMapping* mapping,
-    _In_ const struct DMARequirements*  requirements)
+    _In_Opt_ SHMDeviceOperation_t*          operation,
+    _In_     const struct SHMDeviceMapping* mapping,
+    _In_     const struct DMARequirements*  requirements)
 {
     const struct DMASegment* segments;
     uint32_t                 count;
 
-    segments = SHMDeviceMappingSegments(mapping, &count);
+    segments = SHMDeviceMappingSegments(operation, mapping, &count);
     if (requirements->Contiguous && count != 1) {
         return OS_ENOTSUPPORTED;
     }
@@ -789,17 +725,23 @@ __CheckRequirements(
 
 oserr_t
 SHMDeviceAllocate(
-    _In_    struct SHMDeviceContext*      context,
-    _In_    const struct DMARequirements* requirements,
-    _Out_   SHMHandle_t*                  bufferOut,
-    _InOut_ struct SHMDeviceMapping**     mappingOut)
+    _In_Opt_ SHMDeviceOperation_t*         operation,
+    _In_     struct SHMDeviceContext*      context,
+    _In_     const struct DMARequirements* requirements,
+    _Out_    SHMHandle_t*                  bufferOut,
+    _InOut_  struct SHMDeviceMapping**     mappingOut)
 {
     struct SHMDeviceMapping* mapping = NULL;
     SHMHandle_t              handle;
     size_t                   pageSize = GetMemorySpacePageSize();
     oserr_t                  status;
+    oserr_t                  cleanupStatus;
 
     if (context == NULL || requirements == NULL || bufferOut == NULL || mappingOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (!SHMDeviceOperationIsValid(operation, context, NULL, SHMDeviceOperationSubmit)) {
         return OS_EINVALPARAMS;
     }
 
@@ -815,8 +757,8 @@ SHMDeviceAllocate(
     // Pool pages are contiguous and zeroed. Their physical addresses meet the
     // alignment and boundary requirements. Devices that cannot see the CPU
     // cache use uncached views, so they need no sync calls. Whole pages keep
-    // cache lines separate from neighboring memory. If the pool is full, this
-    // allocation fails instead of using other memory.
+    // cache lines separate from neighboring memory. If the pool is full, fail
+    // cleanly since ordinary RAM cannot substitute for device-pool memory.
     status = SHMCreateDeviceBuffer(
         DIVUP(requirements->Length, pageSize) * pageSize,
         (size_t)requirements->Alignment,
@@ -828,8 +770,9 @@ SHMDeviceAllocate(
     }
 
     // The CPU and device share this memory. Both must access the same pages,
-    // since a bounce copy could leave one side with stale data.
+    // since a bounce copy could leave one side reading old bytes.
     status = SHMDeviceMap(
+        operation,
         context,
         handle.ID,
         0,
@@ -839,69 +782,40 @@ SHMDeviceAllocate(
         NULL,
         &mapping
     );
-    if (status == OS_EOK) {
-        status = __CheckRequirements(mapping, requirements);
-        if (status != OS_EOK) {
-            // The caller has not received the allocation. If address release
-            // fails, keep the mapping for a cleanup retry. Its SHM reference
-            // keeps the pages allocated after the CPU handle is detached.
-            if (SHMDeviceUnmap(&mapping) != OS_EOK) {
-                __QuarantineMapping(mapping);
+    if (status != OS_EOK) {
+        ERROR("SHMDeviceAllocate: SHMDeviceMap buffer %u failed: %u", handle.ID, status);
+        goto detach;
+    }
+
+    status = __CheckRequirements(operation, mapping, requirements);
+    if (status != OS_EOK) {
+        oserr_t cleanupStatus;
+
+        ERROR("SHMDeviceAllocate: __CheckRequirements buffer %u failed: %u", handle.ID, status);
+        // The caller has not received the allocation. A failed release leaves
+        // the mapping listed for recovery, with its SHM pages still allocated.
+        cleanupStatus = SHMDeviceUnmap(operation, &mapping);
+        if (cleanupStatus != OS_EOK) {
+            ERROR("SHMDeviceAllocate: SHMDeviceUnmap buffer %u failed: %u", handle.ID, cleanupStatus);
+            cleanupStatus = SHMDeviceAbandon(&mapping);
+            if (cleanupStatus != OS_EOK) {
+                ERROR("SHMDeviceAllocate: SHMDeviceAbandon buffer %u failed: %u", handle.ID, cleanupStatus);
             }
         }
-    }
-    if (status != OS_EOK) {
-        (void)SHMDetach(&handle);
-        return status;
+        goto detach;
     }
 
     *bufferOut = handle;
     *mappingOut = mapping;
     return OS_EOK;
-}
 
-oserr_t
-SHMDeviceUnmap(
-    _InOut_ struct SHMDeviceMapping** mapping)
-{
-    struct SHMDeviceMapping* owned;
-    oserr_t                  status;
-
-    // Nothing to release. Repeated cleanup succeeds.
-    if (mapping == NULL || *mapping == NULL) {
-        return OS_EOK;
+detach:
+    cleanupStatus = SHMDetach(&handle);
+    if (cleanupStatus != OS_EOK) {
+        ERROR("SHMDeviceAllocate: SHMDetach buffer %u failed: %u (mapping status %u)",
+              handle.ID, cleanupStatus, status);
     }
-
-    // Queued and active device work keep the mapping in use.
-    // Explicit unmap of shared storage is the driver's confirmation of a stop.
-    if ((*mapping)->Access.Phase != SHMAccessIdle) {
-        return OS_EBUSY;
-    }
-
-    // Release device addresses before the buffer or context references.
-    // Keep the pages allocated if release fails. From this point, the mapping
-    // can only be used to retry cleanup.
-    (*mapping)->State = SHMDeviceMappingReleasing;
-    status = DMAAddressMappingRelease(&(*mapping)->AddressMapping);
-    if (status != OS_EOK) {
-        return status;
-    }
-
-    // Clear the slot before releasing so repeated cleanup cannot release the
-    // buffer or context references twice.
-    owned = *mapping;
-    *mapping = NULL;
-
-    SHMDeviceContextRelease(&owned->Context);
-    
-    // Unmap the buffer view before releasing the reference that keeps its pages.
-    if (__IsStreaming(owned)) {
-        __ReleaseBounce(&owned->Stream.Bounce);
-    }
-    (void)ReleaseGlobalHandle(owned->Access.ReferenceID);
-    kfree(owned->Extents);
-    kfree(owned);
-    return OS_EOK;
+    return status;
 }
 
 /**
@@ -923,7 +837,7 @@ __MaintainRange(
     for (int i = 0; i < mapping->ExtentCount && length != 0; i++) {
         const SHMSG_t* extent = &mapping->Extents[i];
         size_t         chunk;
-        
+
         if (skip >= extent->Length) {
             skip -= extent->Length;
             continue;
@@ -933,7 +847,7 @@ __MaintainRange(
         if (chunk > length) {
             chunk = length;
         }
-        
+
         operation(extent->Address + skip, chunk);
         length -= chunk;
         skip = 0;
@@ -958,8 +872,8 @@ __PrepareForDevice(
     dma_mb();
 
     // Non-coherent devices read memory directly. Write cached data back before
-    // device reads. Before device writes, also invalidate the lines so stale
-    // CPU data cannot overwrite the result. Uncached memory still needs
+    // device reads. Before device writes, also invalidate the lines so old
+    // cached CPU bytes cannot overwrite the result. Uncached memory still needs
     // ordering and access checks, but has no cache lines to maintain.
     // Bounce storage uses its pool's cache policy.
     if (mapping->Cached && mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent) {
@@ -971,8 +885,8 @@ __PrepareForDevice(
     }
 }
 
-static inline void
-__CompleteForCpu(
+void
+SHMDeviceCompleteForCpu(
     _In_ struct SHMDeviceMapping* mapping,
     _In_ size_t                   offset,
     _In_ size_t                   length)
@@ -992,30 +906,35 @@ __CompleteForCpu(
 
 oserr_t
 SHMDeviceSyncForDevice(
-    _In_ struct SHMDeviceMapping*    mapping,
-    _In_ size_t                      offset,
-    _In_ size_t                      length,
-    _In_ const struct SHMAccessWait* wait)
+    _In_Opt_ SHMDeviceOperation_t*       operation,
+    _In_     struct SHMDeviceMapping*    mapping,
+    _In_     size_t                      offset,
+    _In_     size_t                      length,
+    _In_     const struct SHMAccessWait* wait)
 {
     oserr_t status;
 
     // A device transfer requires a non-empty range.
-    if (mapping == NULL || !__IsStreaming(mapping) || length == 0) {
+    if (mapping == NULL || !__SHMDeviceMappingIsStreaming(mapping) || length == 0) {
         return OS_EINVALPARAMS;
     }
 
     if (mapping->State != SHMDeviceMappingReady) {
-        return OS_EBUSY;
+        return mapping->State == SHMDeviceMappingStopped ? OS_ECANCELLED : OS_EBUSY;
     }
     if (!__SHMRangeContains(0, mapping->Length, offset, length)) {
         return OS_EINVALPARAMS;
     }
 
-    status = SHMAccessBegin(
+    if (!SHMDeviceOperationIsValid(operation, mapping->Context, mapping, SHMDeviceOperationSubmit)) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = SHMDeviceOperationBeginAccess(
+        operation,
         &mapping->Access,
         offset,
         length,
-        SHMAccessHolderDevice,
         __DeviceWrites(mapping),
         wait
     );
@@ -1025,10 +944,10 @@ SHMDeviceSyncForDevice(
 
     // Copy CPU data to bounce storage before the device reads it.
     // A device that only writes does not need the previous contents.
-    if (mapping->Stream.Bounce.Copy != 0 && mapping->Direction != DMAFromDevice) {
+    if (mapping->Stream.Bounce.BounceMapping != 0 && mapping->Direction != DMAFromDevice) {
         memcpy(
-            (void*)(mapping->Stream.Bounce.Copy + offset),
-            (const void*)(mapping->Stream.Bounce.Source + mapping->Stream.Bounce.SourceOffset + offset),
+            (void*)(mapping->Stream.Bounce.BounceMapping + offset),
+            (const void*)(mapping->Stream.Bounce.SourceMapping + mapping->Stream.Bounce.SourceOffset + offset),
             length
         );
     }
@@ -1036,24 +955,33 @@ SHMDeviceSyncForDevice(
     __PrepareForDevice(mapping, offset, length);
     mapping->Stream.Offset = offset;
     mapping->Stream.Length = length;
-    return OS_EOK;
+    return mapping->Context->Binding == NULL ? OS_EOK : SHMDeviceOperationCheck(operation);
 }
 
 oserr_t
 SHMDeviceSyncForCpu(
-    _In_ struct SHMDeviceMapping* mapping,
-    _In_ size_t                   length)
+    _In_Opt_ SHMDeviceOperation_t*    operation,
+    _In_     struct SHMDeviceMapping* mapping,
+    _In_     size_t                   length)
 {
     size_t offset;
 
     // A transfer may stop before the device writes any bytes. Allow an empty
     // completed range so the CPU can still access the buffer again.
-    if (mapping == NULL || !__IsStreaming(mapping)) {
+    if (mapping == NULL || !__SHMDeviceMappingIsStreaming(mapping)) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (mapping->State != SHMDeviceMappingReady) {
+        return mapping->State == SHMDeviceMappingStopped ? OS_ECANCELLED : OS_EBUSY;
+    }
+
+    if (!SHMDeviceOperationIsValid(operation, mapping->Context, mapping, SHMDeviceOperationComplete)) {
         return OS_EINVALPARAMS;
     }
 
     // The mapping must have an active device transfer.
-    if (mapping->Access.Phase != SHMAccessActive) {
+    if (SHMAccessGetPhase(&mapping->Access) != SHMAccessActive) {
         return OS_EINVALPARAMS;
     }
 
@@ -1062,14 +990,14 @@ SHMDeviceSyncForCpu(
     }
 
     offset = mapping->Stream.Offset;
-    __CompleteForCpu(mapping, offset, length);
+    SHMDeviceCompleteForCpu(mapping, offset, length);
 
     // Copy only completed bytes from bounce storage to the buffer.
     // Leave the CPU's data outside the completed range unchanged.
-    if (mapping->Stream.Bounce.Copy != 0 && __DeviceWrites(mapping)) {
+    if (mapping->Stream.Bounce.BounceMapping != 0 && __DeviceWrites(mapping)) {
         memcpy(
-            (void*)(mapping->Stream.Bounce.Source + mapping->Stream.Bounce.SourceOffset + offset),
-            (const void*)(mapping->Stream.Bounce.Copy + offset),
+            (void*)(mapping->Stream.Bounce.SourceMapping + mapping->Stream.Bounce.SourceOffset + offset),
+            (const void*)(mapping->Stream.Bounce.BounceMapping + offset),
             length
         );
     }
@@ -1080,8 +1008,9 @@ SHMDeviceSyncForCpu(
 
 oserr_t
 SHMDeviceBeginUse(
-    _In_ struct SHMDeviceMapping*    mapping,
-    _In_ const struct SHMAccessWait* wait)
+    _In_Opt_ SHMDeviceOperation_t*       operation,
+    _In_     struct SHMDeviceMapping*    mapping,
+    _In_     const struct SHMAccessWait* wait)
 {
     oserr_t status;
 
@@ -1090,20 +1019,25 @@ SHMDeviceBeginUse(
     }
 
     if (mapping->State != SHMDeviceMappingReady) {
-        return OS_EBUSY;
+        return mapping->State == SHMDeviceMappingStopped ? OS_ECANCELLED : OS_EBUSY;
     }
     if (mapping->Persistent.Uses == UINT_MAX) {
         return OS_EOVERFLOW;
     }
 
+    if (!SHMDeviceOperationIsValid(operation, mapping->Context, mapping, SHMDeviceOperationSubmit)) {
+        return OS_EINVALPARAMS;
+    }
+
     // CPU access is excluded until every queued use has completed. Repeating
-    // cache work here could write stale CPU data over a running device's writes.
+    // cache work here could flush old cached CPU bytes over a running device's
+    // writes.
     if (mapping->Persistent.Uses == 0) {
-        status = SHMAccessBegin(
+        status = SHMDeviceOperationBeginAccess(
+            operation,
             &mapping->Access,
             0,
             mapping->Length,
-            SHMAccessHolderDevice,
             __DeviceWrites(mapping),
             wait
         );
@@ -1118,25 +1052,34 @@ SHMDeviceBeginUse(
         }
     }
     mapping->Persistent.Uses++;
-    return OS_EOK;
+    return mapping->Context->Binding == NULL ? OS_EOK : SHMDeviceOperationCheck(operation);
 }
 
 oserr_t
 SHMDeviceEndUse(
-    _In_ struct SHMDeviceMapping* mapping)
+    _In_Opt_ SHMDeviceOperation_t*    operation,
+    _In_     struct SHMDeviceMapping* mapping)
 {
     if (mapping == NULL || mapping->Kind != SHMDeviceMappingPersistent) {
         return OS_EINVALPARAMS;
+    }
+
+    if (mapping->State != SHMDeviceMappingReady) {
+        return mapping->State == SHMDeviceMappingStopped ? OS_ECANCELLED : OS_EBUSY;
     }
 
     if (mapping->Persistent.Uses == 0) {
         return OS_EINVALPARAMS;
     }
 
+    if (!SHMDeviceOperationIsValid(operation, mapping->Context, mapping, SHMDeviceOperationComplete)) {
+        return OS_EINVALPARAMS;
+    }
+
     // Each use must have completed or been stopped before it is removed. Only
     // the final completion permits CPU access to any byte of the mapping.
     if (mapping->Persistent.Uses == 1) {
-        __CompleteForCpu(mapping, 0, mapping->Length);
+        SHMDeviceCompleteForCpu(mapping, 0, mapping->Length);
         SHMAccessEnd(&mapping->Access);
     }
     mapping->Persistent.Uses--;
@@ -1145,8 +1088,9 @@ SHMDeviceEndUse(
 
 const struct DMASegment*
 SHMDeviceMappingSegments(
-    _In_  const struct SHMDeviceMapping* mapping,
-    _Out_ uint32_t*                      countOut)
+    _In_Opt_ SHMDeviceOperation_t*          operation,
+    _In_     const struct SHMDeviceMapping* mapping,
+    _Out_    uint32_t*                      countOut)
 {
     // Return the stored segments while the device addresses are usable. Once
     // release starts, callers must not use them.
@@ -1154,91 +1098,15 @@ SHMDeviceMappingSegments(
         return NULL;
     }
 
+    if (!SHMDeviceOperationIsValid(operation, mapping->Context, mapping, SHMDeviceOperationSubmit) &&
+        !SHMDeviceOperationIsValid(operation, mapping->Context, NULL, SHMDeviceOperationSubmit)) {
+        *countOut = 0;
+        return NULL;
+    }
+    
     if (mapping->State != SHMDeviceMappingReady) {
         *countOut = 0;
         return NULL;
     }
     return DMAAddressMappingSegments(mapping->AddressMapping, countOut);
-}
-
-oserr_t
-SHMDeviceAbandon(
-    _InOut_ struct SHMDeviceMapping** mapping)
-{
-    struct SHMDeviceMapping* abandoned = *mapping;
-    oserr_t                  status;
-
-    if (abandoned == NULL) {
-        return OS_EOK;
-    }
-
-    if (abandoned->State == SHMDeviceMappingReady &&
-        (abandoned->Kind == SHMDeviceMappingShared || abandoned->Access.Phase == SHMAccessActive)) {
-        // The device may still use these pages. Block conflicting buffer access
-        // until the device has stopped and cache synchronization is complete.
-        SHMAccessQuarantine(&abandoned->Access);
-        __QuarantineMapping(abandoned);
-        *mapping = NULL;
-        return OS_EOK;
-    }
-
-    // All process threads must have exited, so queued requests cannot start.
-    // A mapping already being released has no unfinished device work.
-    SHMAccessEnd(&abandoned->Access);
-    status = SHMDeviceUnmap(mapping);
-    if (status != OS_EOK) {
-        // No caller remains to retry. Keep the mapping on the context for a
-        // later retry without repeating cache work that already completed.
-        __QuarantineMapping(abandoned);
-        *mapping = NULL;
-    }
-    return OS_EOK;
-}
-
-oserr_t
-SHMDeviceReleaseQuarantine(
-    _In_ struct SHMDeviceContext* context)
-{
-    struct SHMDeviceMapping* mapping;
-    struct SHMDeviceMapping* next;
-    oserr_t                  status;
-    oserr_t                  firstError = OS_EOK;
-
-    // The caller must keep the context valid, prevent changes to this list, and
-    // stop all device access. Detach the current entries so failed releases can
-    // be added back without retrying them again in this call.
-    MutexLock(&context->QuarantineLock);
-    mapping = context->Quarantine;
-    context->Quarantine = NULL;
-    MutexUnlock(&context->QuarantineLock);
-
-    dma_mb();
-    for (; mapping != NULL; mapping = next) {
-        next = mapping->QuarantineNext;
-        if (mapping->State == SHMDeviceMappingReady) {
-            if (__IsStreaming(mapping)) {
-                // Reset does not report how many bytes the device wrote. Do not
-                // copy bounce data back. Make direct writes visible before the
-                // CPU accesses the buffer again.
-                if (mapping->Stream.Bounce.Copy == 0) {
-                    __CompleteForCpu(mapping, mapping->Stream.Offset, mapping->Stream.Length);
-                }
-            } else if (mapping->Kind == SHMDeviceMappingPersistent) {
-                __CompleteForCpu(mapping, 0, mapping->Length);
-                mapping->Persistent.Uses = 0;
-            }
-            SHMAccessEnd(&mapping->Access);
-        }
-
-        // Unmap marks the mapping Releasing before freeing device addresses.
-        // A retry can then skip cache and access work that already completed.
-        status = SHMDeviceUnmap(&mapping);
-        if (status != OS_EOK) {
-            if (firstError == OS_EOK) {
-                firstError = status;
-            }
-            __QuarantineMapping(mapping);
-        }
-    }
-    return firstError;
 }

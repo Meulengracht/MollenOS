@@ -23,6 +23,20 @@
 #include "attachment_private.h"
 
 void
+DMAManagerNotifyEvents(
+    _In_ DMAManager_t* manager,
+    _In_ const char*   caller)
+{
+    oserr_t status = MarkHandle(manager->ID, IOSETIN);
+
+    // Having noone waiting on the handle set is fine. Events simply
+    // stay queued until the service reads them.
+    if (status != OS_EOK && status != OS_ENOENT) {
+        ERROR("%s: MarkHandle manager %u failed: %u", caller, manager->ID, status);
+    }
+}
+
+void
 DMAAttachmentQueueEventLocked(
     _In_ DMAManager_t*    manager,
     _In_ DMAAttachment_t* attachment,
@@ -41,10 +55,18 @@ DMAAttachmentQueueEventLocked(
     }
 
     if (eventState->Queued) {
-        // Pending events must be read and acknowledged before reassignment
-        // or the start of another recovery epoch.
-        assert(eventState->Value.Generation == generation &&
-               eventState->Value.StopEpoch == stopEpoch);
+        // Queued events must be read and cleared before changing groups or
+        // starting a new stop cycle.
+        assert(eventState->Value.Generation == generation);
+        if (eventState->Value.StopEpoch == 0 && stopEpoch != 0) {
+            // Another device in the same group may trigger a stop after this
+            // attachment already went idle. Keep its generation and earlier
+            // flags, set StopEpoch, and bump Sequence so an older snapshot
+            // cannot accidentally clear this upgraded event.
+            assert((reasons & DMA_ATTACHMENT_STOP_REQUIRED) != 0);
+            eventState->Value.StopEpoch = stopEpoch;
+        }
+        assert(eventState->Value.StopEpoch == stopEpoch);
         eventState->Value.Reasons |= reasons;
     } else {
         eventState->Value = (OSDmaAttachmentEvent_t) {
@@ -57,23 +79,20 @@ DMAAttachmentQueueEventLocked(
         list_append(&manager->PendingEvents, &eventState->Link);
     }
 
-    // Stop the sequence at UINT64_MAX so an old snapshot cannot match a new
-    // change after wraparound. The event then stays pending permanently.
-    // Later calls can still add reason bits.
-    if (!eventState->Exhausted) {
-        if (eventState->Sequence == UINT64_MAX - 1) {
-            eventState->Exhausted = true;
-            eventState->Sequence = UINT64_MAX;
+    // Cap Sequence at UINT64_MAX so an old snapshot can never match a newer
+    // change after wraparound. Once capped, the event stays queued forever,
+    // though later calls can still set more reason flags.
+    if (eventState->Sequence != UINT64_MAX) {
+        eventState->Sequence++;
+        if (eventState->Sequence == UINT64_MAX) {
             WARNING("DMA attachment %llu event sequence exhausted",
                     (unsigned long long)attachment->ID);
-        } else {
-            eventState->Sequence++;
         }
     }
 }
 
-// Requires Lock. Look up the ID in the current queue so an old snapshot cannot
-// reach a record that has been removed or replaced.
+// Hold manager->Lock. Look up by attachment ID in the pending list so an old
+// snapshot cannot touch an attachment that was already removed or replaced.
 static DMAAttachmentEventState_t*
 __FindPendingEventLocked(
     _In_ DMAManager_t* manager,
@@ -134,8 +153,8 @@ unlock:
                     manager->PendingEvents.count != 0;
     MutexUnlock(&manager->Lock);
     if (notifyManager) {
-        // The handle-set notification may have been consumed before this read failed.
-        MarkHandle(manager->ID, IOSETIN);
+        // The handle-set signal may have been cleared right before this read failed.
+        DMAManagerNotifyEvents(manager, __func__);
     }
     return status;
 }
@@ -160,7 +179,7 @@ DMAManagerFinishEvents(
     if (outputsCopied) {
         for (eventIndex = 0; eventIndex < batch->Count; eventIndex++) {
             eventState = __FindPendingEventLocked(manager, batch->Entries[eventIndex].Attachment);
-            if (eventState == NULL || eventState->Exhausted) {
+            if (eventState == NULL || eventState->Sequence == UINT64_MAX) {
                 continue;
             }
             
@@ -177,9 +196,9 @@ unlock:
     notifyManager = manager->State == DMAManagerLive && manager->PendingEvents.count != 0;
     MutexUnlock(&manager->Lock);
     if (notifyManager) {
-        // Changed events and failed copies leave work queued. Notify after
-        // releasing Lock. The operation reference keeps the manager handle valid.
-        MarkHandle(manager->ID, IOSETIN);
+        // Events that changed mid-read or failed to copy stay queued. Signal
+        // watchers after dropping Lock while our manager reference keeps it alive.
+        DMAManagerNotifyEvents(manager, __func__);
     }
     return status;
 }

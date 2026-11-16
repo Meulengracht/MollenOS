@@ -21,6 +21,7 @@
 #include <dma/attachment.h>
 #include <ds/list.h>
 #include <mutex.h>
+#include <stdatomic.h>
 
 DECL_STRUCT(MSContextSecurity);
 DECL_STRUCT(DMABinding);
@@ -32,12 +33,76 @@ enum DMAManagerState {
     DMAManagerClosed
 };
 
+enum DMARecoveryState {
+    DMARecoveryLive,
+    DMARecoveryBlocked,
+    DMARecoveryConfirmed,
+    DMARecoveryCleaned
+};
+
 /**
- * @brief Registered attachments and increasing ID counters.
- * Requires the manager's Lock for access.
+ * @brief Tracks whether new DMA work can start and how many operations are running.
+ * Hold group->Lock.
+ */
+typedef struct DMARecoveryGate {
+    enum DMARecoveryState State;
+    unsigned int          Operations;
+    bool                  ManagerClosed;
+} DMARecoveryGate_t;
+
+/**
+ * @brief Which cleanup or cancel step is currently running in this stop round.
+ * Hold group->Lock.
+ */
+enum DMARecoveryStopPhase {
+    DMARecoveryStopIdle,
+    DMARecoveryStopCancelling,
+    DMARecoveryStopCancelAgain,
+    DMARecoveryStopCleaning
+};
+
+/**
+ * @brief Stop round counter, active cleanup step, and last cancellation result.
+ *
+ * Hold group->Lock. Both cancellation phases block cleanup until they finish.
+ * If cleanup fails, Phase goes back to Idle while Gate.State stays Confirmed so
+ * the manager can retry cleanup with the same ticket.
+ */
+typedef struct DMARecoveryStop {
+    uint64_t                  Epoch;
+    oserr_t                   CancellationError;
+    enum DMARecoveryStopPhase Phase;
+} DMARecoveryStop_t;
+
+/**
+ * @brief Group of devices that share a bus path or reset line and must stop together.
+ *
+ * Kept alive by internal references from the manager's group list and from
+ * bindings. Because every caller already keeps the manager alive, the group
+ * holds no reference back to Manager.
+ *
+ * Locking order: always take manager->Lock before group->Lock. Callers that
+ * only check whether an operation can start take group->Lock on its own and
+ * must never try to take manager->Lock while holding it. Drop both locks before
+ * calling into SHM to cancel waiters or free mappings.
+ */
+typedef struct DMARecoveryGroup {
+    element_t         Link;
+    DMAManager_t*     Manager;
+    uint64_t          ID;
+    atomic_uint       References;
+    Mutex_t           Lock;
+    DMARecoveryGate_t Gate;
+    DMARecoveryStop_t Stop;
+} DMARecoveryGroup_t;
+
+/**
+ * @brief Registered attachments, active recovery groups, and ID counters.
+ * Hold manager->Lock before reading or changing any field.
  */
 typedef struct DMAAttachmentRegistry {
     list_t   Attachments;
+    list_t   Groups;
     uint32_t Count;
     uint64_t NextAttachmentID;
     uint64_t NextRecoveryGroupID;
@@ -45,11 +110,14 @@ typedef struct DMAAttachmentRegistry {
 } DMAAttachmentRegistry_t;
 
 /**
- * @brief Manager grant and state, with registered attachments and pending events.
- * Lock protects state and registry data. UpdateLock allows one prepared change
- * at a time, including while its result is copied to the caller. Closing does
- * not take UpdateLock. The manager keeps no permanent reference to the service's
- * security context, allowing group exit to close the grant.
+ * @brief Top-level DMA manager handle and registry.
+ *
+ * Lock protects State, the registry, and waiting events. UpdateLock allows only
+ * one attachment or binding change at a time, including across copying results
+ * back to user space. Closing the manager skips UpdateLock so a stuck user-space
+ * copy can never block handle cleanup. Saving Principal as a plain ID without
+ * taking a handle reference on the service's security context lets the service
+ * process exit and close this manager cleanly.
  */
 typedef struct DMAManager {
     uuid_t                  ID;
@@ -62,33 +130,34 @@ typedef struct DMAManager {
 } DMAManager_t;
 
 /**
- * @brief Pending event data, its queue link and sequence number.
- * Removing an event from the queue does not reset Sequence. At exhaustion, the
- * event stays pending permanently so an old batch cannot acknowledge a later
- * change. The manager's Lock protects all fields.
+ * @brief Waiting event state for one attachment.
+ *
+ * Sequence bumps every time an event is queued or updated, and never resets
+ * when read. Once it hits UINT64_MAX, the event stays queued permanently so an
+ * older snapshot can never match a newer change after wraparound.
+ * Hold manager->Lock to read or change any field.
  */
 typedef struct DMAAttachmentEventState {
     element_t              Link;
     OSDmaAttachmentEvent_t Value;
     uint64_t               Sequence;
     bool                   Queued;
-    bool                   Exhausted;
 } DMAAttachmentEventState_t;
 
 enum DMABindingState {
-    // The binding is not published. The attachment does not yet point to it.
     DMABindingPreparing,
     DMABindingLive,
-    // The grant cannot be used again. References may still delay the idle event.
     DMABindingClosed
 };
 
 /**
- * @brief Current binding and the last published request for this attachment.
- * Current does not keep the binding alive. The final binding callback clears it
- * under Lock, leaving the request history intact. Principal is zero until the
- * first request is published. Publication requires UpdateLock, and the manager's
- * Lock protects every field.
+ * @brief Active binding pointer and history of the last published bind request.
+ *
+ * Current does not keep the binding struct alive. The binding's delete callback
+ * clears Current under manager->Lock while leaving Principal, RequestId, and
+ * Generation in place so late retries can still tell what happened. Principal
+ * stays 0 until the first binding is published. Hold manager->Lock (plus
+ * UpdateLock when publishing).
  */
 typedef struct DMAAttachmentBindingState {
     DMABinding_t* Current;
@@ -97,10 +166,28 @@ typedef struct DMAAttachmentBindingState {
     uint64_t      Generation;
 } DMAAttachmentBindingState_t;
 
+enum DMABindingContextPhase {
+    DMABindingContextNone,
+    DMABindingContextPreparing,
+    DMABindingContextLive
+};
+
 /**
- * @brief Receiver's binding grant and a separate reference to its manager.
- * Attachment stays NULL until publication. Changes to binding state require
- * the manager's Lock.
+ * @brief Points to the driver's open DMA context without keeping it alive.
+ * Hold group->Lock.
+ */
+typedef struct DMABindingContextState {
+    struct SHMDeviceContext*    Pointer;
+    enum DMABindingContextPhase Phase;
+} DMABindingContextState_t;
+
+/**
+ * @brief Driver binding handle and its link back to the manager and attachment.
+ *
+ * Attachment stays NULL until DMAManagerPublishBinding runs. Group is acquired
+ * before creating the handle so even an unpublished binding can lock group->Lock.
+ * The context holds a reference to this binding, while the binding holds no
+ * reference back to the context.
  */
 typedef struct DMABinding {
     uuid_t               ID;
@@ -110,14 +197,17 @@ typedef struct DMABinding {
     uint64_t             RequestId;
     uint64_t             Generation;
     enum DMABindingState State;
+    DMARecoveryGroup_t*  Group;
+    DMABindingContextState_t Context;
 } DMABinding_t;
 
 /**
- * @brief Prepared binding and references needed to publish or cancel it.
- * UpdateLock stays held. Receiver holds a temporary security-context reference,
- * and Binding holds an operation reference. CreatesBinding selects a new grant
- * rather than an identical live retry, even before the grant is allocated.
- * The caller must keep its manager operation reference until the operation finishes.
+ * @brief Prepared binding update waiting to be published or cancelled.
+ *
+ * UpdateLock stays held while this exists. Receiver keeps the driver's security
+ * context alive until finished, and Binding holds a handle reference.
+ * CreatesBinding is true for a new binding and false for an identical retry.
+ * Keep the caller's manager reference alive until publish or cancel finishes.
  */
 typedef struct DMABindingRegistration {
     DMAManager_t*        Manager;
@@ -128,22 +218,24 @@ typedef struct DMABindingRegistration {
 } DMABindingRegistration_t;
 
 /**
- * @brief Fixed copy of the DMA route, with its recovery group, event and binding state.
- * This record belongs to the manager's registry. A pending event or current
- * binding prevents removal. Changing groups requires UpdateLock and Lock.
+ * @brief Registered device DMA setup, recovery group, event, and binding state.
+ *
+ * Lives in the manager's registry and cannot be removed while an event is
+ * queued or a binding still exists. Reassigning its group requires both
+ * UpdateLock and Lock.
  */
 typedef struct DMAAttachment {
     element_t                   Link;
     OSDmaAttachmentParameters_t Configuration;
     uint64_t                    ID;
-    uint64_t                    RecoveryGroup;
+    DMARecoveryGroup_t*         RecoveryGroup;
     DMAAttachmentEventState_t   Event;
     DMAAttachmentBindingState_t Binding;
 } DMAAttachment_t;
 
 /**
- * @brief Attachment and its proposed recovery group ID. Zero marks removal.
- * Removal preparation uses temporary group labels before reserving the final IDs.
+ * @brief Pairs an attachment with its proposed new recovery group ID (0 means removed).
+ * Removal setup stores temporary group numbers here before reserving final IDs.
  */
 typedef struct DMARecoveryEntry {
     DMAAttachment_t* Attachment;
@@ -151,20 +243,29 @@ typedef struct DMARecoveryEntry {
 } DMARecoveryEntry_t;
 
 /**
- * @brief Proposed recovery group for each attachment affected by an update.
- * UpdateLock keeps the attachment pointers valid. Check every entry for pending
- * events and current bindings before applying the update under Lock.
+ * @brief Prepared recovery group changes for adding or removing an attachment.
+ *
+ * UpdateLock keeps all Attachment pointers valid until applied or freed.
+ * Before applying under manager->Lock, verify that none of the listed
+ * attachments have waiting events or active bindings.
  */
 typedef struct DMARecoveryUpdate {
+    DMAManager_t*      Manager;
     uint32_t           Count;
     DMARecoveryEntry_t Entries[DMA_MANAGER_MAX_ATTACHMENTS];
+    uint32_t           NewCount;
+    DMARecoveryGroup_t* NewGroups[DMA_MANAGER_MAX_ATTACHMENTS];
+    uint32_t           OldCount;
+    DMARecoveryGroup_t* OldGroups[DMA_MANAGER_MAX_ATTACHMENTS];
 } DMARecoveryUpdate_t;
 
 /**
- * @brief Prepared attachment registration waiting for its ID to be copied to the caller.
- * UpdateLock stays held. CreatesAttachment selects a new record rather than a
- * retry, even before the record is allocated. RecoveryUpdate is NULL for a retry.
- * The caller must keep its manager operation reference until publish or cancel finishes.
+ * @brief Prepared attachment registration waiting for its ID to copy to user space.
+ *
+ * UpdateLock stays held while this exists. CreatesAttachment is true for a new
+ * entry and false for an identical retry, even before an attachment struct is
+ * allocated. RecoveryUpdate is NULL for a retry. Keep the caller's manager
+ * reference alive until publish or cancel finishes.
  */
 typedef struct DMAAttachmentRegistration {
     DMAManager_t*        Manager;
@@ -174,15 +275,17 @@ typedef struct DMAAttachmentRegistration {
 } DMAAttachmentRegistration_t;
 
 /**
- * @brief Calculate the recovery group formed by adding an attachment.
- * Requires UpdateLock and a manager operation reference. The new attachment must
- * not yet be registered. Takes Lock to read the registry and reserve IDs, and
- * allocates outside Lock. Failure leaves existing recovery groups unchanged.
+ * @brief Computes the merged recovery group for adding a new attachment.
  *
- * @param manager Manager being updated.
- * @param addedAttachment Validated attachment to add to the registry.
- * @param updateOut Receives the prepared group changes only on success.
- * @return OS_EOK, OS_EOOM, OS_EOVERFLOW or OS_ECANCELLED.
+ * Call with UpdateLock and a manager reference held, before adding addedAttachment
+ * to the registry. Briefly takes manager->Lock to read existing groups and
+ * reserve an ID, then allocates memory outside the lock. Failure leaves existing
+ * recovery groups untouched.
+ *
+ * @param manager         Manager being updated.
+ * @param addedAttachment Validated attachment about to be registered.
+ * @param updateOut       Receives the prepared group changes on success.
+ * @return OS_EOK, OS_EOOM, OS_EOVERFLOW, or OS_ECANCELLED.
  */
 KERNELABI oserr_t KERNELAPI
 DMARecoveryPrepareRegistration(
@@ -191,15 +294,15 @@ DMARecoveryPrepareRegistration(
     _Out_ DMARecoveryUpdate_t** updateOut);
 
 /**
- * @brief Calculate the recovery groups left after removing an attachment.
- * Requires UpdateLock and a manager operation reference. The attachment stays
- * registered during this call. Check for pending events and current bindings
- * before applying the changes.
+ * @brief Computes the new recovery groups left behind when removing an attachment.
  *
- * @param manager Manager being updated.
- * @param removedAttachment Registered attachment whose recovery group is being rebuilt.
- * @param updateOut Receives the prepared group changes only on success.
- * @return OS_EOK, OS_EOOM, OS_EOVERFLOW or OS_ECANCELLED.
+ * Call with UpdateLock and a manager reference held while removedAttachment is
+ * still in the registry. Check for pending events and bindings before applying.
+ *
+ * @param manager           Manager being updated.
+ * @param removedAttachment Attachment about to be removed.
+ * @param updateOut         Receives the prepared group changes on success.
+ * @return OS_EOK, OS_EOOM, OS_EOVERFLOW, or OS_ECANCELLED.
  */
 KERNELABI oserr_t KERNELAPI
 DMARecoveryPrepareRemoval(
@@ -208,38 +311,43 @@ DMARecoveryPrepareRemoval(
     _Out_ DMARecoveryUpdate_t** updateOut);
 
 /**
- * @brief Apply the prepared group IDs. Does not allocate and cannot fail.
- * Requires Lock, UpdateLock and a live manager. None of the affected attachments
- * may have pending events or current bindings.
+ * @brief Swaps the prepared recovery groups into place without allocating or failing.
  *
- * @param update Prepared changes whose attachment pointers remain valid.
+ * Call under manager->Lock and UpdateLock while the manager is live. None of
+ * the affected attachments may have pending events or active bindings.
+ *
+ * @param update Prepared changes whose attachment pointers are still valid.
  */
 KERNELABI void KERNELAPI
 DMARecoveryApplyUpdate(
     _In_ DMARecoveryUpdate_t* update);
 
 /**
- * @brief Free a prepared group update and clear its pointer.
- * Leaves the attachments unchanged.
+ * @brief Frees a prepared group update without changing any attachment.
  *
- * @param update Prepared update to free. Does nothing if *update is NULL.
+ * @param update Update pointer to free and set to NULL. No-op if *update is NULL.
  */
 KERNELABI void KERNELAPI
 DMARecoveryDiscardUpdate(
     _InOut_ DMARecoveryUpdate_t** update);
 
 /**
- * @brief Queue an attachment event or add reason flags to its pending event.
- * Requires Lock, a registered attachment and valid, nonzero reason flags.
- * If an event is already pending, generation and stopEpoch must match it.
- * Call MarkHandle after releasing Lock, while still holding the manager reference.
- * Does not allocate. Closed managers ignore events.
+ * @brief Adds an event for an attachment or merges flags into its queued event.
  *
- * @param manager Manager containing the attachment.
+ * Hold manager->Lock. The attachment must be registered and reasons nonzero.
+ * Merging into an already waiting event requires the same generation and stop
+ * round, except DMA_ATTACHMENT_STOP_REQUIRED can upgrade a clean idle event
+ * from round 0 to the current stop round (bumping Sequence so an older read
+ * cannot clear the upgraded event).
+ *
+ * Never allocates memory, and does nothing if the manager already closed. Call
+ * DMAManagerNotifyEvents after dropping Lock while holding a manager reference.
+ *
+ * @param manager    Manager that holds the attachment.
  * @param attachment Attachment whose state changed.
- * @param generation Binding generation for this event.
- * @param stopEpoch Recovery epoch, or zero for an idle event.
- * @param reasons DMA_ATTACHMENT_* reason flags to merge.
+ * @param generation Binding generation for the event.
+ * @param stopEpoch  Stop round number, or 0 for a clean idle event.
+ * @param reasons    Bitmask of DMA_ATTACHMENT_* flags to set.
  */
 KERNELABI void KERNELAPI
 DMAAttachmentQueueEventLocked(
@@ -250,13 +358,69 @@ DMAAttachmentQueueEventLocked(
     _In_ uint32_t         reasons);
 
 /**
- * @brief Mark a binding permanently closed without changing its references.
- * Requires the binding manager's Lock. Does not allocate or send notifications.
+ * @brief Wakes watchers waiting on the manager handle because events are queued.
  *
- * @param binding Binding to close. It may still be waiting for publication.
+ * Call without manager->Lock while holding a manager reference. If waking
+ * watchers fails, the events stay queued for the next read.
+ *
+ * @param manager Manager with waiting events.
+ * @param caller  Caller function name for error logs.
+ */
+KERNELABI void KERNELAPI
+DMAManagerNotifyEvents(
+    _In_ DMAManager_t* manager,
+    _In_ const char*   caller);
+
+/**
+ * @brief Marks a binding closed without dropping any of its references.
+ *
+ * Hold the binding manager's Lock. Does not allocate memory or wake handle watchers.
+ *
+ * @param binding Binding to close (may still be waiting to be published).
  */
 KERNELABI void KERNELAPI
 DMABindingCloseLocked(
     _In_ DMABinding_t* binding);
+
+/**
+ * @brief Increments a recovery group's internal reference count if it is nonzero.
+ *
+ * Requires an existing reference or manager->Lock protecting the group in the registry.
+ */
+KERNELABI oserr_t KERNELAPI
+DMARecoveryGroupAcquire(
+    _In_ DMARecoveryGroup_t* group);
+
+/**
+ * @brief Drops a group reference and frees the group when the last one is gone.
+ *
+ * Call outside manager->Lock and group->Lock. Before the final reference drops,
+ * the group must be removed from the registry with zero active operations.
+ */
+KERNELABI void KERNELAPI
+DMARecoveryGroupRelease(
+    _InOut_ DMARecoveryGroup_t** group);
+
+/**
+ * @brief Blocks the whole recovery group and closes its bindings under manager->Lock.
+ *
+ * Takes group->Lock internally and queues STOP_REQUIRED events without
+ * allocating memory. Leaves SHM cancellation for DMARecoveryCancel outside locks.
+ */
+KERNELABI void KERNELAPI
+DMARecoveryBlockLocked(
+    _In_ DMAManager_t*       manager,
+    _In_ DMARecoveryGroup_t* group);
+
+/**
+ * @brief Cancels all SHM contexts in a blocked recovery group.
+ *
+ * Call outside manager->Lock and group->Lock with a valid group reference.
+ * Only one cancel pass runs at a time. If another request arrives mid-pass,
+ * the loop runs again. A failed pass keeps CompleteStop from confirming cleanup.
+ */
+KERNELABI void KERNELAPI
+DMARecoveryCancel(
+    _In_ DMARecoveryGroup_t* group);
 
 #endif //!__DMA_ATTACHMENT_PRIVATE_H__

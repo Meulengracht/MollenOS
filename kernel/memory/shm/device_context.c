@@ -17,8 +17,18 @@
 
 #include <heap.h>
 #include <limits.h>
+#include <string.h>
 #include "device_private.h"
 #include "../dma/private.h"
+
+void
+SHMDeviceContextInitialize(
+    _Out_ struct SHMDeviceContext* context)
+{
+    memset(context, 0, sizeof(struct SHMDeviceContext));
+    atomic_init(&context->References, 1);
+    MutexConstruct(&context->MappingLock, MUTEX_FLAG_PLAIN);
+}
 
 oserr_t
 SHMDeviceContextCreate(
@@ -66,9 +76,7 @@ SHMDeviceContextCreate(
         return OS_EOOM;
     }
 
-    atomic_init(&context->References, 1);
-    MutexConstruct(&context->QuarantineLock, MUTEX_FLAG_PLAIN);
-    context->Quarantine = NULL;
+    SHMDeviceContextInitialize(context);
     context->CachePolicy = cachePolicy;
     context->AddressLimit = addressLimit;
     context->AddressSpace = space;
@@ -92,6 +100,10 @@ SHMDeviceContextAcquire(
     references = atomic_load(&context->References);
     do {
         // A count overflow could free the context while it is still in use.
+        if (references == 0) {
+            return OS_ECANCELLED;
+        }
+
         if (references == UINT_MAX) {
             return OS_EOVERFLOW;
         }
@@ -115,8 +127,9 @@ SHMDeviceContextRelease(
     *context = NULL;
     
     if (atomic_fetch_sub(&owned->References, 1) == 1) {
+        DMABindingDetachContext(&owned->Binding, owned);
         DMAAddressSpaceRelease(&owned->AddressSpace);
-        MutexDestruct(&owned->QuarantineLock);
+        MutexDestruct(&owned->MappingLock);
         kfree(owned);
     }
 }
@@ -125,8 +138,22 @@ oserr_t
 SHMDeviceContextClose(
     _InOut_ struct SHMDeviceContext** context)
 {
-    // The caller must prevent new mappings and references during this check.
-    if (atomic_load(&(*context)->References) != 1) {
+    // Callers must keep new mappings and context operations from overlapping
+    // this. A bound recovery pass can still hold temporary context references.
+    if ((*context)->Binding != NULL) {
+        bool hasMappings;
+
+        MutexLock(&(*context)->MappingLock);
+        hasMappings = (*context)->Mappings != NULL;
+        MutexUnlock(&(*context)->MappingLock);
+        if (hasMappings) {
+            return OS_EBUSY;
+        }
+        
+        // A recovery list walk may still hold a temporary reference to this
+        // context. Keep the binding attached until the last reference drops so
+        // the driver cannot reopen too early.
+    } else if (atomic_load(&(*context)->References) != 1) {
         return OS_EBUSY;
     }
     SHMDeviceContextRelease(context);
