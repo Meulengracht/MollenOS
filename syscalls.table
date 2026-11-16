@@ -109,28 +109,27 @@
 81     Sleep                                ScTimeSleep                            oserr_t   DurationNs, RemainingNs
 82     Stall                                ScTimeStall                            oserr_t   DurationNs
 
-83     DmaOpen                              ScDmaOpen                              oserr_t   Device, Parameters, ContextOut
-84     DmaAllocate                          ScDmaAllocate                          oserr_t   Context, Requirements, ResultOut
-85     DmaMapShm                            ScDmaMapShm                            oserr_t   Context, Shm, Parameters, ResultOut
-86     DmaGetSegments                       ScDmaGetSegments                       oserr_t   Mapping, Entries, Capacity, CountOut
-87     ShmAccessCreate                      ScShmAccessCreate                      oserr_t   Shm, Offset, Length, Handle
-88     ShmAccessBegin                       ScShmAccessBegin                       oserr_t   Async, Handle, Parameters
-89     ShmAccessEnd                         ScShmAccessEnd                         oserr_t   Handle, Kind, CompletedLength
-90     ResourceRelease                      ScResourceRelease                      oserr_t   Handle
+83     DmaAllocate                          ScDmaAllocate                          oserr_t   Context, Requirements, ResultOut
+84     DmaMapShm                            ScDmaMapShm                            oserr_t   Context, Shm, Parameters, ResultOut
+85     DmaGetSegments                       ScDmaGetSegments                       oserr_t   Mapping, Entries, Capacity, CountOut
+86     ShmAccessCreate                      ScShmAccessCreate                      oserr_t   Shm, Offset, Length, Handle
+87     ShmAccessBegin                       ScShmAccessBegin                       oserr_t   Async, Handle, Parameters
+88     ShmAccessEnd                         ScShmAccessEnd                         oserr_t   Handle, Kind, CompletedLength
+89     ResourceRelease                      ScResourceRelease                      oserr_t   Handle
 
-91     ShmRegionsRegister                   ScShmRegionsRegister                   oserr_t   Shm, Ranges, Count
-92     ShmRegionSessionOpen                 ScShmRegionSessionOpen                 oserr_t   Shm, Region, Capacity, Result
-93     ShmRegionBeginCpu                    ScShmRegionBeginCpu                    oserr_t   Handle, Slot, Generation, Access
-94     ShmRegionEndCpu                      ScShmRegionEndCpu                      oserr_t   Handle, Slot, Generation
-95     DmaManagerCreate                     ScDmaManagerCreate                     oserr_t   managerOut
-96     DmaAttachmentRegister                ScDmaAttachmentRegister                oserr_t   manager, parameters, attachmentOut
-97     DmaManagerReadEvents                 ScDmaManagerReadEvents                 oserr_t   manager, entries, capacity, countOut
-98     DmaAttachmentRemove                  ScDmaAttachmentRemove                  oserr_t   manager, attachment
+90     ShmRegionsRegister                   ScShmRegionsRegister                   oserr_t   Shm, Ranges, Count
+91     ShmRegionSessionOpen                 ScShmRegionSessionOpen                 oserr_t   Shm, Region, Capacity, Result
+92     ShmRegionBeginCpu                    ScShmRegionBeginCpu                    oserr_t   Handle, Slot, Generation, Access
+93     ShmRegionEndCpu                      ScShmRegionEndCpu                      oserr_t   Handle, Slot, Generation
+94     DmaManagerCreate                     ScDmaManagerCreate                     oserr_t   managerOut
+95     DmaAttachmentRegister                ScDmaAttachmentRegister                oserr_t   manager, parameters, attachmentOut
+96     DmaManagerReadEvents                 ScDmaManagerReadEvents                 oserr_t   manager, entries, capacity, countOut
+97     DmaAttachmentRemove                  ScDmaAttachmentRemove                  oserr_t   manager, attachment
 
 # Authenticated DMA binding setup.
-99     DmaAttachmentBind                    ScDmaAttachmentBind                    oserr_t   manager, parameters, bindingOut
+98     DmaAttachmentBind                    ScDmaAttachmentBind                    oserr_t   manager, parameters, bindingOut
 
 # DMA context and trusted group stopping mechanism.
-100    DmaOpenBound                         ScDmaOpenBound                         oserr_t   binding, parameters, contextOut
-101    DmaAttachmentPrepareStop             ScDmaAttachmentPrepareStop             oserr_t   manager, attachment, ticketOut
-102    DmaAttachmentCompleteStop            ScDmaAttachmentCompleteStop            oserr_t   manager, ticket
+99     DmaOpenBound                         ScDmaOpenBound                         oserr_t   binding, parameters, contextOut
+100    DmaAttachmentPrepareStop             ScDmaAttachmentPrepareStop             oserr_t   manager, attachment, ticketOut
+101    DmaAttachmentCompleteStop            ScDmaAttachmentCompleteStop            oserr_t   manager, ticket

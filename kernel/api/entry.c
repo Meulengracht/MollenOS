@@ -185,7 +185,6 @@ extern oserr_t ScDmaAttachmentPrepareStop(uuid_t, const OSDmaAttachmentId_t*, OS
 extern oserr_t ScDmaAttachmentCompleteStop(uuid_t, const OSDmaStopTicket_t*);
 extern oserr_t ScDmaOpenBound(uuid_t, const OSDmaBoundOpenParameters_t*, uuid_t*);
 
-extern oserr_t ScDmaOpen(uuid_t, const struct OSDmaOpenParameters*, uuid_t*);
 extern oserr_t ScDmaAllocate(uuid_t, const struct DMARequirements*, struct OSDmaAllocationResult*);
 extern oserr_t ScDmaMapShm(uuid_t, uuid_t, const struct OSDmaMapParameters*, struct OSDmaMappingResult*);
 extern oserr_t ScDmaGetSegments(uuid_t, struct DMASegment*, uint32_t, uint32_t*);
@@ -200,7 +199,7 @@ extern oserr_t ScShmRegionBeginCpu(uuid_t, unsigned int, unsigned int, enum SHMC
 extern oserr_t ScShmRegionEndCpu(uuid_t, unsigned int, unsigned int);
 
 // BEGIN GENERATED SYSCALL COUNT - tools/generate_syscalls.py
-#define SYSTEM_CALL_COUNT 103
+#define SYSTEM_CALL_COUNT 102
 // END GENERATED SYSCALL COUNT
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
@@ -297,26 +296,25 @@ static struct SystemCallDescriptor {
     DefineSyscall(80, ScSystemTime),
     DefineSyscall(81, ScTimeSleep),
     DefineSyscall(82, ScTimeStall),
-    DefineSyscall(83, ScDmaOpen),
-    DefineSyscall(84, ScDmaAllocate),
-    DefineSyscall(85, ScDmaMapShm),
-    DefineSyscall(86, ScDmaGetSegments),
-    DefineSyscall(87, ScShmAccessCreate),
-    DefineSyscall(88, ScShmAccessBegin),
-    DefineSyscall(89, ScShmAccessEnd),
-    DefineSyscall(90, ScResourceRelease),
-    DefineSyscall(91, ScShmRegionsRegister),
-    DefineSyscall(92, ScShmRegionSessionOpen),
-    DefineSyscall(93, ScShmRegionBeginCpu),
-    DefineSyscall(94, ScShmRegionEndCpu),
-    DefineSyscall(95, ScDmaManagerCreate),
-    DefineSyscall(96, ScDmaAttachmentRegister),
-    DefineSyscall(97, ScDmaManagerReadEvents),
-    DefineSyscall(98, ScDmaAttachmentRemove),
-    DefineSyscall(99, ScDmaAttachmentBind),
-    DefineSyscall(100, ScDmaOpenBound),
-    DefineSyscall(101, ScDmaAttachmentPrepareStop),
-    DefineSyscall(102, ScDmaAttachmentCompleteStop),
+    DefineSyscall(83, ScDmaAllocate),
+    DefineSyscall(84, ScDmaMapShm),
+    DefineSyscall(85, ScDmaGetSegments),
+    DefineSyscall(86, ScShmAccessCreate),
+    DefineSyscall(87, ScShmAccessBegin),
+    DefineSyscall(88, ScShmAccessEnd),
+    DefineSyscall(89, ScResourceRelease),
+    DefineSyscall(90, ScShmRegionsRegister),
+    DefineSyscall(91, ScShmRegionSessionOpen),
+    DefineSyscall(92, ScShmRegionBeginCpu),
+    DefineSyscall(93, ScShmRegionEndCpu),
+    DefineSyscall(94, ScDmaManagerCreate),
+    DefineSyscall(95, ScDmaAttachmentRegister),
+    DefineSyscall(96, ScDmaManagerReadEvents),
+    DefineSyscall(97, ScDmaAttachmentRemove),
+    DefineSyscall(98, ScDmaAttachmentBind),
+    DefineSyscall(99, ScDmaOpenBound),
+    DefineSyscall(100, ScDmaAttachmentPrepareStop),
+    DefineSyscall(101, ScDmaAttachmentCompleteStop),
 // END GENERATED SYSCALL TABLE
 };
 
