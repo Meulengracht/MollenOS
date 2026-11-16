@@ -70,42 +70,71 @@ DMAAddressSpaceRelease(
     _InOut_ struct DMAAddressSpace** space);
 
 /**
- * @brief Build device segments for allocated physical ranges in buffer order.
+ * @brief Work out the device segments for a buffer, without letting the device use them yet.
  *
  * The caller must keep the physical pages allocated until release succeeds.
  * Keep extents and requirements unchanged throughout this call because they
  * are read twice: once to count the segments and once to fill the array.
  * The caller must separately check permission to use the memory and
- * synchronize CPU caches. Creating the segment list does neither.
+ * synchronize CPU caches. Preparation does neither. The input arrays are only
+ * needed during this call. The mapping keeps its own reference to the address
+ * space.
  *
  * @param space Address space. Hold a reference until the call returns.
  * @param extents Kernel array describing the buffer's allocated physical bytes.
  * @param extentCount Number of entries in extents, at least one.
  * @param addressLimit Largest device address allowed, inclusive.
+ * @param direction DMAToDevice lets the device read, DMAFromDevice lets the
+ *                  device write, and DMABidirectional allows both. Direct
+ *                  DMA only records this. The hardware cannot enforce it.
  * @param requirements Optional alignment requirements for each device segment.
- * @param mappingOut Address of an initially NULL pointer. Receives the completed mapping.
+ * @param mappingOut Address of an initially NULL pointer. Receives the mapping in
+ *                   the Prepared state.
  * @return OS_EOK on success. Validation, address conversion, reference-count
  *         and allocation errors leave *mappingOut unchanged. Temporary
  *         allocations and references are released on failure.
  */
-oserr_t
-DMAAddressMappingCreate(
+KERNELABI oserr_t KERNELAPI
+DMAAddressMappingPrepare(
     _In_    struct DMAAddressSpace*          space,
     _In_    const SHMSG_t*                   extents,
     _In_    int                              extentCount,
     _In_    uint64_t                         addressLimit,
+    _In_    enum DMADirection                direction,
     _In_    const struct DMAMapRequirements* requirements,
     _InOut_ struct DMAAddressMapping**       mappingOut);
 
 /**
- * @brief Get the device segment list from a completed mapping.
+ * @brief Let the device use a prepared mapping. This can be done only once.
  *
- * @param mapping Valid mapping. Release must not overlap this call.
+ * Before calling, do all the bookkeeping that is needed to clean up the mapping
+ * if this call fails. Once installation has started, an error does not prove
+ * that the device cannot reach the memory. After a failure, keep the mapping
+ * and its pages until the device is confirmed stopped, then release it.
+ * Do not call Install and Release on the same mapping at the same time.
+ *
+ * @param mapping Prepared mapping whose physical pages are still allocated.
+ * @return OS_EOK once the device addresses are usable. OS_EINVALPARAMS for NULL.
+ *         OS_EBUSY if the mapping is already installed. The mapping is then
+ *         unchanged. After any other failure, the mapping may only be released.
+ *         Direct mappings allocate nothing here and cannot fail.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAAddressMappingInstall(
+    _In_ struct DMAAddressMapping* mapping);
+
+/**
+ * @brief Get the device segments of a Prepared or Installed mapping.
+ *
+ * The kernel uses this to check the layout. Reading the addresses does not
+ * allow the device to use them. That only happens after Install succeeds.
+ *
+ * @param mapping Valid mapping. Keep it alive for as long as the array is used.
  * @param countOut Receives the number of segments.
  * @return The stored array, unchanged and valid until release starts.
  *         This call allocates no memory and does not access hardware.
  */
-const struct DMASegment*
+KERNELABI KERNELAPI const struct DMASegment*
 DMAAddressMappingSegments(
     _In_  const struct DMAAddressMapping* mapping,
     _Out_ uint32_t*                       countOut);
@@ -113,7 +142,11 @@ DMAAddressMappingSegments(
 /**
  * @brief Release the device segment list and its address-space reference.
  *
- * Stop all device use before calling. Calls on this mapping must not overlap.
+ * A Prepared mapping only needs software cleanup, which cannot fail. Once
+ * installation has started, wait for all device work to finish, or confirm that
+ * the hardware has stopped, before calling. Calls on this mapping must not
+ * overlap. A successful release means the addresses and the storage behind them
+ * can be reused, so any hardware cleanup must be finished by then.
  *
  * @param mapping Pointer set to NULL only after successful release.
  *                NULL or *mapping == NULL requires no work. On failure, keep
@@ -123,7 +156,7 @@ DMAAddressMappingSegments(
  *         another release attempt. Direct mappings need no hardware cleanup
  *         and always return OS_EOK.
  */
-oserr_t
+KERNELABI oserr_t KERNELAPI
 DMAAddressMappingRelease(
     _InOut_ struct DMAAddressMapping** mapping);
 

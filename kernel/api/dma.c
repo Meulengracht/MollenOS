@@ -393,16 +393,21 @@ __RollbackMapping(
     SHMDeviceOperation_t* operation = parent->PendingOperation;
     oserr_t               cleanupStatus;
 
-    // Try releasing normally while the binding is live. If the binding closed
-    // in the meantime, SHMRecordRemove hands the mapping over to stop cleanup.
-    // Keep the parent context operation open across both steps and return the
-    // original error.
-    cleanupStatus = SHMRecordRelease(record);
+    // The device may already be able to use this mapping, because the failure
+    // can come after its addresses were installed. Run cleanup now, while the
+    // parent operation is still open. It stops new work from the same recovery
+    // group and keeps the pages locked until the hardware is known to be stopped.
+    // Waiting for the handle to be destroyed is not an option, since another
+    // reference to it can delay that for a long time.
+    cleanupStatus = SHMRecordCleanup(record);
     if (cleanupStatus != OS_EOK) {
-        ERROR("__RollbackMapping: SHMDeviceUnmap mapping %u failed: %u (original status %u)",
+        ERROR("__RollbackMapping: SHMRecordCleanup mapping %u failed: %u (original status %u)",
               record->Handle, cleanupStatus, status);
     }
 
+    // The mapping holds its own reference to the buffer, so it stays alive
+    // until recovery finishes. Only drop the CPU view that the allocation
+    // created. The first error is the one returned to the caller.
     if (buffer != NULL && buffer->ID != UUID_INVALID) {
         cleanupStatus = SHMDetach(buffer);
         if (cleanupStatus != OS_EOK) {

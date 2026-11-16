@@ -181,10 +181,14 @@ SHMDeviceContextClose(
  *         OS_EINCOMPLETE if a page in the range was never allocated.
  *         OS_EOVERFLOW if the context cannot take another reference.
  *         OS_EOOM if an allocation fails.
- *         OS_ECANCELLED if the binding closes while the mapping is being
- *         created. The context then keeps the new mapping and its pages until
- *         the hardware is confirmed stopped, and *mappingOut stays NULL. Every
- *         other failure frees everything created so far.
+ *         OS_ECANCELLED if the binding closes during setup.
+ *         If the call fails while the mapping is still being prepared, the
+ *         temporary resources are freed. Once the mapping has been linked so
+ *         that it can be cancelled, any error blocks the recovery group. The
+ *         mapping and its pages are then kept until the hardware is confirmed
+ *         stopped and the device addresses are released. This includes errors
+ *         while installing the addresses. Those are never retried with bounce
+ *         pages. Failure leaves *mappingOut unchanged.
  */
 KERNELABI oserr_t KERNELAPI
 SHMDeviceMap(
@@ -260,9 +264,9 @@ SHMDeviceEndUse(
  *
  * The pages come from the reserved device pool and are physically contiguous.
  * The pool checks the alignment and boundary requirements, and the resulting
- * device segments are checked again. The call fails if there is no pool, if the
- * pool is full, or if the device addresses cannot meet the requirements.
- * Ordinary memory is never used as a fallback.
+ * device segments are checked again before the device may use them. The call
+ * fails if there is no pool, if the pool is full, or if the device addresses
+ * cannot meet the requirements. Ordinary memory is never used as a fallback.
  *
  * The buffer is created in the calling process and mapped there. To release it,
  * call SHMDeviceUnmap on the mapping first, then SHMDetach on the buffer.
@@ -279,9 +283,12 @@ SHMDeviceEndUse(
  *         *mappingOut is not NULL. OS_ENOENT if the device cannot reach the
  *         memory. OS_ENOTSUPPORTED if the memory did not meet the requirements.
  *         Errors from creating the buffer are returned as they are.
- *         On failure both outputs are left as they were. If the cleanup fails
- *         as well, the context queues the mapping for another cleanup attempt
- *         and keeps its pages allocated.
+ *         On failure both outputs are left as they were. If the requirements
+ *         are not met, the failure happens before the mapping is linked, and
+ *         everything created so far is freed. A failure after linking blocks
+ *         the recovery group and keeps the mapping's pages until the hardware
+ *         is confirmed stopped, the same as for SHMDeviceMap. In that case the
+ *         CPU view of the new buffer is still detached.
  */
 KERNELABI oserr_t KERNELAPI
 SHMDeviceAllocate(

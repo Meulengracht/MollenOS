@@ -129,6 +129,11 @@ typedef struct SHMDeviceStream {
 } SHMDeviceStream_t;
 
 enum SHMDeviceMappingState {
+    // The layout and the backing storage are done, but the device addresses
+    // are not installed yet or the final check that the binding is still open
+    // has not passed.
+    // Once linked, cancellation can already lock the range of a Preparing mapping.
+    SHMDeviceMappingPreparing,
     // The mapping can be used.
     SHMDeviceMappingReady,
     // Release has started and the device resources are being freed.

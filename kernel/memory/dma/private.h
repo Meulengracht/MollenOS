@@ -26,10 +26,11 @@
  *        device addresses.
  *
  * Each range maps a block of physical addresses to a block of device
- * addresses. The context that created this and every finished mapping each
- * hold a reference. It is freed when the last one is dropped. The Ranges array
- * never changes after creation. The highest device address the device can use
- * is not stored here, the caller keeps it separately.
+ * addresses. The context that created this and every mapping made from it
+ * (Prepared or Installed) each hold a reference. It is freed when the last
+ * one is dropped.
+ * The Ranges array never changes after creation. The highest device address
+ * the device can use is not stored here. The caller keeps it separately.
  */
 struct DMAAddressSpace {
     _Atomic(unsigned int) References;

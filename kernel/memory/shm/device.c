@@ -388,16 +388,54 @@ __CheckCacheLineFallback(
 }
 
 /**
- * @brief Create a mapping that lets the device reach a buffer range.
+ * @brief Check the device addresses of an allocation against the requirements.
  *
- * SHMDeviceMap takes the references this needs before calling. This function
+ * The pool already checked the physical addresses. The device can see them at
+ * different addresses, or split into several pieces, so the requirements are
+ * checked again on the device layout before the device is allowed to use it.
+ */
+static oserr_t
+__CheckRequirements(
+    _In_ const struct DMAAddressMapping* mapping,
+    _In_ const struct DMARequirements*   requirements)
+{
+    const struct DMASegment* segments;
+    uint32_t                 count;
+
+    segments = DMAAddressMappingSegments(mapping, &count);
+    if (requirements->Contiguous && count != 1) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    // Check the alignment of the first device address.
+    if (requirements->Alignment != 0 && (segments[0].Address & (requirements->Alignment - 1)) != 0) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    // A segment must not cross a boundary. It crosses one when its first and
+    // last byte fall in different boundary-sized blocks. The upper address bits
+    // tell which block a byte is in.
+    for (uint32_t i = 0; requirements->Boundary != 0 && i < count; i++) {
+        const struct DMASegment* segment = &segments[i];
+        uint64_t                 last = segment->Address + (segment->Length - 1);
+        if (((segment->Address ^ last) & ~(requirements->Boundary - 1)) != 0) {
+            return OS_ENOTSUPPORTED;
+        }
+    }
+    return OS_EOK;
+}
+
+/**
+ * @brief Prepare and check a buffer range. The device cannot use it yet.
+ *
+ * __MapBuffer takes the references this needs before calling. This function
  * records the physical ranges that cache syncs will use and builds the device
  * addresses. If the device cannot address the buffer pages, or the pages break
  * its limits, it switches to bounce pages. Mappings that require direct access
  * fail instead.
  */
 static oserr_t
-__CreateMapping(
+__PrepareMapping(
     _In_  struct SHMBuffer*                buffer,
     _In_  struct SHMDeviceContext*         context,
     _In_  size_t                           offset,
@@ -405,9 +443,10 @@ __CreateMapping(
     _In_  enum DMADirection                direction,
     _In_  enum SHMDeviceMappingKind        kind,
     _In_  const struct DMAMapRequirements* requirements,
+    _In_  const struct DMARequirements*    allocationRequirements,
     _Out_ struct SHMDeviceMapping**        mappingOut)
 {
-    struct SHMDeviceMapping*  mapping = NULL;
+    struct SHMDeviceMapping*   mapping = NULL;
     struct DMAAddressMapping* addressMapping = NULL;
     SHMDeviceBounce_t         bounce = { 0 };
     SHMSG_t*                  extents;
@@ -416,6 +455,7 @@ __CreateMapping(
     int                       extentCount;
     bool                      needsBounce;
     oserr_t                   status;
+    oserr_t                   cleanupStatus;
 
     // Reserve one entry for each page the range touches. A bounce copy starts
     // on a page boundary, so it never needs more entries than this.
@@ -449,10 +489,9 @@ __CreateMapping(
         }
     }
 
-    // Allocate the mapping struct before creating device addresses. Once the
-    // address setup succeeds, nothing after it can fail, so there is no device
-    // address to undo. Direct-only ranges with a cache line conflict were
-    // already rejected above.
+    // Finish all storage and layout work before the device can see any
+    // address. Preparation may fall back to bounce pages and try again.
+    // Installation runs only once, on the layout that was finally chosen.
     mapping = kmalloc(sizeof(struct SHMDeviceMapping));
     if (mapping == NULL) {
         status = OS_EOOM;
@@ -465,11 +504,12 @@ __CreateMapping(
     if (!needsBounce) {
         // Check the physical ranges and build the list of segments as the
         // device sees them.
-        status = DMAAddressMappingCreate(
+        status = DMAAddressMappingPrepare(
             context->AddressSpace,
             extents,
             extentCount,
             context->AddressLimit,
+            direction,
             requirements,
             &addressMapping
         );
@@ -499,11 +539,12 @@ __CreateMapping(
         if (status != OS_EOK) {
             goto cleanup;
         }
-        status = DMAAddressMappingCreate(
+        status = DMAAddressMappingPrepare(
             context->AddressSpace,
             extents,
             extentCount,
             context->AddressLimit,
+            direction,
             requirements,
             &addressMapping
         );
@@ -512,16 +553,24 @@ __CreateMapping(
         }
     }
 
-    // Hand out the mapping only after setup has succeeded. The references
-    // taken by SHMDeviceMap keep the buffer and context valid until the device
-    // addresses are released.
+    if (allocationRequirements != NULL) {
+        status = __CheckRequirements(addressMapping, allocationRequirements);
+        if (status != OS_EOK) {
+            goto cleanup;
+        }
+    }
+
+    // The mapping is fully filled in before __MapBuffer links it so it can be
+    // cancelled. The references to the source buffer and the context stay valid
+    // through installation and any cleanup after a hardware stop. Nobody may
+    // use the mapping until __MapBuffer marks it Ready.
     SHMAccessInitialize(&mapping->Access, buffer, offset, length);
     mapping->Context = context;
     mapping->Offset = offset;
     mapping->Length = length;
     mapping->Cached = needsBounce ? bounce.Allocation.Cached : !SHMBufferUncached(buffer);
     mapping->Kind = kind;
-    mapping->State = SHMDeviceMappingReady;
+    mapping->State = SHMDeviceMappingPreparing;
 
     if (__SHMDeviceMappingIsStreaming(mapping)) {
         mapping->Stream = (SHMDeviceStream_t) {
@@ -540,8 +589,17 @@ __CreateMapping(
     return OS_EOK;
 
 cleanup:
-    // Every error reaches this label before a device address mapping exists.
-    // Free the bounce views and pages, the mapping struct, and the extent list.
+    // Install has not run, so the device never saw this layout. Releasing a
+    // prepared mapping cannot fail, so check that this holds before freeing
+    // the bounce pages and the extent list. The original error is kept.
+    if (addressMapping != NULL) {
+        cleanupStatus = DMAAddressMappingRelease(&addressMapping);
+        if (cleanupStatus != OS_EOK) {
+            ERROR("__PrepareMapping: prepared address release failed: %u (original status %u)",
+                  cleanupStatus, status);
+            assert(cleanupStatus == OS_EOK);
+        }
+    }
     SHMDeviceReleaseBounce(&bounce);
     if (mapping != NULL) {
         kfree(mapping);
@@ -550,8 +608,8 @@ cleanup:
     return status;
 }
 
-oserr_t
-SHMDeviceMap(
+static oserr_t
+__MapBuffer(
     _In_    SHMDeviceOperation_t*            operation,
     _In_    struct SHMDeviceContext*         context,
     _In_    uuid_t                           shmID,
@@ -560,6 +618,7 @@ SHMDeviceMap(
     _In_    enum DMADirection                direction,
     _In_    enum SHMDeviceMappingKind        kind,
     _In_    const struct DMAMapRequirements* requirements,
+    _In_    const struct DMARequirements*    allocationRequirements,
     _InOut_ struct SHMDeviceMapping**        mappingOut)
 {
     struct SHMBuffer*        buffer;
@@ -567,6 +626,7 @@ SHMDeviceMap(
     struct SHMDeviceMapping* mapping = NULL;
     unsigned int             scope;
     oserr_t                  status;
+    oserr_t                  cleanupStatus;
 
     // The output slot must be empty. Otherwise the existing mapping would be
     // lost.
@@ -652,7 +712,17 @@ SHMDeviceMap(
         goto release;
     }
 
-    status = __CreateMapping(buffer, context, offset, length, direction, kind, requirements, &mapping);
+    status = __PrepareMapping(
+        buffer,
+        context,
+        offset,
+        length,
+        direction,
+        kind,
+        requirements,
+        allocationRequirements,
+        &mapping
+    );
     if (status != OS_EOK) {
         SHMDeviceContextRelease(&context);
         goto release;
@@ -661,28 +731,80 @@ SHMDeviceMap(
     mapping->Access.ReferenceID = source.GlobalHandleID;
     mapping->Access.Scope = source.Scope;
 
+    // Link the mapping before installing it, so that cancellation can find it
+    // with its source grant already set. The context operation keeps the stop
+    // cleanup from running until this function has finished, whether it ends
+    // in success or rollback.
     SHMDeviceMappingLink(mapping);
     status = SHMDeviceOperationCheck(operation);
     if (status != OS_EOK) {
-        // The binding may have been cut off while this mapping was being
-        // built, after the cancel pass already walked the mapping list and
-        // missed it. Abandon the mapping so stop cleanup frees it later, and
-        // do this before the operation ends.
-        oserr_t cleanupStatus = SHMDeviceAbandon(&mapping);
-
-        if (cleanupStatus != OS_EOK) {
-            ERROR("SHMDeviceMap: SHMDeviceAbandon buffer %u after closure failed: %u",
-                  source.GlobalHandleID, cleanupStatus);
-        }
-        return status;
+        goto abandon;
     }
 
+    // From here on, a failure may still leave the device able to reach the
+    // pages. Do not retry with bounce pages and do not free the pages on the
+    // normal error path.
+    status = DMAAddressMappingInstall(mapping->AddressMapping);
+    if (status != OS_EOK) {
+        ERROR("__MapBuffer: DMAAddressMappingInstall buffer %u failed: %u",
+              source.GlobalHandleID, status);
+        goto abandon;
+    }
+
+    status = SHMDeviceOperationCheck(operation);
+    if (status != OS_EOK) {
+        goto abandon;
+    }
+
+    // Cancellation reads State under MappingLock, even while this operation is
+    // still counted. Set Ready under that lock and leave Access alone. Another
+    // thread may already have marked it cancelled or locked its range.
+    MutexLock(&context->MappingLock);
+    mapping->State = SHMDeviceMappingReady;
+    MutexUnlock(&context->MappingLock);
     *mappingOut = mapping;
     return OS_EOK;
+
+abandon:
+    // Once linked, even a Preparing mapping can be locked by a cancellation.
+    // So every failure after linking hands the references over to recovery.
+    // That includes the binding closing before installation.
+    cleanupStatus = SHMDeviceAbandon(&mapping);
+    if (cleanupStatus != OS_EOK) {
+        ERROR("__MapBuffer: SHMDeviceAbandon buffer %u failed: %u (original status %u)",
+              source.GlobalHandleID, cleanupStatus, status);
+    }
+    return status;
 
 release:
     __ReleaseMemoryHandleReference(source.GlobalHandleID, __func__);
     return status;
+}
+
+oserr_t
+SHMDeviceMap(
+    _In_    SHMDeviceOperation_t*            operation,
+    _In_    struct SHMDeviceContext*         context,
+    _In_    uuid_t                           shmID,
+    _In_    size_t                           offset,
+    _In_    size_t                           length,
+    _In_    enum DMADirection                direction,
+    _In_    enum SHMDeviceMappingKind        kind,
+    _In_    const struct DMAMapRequirements* requirements,
+    _InOut_ struct SHMDeviceMapping**        mappingOut)
+{
+    return __MapBuffer(
+        operation,
+        context,
+        shmID,
+        offset,
+        length,
+        direction,
+        kind,
+        requirements,
+        NULL,
+        mappingOut
+    );
 }
 
 /**
@@ -710,45 +832,6 @@ __RequirementsValid(
         return requirements->Length <= requirements->Boundary;
     }
     return true;
-}
-
-/**
- * @brief Check an allocation's device addresses against the requirements.
- *
- * The pool already checked the physical addresses. The device may see them at
- * shifted addresses or in several pieces, so the requirements are checked
- * again on the device addresses before the allocation is returned.
- */
-static oserr_t
-__CheckRequirements(
-    _In_ SHMDeviceOperation_t*          operation,
-    _In_ const struct SHMDeviceMapping* mapping,
-    _In_ const struct DMARequirements*  requirements)
-{
-    const struct DMASegment* segments;
-    uint32_t                 count;
-
-    segments = SHMDeviceMappingSegments(operation, mapping, &count);
-    if (requirements->Contiguous && count != 1) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    // Check the alignment of the first device address.
-    if (requirements->Alignment != 0 && (segments[0].Address & (requirements->Alignment - 1)) != 0) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    // A segment must not cross a boundary. It crosses one when its first and
-    // last byte fall in different boundary-sized blocks. The upper address bits
-    // tell which block a byte is in.
-    for (uint32_t i = 0; requirements->Boundary != 0 && i < count; i++) {
-        const struct DMASegment* segment = &segments[i];
-        uint64_t                 last = segment->Address + (segment->Length - 1);
-        if (((segment->Address ^ last) & ~(requirements->Boundary - 1)) != 0) {
-            return OS_ENOTSUPPORTED;
-        }
-    }
-    return OS_EOK;
 }
 
 oserr_t
@@ -801,7 +884,7 @@ SHMDeviceAllocate(
     // The CPU and the device use this memory at the same time, so both must
     // use the very same pages. A bounce copy could leave one side reading old
     // bytes.
-    status = SHMDeviceMap(
+    status = __MapBuffer(
         operation,
         context,
         handle.ID,
@@ -810,29 +893,11 @@ SHMDeviceAllocate(
         DMABidirectional,
         SHMDeviceMappingShared,
         NULL,
+        requirements,
         &mapping
     );
     if (status != OS_EOK) {
-        ERROR("SHMDeviceAllocate: SHMDeviceMap buffer %u failed: %u", handle.ID, status);
-        goto detach;
-    }
-
-    status = __CheckRequirements(operation, mapping, requirements);
-    if (status != OS_EOK) {
-        oserr_t cleanupStatus;
-
-        ERROR("SHMDeviceAllocate: __CheckRequirements buffer %u failed: %u", handle.ID, status);
-        // The caller has not received the allocation, so release it here. If
-        // that fails, the mapping stays on the list for recovery and its SHM
-        // pages stay allocated.
-        cleanupStatus = SHMDeviceUnmap(operation, &mapping);
-        if (cleanupStatus != OS_EOK) {
-            ERROR("SHMDeviceAllocate: SHMDeviceUnmap buffer %u failed: %u", handle.ID, cleanupStatus);
-            cleanupStatus = SHMDeviceAbandon(&mapping);
-            if (cleanupStatus != OS_EOK) {
-                ERROR("SHMDeviceAllocate: SHMDeviceAbandon buffer %u failed: %u", handle.ID, cleanupStatus);
-            }
-        }
+        ERROR("SHMDeviceAllocate: __MapBuffer buffer %u failed: %u", handle.ID, status);
         goto detach;
     }
 

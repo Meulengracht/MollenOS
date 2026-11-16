@@ -20,16 +20,26 @@
 #include <string.h>
 #include "private.h"
 
+enum __DMAAddressMappingState {
+    __DMAAddressMappingPrepared,
+    __DMAAddressMappingInstalled
+};
+
 /**
  * @brief Device segments and a reference to the address rules used to build them.
  *
- * The Segments array stays unchanged after creation. The caller must keep
- * the physical pages allocated until this mapping is released.
+ * The Segments array does not change after preparation. State tells whether
+ * Install has completed. Direction records whether the device may read, write
+ * or both, for as long as the mapping lives. Direct DMA cannot enforce this in
+ * hardware. The caller keeps the physical pages allocated until the mapping
+ * has been released successfully.
  */
 struct DMAAddressMapping {
-    struct DMAAddressSpace* Space;
-    uint32_t                SegmentCount;
-    struct DMASegment       Segments[];
+    struct DMAAddressSpace*       Space;
+    enum __DMAAddressMappingState State;
+    enum DMADirection             Direction;
+    uint32_t                      SegmentCount;
+    struct DMASegment             Segments[];
 };
 
 static oserr_t
@@ -129,11 +139,12 @@ DMAAddressSpaceRelease(
 }
 
 oserr_t
-DMAAddressMappingCreate(
+DMAAddressMappingPrepare(
     _In_    struct DMAAddressSpace*          space,
     _In_    const SHMSG_t*                   extents,
     _In_    int                              extentCount,
     _In_    uint64_t                         addressLimit,
+    _In_    enum DMADirection                direction,
     _In_    const struct DMAMapRequirements* requirements,
     _InOut_ struct DMAAddressMapping**       mappingOut)
 {
@@ -151,6 +162,10 @@ DMAAddressMappingCreate(
     }
 
     if (space == NULL || extents == NULL || extentCount <= 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (direction != DMAToDevice && direction != DMAFromDevice && direction != DMABidirectional) {
         return OS_EINVALPARAMS;
     }
 
@@ -205,9 +220,31 @@ DMAAddressMappingCreate(
     }
 
     mapping->Space = space;
+    mapping->State = __DMAAddressMappingPrepared;
+    mapping->Direction = direction;
     mapping->SegmentCount = segmentCount;
 
     *mappingOut = mapping;
+    return OS_EOK;
+}
+
+oserr_t
+DMAAddressMappingInstall(
+    _In_ struct DMAAddressMapping* mapping)
+{
+    if (mapping == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (mapping->State != __DMAAddressMappingPrepared) {
+        return OS_EBUSY;
+    }
+
+    // Direct ranges need no table updates and no waiting. The step still
+    // exists so callers follow the same prepare, install, release order that
+    // translated mappings will need later. It does no allocation or hardware
+    // work.
+    mapping->State = __DMAAddressMappingInstalled;
     return OS_EOK;
 }
 

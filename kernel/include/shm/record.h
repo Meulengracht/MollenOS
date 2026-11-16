@@ -31,9 +31,9 @@ DECL_STRUCT(SHMRecord);
  *
  * Release runs when user code explicitly closes the resource. Returning an error
  * leaves the object alive so the caller can try closing it again.
- * Cleanup runs when the last handle reference goes away or when every thread
- * in the process group exits. It must either free the object or lock down its
- * memory range until hardware stops.
+ * Cleanup runs when setup or publication fails, when the last handle reference
+ * goes away, or when every thread in the process group exits. It must either
+ * free the object or lock its memory range until the hardware has stopped.
  *
  * Both Release and Cleanup receive a pointer to the object slot (void**) and
  * must set that slot to NULL once cleanup finishes. Begin and End can be NULL
@@ -131,6 +131,27 @@ SHMRecordEnd(
  */
 oserr_t
 SHMRecordRelease(
+    _In_ SHMRecord_t* record);
+
+/**
+ * @brief Runs Cleanup right away when setting up or publishing a resource fails.
+ *
+ * The record must be in the Updating state and have no pending operation of
+ * its own. Cleanup is given the object slot with the object taken out of the
+ * record. If Cleanup fails, the object that is left is put back so that
+ * handle teardown can try again later. If the slot is empty there is nothing to
+ * clean up and no callback runs.
+ *
+ * This does not cancel operations, close the record or end a parent operation.
+ * Keep any parent operation open while Cleanup runs, then remove the failed
+ * record with SHMRecordRemove.
+ *
+ * @param record Record that is in the Updating state.
+ * @return OS_EOK if the slot was empty or Cleanup succeeded. Otherwise the
+ *         error from the Cleanup callback.
+ */
+KERNELABI oserr_t KERNELAPI
+SHMRecordCleanup(
     _In_ SHMRecord_t* record);
 
 /**

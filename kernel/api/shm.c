@@ -202,6 +202,19 @@ SHMRecordRelease(
     return __ReleaseObject(record, record->Ops->Release);
 }
 
+oserr_t
+SHMRecordCleanup(
+    _In_ SHMRecord_t* record)
+{
+    // Rollback after a failed setup runs on the thread that is still inside the
+    // call, so no operation of the record's own can be pending. Only shutdown
+    // may cancel a pending operation, and only after all threads of the caller
+    // have stopped.
+    assert(atomic_load(&record->State) == SHMRecordUpdating);
+    assert(record->PendingOperation == NULL);
+    return __ReleaseObject(record, record->Ops->Cleanup);
+}
+
 void
 SHMRecordRemove(
     _In_ SHMRecord_t* record)
