@@ -20,42 +20,72 @@
 
 #include <ddk/dma.h>
 #include <os/types/shm.h>
+#include <os/types/dma_attachment.h>
 #include <stdatomic.h>
 
+// A buffer or a mapping created from a context. Its device segment list is kept
+// here so the accessors can return it without asking the kernel again.
 struct __DmaResource {
+    // Next resource in the context's Pending list. Only used while on that list.
     struct __DmaResource* Next;
+    // The context this resource was created from.
     struct DMAContext*    Context;
+    // Kernel handle of the device mapping.
     uuid_t                Handle;
     uint32_t              SegmentCount;
+    // Holds the first segment. A single segment list needs no allocation.
     struct DMASegment     InlineSegment;
+    // Full segment list when there is more than one segment, otherwise NULL.
     struct DMASegment*    Segments;
+    // SHM attachment that DMAAllocate made for the buffer. NULL for mappings,
+    // because the caller already has its own attachment to the SHM buffer they map.
     SHMHandle_t*          Storage;
 };
 
+// The driver's DMA access to one device. At most one context exists per device
+// in this process. All contexts are linked in a registry guarded by a lock.
 struct DMAContext {
     struct DMAContext*    Next;
     uuid_t                Device;
+    // Kernel handle of the open context. UUID_INVALID until the open succeeds.
     uuid_t                Handle;
-    uint64_t              Session;
+    // Identifies the binding request. If the reply is lost, the same ID is sent
+    // again so the service returns the same binding instead of making a new one.
+    uint64_t              RequestId;
+    // Permission the device service gave this process to open a context.
+    OSDmaBindingResult_t  Binding;
+    // Set when the binding reply was lost and the outcome is still unknown.
+    bool                  BindingPending;
+    // Set once close has started or the context only exists for cleanup.
+    // No new buffers or mappings can be created from a closing context.
     bool                  Closing;
+    // Number of buffers and mappings from this context that are not released yet.
+    // Resources waiting in Pending are included.
     atomic_uint           Children;
+    // Resources whose creation failed and whose cleanup must be retried.
     struct __DmaResource* Pending;
 };
 
 /**
- * @brief Retain a failed creation's cleanup under its context for close to retry.
- * 
- * @param resource Unpublished child whose release failed; ownership is transferred.
+ * @brief Saves a resource whose creation failed and whose cleanup failed too.
+ * DMAClose retries the cleanup later. Without this the kernel handle or the SHM
+ * attachment would be lost.
+ *
+ * @param resource Resource that was never returned to the driver. The context takes
+ * it over and frees it once cleanup succeeds.
  */
 void
 __DmaDeferCleanup(
     _In_ struct __DmaResource* resource);
 
 /**
- * @brief Retry unpublished children while the context registry lock is held.
- * 
- * @param context Context whose caller has excluded concurrent creation/close.
- * @return First cleanup error; remaining children stay owned for retry.
+ * @brief Retries the cleanup of every resource saved by __DmaDeferCleanup.
+ * The context registry lock must be held.
+ *
+ * @param context Context to clean up. The caller must make sure nothing else is
+ * creating resources on it or closing it.
+ * @return OS_EOK, or the first cleanup error. Resources that still fail stay
+ * on the list for the next try.
  */
 oserr_t
 __DmaCollect(

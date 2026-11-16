@@ -69,11 +69,6 @@ struct OSDmaAllocationResult {
     struct OSDmaMappingResult Mapping;
 };
 
-struct OSDmaOpenParameters {
-    uint64_t                  AddressLimit;
-    struct OSDmaConfiguration Configuration;
-};
-
 typedef struct MemorySpaceCreateResult {
     uuid_t Handle;
     uuid_t SecurityGroupID;

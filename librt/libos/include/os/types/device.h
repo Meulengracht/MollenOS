@@ -26,21 +26,25 @@ enum OSIOCtlRequest {
     OSIOCTLREQUEST_BUS_CONTROL         = 0,
     OSIOCTLREQUEST_PCI_INTERRUPT_QUERY = 1 | __IOCTL_IN,
     OSIOCTLREQUEST_PCI_INTERRUPT       = 2,
-    // Controls a platform interrupt source with DeviceInterruptSourceRequest.
+    // Reserves, enables, disables or releases one platform interrupt source.
+    // The argument is a DeviceInterruptSourceRequest.
     OSIOCTLREQUEST_INTERRUPT_CONTROL   = 3,
-    // Queries one source by firmware index using DeviceInterruptSourceQuery.
+    // Reads the details of one interrupt source. The source is picked by its index
+    // in the firmware tables. The argument is a DeviceInterruptSourceQuery.
     OSIOCTLREQUEST_INTERRUPT_QUERY     = 4 | __IOCTL_IN,
-    // Copies registered IO resources without mapping them into the driver.
+    // Returns the list of IO resources registered for the device, such as register
+    // ranges. Nothing is mapped into the driver by this request.
     OSIOCTLREQUEST_DEVICE_RESOURCES    = 5 | __IOCTL_IN,
-    // Prepares register access. Enabling and stopping DMA are separate steps.
+    // Moves the device to a new stage. The argument is the stage value (prepare,
+    // start or stop). Prepare only turns on register access. Start also lets the
+    // device do DMA, and stop turns DMA off again.
     OSIOCTLREQUEST_DEVICE_ACTIVATE     = 6,
-    // Keeps the configured DMA path until the caller closes DMA and releases it.
-    OSIOCTLREQUEST_DMA_QUERY           = 7 | __IOCTL_IN,
-    OSIOCTLREQUEST_DMA_RELEASE         = 8,
-    // Copies MAC/PHY wiring and reset timings without changing hardware.
-    OSIOCTLREQUEST_ETHERNET_CONFIG     = 9 | __IOCTL_IN,
-    // Requires a prepared device and a zero uint32_t. Pulses the firmware reset line.
-    OSIOCTLREQUEST_ETHERNET_PHY_RESET  = 10
+    // Returns the MAC and PHY wiring and the PHY reset timings from firmware data.
+    // Does not touch the hardware, so it works before the device is prepared.
+    OSIOCTLREQUEST_ETHERNET_CONFIG     = 7 | __IOCTL_IN,
+    // Pulses the PHY reset line described by firmware. The device must be prepared
+    // first. The argument must be one uint32_t set to zero.
+    OSIOCTLREQUEST_ETHERNET_PHY_RESET  = 8
 };
 
 /**

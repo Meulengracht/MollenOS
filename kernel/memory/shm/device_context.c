@@ -31,75 +31,22 @@ SHMDeviceContextInitialize(
 }
 
 oserr_t
-SHMDeviceContextCreate(
-    _In_    const struct SHMDeviceRange* ranges,
-    _In_    uint32_t                     count,
-    _In_    enum SHMDeviceCachePolicy    cachePolicy,
-    _In_    uint64_t                     addressLimit,
-    _InOut_ struct SHMDeviceContext**    contextOut)
-{
-    struct SHMDeviceContext* context;
-    oserr_t                  status;
-    struct DMAAddressSpace*  space = NULL;
-
-    // *contextOut must be NULL. Replacing a live context would leak its reference.
-    if (contextOut == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (*contextOut != NULL) {
-        return OS_EBUSY;
-    }
-
-    if (ranges == NULL || count == 0) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (count > SHM_DEVICE_MAX_RANGES) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    if (cachePolicy != SHMDeviceCacheNonCoherent && cachePolicy != SHMDeviceCacheCoherent) {
-        return OS_EINVALPARAMS;
-    }
-
-    status = DMAAddressSpaceCreateDirect(ranges, count, &space);
-    if (status != OS_EOK) {
-        return status;
-    }
-
-    // Each address mapping holds a reference to the address space, so its
-    // address rules remain valid until the last mapping releases them.
-    context = kmalloc(sizeof(struct SHMDeviceContext));
-    if (context == NULL) {
-        DMAAddressSpaceRelease(&space);
-        return OS_EOOM;
-    }
-
-    SHMDeviceContextInitialize(context);
-    context->CachePolicy = cachePolicy;
-    context->AddressLimit = addressLimit;
-    context->AddressSpace = space;
-
-    *contextOut = context;
-    return OS_EOK;
-}
-
-oserr_t
 SHMDeviceContextAcquire(
     _In_ struct SHMDeviceContext* context)
 {
     unsigned int references;
 
-    // The caller must hold a reference until this call returns.
-    // Atomic updates allow concurrent callers to add references.
+    // The caller must hold a reference until this call returns, so the context
+    // cannot be freed in between. Atomic updates let several threads add
+    // references at the same time.
     if (context == NULL) {
         return OS_EINVALPARAMS;
     }
     
     references = atomic_load(&context->References);
     do {
-        // A count overflow could free the context while it is still in use.
+        // Refuse to count past the maximum. A wrapped count could free the
+        // context while it is still in use.
         if (references == 0) {
             return OS_ECANCELLED;
         }
@@ -117,8 +64,8 @@ SHMDeviceContextRelease(
 {
     struct SHMDeviceContext* owned;
 
-    // Clear the caller's pointer even if other references remain. Repeated
-    // cleanup through this pointer must not decrement the count again.
+    // Clear the caller's pointer even when other references remain, so running
+    // cleanup again with this pointer cannot drop the count a second time.
     if (context == NULL || *context == NULL) {
         return;
     }
@@ -127,6 +74,8 @@ SHMDeviceContextRelease(
     *context = NULL;
     
     if (atomic_fetch_sub(&owned->References, 1) == 1) {
+        // A failed preparation can reach the last release before a binding was
+        // attached.
         DMABindingDetachContext(&owned->Binding, owned);
         DMAAddressSpaceRelease(&owned->AddressSpace);
         MutexDestruct(&owned->MappingLock);
@@ -138,56 +87,24 @@ oserr_t
 SHMDeviceContextClose(
     _InOut_ struct SHMDeviceContext** context)
 {
-    // Callers must keep new mappings and context operations from overlapping
-    // this. A bound recovery pass can still hold temporary context references.
-    if ((*context)->Binding != NULL) {
-        bool hasMappings;
+    bool hasMappings;
 
-        MutexLock(&(*context)->MappingLock);
-        hasMappings = (*context)->Mappings != NULL;
-        MutexUnlock(&(*context)->MappingLock);
-        if (hasMappings) {
-            return OS_EBUSY;
-        }
-        
-        // A recovery list walk may still hold a temporary reference to this
-        // context. Keep the binding attached until the last reference drops so
-        // the driver cannot reopen too early.
-    } else if (atomic_load(&(*context)->References) != 1) {
+    // Callers make sure close does not run at the same time as other context
+    // operations. A recovery pass may still hold temporary references, so the
+    // reference count cannot tell when to stop. Close can proceed only when no
+    // mappings remain on the list.
+    MutexLock(&(*context)->MappingLock);
+    hasMappings = (*context)->Mappings != NULL;
+    MutexUnlock(&(*context)->MappingLock);
+    if (hasMappings) {
         return OS_EBUSY;
     }
+
+    // The binding stays attached until the last reference is dropped,
+    // including temporary ones held by a recovery pass. The driver cannot open
+    // another context on this binding until then.
     SHMDeviceContextRelease(context);
     return OS_EOK;
-}
-
-enum SHMDeviceCachePolicy
-SHMDeviceContextGetCachePolicy(
-    _In_ const struct SHMDeviceContext* context)
-{
-    // Reading the policy does not synchronize caches.
-    return context == NULL ? SHMDeviceCacheUnknown : context->CachePolicy;
-}
-
-// These queries calculate addresses from fixed ranges. They do not create
-// mappings or reserve device addresses.
-oserr_t
-SHMDeviceContextTranslate(
-    _In_  const struct SHMDeviceContext* context,
-    _In_  uint64_t                       physicalBase,
-    _In_  uint64_t                       length,
-    _Out_ uint64_t*                      deviceAddressOut)
-{
-    if (context == NULL) {
-        return OS_EINVALPARAMS;
-    }
-    
-    return DMADirectTranslate(
-        context->AddressSpace,
-        context->AddressLimit,
-        physicalBase,
-        length,
-        deviceAddressOut
-    );
 }
 
 oserr_t
@@ -210,61 +127,3 @@ SHMDeviceContextWalkSegments(
     );
 }
 
-oserr_t
-SHMDeviceContextBuildSegments(
-    _In_    const struct SHMDeviceContext* context,
-    _In_    const SHMSG_t*                 extents,
-    _In_    int                            extentCount,
-    _InOut_ uint32_t*                      segmentCount,
-    _Out_   struct DMASegment*             segmentsOut)
-{
-    uint32_t required;
-    oserr_t  status;
-
-    // At least one physical byte range is required.
-    if (context == NULL || segmentCount == NULL) {
-        return OS_EINVALPARAMS;
-    }
-    if (extents == NULL || extentCount <= 0) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Count first to validate the whole buffer before writing segments.
-    // Invalid input must not leave a partially filled list.
-    status = SHMDeviceContextWalkSegments(
-        context,
-        extents,
-        extentCount,
-        NULL,
-        NULL,
-        &required
-    );
-    if (status != OS_EOK) {
-        return status;
-    }
-
-    // Return the required count so the caller can allocate an array of that size.
-    if (segmentsOut == NULL) {
-        *segmentCount = required;
-        return OS_EOK;
-    }
-    if (*segmentCount < required) {
-        *segmentCount = required;
-        return OS_EBUFFER;
-    }
-
-    status = SHMDeviceContextWalkSegments(
-        context,
-        extents,
-        extentCount,
-        NULL,
-        segmentsOut,
-        &required
-    );
-    if (status != OS_EOK) {
-        return status;
-    }
-
-    *segmentCount = required;
-    return OS_EOK;
-}

@@ -23,8 +23,8 @@ __ExtentFits(
     _In_ uint64_t length,
     _In_ uint64_t limit)
 {
-    // Use subtraction to avoid overflow. base + length would wrap when the
-    // last byte is UINT64_MAX, even though that range is valid.
+    // Compare with subtraction. Adding base and length would wrap around to
+    // zero when the range ends at UINT64_MAX, and that range is still valid.
     return length != 0 && base <= limit && length - 1 <= limit - base;
 }
 
@@ -41,8 +41,9 @@ DMAAddressRangesValidate(
         return OS_ENOTSUPPORTED;
     }
 
-    // Device ranges must not overlap. Physical ranges may overlap when the
-    // same physical bytes can be reached through different device addresses.
+    // Device ranges must not overlap, because one device address would then
+    // lead to two places. Physical ranges may overlap. That only means the
+    // same memory can be reached at more than one device address.
     for (uint32_t i = 0; i < count; i++) {
         if (!__ExtentFits(ranges[i].PhysicalBase, ranges[i].Length, UINT64_MAX) ||
             !__ExtentFits(ranges[i].DeviceBase, ranges[i].Length, UINT64_MAX)) {
@@ -64,15 +65,17 @@ DMAAddressRangesValidate(
 /**
  * @brief Find how many requested bytes one device address range can cover.
  *
- * Starting at physicalBase, choose the range that covers the most bytes
- * within the device address limit. If several ranges cover the same amount,
- * choose the lowest device address. Input order does not affect the result.
- * Whole-buffer translation and segment building both use this rule.
+ * Look at every range that contains physicalBase. Pick the one that reaches
+ * the most bytes without going past the device address limit. If two ranges
+ * reach the same amount, pick the one with the lowest device address. The
+ * order of the ranges does not change the result.
  *
- * @param length Nonzero, and physicalBase + length - 1 must not wrap.
- * @return Number of consecutive bytes reachable from physicalBase, or 0 if the
- *         device cannot reach the first byte. addressOut is set only when the
- *         result is nonzero.
+ * @param length Number of bytes wanted. Must not be zero, and the last byte
+ *               (physicalBase plus length minus one) must not wrap around.
+ * @param addressOut Receives the device address of physicalBase.
+ * @return Number of bytes in a row that the device can reach from
+ *         physicalBase, or 0 if it cannot reach the first byte. addressOut is
+ *         only written when the result is nonzero.
  */
 static uint64_t
 __TranslatePrefix(
@@ -102,15 +105,17 @@ __TranslatePrefix(
             continue;
         }
 
-        // The range was checked at creation, so adding an offset inside it
-        // cannot overflow. The first byte must also fit the device's limit.
+        // The range was checked when it was created, so adding an offset that
+        // lies inside it cannot overflow. Skip the range if its first byte is
+        // above the device address limit.
         address = range->DeviceBase + offset;
         if (address > deviceLimit) {
             continue;
         }
 
-        // Use the offset of the last byte rather than a byte count. The range
-        // from zero through UINT64_MAX has 2^64 bytes, which does not fit in uint64_t.
+        // Work with the offset of the last byte instead of a byte count. A
+        // range that covers every address from 0 to UINT64_MAX holds 2^64
+        // bytes, and that count does not fit in uint64_t.
         last = length - 1;
         if (last > range->Length - 1 - offset) {
             last = range->Length - 1 - offset;
@@ -119,7 +124,8 @@ __TranslatePrefix(
             last = deviceLimit - address;
         }
 
-        // last + 1 cannot wrap because last is at most length - 1.
+        // Adding one cannot wrap, because last is never larger than the
+        // requested length minus one.
         covered = last + 1;
         if (covered > best || (covered == best && address < bestAddress)) {
             best = covered;
@@ -133,48 +139,12 @@ __TranslatePrefix(
     return best;
 }
 
-oserr_t
-DMADirectTranslate(
-    _In_  const struct DMAAddressSpace* space,
-    _In_  uint64_t                      addressLimit,
-    _In_  uint64_t                      physicalBase,
-    _In_  uint64_t                      length,
-    _Out_ uint64_t*                     deviceAddressOut)
-{
-    uint64_t address;
-    uint64_t covered;
-
-    // Check the range before subtracting addresses or lengths.
-    if (space == NULL || deviceAddressOut == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (!__ExtentFits(physicalBase, length, UINT64_MAX)) {
-        return OS_EINVALPARAMS;
-    }
-
-    covered = __TranslatePrefix(
-        space,
-        addressLimit,
-        physicalBase,
-        length,
-        &address
-    );
-
-    // One device range must cover the whole buffer. __TranslatePrefix chooses
-    // the lowest device address among the ranges that do.
-    if (covered != length) {
-        return OS_ENOENT;
-    }
-    *deviceAddressOut = address;
-    return OS_EOK;
-}
-
 /**
  * @brief Check whether a piece can extend the previous device segment.
  *
- * Consecutive device addresses form one segment even when their physical
- * bytes came from separate ranges. The combined length must not overflow.
+ * A piece extends the segment when it starts at the device address right
+ * after the segment's last byte. This holds even if their physical bytes came
+ * from separate ranges. The combined length must also fit in 64 bits.
  */
 static bool
 __ContinuesSegment(
@@ -188,6 +158,12 @@ __ContinuesSegment(
     return length <= UINT64_MAX - previous->Length;
 }
 
+/**
+ * @brief Check a finished segment against the optional alignment requirements.
+ *
+ * An alignment of 0 means the segment has no alignment requirement for that
+ * value. Both alignments are powers of two when set.
+ */
 static bool
 __SegmentMeetsRequirements(
     _In_ const struct DMASegment*         segment,
@@ -207,9 +183,11 @@ __SegmentMeetsRequirements(
 /**
  * @brief Convert physical ranges into device segments, counting or writing them.
  *
- * Both calls use the same loop so they split and combine the same byte ranges.
+ * The counting call and the filling call run this same code, so they split and
+ * merge the same byte ranges and report the same count.
  *
- * @param segmentsOut NULL to count only. Otherwise it must hold every segment.
+ * @param segmentsOut NULL to count only. Otherwise it must have room for every
+ *                    segment, using the count from an earlier counting call.
  */
 oserr_t
 DMADirectWalkSegments(
@@ -228,13 +206,14 @@ DMADirectWalkSegments(
         uint64_t physical = extents[i].Address;
         uint64_t remaining = extents[i].Length;
 
-        // The range must be nonempty and its last address must not overflow.
+        // Reject an empty range, or one that would run past the last address.
         if (!__ExtentFits(physical, remaining, UINT64_MAX)) {
             return OS_EINVALPARAMS;
         }
 
-        // Take as many bytes as one device range can reach, up to the end of
-        // that range or the device address limit.
+        // Translate in pieces. Each piece covers as many bytes as one device
+        // range can reach, ending at the end of that range or at the device
+        // address limit.
         while (remaining != 0) {
             uint64_t address;
             uint64_t covered = __TranslatePrefix(space, addressLimit, physical, remaining, &address);
@@ -243,13 +222,14 @@ DMADirectWalkSegments(
                 return OS_ENOENT;
             }
 
-            // Keep the current segment here even when only counting.
-            // Both calls must combine adjacent pieces the same way.
+            // Track the last segment even when only counting. That way both
+            // calls merge adjacent pieces in exactly the same way.
             if (count != 0 && __ContinuesSegment(&last, address, covered)) {
                 last.Length += covered;
             } else {
-                // Check alignment after adjacent pieces have been combined.
-                // The final segment is checked after the loop.
+                // Alignment applies to the merged segment, so check the
+                // previous segment only once a new one starts. The final
+                // segment is checked after the loop.
                 if (count != 0 && !__SegmentMeetsRequirements(&last, requirements)) {
                     return OS_ENOTSUPPORTED;
                 }
@@ -269,8 +249,9 @@ DMADirectWalkSegments(
                 segmentsOut[count - 1] = last;
             }
 
-            // After the byte at UINT64_MAX, physical wraps to zero.
-            // remaining is then zero, so the loop ends.
+            // If this piece ended at the last possible address, physical wraps
+            // to zero here. Remaining is zero in that case, so the loop stops
+            // and the wrapped value is never used.
             physical += covered;
             remaining -= covered;
         }

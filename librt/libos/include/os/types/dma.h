@@ -23,27 +23,31 @@
 
 #define DMA_MAX_RANGES 64
 
-// Which way data moves. Determines which cache operations and copies are needed.
+// Which way data moves. The kernel uses it to decide which cache operations and
+// copies are needed.
 enum DMADirection {
     // The device only reads the memory, e.g. a USB OUT transfer.
     DMAToDevice,
     // The device only writes the memory, e.g. a USB IN transfer.
     DMAFromDevice,
-    // The device may read and write the mapped transfer bytes.
+    // The device may both read and write the mapped bytes.
     DMABidirectional
 };
 
-// Use the original SHM pages. Temporary bounce copies are not allowed.
+// Use the original SHM pages only. The kernel must not make a temporary copy
+// (a bounce buffer) in memory the device can reach. Without this flag it may.
 #define DMA_MAP_REQUIRE_DIRECT 0x1U
-// Count device uses and synchronize caches before the first and after the last.
-// Requires DMA_MAP_REQUIRE_DIRECT.
+// Lets several device jobs use the mapping at once. The kernel counts the jobs.
+// It prepares the CPU caches when the first job starts and again when the last
+// job ends. Requires DMA_MAP_REQUIRE_DIRECT.
 #define DMA_MAP_PERSISTENT     0x2U
 
 /**
- * @brief A consecutive range of byte addresses used by a device.
+ * @brief A run of consecutive bytes, as the device addresses them.
  *
  * Address is always 64-bit because a device address can exceed 4 GiB even on
- * a 32-bit kernel. It may differ from the CPU physical address stored in SHMSG_t.
+ * a 32-bit kernel. It may differ from the CPU physical address stored in SHMSG_t,
+ * for example when the bus adds an offset or an IOMMU translates addresses.
  */
 struct DMASegment {
     uint64_t Address;
@@ -51,12 +55,12 @@ struct DMASegment {
 };
 
 /**
- * @brief Constraints on every device segment returned by a DMA mapping.
+ * @brief Limits on every device segment returned by a DMA mapping.
  *
- * Zero means no constraint. Nonzero values must be powers of two.
- * A nonzero LengthAlignment also applies to the total mapped length, which is
- * never padded. When drivers split segments or add offsets, the resulting
- * addresses and lengths must still meet these requirements.
+ * Zero means no limit. Nonzero values must be powers of two. Segments are never
+ * padded, so a nonzero LengthAlignment also applies to the total mapped length.
+ * If a driver splits segments or adds offsets, the resulting addresses and
+ * lengths must still meet these limits.
  */
 struct DMAMapRequirements {
     // The device address of each segment must be a multiple of this value.
@@ -81,27 +85,29 @@ struct DMARequirements {
     bool     Contiguous;
 };
 
+// Describes how a device sees the CPU caches. This decides whether the driver's
+// begin and end calls have to flush caches, so it is fixed when the device is
+// registered.
 enum SHMDeviceCachePolicy {
-    // Cache behavior is unknown. A DMA context cannot use this policy.
+    // Cache behavior is unknown. A DMA context cannot be opened for such a device.
     SHMDeviceCacheUnknown,
-    // Software must write back or invalidate cached data for DMA.
+    // The hardware does not keep the CPU caches in step with the device. Cached
+    // data must be written back before the device reads it, and dropped before
+    // the CPU reads what the device wrote. The kernel does this in the begin and
+    // end calls.
     SHMDeviceCacheNonCoherent,
-    // Hardware keeps CPU caches consistent with device reads and writes.
-    // Memory barriers are still needed to order accesses.
+    // The hardware keeps the CPU caches in step with device reads and writes, so
+    // no cache work is needed. The driver still needs memory barriers to order
+    // its own accesses.
     SHMDeviceCacheCoherent
 };
 
+// One range of CPU physical memory and the device address where the device sees
+// it. Used when the two differ, for example because of a bus offset.
 struct SHMDeviceRange {
     uint64_t PhysicalBase;
     uint64_t DeviceBase;
     uint64_t Length;
-};
-
-struct OSDmaConfiguration {
-    uint64_t                  Session;
-    uint32_t                  Count;
-    enum SHMDeviceCachePolicy CachePolicy;
-    struct SHMDeviceRange     Ranges[DMA_MAX_RANGES];
 };
 
 #endif //!__OS_TYPES_DMA_H__

@@ -33,8 +33,8 @@ SHMDeviceReleaseBounce(
 {
     oserr_t status;
 
-    // MAPPING_PERSISTENT keeps the pages allocated after these views are
-    // unmapped. Return the bounce pages to the pool separately.
+    // The views use MAPPING_PERSISTENT, so unmapping them does not free the
+    // pages. The bounce pages are given back to the device pool separately.
     if (bounce->BounceMapping != 0) {
         status = MemorySpaceUnmap(
             GetDomainMemorySpace(),
@@ -152,9 +152,10 @@ SHMDeviceMappingCleanup(
     assert(mapping->Lifetime.Cleaning);
 
     if (stopped && mapping->State != SHMDeviceMappingReleasingAfterStop) {
-        // A forced stop gives no completed byte count, so sync caches across the
-        // entire mapping, including any idle part. Drop bounce pages without
-        // copying uncertain data back into the source buffer.
+        // After a forced stop there is no count of how many bytes the device
+        // finished. So sync the caches for the whole mapping, even the parts
+        // that were not in use. Bounce pages are dropped without copying their
+        // data back to the source buffer, because that data may be incomplete.
         SHMDeviceCompleteForCpu(mapping, 0, mapping->Length);
         if (mapping->Kind == SHMDeviceMappingPersistent) {
             mapping->Persistent.Uses = 0;
@@ -168,8 +169,9 @@ SHMDeviceMappingCleanup(
     
     status = DMAAddressMappingRelease(&mapping->AddressMapping);
     if (status != OS_EOK) {
-        // Leave the full range locked down and all backing pages allocated.
-        // The next attempt skips completed cache work and retries only release.
+        // Keep the whole buffer range locked and all backing pages allocated.
+        // A later attempt skips the cache work that is done and retries only
+        // the release.
         return status;
     }
 
@@ -193,8 +195,8 @@ SHMDeviceMappingCleanup(
 
 oserr_t
 SHMDeviceUnmap(
-    _In_Opt_ SHMDeviceOperation_t* operation,
-    _InOut_  SHMDeviceMapping_t**  mapping)
+    _In_    SHMDeviceOperation_t* operation,
+    _InOut_ SHMDeviceMapping_t**  mapping)
 {
     SHMDeviceMapping_t* current;
     SHMDeviceContext_t* context;
@@ -232,13 +234,14 @@ SHMDeviceUnmap(
     current->Lifetime.Cleaning = true;
     MutexUnlock(&context->MappingLock);
 
-    // The caller has finished all device work. Holding a walk reference blocks
-    // cleanup here, and setting Cleaning blocks new list walks from starting.
-    if ((operation != NULL && operation->Stopped) || current->State == SHMDeviceMappingReleasingAfterStop) {
-        // Stopped is recorded at operation start separately from each mapping's
-        // cleanup progress. An earlier stop pass might have skipped this mapping
-        // because a reference was busy, so finish its full-range cache sync once
-        // before freeing.
+    // The caller has finished all device work. The reference count check above
+    // showed that no list walk holds this mapping, and Cleaning now keeps new
+    // walks and other cleanups away.
+    if (operation->Stopped || current->State == SHMDeviceMappingReleasingAfterStop) {
+        // The Stopped flag is saved when the operation starts, and it is
+        // separate from how far each mapping's cleanup got. An earlier stop
+        // pass may have skipped this mapping because it was busy, so do the
+        // full range cache sync here before freeing.
         status = SHMDeviceMappingCleanup(current, true);
     } else if (SHMAccessGetPhase(&current->Access) != SHMAccessIdle) {
         status = OS_EBUSY;
@@ -261,61 +264,28 @@ SHMDeviceAbandon(
 {
     SHMDeviceMapping_t* current = *mapping;
     SHMDeviceContext_t* context;
-    enum SHMAccessPhase phase;
-    oserr_t             status;
 
     if (current == NULL) {
         return OS_EOK;
     }
     context = current->Context;
-    if (context->Binding != NULL) {
-        // Stop cleanup may already be approved for this live mapping. Block the
-        // recovery group first, then inspect only lifetime flags protected by
-        // MappingLock. Never touch backing pages or device addresses that an
-        // exclusive cleanup pass could be freeing.
-        DMABindingRevoke(context->Binding);
-        MutexLock(&context->MappingLock);
-        if (current->Lifetime.Cleaning || current->State != SHMDeviceMappingStopped) {
-            current->Lifetime.Abandoned = true;
-            *mapping = NULL;
-            MutexUnlock(&context->MappingLock);
-        } else {
-            MutexUnlock(&context->MappingLock);
-            SHMDeviceMappingRelease(mapping);
-        }
-        return OS_EOK;
-    }
-    
-    if (current->State == SHMDeviceMappingStopped) {
-        SHMDeviceMappingRelease(mapping);
-        return OS_EOK;
-    }
 
-    phase = SHMAccessGetPhase(&current->Access);
-    if (current->Kind == SHMDeviceMappingShared || phase == SHMAccessActive ||
-        phase == SHMAccessQuarantined) {
-        SHMAccessQuarantine(&current->Access);
-    } else if (current->State == SHMDeviceMappingReady) {
-        // No background waiter can resume once the process is gone. Idle
-        // unbound mappings can unmap right away, and a failed release stays listed.
-        SHMAccessEnd(&current->Access);
-        status = SHMDeviceUnmap(NULL, mapping);
-        if (status == OS_EOK) {
-            return OS_EOK;
-        }
-        // A list walk in progress can temporarily return OS_EBUSY. Log any
-        // other errors before handing the mapping over to context cleanup.
-        if (status != OS_EBUSY) {
-            ERROR("SHM: releasing abandoned mapping %p failed: %u",
-                current, status);
-        }
-    }
-
-    // Hand the handle's original reference over to context cleanup. Since the
-    // mapping is already in the list, this cannot fail or allocate.
+    // Block the group from starting new DMA work before looking at the
+    // mapping's state. A stop cleanup pass may already be freeing its
+    // addresses and pages, so only read state that MappingLock protects.
+    DMABindingRevoke(context->Binding);
     MutexLock(&context->MappingLock);
-    current->Lifetime.Abandoned = true;
-    *mapping = NULL;
-    MutexUnlock(&context->MappingLock);
+    if (current->Lifetime.Cleaning || current->State != SHMDeviceMappingStopped) {
+        // Hand the handle's reference to the context list. The mapping stays
+        // there until the group confirms the hardware stopped, even if it is
+        // idle, because the device could still be using it.
+        current->Lifetime.Abandoned = true;
+        *mapping = NULL;
+        MutexUnlock(&context->MappingLock);
+    } else {
+        // Already fully cleaned, so only the handle's reference is left.
+        MutexUnlock(&context->MappingLock);
+        SHMDeviceMappingRelease(mapping);
+    }
     return OS_EOK;
 }

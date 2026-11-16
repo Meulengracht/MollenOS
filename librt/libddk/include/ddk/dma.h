@@ -31,54 +31,60 @@ struct DMABuffer;
 struct DMAMapping;
 
 /**
- * @brief One active use of a persistent mapping, stored in a driver job. Must be
- * zeroed before first use. Only DMABeginUse and DMAEndUse may change Mapping.
- * Do not copy an active token. Its memory must stay valid until DMAEndUse succeeds.
+ * @brief One running use of a persistent mapping. The driver keeps it in its job
+ * structure. It must be zeroed before first use. Only DMABeginUse and DMAEndUse may
+ * change Mapping. Do not copy an active token. Its memory must stay valid until
+ * DMAEndUse succeeds.
  */
 struct DMAUse {
-    // Mapping is the persistent mapping this use belongs to. NULL when the
-    // token is empty.
+    // The persistent mapping this use belongs to. NULL when the token is empty.
     struct DMAMapping* Mapping;
 };
 
 /**
- * @brief One persistent DMA use and its completion fence, stored in a driver job.
+ * @brief One persistent DMA use together with the fence that reports its completion.
+ * The driver keeps it in its job structure. A fence is an object that other code
+ * can wait on until the job's result is set.
  *
  * Must be zeroed before first use. Only DMABeginUseFenced and DMAEndUseFenced may
- * change it. Calls on the token and mapping must be serialized. Do not copy an
- * active token or pass its inner Use to the unfenced begin/end functions. Its
- * memory must stay valid until DMAEndUseFenced succeeds.
+ * change it. Calls on the token and the mapping must be serialized. Do not copy an
+ * active token. Do not pass its inner Use to DMABeginUse or DMAEndUse. Its memory
+ * must stay valid until DMAEndUseFenced succeeds.
  *
- * Begin sets both fields on success. End clears Use.Mapping after DMAEndUse
- * succeeds, then signals the fence. Fence stays set until waiter notification
- * succeeds. If only Fence is set, notification must be retried before reuse.
- * The token is empty when both Use.Mapping and Fence are NULL.
+ * A successful begin sets both fields. The end call clears Use.Mapping once
+ * DMAEndUse succeeds, and then signals the fence. Fence stays set until the waiters
+ * have been notified. If only Fence is set, the notification failed and must be
+ * retried before the token is reused. The token is empty when both Use.Mapping and
+ * Fence are NULL.
  */
 struct DMAFencedUse {
-    // One counted use of the persistent mapping.
+    // The use of the persistent mapping, counted by the mapping.
     struct DMAUse Use;
-    // Fence reference held until the result is set and waiters are notified.
+    // Fence reference held until the result is set and the waiters are notified.
     OSFence_t*    Fence;
 };
 
 /**
- * @brief Requests a DMA session for a registered device (OSIOCTLREQUEST_DMA_QUERY)
- * and opens its DMA domain. Hardware is not enabled by this call. All drivers use
- * the same API, also for coherent devices. The kernel decides cache work and bounce
- * buffers from the DMA configuration of the session (cache policy and address
- * ranges). Device addresses are never assumed to be equal to CPU physical addresses.
- * Device access is still checked against the device identity, until Handle Grants
- * are used for this. The context is local to this process and cannot be sent over IPC.
+ * @brief Gets a binding for the assigned controller and opens a DMA context for it.
+ * A binding is the permission, issued by the device service, to do DMA for one
+ * device. The DMA context is what the driver passes to every allocation and mapping
+ * call. It lives in this process and cannot be sent to another process.
  *
- * @param device Identity of the registered controller.
+ * This call does not enable the hardware. The kernel works out the device address
+ * ranges and cache policy from the attachment registered for the device.
+ * addressLimit can only lower the limit. Device addresses may differ from CPU
+ * physical addresses.
+ *
+ * @param device Identity of the registered controller assigned to this driver.
  * @param addressLimit Highest device address the controller can use (inclusive).
- * UINT64_MAX adds no limit.
- * @param contextOut *contextOut must be NULL on entry. If releasing the DMA session
- * fails while handling an error, a cleanup-only context may still be stored here.
- * Always close a non-NULL context. A cleanup-only context refuses allocations and
- * mappings, and can only be passed to DMAClose.
- * @return OS_EOK, OS_EBUSY if a context is already open, or an error from the DMA
- * session or the kernel.
+ * Use UINT64_MAX when the controller has no limit of its own.
+ * @param contextOut Must point to a NULL pointer. If the reply from the device
+ * service is lost or a cleanup step fails, a context that only exists for cleanup
+ * can be returned together with an error. Always close a non-NULL context. Such a
+ * context refuses allocation and mapping, and only DMAClose can be called on it.
+ * @return OS_EOK, OS_EBUSY if the device already has a context in this process, or
+ * the error from the device service or the kernel. OS_EPROTOCOL means the request
+ * to the device service has an unknown outcome.
  */
 DDKDECL(oserr_t,
 DMAOpen(
@@ -87,38 +93,49 @@ DMAOpen(
     _InOut_ struct DMAContext** contextOut));
 
 /**
- * @brief Closes a context. All buffers and mappings must be released first.
- * Close must be serialized against create calls and other close calls. Separate
- * buffers and mappings can still be used concurrently. If close returns OS_EBUSY,
- * the context stays open and usable.
- * Once the kernel close has started, new buffers and mappings are refused. A failed
- * teardown is retried by calling DMAClose again with the same context. The retry
- * also releases the DMA session (OSIOCTLREQUEST_DMA_RELEASE) if that failed after
- * the kernel close succeeded. It also cleans up resources left over from a failed
- * create (these were never given to the driver).
+ * @brief Releases a context. All buffers and mappings made from it must be released
+ * first. Calls must be serialized with creation and with other close calls. If
+ * live buffers or mappings remain, the call returns OS_EBUSY and the context stays
+ * usable. Once teardown has started, creating buffers and mappings is refused.
+ * If the close fails, call it again with the same slot. Steps that already
+ * succeeded are not repeated.
  *
- * @param context Context slot, cleared on success. NULL or empty slots are a no-op.
- * @return OS_EOK, OS_EBUSY while buffers or mappings are still alive, or an error
- * from cleanup, the DMA session or the kernel.
+ * A normal close does not contact the device service. If the reply to the binding
+ * request was lost during DMAOpen, close sends that request again to find out what
+ * happened. If that cannot be resolved, for example because the device was revoked,
+ * the cleanup context stays until the process exits. Closing never stops the
+ * hardware, and a leftover cleanup context is not proof that it has stopped.
+ *
+ * @param context Slot that is cleared on success. NULL or an empty slot does
+ * nothing.
+ * @return OS_EOK, OS_EBUSY while buffers or mappings remain, or a cleanup or
+ * transport error.
  */
 DDKDECL(oserr_t,
 DMAClose(
     _InOut_ struct DMAContext** context));
 
 /**
- * @brief Allocates zeroed memory that is shared by the CPU and the controller for
- * its whole lifetime. It is never bounced and needs no begin/end transfer calls.
- * The buffer holds both its CPU attachment and its device mapping. The driver must
- * still use barriers when giving descriptors to hardware and when reading completions.
- * A single segment is returned inline by the allocation syscall. Longer segment
- * lists are fetched once before this returns. The accessors never allocate, make
+ * @brief Allocates zeroed memory that the CPU and the controller share for the whole
+ * life of the buffer. Use it for long-lived structures such as command rings and
+ * descriptor tables. The device works on this memory directly, so no copy is made
+ * and no begin or end transfer calls are needed.
+ *
+ * The buffer holds both the CPU view and the device mapping. The driver must still
+ * use memory barriers when it gives descriptors to the hardware and when it reads
+ * completions. A memory barrier stops the CPU from reordering memory accesses
+ * around it.
+ *
+ * A single segment is returned by the allocation syscall itself. A longer segment
+ * list is fetched before this call returns. So the accessors never allocate, make
  * syscalls or fail while the buffer is alive.
  *
  * @param context Open device context. Must be serialized against DMAClose.
- * @param requirements Device address constraints. Size is rounded up to whole pages.
- * @param bufferOut *bufferOut must be NULL on entry. Unchanged on failure, also if
- * fetching the segment list fails.
- * @return OS_EOK, or an argument, allocation, translation or kernel error.
+ * @param requirements Alignment and layout the device needs. The size is rounded up
+ * to whole pages.
+ * @param bufferOut Must point to a NULL pointer. Unchanged on failure, including
+ * when fetching the segment list fails.
+ * @return OS_EOK, or an argument, allocation, address translation or kernel error.
  */
 DDKDECL(oserr_t,
 DMAAllocate(
@@ -127,7 +144,7 @@ DMAAllocate(
     _InOut_ struct DMABuffer**            bufferOut));
 
 /**
- * @brief Returns the CPU pointer of an allocation. Makes no kernel calls.
+ * @brief Returns the CPU pointer to an allocation. Makes no kernel calls.
  * @param buffer Live allocation. Cleanup must not have started.
  * @return CPU pointer, valid until cleanup begins. Do not free it.
  */
@@ -136,17 +153,18 @@ DMABufferData(
     _In_ const struct DMABuffer* buffer));
 
 /**
- * @brief Get the actual, page-rounded allocation size without a kernel call.
+ * @brief Returns the real allocation size, rounded up to whole pages. Makes no
+ * kernel call.
  * @param buffer Live allocation.
- * @return Bytes covered by both the CPU view and device segments.
+ * @return Number of bytes covered by both the CPU view and the device segments.
  */
 DDKDECL(size_t,
 DMABufferSize(
     _In_ const struct DMABuffer* buffer));
 
 /**
- * @brief Returns the device addresses for the entire allocation. The list never
- * changes. Makes no allocation or syscall.
+ * @brief Returns the device addresses that cover the whole allocation. The list
+ * never changes. Makes no allocation or syscall.
  * @param buffer Live allocation. Cleanup must not have started.
  * @param countOut Receives the number of entries.
  * @return Segment list, valid until DMAFree succeeds. Do not free it.
@@ -158,10 +176,11 @@ DMABufferSegments(
 
 /**
  * @brief Releases an allocation. The driver must stop all hardware use of it first.
- * The device mapping is released before the CPU attachment. On failure the buffer
- * is kept so the call can be retried, also after a partial cleanup. Do not use it
- * for DMA again. This does not stop hardware or synchronize interrupt handlers.
- * @param buffer Buffer slot, cleared on success. NULL or empty slots are a no-op.
+ * The device mapping is released before the CPU view. If this fails, the buffer is
+ * kept so the call can be retried, even after a partial cleanup. Do not use the
+ * buffer for DMA again. This call does not stop the hardware and does not wait for
+ * interrupt handlers that may still be running.
+ * @param buffer Buffer slot, cleared on success. NULL or an empty slot does nothing.
  * @return OS_EOK or a kernel cleanup error.
  */
 DDKDECL(oserr_t,
@@ -169,32 +188,46 @@ DMAFree(
     _InOut_ struct DMABuffer** buffer));
 
 /**
- * @brief Maps committed bytes of an SHM buffer for streaming DMA. DMABeginTransfer
- * must be called before hardware accesses the mapping. The kernel keeps its own
- * reference to the storage, separate from the caller's SHM attachment. The kernel
- * may bounce storage that the device cannot reach, that is misaligned, or that
- * shares cache lines in an unsafe way.
+ * @brief Maps committed bytes of an SHM buffer for streaming DMA. An SHM buffer is
+ * a block of shared memory, and committed bytes are pages that already exist.
+ * A streaming mapping handles one transfer at a time. Call DMABeginTransfer before
+ * the hardware touches the memory and DMAEndTransfer when it is done. The kernel
+ * keeps its own reference to the storage, separate from the caller's SHM
+ * attachment, so the pages stay alive while they are mapped.
+ *
+ * The kernel may use a bounce buffer instead of the original pages. A bounce buffer
+ * is temporary memory that the device can reach. Data is copied into it before a
+ * transfer and copied back after. This happens when the device cannot reach the
+ * original pages, when they do not meet the alignment requirements, or when a
+ * non-coherent device would write into a cache line that also holds bytes outside
+ * the range. Dropping such a cache line could destroy the CPU's changes to those
+ * neighbouring bytes.
+ *
  * The segments describe the mapped bytes in buffer order, which can differ from the
- * physical layout. The driver must still handle the descriptor limits of its hardware.
- * The segment list is ready when this call succeeds.
+ * physical layout. The driver must still respect the descriptor limits of its
+ * hardware. The segment list is ready when this call succeeds.
  *
  * Requirements:
- * - They apply after address translation and after segments have been joined.
- * - Invalid alignments, or a length that is not a multiple of LengthAlignment,
- *   return OS_EINVALPARAMS. The mapped length is never padded.
- * - If bounce segments cannot meet valid requirements, the call fails with
+ * - They apply to the final device segments, after address translation and after
+ *   neighbouring segments have been joined.
+ * - An alignment that is not a power of two, or a length that is not a multiple of
+ *   LengthAlignment, returns OS_EINVALPARAMS. The mapped length is never padded.
+ * - If even bounce segments cannot meet valid requirements, the call fails with
  *   OS_ENOTSUPPORTED.
- * - Subranges and hardware descriptors must keep the requested alignment.
+ * - When the driver splits a segment or adds an offset, the pieces must still keep
+ *   the requested alignment.
  *
  * @param context Open controller context. Must be serialized against DMAClose.
  * @param buffer Existing SHM handle. The caller keeps its own attachment.
- * @param offset First byte relative to the whole SHM buffer (not its CPU view).
+ * @param offset First byte to map, counted from the start of the whole SHM buffer
+ * and not from the caller's CPU view.
  * @param length Number of committed bytes to map. Must be nonzero. This call does not
  * commit missing pages.
- * @param direction Direction of hardware access, fixed for this mapping.
- * @param requirements Optional device segment constraints. NULL adds no constraints.
- * @param mappingOut *mappingOut must be NULL on entry. Unchanged on failure.
- * @return OS_EOK, or an argument, allocation, translation or kernel error.
+ * @param direction How the hardware will access the memory. Fixed for the life of
+ * this mapping.
+ * @param requirements Optional limits on the device segments. NULL means no limits.
+ * @param mappingOut Must point to a NULL pointer. Unchanged on failure.
+ * @return OS_EOK, or an argument, allocation, address translation or kernel error.
  */
 DDKDECL(oserr_t,
 DMAMapSHM(
@@ -209,23 +242,24 @@ DMAMapSHM(
 /**
  * @brief Maps committed bytes of an SHM buffer using only their original pages.
  *
- * Works like DMAMapSHM, including the begin/end calls for cache synchronization.
+ * Works like DMAMapSHM, including the begin and end calls that do the cache work.
  * Device addresses can differ from physical addresses, and the result can have
- * multiple segments. No bounce memory is allocated and no payload data is copied.
- * A reserved device pool is not needed.
+ * several segments. No bounce buffer is allocated and no data is copied, so no
+ * reserved pool of device-reachable memory is needed.
  *
  * @param context Open controller context. Must be serialized against DMAClose.
  * @param buffer Existing SHM handle. The caller keeps its own attachment.
- * @param offset First byte relative to the whole SHM buffer.
+ * @param offset First byte to map, counted from the start of the whole SHM buffer.
  * @param length Number of committed bytes to map. Must be nonzero.
- * @param direction Direction of hardware access, fixed for this mapping.
- * @param requirements Optional device segment constraints. NULL adds no constraints.
- * @param mappingOut *mappingOut must be NULL on entry. Unchanged on failure.
+ * @param direction How the hardware will access the memory. Fixed for the life of
+ * this mapping.
+ * @param requirements Optional limits on the device segments. NULL means no limits.
+ * @param mappingOut Must point to a NULL pointer. Unchanged on failure.
  * @return Same errors as DMAMapSHM, plus:
- *         - OS_ENOENT if the device cannot address the original pages.
- *         - OS_ENOTSUPPORTED if noncoherent device writes would share cache lines
- *           with bytes outside the mapped range, or if the original segments
- *           cannot meet the requirements.
+ *         - OS_ENOENT if the device cannot reach the original pages.
+ *         - OS_ENOTSUPPORTED if a non-coherent device would write into cache lines
+ *           that also hold bytes outside the mapped range, or if the original
+ *           segments cannot meet the requirements.
  */
 DDKDECL(oserr_t,
 DMAMapSHMDirect(
@@ -239,36 +273,38 @@ DMAMapSHMDirect(
 
 /**
  * @brief Maps the original committed pages of an SHM buffer for repeated, queued
- * device uses.
+ * device jobs. A queued job is one the driver has submitted to the hardware, which
+ * can still be waiting or running while more jobs are submitted.
  *
  * The segment list does not change until DMAUnmap succeeds. The mapping keeps the
- * storage valid, separate from the caller's SHM attachment. No bounce copy or cache
- * work is done when the mapping is created.
- * Uses are counted per mapping. There is no read/write tracking per job. Completing
- * the fence of one job does not make the mapping idle.
- * How conflicts on shared ranges are handled is described by SHMWaitMode.
+ * storage alive, separate from the caller's SHM attachment. No bounce copy or cache
+ * work happens when the mapping is created.
+ * Uses are counted per mapping. The kernel does not track reads and writes per job,
+ * so one finished job does not make the mapping idle. SHMWaitMode describes how
+ * conflicts on shared ranges are handled.
  *
  * Preconditions:
  * - The address and alignment requirements of DMAMapSHMDirect must be met.
  * - Calls on the mapping and its use tokens must be serialized.
- * - Device jobs that conflict within the mapping must be ordered by the driver.
+ * - If jobs conflict within the mapping, for example one writes bytes that another
+ *   reads, the driver must put them in a safe order.
  * - The CPU must stop accessing the bytes before DMABeginUse, and must not access
  *   them again until the last DMAEndUse succeeds.
- * - CPU access must go through an SHMAccessSession. This also applies to
- *   processes without a DMA context.
- * - Descriptor barriers and ordered register accesses are done by the driver.
- *   The driver must also detect completion and schedule dependent jobs.
+ * - CPU access must go through an SHMAccessSession, which tells the kernel when the
+ *   CPU is using a range. This also applies to processes without a DMA context.
+ * - The driver handles descriptor barriers and the order of register writes. It
+ *   must also detect completion and start any dependent jobs.
  *
  * Errors:
  * - Same errors as DMAMapSHMDirect. Failure leaves mappingOut unchanged.
  *
  * @param context Open device context. Must be serialized against DMAClose.
  * @param buffer Existing SHM handle. The caller keeps its own attachment.
- * @param offset First byte relative to the whole SHM buffer.
+ * @param offset First byte to map, counted from the start of the whole SHM buffer.
  * @param length Number of committed bytes to map. Must be nonzero.
- * @param direction Fixed device access direction for every use.
- * @param requirements Optional device segment constraints. NULL adds no constraints.
- * @param mappingOut *mappingOut must be NULL on entry. Unchanged on failure.
+ * @param direction How the hardware will access the memory. Fixed for every use.
+ * @param requirements Optional limits on the device segments. NULL means no limits.
+ * @param mappingOut Must point to a NULL pointer. Unchanged on failure.
  * @return OS_EOK or an error described above.
  */
 DDKDECL(oserr_t,
@@ -282,13 +318,13 @@ DMAMapSHMPersistent(
     _InOut_ struct DMAMapping**              mappingOut));
 
 /**
- * @brief Registers a use of the mapping. Must be called before the job can be seen
- * by hardware.
+ * @brief Registers a use of the mapping. Must be called before the hardware can see
+ * the job.
  *
- * The first use prepares the cache for the entire mapping. Later uses only update
- * the use count. If a conflicting request is queued, the current batch of uses may
- * have to finish first. Makes one syscall, with no allocation or segment lookup.
- * Wait behavior is described by SHMWaitMode.
+ * The first use prepares the CPU caches for the whole mapping. Later uses only
+ * raise the use count. If a conflicting request is already waiting, the uses that
+ * are running may have to finish before this one can start. Makes one syscall,
+ * with no allocation or segment lookup. Waiting follows SHMWaitMode.
  *
  * Preconditions:
  * - The mapping must be a live persistent mapping, and the use token must be zeroed.
@@ -297,17 +333,19 @@ DMAMapSHMPersistent(
  *   all uses have ended.
  *
  * Errors:
- * - OS_EBUSY for an active token, or when the current batch must finish first
- *   because a request is queued.
+ * - OS_EBUSY if the token is already active, or if a conflicting request is
+ *   waiting and the running uses must finish first.
  * - OS_EOVERFLOW if the use count cannot be increased.
  * - OS_EINVALPARAMS for invalid arguments or a mapping that is not persistent.
- * - Errors from the shared wait and other kernel errors are passed through.
+ * - Errors from the wait (see SHMWaitMode) and other kernel errors are returned
+ *   unchanged.
  * Failure leaves the use token unchanged.
  *
  * @param mapping Live persistent mapping. All calls on it must be serialized.
  * @param use Zeroed token stored in the job. Unchanged on failure.
- * @param mode How to handle conflicts, see SHMWaitMode.
- * @param deadline Absolute timeout, or NULL to wait forever. Ignored for SHMWaitNonBlocking.
+ * @param mode How to handle conflicts. See SHMWaitMode.
+ * @param deadline Absolute time to stop waiting, or NULL to wait forever. Ignored for
+ * SHMWaitNonBlocking.
  * @return OS_EOK or an error described above.
  */
 DDKDECL(oserr_t,
@@ -318,13 +356,13 @@ DMABeginUse(
     _In_    const OSTimestamp_t* deadline));
 
 /**
- * @brief Ends a use when the job has completed, when hardware is confirmed stopped,
- * or when submitting the job failed.
+ * @brief Ends a use. Call it when the job has completed, when the hardware is
+ * confirmed stopped, or when submitting the job failed.
  *
- * After a failed submission, end may only be called if hardware could not have
- * started the job. The last end synchronizes the entire mapping for CPU access.
- * Earlier ends do no cache work and do not allow CPU access, not even to completed
- * bytes. Uses can end in any order. Makes one syscall and no allocation.
+ * After a failed submission, only call it if the hardware could not have started
+ * the job. The last end prepares the whole mapping for CPU access again. Earlier
+ * ends do no cache work and do not allow CPU access, not even to bytes that are
+ * done. Uses can end in any order. Makes one syscall and no allocation.
  *
  * @param use Active token. Do not copy it or end it twice. On success it is empty
  *            and can be used again. On failure it stays active so the call can be
@@ -336,39 +374,41 @@ DMAEndUse(
     _InOut_ struct DMAUse* use));
 
 /**
- * @brief Begins a persistent DMA use and makes its completion fence pending.
+ * @brief Begins a persistent DMA use and sets its completion fence to pending.
  *
- * Must be called before hardware can see the job. Adds a fence reference and
- * reserves the idle fence before calling DMABeginUse. The fence becomes pending
- * only after begin succeeds. Makes no allocation. Waiting and cache work follow
- * DMABeginUse and SHMWaitMode.
+ * Must be called before the hardware can see the job. It takes a reference on the
+ * fence and reserves the idle fence before it calls DMABeginUse. The fence becomes
+ * pending only after begin succeeds. Makes no allocation. Waiting and cache work
+ * are the same as for DMABeginUse and SHMWaitMode.
  *
- * The token keeps its fence reference until completion notification succeeds.
- * After begin succeeds, the caller may release its original reference. Give
- * consumers separate references first and notify them after begin succeeds,
- * before they poll or wait. The driver must detect completion and call
+ * The token holds its fence reference until the waiters have been notified. Once
+ * begin succeeds, the caller may drop its own reference. Give each consumer its own
+ * reference first, and hand the fence over after begin succeeds so that nobody polls
+ * or waits on an idle fence. The driver must detect completion and call
  * DMAEndUseFenced.
  *
  * Preconditions:
  * - The mapping and token requirements of DMABeginUse must be met.
  * - The fence must be idle, and the caller must hold a reference on it.
- * - Only this token may prepare, cancel, submit or signal the fence while active.
- *   Do not call those functions separately.
+ * - While the token is active, only the token may prepare, cancel, submit or signal
+ *   the fence. Do not call those functions on it separately.
  * - For shared fences, keep the local SHM mapping valid until DMAEndUseFenced and
- *   all other local users finish. A fence reference does not keep that mapping alive.
+ *   all other local users are done. A fence reference does not keep that mapping
+ *   alive.
  *
  * Errors:
  * - Same errors as DMABeginUse.
- * - OS_EBUSY for a fence that is not idle, or a token that is active.
+ * - OS_EBUSY if the fence is not idle or the token is active.
  * - OS_EOVERFLOW if the local fence reference count cannot be increased.
- * Invalid inputs are left unchanged. If kernel begin fails, the fence returns to
- * idle and the token stays empty so the call can be retried.
+ * Invalid arguments leave everything unchanged. If the kernel begin fails, the fence
+ * goes back to idle and the token stays empty, so the call can be retried.
  *
  * @param mapping Persistent mapping. Calls on it must be serialized.
  * @param use Zeroed job token. Must stay valid until end succeeds, also on retry.
- * @param fence Idle fence, signaled by DMAEndUseFenced after this use ends.
- * @param mode How to handle conflicts, see SHMWaitMode.
- * @param deadline Absolute timeout, or NULL to wait forever. Ignored for SHMWaitNonBlocking.
+ * @param fence Idle fence. DMAEndUseFenced signals it after this use ends.
+ * @param mode How to handle conflicts. See SHMWaitMode.
+ * @param deadline Absolute time to stop waiting, or NULL to wait forever. Ignored for
+ * SHMWaitNonBlocking.
  * @return OS_EOK or an error described above.
  */
 DDKDECL(oserr_t,
@@ -380,26 +420,27 @@ DMABeginUseFenced(
     _In_    const OSTimestamp_t* deadline));
 
 /**
- * @brief Ends a completed or stopped use, and signals the fence with its result.
+ * @brief Ends a completed or stopped use and signals the fence with the result.
  *
- * Hardware must have completed or be confirmed stopped for this job. After a
- * failed submission, end may only be called if hardware could not have started
- * the job. An error result does not stop the device. Calls on the token and
- * mapping must be serialized.
+ * The hardware must have completed this job or be confirmed stopped. After a failed
+ * submission, only call it if the hardware could not have started the job. An error
+ * result does not stop the device. Calls on the token and mapping must be
+ * serialized.
  *
- * Calls DMAEndUse before setting the result. Other uses of the mapping may still
- * be active. Only the last end synchronizes the cache, so a completed fence alone
- * does not allow CPU access. Use SHMAccessBeginCpu after conflicting DMA uses end.
+ * DMAEndUse is called first and the result is set after it. Other uses of the
+ * mapping may still be running. Only the last end prepares the caches for the CPU,
+ * so a completed fence alone does not allow CPU access. Call SHMAccessBeginCpu once
+ * all conflicting DMA uses have ended.
  *
- * If DMAEndUse fails, the use stays active and the fence stays pending. If waiter
- * notification fails, the DMA use has ended and consumers can already read the
- * result. The token keeps its fence reference so notification can be retried
- * without ending the use twice. Retry with the same result.
+ * If DMAEndUse fails, the use stays active and the fence stays pending. If
+ * notifying the waiters fails, the DMA use has already ended and consumers can read
+ * the result. The token keeps its fence reference so the notification can be
+ * retried without ending the use twice. Retry with the same result.
  *
- * @param use Active token or token awaiting notification retry. Empty and reusable
- *            on success.
+ * @param use Active token, or a token waiting for a notification retry. Empty and
+ *            reusable on success.
  * @param result Result of the job, such as OS_EOK, OS_ECANCELLED or OS_EDEVFAULT.
- *               Must match the previous result when retrying notification.
+ *               Must match the earlier result when retrying a notification.
  * @return OS_EOK, a DMAEndUse or notification error, or OS_EINVALPARAMS for an empty
  *         token or a changed result on retry. Does not stop or wait for hardware.
  */
@@ -409,8 +450,8 @@ DMAEndUseFenced(
     _In_    oserr_t              result));
 
 /**
- * @brief Returns the device address list of the mapping. The list never changes,
- * and no kernel calls are made.
+ * @brief Returns the device addresses that cover the mapping. The list never
+ * changes. Makes no kernel calls.
  * @param mapping Live mapping. Must be serialized against DMAUnmap on this mapping.
  * @param countOut Receives the number of entries.
  * @return Segment list, valid until DMAUnmap succeeds, also across begin and end
@@ -422,13 +463,14 @@ DMAMappingSegments(
     _Out_ uint32_t*                countOut));
 
 /**
- * @brief Hands the whole mapping to the device. Must be called before the
+ * @brief Starts a transfer on a streaming mapping. Must be called before the
  * descriptors are given to the hardware.
- * The given range decides the cache work, bounce copies and shared range checks.
- * CPU sessions that conflict stay blocked until DMAEndTransfer succeeds.
- * Does not start or wait for hardware.
- * Makes one syscall on every architecture, with no RPC or allocation.
- * Wait behavior is described by SHMWaitMode.
+ *
+ * The whole mapping is marked busy, but only the given range gets cache work, bounce
+ * copies and conflict checks against other users of the shared memory. CPU
+ * sessions that conflict stay blocked until DMAEndTransfer succeeds. Does not start
+ * the hardware or wait for it. Makes one syscall on every architecture, with no
+ * request to a service and no allocation. Waiting follows SHMWaitMode.
  *
  * Preconditions:
  * - The streaming mapping must be idle, and the range must be nonempty and inside it.
@@ -438,14 +480,17 @@ DMAMappingSegments(
  *
  * Errors:
  * - OS_EBUSY if the mapping is already active.
- * - Errors from the shared wait, argument errors and kernel errors are passed through.
+ * - Errors from the wait (see SHMWaitMode), argument errors and kernel errors are
+ *   returned unchanged.
  * Failure leaves access unchanged.
  *
  * @param mapping Idle streaming mapping.
- * @param offset First active byte relative to the mapped range.
- * @param length Number of active bytes. Must be nonzero.
- * @param mode How to handle conflicts, see SHMWaitMode.
- * @param deadline Absolute timeout, or NULL to wait forever. Ignored for SHMWaitNonBlocking.
+ * @param offset First byte of the transfer, counted from the start of the mapped
+ * range.
+ * @param length Number of bytes in the transfer. Must be nonzero.
+ * @param mode How to handle conflicts. See SHMWaitMode.
+ * @param deadline Absolute time to stop waiting, or NULL to wait forever. Ignored for
+ * SHMWaitNonBlocking.
  * @return OS_EOK or an error described above.
  */
 DDKDECL(oserr_t,
@@ -457,16 +502,17 @@ DMABeginTransfer(
     _In_ const OSTimestamp_t* deadline));
 
 /**
- * @brief Takes the whole mapping back from the device after the transfer has
- * completed, or after hardware is confirmed stopped.
+ * @brief Takes the mapping back from the device once the transfer has completed or
+ * the hardware is confirmed stopped.
+ *
  * Only the completed part of the range given to begin is copied back, counted from
- * the start of that range. A count of zero ends a cancelled transfer without copying
- * any received bytes. Does not detect completion or stop hardware. Makes one syscall,
- * with no RPC or allocation.
+ * the start of that range. A count of zero ends a cancelled transfer without
+ * copying back any received bytes. Does not detect completion or stop the hardware.
+ * Makes one syscall, with no request to a service and no allocation.
  *
  * @param mapping Streaming mapping with an active device transfer.
- * @param completedLength Number of completed bytes from the start of the range. At
- *                        most the active length.
+ * @param completedLength Number of completed bytes, counted from the start of the
+ *                        range. At most the length of the active range.
  * @return OS_EOK, or an argument, state or kernel error. On failure the transfer
  *         stays active with its current range, so the call can be retried.
  */
@@ -476,11 +522,13 @@ DMAEndTransfer(
     _In_ size_t             completedLength));
 
 /**
- * @brief Releases an idle streaming or persistent mapping. On failure the mapping
- * is kept. Never stops hardware, copies data back or destroys the caller's SHM
- * attachment. Do not call this on copies of the mapping pointer. A successful unmap
- * invalidates the segment list. CPU sessions stay valid without the mapping.
- * @param mapping Mapping slot, cleared on success. NULL or empty slots are a no-op.
+ * @brief Releases an idle streaming or persistent mapping. If it fails, the mapping
+ * is kept. It never stops the hardware, copies data back or removes the caller's
+ * SHM attachment. Do not call it on copies of the mapping pointer. After a
+ * successful unmap the segment list is no longer valid. CPU sessions stay valid
+ * without the mapping.
+ * @param mapping Mapping slot, cleared on success. NULL or an empty slot does
+ * nothing.
  * @return OS_EOK, OS_EBUSY while device access is active or queued, or a kernel error.
  */
 DDKDECL(oserr_t,
@@ -488,4 +536,4 @@ DMAUnmap(
     _InOut_ struct DMAMapping** mapping));
 
 _CODE_END
-#endif
+#endif //!__DDK_DMA_H__

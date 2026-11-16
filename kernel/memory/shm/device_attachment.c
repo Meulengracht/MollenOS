@@ -39,9 +39,10 @@ SHMDeviceContextPrepareBound(
 
     SHMDeviceContextInitialize(context);
 
-    // A cancel pass can visit this context as soon as the binding points to it.
-    // Set up the reference count and mapping list first. No mappings can be
-    // added until building the address rules and publishing the context finish.
+    // As soon as the binding points to this context, a cancel pass (the code
+    // that cuts off a binding's contexts) may visit it. That is why the
+    // reference count and mapping list are set up first. No mappings can be
+    // added until the address rules are built and the context is published.
     status = DMABindingAttachContext(
         binding,
         parameters,
@@ -101,22 +102,29 @@ SHMDeviceContextAbandon(
     MutexLock(&current->MappingLock);
     hasMappings = current->Mappings != NULL;
     MutexUnlock(&current->MappingLock);
-    if (current->Binding != NULL && hasMappings) {
-        // Whether the context handle or a mapping handle closes first, both
-        // paths must block the same recovery group. Drop MappingLock before
-        // shutting down the group so we do not hold it while taking manager locks.
+    if (hasMappings) {
+        // The context handle and a mapping handle can close in either order,
+        // and both paths must block the same recovery group from starting new
+        // DMA work. This happens after MappingLock is released, so that lock is
+        // never held while manager locks are taken.
         DMABindingRevoke(current->Binding);
     }
     SHMDeviceContextRelease(context);
 }
 
-// Caller must hold a context reference. Returning a mapping reference keeps the
-// list entry readable under MappingLock even after its device resources are freed.
+// Find the next mapping to visit on the context's list. Pass NULL as current
+// to start from the head. Mappings whose device resources are already freed are
+// skipped. When no mapping is left, *mappingOut is NULL and the result is
+// OS_EOK. If a mapping is being cleaned right now, the result is OS_EBUSY and
+// the caller must try again later.
+//
+// The caller must hold a context reference. The mapping returned carries an
+// added reference. That keeps its list entry readable under MappingLock even
+// after its device resources are freed.
 static oserr_t
 __NextMapping(
     _In_     SHMDeviceContext_t*  context,
     _In_Opt_ SHMDeviceMapping_t*  current,
-    _In_     bool                 onlyAbandoned,
     _Out_    SHMDeviceMapping_t** mappingOut)
 {
     SHMDeviceMapping_t* mapping;
@@ -127,10 +135,6 @@ __NextMapping(
     MutexLock(&context->MappingLock);
     mapping = current == NULL ? context->Mappings : current->Lifetime.Next;
     for (; mapping != NULL; mapping = mapping->Lifetime.Next) {
-        if (onlyAbandoned && !mapping->Lifetime.Abandoned) {
-            continue;
-        }
-
         if (mapping->Lifetime.Cleaning) {
             status = OS_EBUSY;
             break;
@@ -142,8 +146,9 @@ __NextMapping(
 
         status = SHMDeviceMappingAcquire(mapping);
         if (status == OS_ECANCELLED) {
-            // A final release already hit zero and is waiting to unlink this
-            // entry. It cannot free the struct until we drop MappingLock.
+            // The last reference was already dropped, and that thread is
+            // waiting for MappingLock to unlink this entry. It cannot free the
+            // struct until we release the lock, so skip the entry.
             status = OS_EOK;
             continue;
         } else if (status == OS_EOK) {
@@ -163,20 +168,22 @@ SHMDeviceContextRevoke(
     SHMDeviceMapping_t* next;
     oserr_t             status;
 
-    status = __NextMapping(context, NULL, false, &mapping);
+    status = __NextMapping(context, NULL, &mapping);
     if (status != OS_EOK) {
         ERROR("SHMDeviceContextRevoke: initial __NextMapping context %p failed: %u", context, status);
         return status;
     }
 
     while (mapping != NULL) {
-        // The recovery group already blocked new work. Locking the range updates
-        // only the access entry under Buffer->Mutex. Any caller still waiting
-        // on a range holds onto its operation token until it returns or exit
-        // cleanup retires it.
+        // The recovery group has already blocked new work. Lock the whole buffer
+        // range, so neither the CPU nor another device can use it until the
+        // hardware is confirmed stopped. This only changes the access entry,
+        // under Buffer->Mutex. A caller that is still waiting for a range keeps
+        // its operation token until the wait returns or process exit cleanup
+        // ends it.
         SHMAccessQuarantine(&mapping->Access);
         
-        status = __NextMapping(context, mapping, false, &next);
+        status = __NextMapping(context, mapping, &next);
         if (status != OS_EOK) {
             ERROR("SHMDeviceContextRevoke: __NextMapping context %p after mapping %p failed: %u",
                   context, mapping, status);
@@ -189,9 +196,14 @@ SHMDeviceContextRevoke(
     return status;
 }
 
-// Caller holds a walk reference and runs during an exclusive stop-cleanup
-// pass. A live mapping handle keeps the second reference even after its device
-// resources are freed.
+// Free the device resources of one mapping after the hardware stop. The caller
+// holds a walk reference and runs inside the exclusive stop cleanup pass.
+//
+// Exactly two references are expected. One is the walk reference. The other is
+// held by the mapping's handle, or by the context list if the mapping was
+// abandoned. Any other count means someone is still using the mapping, so the
+// result is OS_EBUSY. A mapping whose handle is still open keeps its struct
+// after this, even though its device resources are freed.
 static oserr_t
 __CompleteMapping(
     _In_ SHMDeviceMapping_t* mapping)
@@ -223,8 +235,9 @@ __CompleteMapping(
     }
     MutexUnlock(&context->MappingLock);
 
-    // Only abandoned mappings hand their original handle reference over to this
-    // pass. Never drop a live handle's reference or clear its object pointer.
+    // Only an abandoned mapping hands its original handle reference to this
+    // pass, so only then is that reference dropped. A mapping with an open
+    // handle keeps its reference and the handle's pointer stays untouched.
     SHMDeviceMappingRelease(&abandoned);
     return status;
 }
@@ -238,12 +251,12 @@ SHMDeviceContextCompleteStop(
     oserr_t             status;
     oserr_t            firstError = OS_EOK;
 
-    // Unbound contexts rely on the caller's own proof that hardware stopped
-    // and no new mappings are being added. They only clean abandoned mappings.
+    // The recovery group has confirmed that the hardware stopped and has kept
+    // all other operations out. Visit every mapping, including those whose
+    // handle is still open, because their device resources can now be freed.
     status = __NextMapping(
         context,
         NULL,
-        context->Binding == NULL,
         &mapping
     );
     if (status != OS_EOK) {
@@ -261,13 +274,13 @@ SHMDeviceContextCompleteStop(
             }
         }
 
-        // Advance before dropping the reference on the current entry. If freeing
-        // device addresses failed, the entry stays listed for a retry without
-        // repeating cache syncs.
+        // Find the next entry before dropping the reference on the current one,
+        // so the list position is not lost. If freeing the device addresses
+        // failed, the entry stays on the list for a retry that does not repeat
+        // the cache syncs.
         status = __NextMapping(
             context,
             mapping,
-            context->Binding == NULL,
             &next
         );
         if (status != OS_EOK) {
@@ -282,9 +295,11 @@ SHMDeviceContextCompleteStop(
     return firstError != OS_EOK ? firstError : status;
 }
 
-// Caller must hold the record in Updating. Save PendingOperation before taking
-// references or incrementing the group counter, so exit cleanup never mistakes
-// interrupted work for an idle handle.
+// Start an operation on a context or mapping. The caller must have put the
+// record in the Updating state. PendingOperation is saved before any reference
+// is taken or the group counter goes up, so process exit cleanup never mistakes
+// interrupted work for an idle handle. If a step fails, the steps already done
+// are undone.
 static oserr_t
 __BeginOperation(
     _In_  SHMRecord_t*                record,
@@ -295,6 +310,12 @@ __BeginOperation(
 {
     SHMDeviceOperation_t* operation = mapping == NULL ? &context->Operation : &mapping->Operation;
     oserr_t               status;
+
+    // A context has no binding only while a failed preparation is being
+    // undone. Such a context must never take a mapping or a device operation.
+    if (context->Binding == NULL) {
+        return OS_EINVALPARAMS;
+    }
 
     assert(atomic_load(&record->State) == SHMRecordUpdating);
     assert(record->PendingOperation == NULL && operation->Record == NULL);
@@ -319,15 +340,15 @@ __BeginOperation(
         operation->Setup = SHMDeviceOperationSetupMapping;
     }
 
-    if (context->Binding != NULL) {
-        status = DMABindingBeginOperation(
-            context->Binding, kind == SHMDeviceOperationRelease, &operation->Stopped
-        );
-        if (status != OS_EOK) {
-            goto error;
-        }
-        operation->Setup = SHMDeviceOperationSetupCounted;
+    status = DMABindingBeginOperation(
+        context->Binding,
+        kind == SHMDeviceOperationRelease,
+        &operation->Stopped
+    );
+    if (status != OS_EOK) {
+        goto error;
     }
+    operation->Setup = SHMDeviceOperationSetupCounted;
 
     *operationOut = operation;
     return OS_EOK;
@@ -377,12 +398,12 @@ SHMDeviceOperationIsValid(
     _In_     enum SHMDeviceOperationKind kind)
 {
     if (operation == NULL) {
-        return context->Binding == NULL;
+        return false;
     }
 
     if (operation->Record == NULL || operation->Record->PendingOperation != operation ||
         operation->Context != context ||
-        (context->Binding != NULL && operation->Setup != SHMDeviceOperationSetupCounted)) {
+        operation->Setup != SHMDeviceOperationSetupCounted) {
         return false;
     }
     return operation->Mapping == mapping && operation->Kind == kind;
@@ -390,7 +411,7 @@ SHMDeviceOperationIsValid(
 
 oserr_t
 SHMDeviceOperationBeginAccess(
-    _In_Opt_ SHMDeviceOperation_t*       operation,
+    _In_     SHMDeviceOperation_t*       operation,
     _In_     SHMAccess_t*                access,
     _In_     size_t                      offset,
     _In_     size_t                      length,
@@ -399,9 +420,7 @@ SHMDeviceOperationBeginAccess(
 {
     oserr_t status;
 
-    if (operation != NULL) {
-        operation->Phase = SHMDeviceOperationRangeAdmission;
-    }
+    operation->Phase = SHMDeviceOperationRangeAdmission;
 
     status = SHMAccessBegin(
         access,
@@ -412,18 +431,17 @@ SHMDeviceOperationBeginAccess(
         wait
     );
     if (status == OS_EFORKED) {
-        // The background thread resumes with this same token, so leave it intact.
+        // A worker thread will continue with this same token later, so leave
+        // it as it is.
         return status;
     }
 
-    if (operation != NULL) {
-        operation->Phase = SHMDeviceOperationRunning;
-    }
+    operation->Phase = SHMDeviceOperationRunning;
 
     if (status != OS_EOK) {
         return status;
     }
-    return operation == NULL ? OS_EOK : SHMDeviceOperationCheck(operation);
+    return SHMDeviceOperationCheck(operation);
 }
 
 oserr_t
@@ -431,7 +449,7 @@ SHMDeviceOperationCheck(
     _In_ const SHMDeviceOperation_t* operation)
 {
     assert(operation != NULL && operation->Record != NULL);
-    if (operation->Context->Binding != NULL && operation->Kind == SHMDeviceOperationSubmit) {
+    if (operation->Kind == SHMDeviceOperationSubmit) {
         return DMABindingCheckOperation(operation->Context->Binding);
     }
     return OS_EOK;
@@ -458,9 +476,11 @@ SHMDeviceOperationEnd(
     current->Record->PendingOperation = NULL;
     memset(current, 0, sizeof(SHMDeviceOperation_t));
 
-    // The token struct can live inside the mapping being freed. Copy what we
-    // need and clear PendingOperation before dropping the mapping reference.
-    // Keep context alive until both the group count and any cancel retry finish.
+    // The token can live inside the mapping that is about to be freed. So copy
+    // what is needed and clear the record's PendingOperation first, then drop
+    // the mapping reference. The context reference goes last. It keeps the
+    // context alive until the group count is lowered and any cancel retry is
+    // done.
     SHMDeviceMappingRelease(&mapping);
     if (counted) {
         DMABindingEndOperation(context->Binding);
@@ -478,17 +498,18 @@ SHMDeviceOperationCancel(
         return OS_EOK;
     }
 
-    if (operation->Context->Binding != NULL) {
-        DMABindingRevoke(operation->Context->Binding);
-    }
+    DMABindingRevoke(operation->Context->Binding);
 
     if (operation->Phase != SHMDeviceOperationRangeAdmission) {
-        // A process exit may have interrupted allocation, copying, or cache
-        // syncs mid-way. Since we cannot tell what state was left behind,
-        // return OS_EBUSY so the group count and storage stay pinned until reboot.
+        // Process exit may have interrupted this call halfway through
+        // allocating, copying, or syncing caches. There is no way to tell what
+        // state it left behind, so return OS_EBUSY. The group's operation count
+        // and the memory stay in place until reboot.
         return OS_EBUSY;
     }
     
+    // The call was only waiting for a buffer range, so it started no device
+    // work. Lock the range and end the operation.
     assert(operation->Mapping != NULL);
     SHMAccessQuarantine(&operation->Mapping->Access);
     SHMDeviceOperationEnd(&operation);

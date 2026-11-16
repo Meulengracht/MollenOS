@@ -79,10 +79,41 @@ IoctlDeviceEx(
         _In_    size_t       width)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    oserr_t                  oserr;
-    
-    sys_device_ioctlex(GetGrachtClient(), &msg.base, deviceId, direction, offset, *value, width);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_device_ioctlex_result(GetGrachtClient(), &msg.base, &oserr, value);
-    return oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
+    size_t                   decoded;
+    int                      status;
+
+    if (value == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    decoded = *value;
+
+    status = sys_device_ioctlex(GetGrachtClient(), &msg.base, deviceId, direction, offset, decoded, width);
+    if (status != 0) {
+        WARNING("IoctlDeviceEx: device %u send failed: %i", deviceId, status);
+        return OS_EPROTOCOL;
+    }
+
+    status = gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status != 0) {
+        WARNING("IoctlDeviceEx: device %u wait failed: %i", deviceId, status);
+        return OS_EPROTOCOL;
+    }
+
+    status = sys_device_ioctlex_result(GetGrachtClient(), &msg.base, &oserr, &decoded);
+    if (status != 0) {
+        WARNING("IoctlDeviceEx: device %u decode failed: %i", deviceId, status);
+        return OS_EPROTOCOL;
+    }
+
+    if (oserr != OS_EOK) {
+        WARNING("IoctlDeviceEx: device %u access rejected: %u", deviceId, oserr);
+        return oserr;
+    }
+
+    // The caller's value is only written once the whole request has succeeded.
+    // Every failure above returns before this point and leaves it unchanged.
+    *value = decoded;
+    return OS_EOK;
 }

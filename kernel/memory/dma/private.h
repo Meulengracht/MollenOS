@@ -22,11 +22,14 @@
 #include <stdatomic.h>
 
 /**
- * @brief Fixed rules for converting physical addresses to device addresses.
+ * @brief Describes which physical memory a device can reach, and at which
+ *        device addresses.
  *
- * The creating context and each completed mapping hold a reference. The Ranges
- * array stays unchanged after creation. The caller stores the device address
- * limit separately.
+ * Each range maps a block of physical addresses to a block of device
+ * addresses. The context that created this and every finished mapping each
+ * hold a reference. It is freed when the last one is dropped. The Ranges array
+ * never changes after creation. The highest device address the device can use
+ * is not stored here, the caller keeps it separately.
  */
 struct DMAAddressSpace {
     _Atomic(unsigned int) References;
@@ -35,36 +38,21 @@ struct DMAAddressSpace {
 };
 
 /**
- * @brief Find one device address range that covers all the requested bytes.
- *
- * @param space Address space. Hold a reference until the call returns.
- * @param addressLimit Largest device address allowed, inclusive.
- * @param physicalBase Physical address of the first byte.
- * @param length Nonzero number of bytes.
- * @param deviceAddressOut Receives the lowest device address that covers the
- *                         entire range within addressLimit.
- * @return OS_EOK on success. OS_EINVALPARAMS for invalid input or OS_ENOENT if
- *         no device range can address all the bytes. Output is unchanged on failure.
- */
-oserr_t
-DMADirectTranslate(
-    _In_  const struct DMAAddressSpace* space,
-    _In_  uint64_t                      addressLimit,
-    _In_  uint64_t                      physicalBase,
-    _In_  uint64_t                      length,
-    _Out_ uint64_t*                     deviceAddressOut);
-
-/**
  * @brief Count device segments or write them into a caller-supplied array.
  *
- * Used when creating direct mappings and answering SHM address queries. Before
- * filling the array, count the segments with the same inputs and provide room
- * for that many entries. Keep the inputs unchanged between calls.
- * The caller must check the pointers and extentCount, and check that each
- * nonzero alignment requirement is a power of two.
+ * A device segment is a run of bytes with consecutive device addresses, so the
+ * device can transfer it as one block. This splits the physical ranges where
+ * the device address jumps, and merges pieces that line up.
+ *
+ * Call it twice. First pass NULL for segmentsOut to get the count, then call
+ * again with an array that has room for that many entries. Both calls must get
+ * the same inputs. Callers use this when creating direct mappings and when
+ * checking segment alignment. The caller must check the pointers and
+ * extentCount, and check that each nonzero alignment requirement is a power
+ * of two. This function does not.
  *
  * @param space Address space. Hold a reference throughout both calls.
- * @param addressLimit Largest device address allowed, inclusive.
+ * @param addressLimit Highest device address allowed, inclusive.
  * @param extents Allocated physical byte ranges in buffer order.
  * @param extentCount Number of entries in extents, at least one.
  * @param requirements Optional alignment requirements, checked by the caller.
