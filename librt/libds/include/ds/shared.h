@@ -43,8 +43,11 @@ typedef struct spinlock {
 } syncobject_t;
 
 static inline void spinlock_lock(struct spinlock* spinlock) {
+    // A failed exchange stores the observed value in the expected variable, so
+    // it must be reset on every attempt or a held lock appears free.
     int zero = 0;
     while (!atomic_compare_exchange_weak(&spinlock->locked, &zero, 1)) {
+        zero = 0;
     }
 }
 static inline void spinlock_unlock(struct spinlock* spinlock) {

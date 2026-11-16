@@ -104,6 +104,64 @@ rb_tree_minimum(
 	_In_ rb_tree_t*));
 
 /** 
+ * rb_tree_maximum
+ * * Retrieves the item with the highest key, or NULL if the tree is empty.
+ * @param RBTree [In] The red-black tree to perform the lookup in.
+ */
+DSDECL(rb_leaf_t*,
+rb_tree_maximum(
+    _In_ rb_tree_t*));
+
+/** 
+ * rb_tree_next
+ * * Retrieves the item with the next higher key, or NULL if the item has the
+ *   highest key. The item must currently be in the tree. The caller must
+ *   prevent concurrent changes for as long as it keeps using the result.
+ * @param RBTree     [In] The red-black tree that contains the item.
+ * @param RBTreeItem [In] The item to find the successor of.
+ */
+DSDECL(rb_leaf_t*,
+rb_tree_next(
+    _In_ rb_tree_t*,
+    _In_ rb_leaf_t*));
+
+/** 
+ * rb_tree_previous
+ * * Retrieves the item with the next lower key, or NULL if the item has the
+ *   lowest key. The same rules as rb_tree_next apply.
+ * @param RBTree     [In] The red-black tree that contains the item.
+ * @param RBTreeItem [In] The item to find the predecessor of.
+ */
+DSDECL(rb_leaf_t*,
+rb_tree_previous(
+    _In_ rb_tree_t*,
+    _In_ rb_leaf_t*));
+
+/** 
+ * rb_tree_floor
+ * * Retrieves the item with the highest key that is lower than or equal to the
+ *   provided key, or NULL if every key in the tree is higher.
+ * @param RBTree [In] The red-black tree to perform the lookup in.
+ * @param Key    [In] The key to compare against.
+ */
+DSDECL(rb_leaf_t*,
+rb_tree_floor(
+    _In_ rb_tree_t*,
+    _In_ void*));
+
+/** 
+ * rb_tree_ceiling
+ * * Retrieves the item with the lowest key that is higher than or equal to the
+ *   provided key, or NULL if every key in the tree is lower.
+ * @param RBTree [In] The red-black tree to perform the lookup in.
+ * @param Key    [In] The key to compare against.
+ */
+DSDECL(rb_leaf_t*,
+rb_tree_ceiling(
+    _In_ rb_tree_t*,
+    _In_ void*));
+
+/** 
  * rb_tree_remove
  * * Removes and returns the item by the key provided.
  * @param RBTree [In] The red-black tree to perform the lookup in.

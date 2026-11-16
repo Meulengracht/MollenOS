@@ -257,25 +257,17 @@ rb_tree_append(
 }
 
 static rb_leaf_t*
-lookup_recursive(
+find_leaf(
     _In_ rb_tree_t* tree,
-    _In_ rb_leaf_t* leaf,
     _In_ void*      key)
 {
-    int result = tree->cmp(leaf->key, key);
-    if (!result) {
-        return leaf;
-    }
-    
-    if (result == 1) {
-        if (!IS_ITEM_NIL(tree, leaf->left)) {
-            return lookup_recursive(tree, leaf->left, key);
+    rb_leaf_t* i = tree->root;
+    while (!IS_ITEM_NIL(tree, i)) {
+        int result = tree->cmp(i->key, key);
+        if (result == 0) {
+            return i;
         }
-    }
-    else {
-        if (!IS_ITEM_NIL(tree, leaf->right)) {
-            return lookup_recursive(tree, leaf->right, key);
-        }
+        i = (result > 0) ? i->left : i->right;
     }
     return NULL;
 }
@@ -290,12 +282,7 @@ rb_tree_lookup(
     assert(key != NULL);
     
     TREE_LOCK;
-    if (IS_ITEM_NIL(tree, tree->root)) {
-        TREE_UNLOCK;
-        return NULL;
-    }
-    
-    leaf = lookup_recursive(tree, tree->root, key);
+    leaf = find_leaf(tree, key);
     TREE_UNLOCK;
     return leaf;
 }
@@ -337,6 +324,153 @@ rb_tree_minimum(
 	leaf = get_minimum_leaf(tree, tree->root);
 	TREE_UNLOCK;
 	return leaf;
+}
+
+static rb_leaf_t*
+get_maximum_leaf(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
+{
+    rb_leaf_t* i = leaf;
+    while (!IS_ITEM_NIL(tree, i->right)) {
+        i = i->right;
+    }
+    return i;
+}
+
+rb_leaf_t*
+rb_tree_maximum(
+    _In_ rb_tree_t* tree)
+{
+    rb_leaf_t* leaf = NULL;
+    assert(tree != NULL);
+    
+    TREE_LOCK;
+    if (!IS_ITEM_NIL(tree, tree->root)) {
+        leaf = get_maximum_leaf(tree, tree->root);
+    }
+    TREE_UNLOCK;
+    return leaf;
+}
+
+rb_leaf_t*
+rb_tree_next(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
+{
+    rb_leaf_t* parent;
+    rb_leaf_t* result = NULL;
+    assert(tree != NULL);
+    assert(leaf != NULL);
+    
+    TREE_LOCK;
+    if (!IS_ITEM_NIL(tree, leaf->right)) {
+        result = get_minimum_leaf(tree, leaf->right);
+    }
+    else {
+        // Climb until we leave a left subtree, that parent is the successor.
+        parent = leaf->parent;
+        while (!IS_ITEM_NIL(tree, parent) && leaf == parent->right) {
+            leaf   = parent;
+            parent = parent->parent;
+        }
+        if (!IS_ITEM_NIL(tree, parent)) {
+            result = parent;
+        }
+    }
+    TREE_UNLOCK;
+    return result;
+}
+
+rb_leaf_t*
+rb_tree_previous(
+    _In_ rb_tree_t* tree,
+    _In_ rb_leaf_t* leaf)
+{
+    rb_leaf_t* parent;
+    rb_leaf_t* result = NULL;
+    assert(tree != NULL);
+    assert(leaf != NULL);
+    
+    TREE_LOCK;
+    if (!IS_ITEM_NIL(tree, leaf->left)) {
+        result = get_maximum_leaf(tree, leaf->left);
+    }
+    else {
+        // Climb until we leave a right subtree, that parent is the predecessor.
+        parent = leaf->parent;
+        while (!IS_ITEM_NIL(tree, parent) && leaf == parent->left) {
+            leaf   = parent;
+            parent = parent->parent;
+        }
+        if (!IS_ITEM_NIL(tree, parent)) {
+            result = parent;
+        }
+    }
+    TREE_UNLOCK;
+    return result;
+}
+
+rb_leaf_t*
+rb_tree_floor(
+    _In_ rb_tree_t* tree,
+    _In_ void*      key)
+{
+    rb_leaf_t* i;
+    rb_leaf_t* best = NULL;
+    assert(tree != NULL);
+    assert(key != NULL);
+    
+    TREE_LOCK;
+    i = tree->root;
+    while (!IS_ITEM_NIL(tree, i)) {
+        int result = tree->cmp(i->key, key);
+        if (result == 0) {
+            best = i;
+            break;
+        }
+        
+        if (result < 0) {
+            best = i;
+            i = i->right;
+        }
+        else {
+            i = i->left;
+        }
+    }
+    TREE_UNLOCK;
+    return best;
+}
+
+rb_leaf_t*
+rb_tree_ceiling(
+    _In_ rb_tree_t* tree,
+    _In_ void*      key)
+{
+    rb_leaf_t* i;
+    rb_leaf_t* best = NULL;
+    assert(tree != NULL);
+    assert(key != NULL);
+    
+    TREE_LOCK;
+    i = tree->root;
+    while (!IS_ITEM_NIL(tree, i)) {
+        int result = tree->cmp(i->key, key);
+        if (result == 0) {
+            best = i;
+            break;
+        }
+        
+        if (result > 0) {
+            best = i;
+            i = i->left;
+        }
+        else {
+            i = i->right;
+        }
+    }
+    TREE_UNLOCK;
+    return best;
 }
 
 static void
@@ -432,16 +566,22 @@ rb_tree_remove(
     _In_ rb_tree_t* tree,
     _In_ void*      key)
 {
-    rb_leaf_t* leaf = rb_tree_lookup(tree, key);
+    rb_leaf_t* leaf;
     rb_leaf_t* temp;
     rb_leaf_t* i;
     int        temp_color;
+    assert(tree != NULL);
+    assert(key != NULL);
     
+    // The lookup and the unlink must share one critical section, otherwise
+    // a concurrent remove can unlink the same leaf between the two steps.
+    TREE_LOCK;
+    leaf = find_leaf(tree, key);
     if (!leaf) {
+        TREE_UNLOCK;
         return NULL;
     }
     
-    TREE_LOCK;
     temp = leaf;
     temp_color = temp->color;
     if (IS_ITEM_NIL(tree, leaf->left)) {
