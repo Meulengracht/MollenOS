@@ -129,3 +129,8 @@
 
 # Authenticated DMA binding setup.
 99     DmaAttachmentBind                    ScDmaAttachmentBind                    oserr_t   manager, parameters, bindingOut
+
+# DMA context and trusted group stopping mechanism.
+100    DmaOpenBound                         ScDmaOpenBound                         oserr_t   binding, parameters, contextOut
+101    DmaAttachmentPrepareStop             ScDmaAttachmentPrepareStop             oserr_t   manager, attachment, ticketOut
+102    DmaAttachmentCompleteStop            ScDmaAttachmentCompleteStop            oserr_t   manager, ticket

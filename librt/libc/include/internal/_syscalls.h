@@ -137,6 +137,9 @@ _CODE_END
 #define Syscall_DmaManagerReadEvents(manager, entries, capacity, countOut) (oserr_t)syscall4(97, SCPARAM(manager), SCPARAM(entries), SCPARAM(capacity), SCPARAM(countOut))
 #define Syscall_DmaAttachmentRemove(manager, attachment) (oserr_t)syscall2(98, SCPARAM(manager), SCPARAM(attachment))
 #define Syscall_DmaAttachmentBind(manager, parameters, bindingOut) (oserr_t)syscall3(99, SCPARAM(manager), SCPARAM(parameters), SCPARAM(bindingOut))
+#define Syscall_DmaOpenBound(binding, parameters, contextOut) (oserr_t)syscall3(100, SCPARAM(binding), SCPARAM(parameters), SCPARAM(contextOut))
+#define Syscall_DmaAttachmentPrepareStop(manager, attachment, ticketOut) (oserr_t)syscall3(101, SCPARAM(manager), SCPARAM(attachment), SCPARAM(ticketOut))
+#define Syscall_DmaAttachmentCompleteStop(manager, ticket) (oserr_t)syscall2(102, SCPARAM(manager), SCPARAM(ticket))
 // END GENERATED SYSCALL WRAPPERS
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

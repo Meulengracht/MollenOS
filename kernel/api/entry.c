@@ -53,6 +53,8 @@ DECL_STRUCT(OSDmaAttachmentParameters);
 DECL_STRUCT(OSDmaAttachmentId);
 DECL_STRUCT(OSDmaAttachmentEvent);
 DECL_STRUCT(OSDmaBindParameters);
+DECL_STRUCT(OSDmaBoundOpenParameters);
+DECL_STRUCT(OSDmaStopTicket);
 DECL_STRUCT(OSDmaBindingResult);
 
 struct MemoryMappingParameters;
@@ -179,6 +181,9 @@ extern oserr_t ScDmaAttachmentRegister(uuid_t, const OSDmaAttachmentParameters_t
 extern oserr_t ScDmaManagerReadEvents(uuid_t, OSDmaAttachmentEvent_t*, uint32_t, uint32_t*);
 extern oserr_t ScDmaAttachmentRemove(uuid_t, const OSDmaAttachmentId_t*);
 extern oserr_t ScDmaAttachmentBind(uuid_t, const OSDmaBindParameters_t*, OSDmaBindingResult_t*);
+extern oserr_t ScDmaAttachmentPrepareStop(uuid_t, const OSDmaAttachmentId_t*, OSDmaStopTicket_t*);
+extern oserr_t ScDmaAttachmentCompleteStop(uuid_t, const OSDmaStopTicket_t*);
+extern oserr_t ScDmaOpenBound(uuid_t, const OSDmaBoundOpenParameters_t*, uuid_t*);
 
 extern oserr_t ScDmaOpen(uuid_t, const struct OSDmaOpenParameters*, uuid_t*);
 extern oserr_t ScDmaAllocate(uuid_t, const struct DMARequirements*, struct OSDmaAllocationResult*);
@@ -195,7 +200,7 @@ extern oserr_t ScShmRegionBeginCpu(uuid_t, unsigned int, unsigned int, enum SHMC
 extern oserr_t ScShmRegionEndCpu(uuid_t, unsigned int, unsigned int);
 
 // BEGIN GENERATED SYSCALL COUNT - tools/generate_syscalls.py
-#define SYSTEM_CALL_COUNT 100
+#define SYSTEM_CALL_COUNT 103
 // END GENERATED SYSCALL COUNT
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
@@ -309,6 +314,9 @@ static struct SystemCallDescriptor {
     DefineSyscall(97, ScDmaManagerReadEvents),
     DefineSyscall(98, ScDmaAttachmentRemove),
     DefineSyscall(99, ScDmaAttachmentBind),
+    DefineSyscall(100, ScDmaOpenBound),
+    DefineSyscall(101, ScDmaAttachmentPrepareStop),
+    DefineSyscall(102, ScDmaAttachmentCompleteStop),
 // END GENERATED SYSCALL TABLE
 };
 
