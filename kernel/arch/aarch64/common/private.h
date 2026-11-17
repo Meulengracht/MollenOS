@@ -22,7 +22,9 @@
 #include <arch/aarch64/arch.h>
 #include <devicetree.h>
 #include <vboot/vboot.h>
+
 #include "abi.h"
+#include "its.h"
 
 // GICv2 distributor byte offsets: control, capabilities, groups, enable/disable,
 // pending clear, priorities, CPU targets, trigger configuration, and SGI request.
@@ -284,11 +286,16 @@ struct Arm64CpuLocal {
     uintptr_t             InterruptStackTop;
 };
 
+// Physical address range for one GIC hardware block, such as a redistributor.
 struct Arm64GicRegion {
     uint64_t Base;
     uint64_t Length;
 };
 
+// Firmware-reported layout of the ARM Generic Interrupt Controller (GIC).
+// Version is 2 or 3. Regions holds extra GICv3 blocks such as redistributors.
+// ItsCount and ItsControllers hold any GICv3 ITS units listed in ACPI MADT,
+// or zero and NULL on platforms without an ITS.
 struct Arm64GicDescription {
     uint64_t               Distributor;
     uint64_t               CpuInterface;
@@ -297,6 +304,8 @@ struct Arm64GicDescription {
     unsigned int           Version;
     unsigned int           RegionCount;
     struct Arm64GicRegion* Regions;
+    unsigned int           ItsCount;
+    Arm64ItsDescription_t* ItsControllers;
 };
 
 struct Arm64Platform {

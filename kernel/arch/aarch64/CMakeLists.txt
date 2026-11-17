@@ -27,6 +27,8 @@ set (AARCH64_SOURCES
     common/gicv3.c
     common/timer.c
     common/output.c
+    smmu/discovery.c
+    devicetree/smmu.c
 )
 
 # RPi uses device-tree discovery and adds its SoC interrupt controllers.
@@ -51,6 +53,13 @@ if (VALI_BUILD_FEATURE_ACPI)
         acpi/madt.c
         acpi/gtdt.c
         acpi/fadt.c
+        acpi/iort.c
+        acpi/iort-catalogue.c
+        acpi/iort-dma.c
+        acpi/iort-msi.c
+        smmu/iort.c
+        acpi/pci-dma.c
+        acpi/pci-irq.c
     )
 endif ()
 
