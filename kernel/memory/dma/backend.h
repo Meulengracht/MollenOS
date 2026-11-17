@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * IOMMU backend interface. Defines the unit limits, hardware callbacks, and
+ * address-space setup functions shared between generic DMA code and a platform
+ * IOMMU driver.
  */
 
 #ifndef __DMA_BACKEND_H__
@@ -22,24 +26,27 @@
 
 #include "iova.h"
 
-// Private to DMA. A unit is one IOMMU, the hardware that translates the
-// addresses a device uses into physical addresses. One unit can serve several
-// independent address spaces. A requester is the ID the unit sees on the memory
-// requests of a device, for example a PCI bus, device and function number.
+// Private to DMA. An IOMMU is hardware that sits between devices and RAM. When
+// a device accesses memory using a device address (an I/O virtual address, or
+// IOVA), the IOMMU translates it into a physical RAM address and checks read or
+// write permissions. One IOMMU unit can manage several separate address spaces.
+// Each device tags its memory traffic with a hardware ID, such as a PCI bus,
+// device, and function number, so the unit knows which address space to apply.
 DECL_STRUCT(DMAIOMMUUnit);
 
 /**
- * @brief Fixed limits that the backend picks before it creates a unit.
+ * @brief Fixed limits that a backend driver supplies before creating an IOMMU unit.
  *
- * Granularity is the size of one granule, the smallest block the IOMMU can map.
- * It must be a power of two and at least 4096 bytes. AddressLimit is the
- * highest device address (IOVA) the unit can translate. PhysicalLimit is the
- * highest physical address it can reach. Both limits are inclusive, and each
- * must leave room for one whole granule starting at zero.
+ * Granularity is the size of one granule, the smallest memory block the IOMMU
+ * can map (such as a 4 KiB page). It must be a power of two and at least 4096
+ * bytes. AddressLimit is the highest device address (IOVA) the unit can
+ * translate. PhysicalLimit is the highest physical RAM address it can reach.
+ * Both limits are inclusive, and each must leave room for at least one full
+ * granule starting at address zero.
  *
- * CompletionTimeoutNs is a time budget in nanoseconds and must not be zero.
- * All hardware waits inside one InstallMapping or RemoveMapping call share it.
- * It does not limit how long a thread waits for the unit mutex.
+ * CompletionTimeoutNs is a wait budget in nanoseconds and cannot be zero. Every
+ * hardware wait inside a single mapping or hardware ID connection call shares
+ * this budget. It does not cap how long a thread waits to acquire the unit lock.
  */
 typedef struct DMAIOMMUUnitConfig {
     uint64_t Granularity;
@@ -49,13 +56,13 @@ typedef struct DMAIOMMUUnitConfig {
 } DMAIOMMUUnitConfig_t;
 
 /**
- * @brief The device address of one mapping and the physical memory behind it.
+ * @brief Describes one device-address mapping and the physical memory behind it.
  *
- * The generic DMA code does not change this struct, or its own copy of the
- * extents, until DestroyMapping has finished. Extents cover whole granules in
- * buffer order. Their lengths add up to Length with no padding. Direction says
- * whether the device may read, write or both, as defined by DMADirection. The
- * device is never allowed to execute from the memory.
+ * Generic DMA code leaves this struct and its copy of Extents unchanged until
+ * DestroyMapping finishes. Extents is an array of physical memory chunks in
+ * buffer order. Each chunk covers whole granules, and their lengths add up to
+ * Length with no gaps. Direction states whether the device may read, write, or
+ * both, as defined by DMADirection. Devices are never given execute permission.
  */
 typedef struct DMAIOMMUMappingConfig {
     uint64_t          DeviceAddress;
@@ -66,86 +73,132 @@ typedef struct DMAIOMMUMappingConfig {
 } DMAIOMMUMappingConfig_t;
 
 /**
- * @brief The callbacks a backend provides for one unit.
+ * @brief Hardware callbacks that a backend driver provides for one IOMMU unit.
  *
- * The generic DMA code calls them one at a time while holding the unit mutex,
- * always from thread context. Every callback is required. A callback must not
- * call into SHM, attachment management, the IOVA allocator or any other generic
- * DMA operation, because those could take the unit mutex again or other locks
- * and deadlock. Calling DMAIOMMUUnitFail on the same unit is fine, because it
- * takes no mutex. The caller keeps the physical data pages valid. A callback
- * never frees those pages or IOVA ranges.
+ * Generic DMA code calls these one at a time while holding the unit lock,
+ * always from thread context so callbacks can sleep if needed. Every callback
+ * is required.
+ *
+ * A callback must never call back into shared-memory (SHM) code, attachment
+ * management, the IOVA allocator, or other generic DMA functions, because doing
+ * so can re-enter the unit lock or invert lock order and deadlock. Calling
+ * DMAIOMMUUnitFail on the same unit is safe, because it takes no lock. The
+ * caller keeps the physical memory pages valid until RemoveMapping finishes.
+ * A callback never frees those pages or releases IOVA ranges on its own.
  */
 typedef struct DMAIOMMUBackendOps {
-    // Allocate a new translation root, the top-level table of one address
-    // space. No requester can walk it yet. On error, undo any temporary work
-    // and leave the output (which starts out NULL) unchanged.
+    // Allocate the top-level page table (translation root) for one address
+    // space. No device hardware ID is routed to it yet. On error, undo any
+    // partial work and leave *spaceOut as NULL.
     oserr_t (*CreateSpace)(
         _In_    void*  unitContext,
         _InOut_ void** spaceOut);
 
-    // Free the space using software only. This must not allocate. All mappings
-    // and requester references must be gone before it runs. Shared table pages
-    // are freed here.
+    // Free the address space using software cleanup only. Must not allocate
+    // memory. Every mapping and hardware ID connection must already be gone.
+    // Intermediate page-table pages shared across mappings are freed here.
     void (*DestroySpace)(
         _In_ void* unitContext,
         _In_ void* space);
 
-    // Allocate everything the mapping needs (table pages, commands and
-    // completion tracking) without making any translation visible to the
-    // device. On error, free the temporary work and leave mappingOut NULL. The
-    // record may keep pointers into config. Reject unsupported permissions here.
-    // Look up the shared table pages in InstallMapping instead, because
-    // prepared mappings can be installed in any order. Once a shared page is
-    // visible to the hardware, it stays until DestroySpace.
+    // Allocate everything the mapping needs (page-table pages, command entries,
+    // and completion tracking) without making the mapping visible to any device.
+    // On error, free temporary work and leave *mappingOut as NULL. The backend
+    // may keep pointers into config, because config stays valid until
+    // DestroyMapping. Reject unsupported permissions here. Look up shared
+    // intermediate table pages in InstallMapping instead of here, because two
+    // prepared mappings can be installed in any order. Once a shared table page
+    // is visible to the hardware, keep it until DestroySpace.
     oserr_t (*PrepareMapping)(
         _In_    void*                          space,
         _In_    const DMAIOMMUMappingConfig_t* config,
         _InOut_ void**                         mappingOut);
 
-    // Called once per mapping. OS_EOK means the whole mapping is visible with
-    // exactly the requested permissions. On every error, keep a record in the
-    // mapping of the entries already changed, the commands already submitted
-    // and the completion tokens still pending. Do not allocate.
+    // Install a prepared mapping. Called at most once per mapping. Returning
+    // OS_EOK promises the full mapping is visible with the exact permissions
+    // requested. On any error, keep a record inside the mapping of entries
+    // already written, commands already submitted, and completions still
+    // pending, so RemoveMapping can undo them. Must not allocate memory.
     oserr_t (*InstallMapping)(
         _In_ void*    space,
         _In_ void*    mapping,
         _In_ uint64_t timeoutNs);
 
-    // Undo the entries installed so far and wait until the hardware confirms
-    // that it dropped its cached translations. A retry continues the saved
-    // work, including install commands that are still pending. OS_EOK means
-    // no translation or pending command can still reach the old memory, and no
-    // command or completion can touch the mapping, its config or its extent
-    // copy later. Stopping the device is the caller's job and must happen
-    // before this call. Do not allocate.
+    // Remove every entry installed so far and wait until the hardware confirms
+    // it has dropped its cached address translations (TLB entries). Retries
+    // pick up from the saved progress, including install commands that were
+    // still pending. Returning OS_EOK promises that no translation or pending
+    // command can still reach the old RAM, and that no hardware work will touch
+    // the mapping, config, or extent copy afterward. The caller must stop the
+    // device before calling this. Must not allocate memory.
     oserr_t (*RemoveMapping)(
         _In_ void*    space,
         _In_ void*    mapping,
         _In_ uint64_t timeoutNs);
 
-    // Free the record using software only. This cannot fail and must not
-    // allocate. It accepts a record that was only prepared, or one whose
-    // RemoveMapping has finished. Afterwards the backend must hold no pointer
-    // to the record's storage. Private table pages that no entry uses are
-    // freed here. Shared pages stay with the space.
+    // Free the mapping record using software cleanup only. Cannot fail and
+    // must not allocate memory. Accepts either a mapping that was only prepared
+    // or one whose RemoveMapping succeeded. Afterward the backend must hold no
+    // pointer into the mapping's storage. Private page-table pages that no
+    // other entry uses are freed here. Shared table pages stay with the space.
     void (*DestroyMapping)(
         _In_ void* space,
         _In_ void* mapping);
+
+    // Reserve the full set of unit-local hardware IDs and allocate all
+    // connection tracking data without changing any hardware routes. Copy the
+    // IDs or rely on the caller's list staying valid until DestroyHardwareIDs.
+    // On error, undo partial work and leave *connectionOut as NULL. Two spaces
+    // on the same unit cannot reserve the same hardware ID at once, even across
+    // different DMA managers. Keep reservations until DestroyHardwareIDs.
+    oserr_t (*PrepareHardwareIDs)(
+        _In_    void*           space,
+        _In_    const uint32_t* hardwareIDs,
+        _In_    uint32_t        hardwareIDCount,
+        _InOut_ void**          connectionOut);
+
+    // Route every reserved hardware ID to this address space's top-level table.
+    // Called once while the devices are idle with no DMA transfers running. On
+    // any error, save partial table and command progress so
+    // DisconnectHardwareIDs can clean up later. Must not allocate memory.
+    oserr_t (*ConnectHardwareIDs)(
+        _In_ void*    space,
+        _In_ void*    connection,
+        _In_ uint64_t timeoutNs);
+
+    // Disconnect a complete or partial hardware ID connection. Retries pick up
+    // from saved progress. Returning OS_EOK promises that no reserved hardware
+    // ID, cached route, pending command, or in-flight page-table lookup can
+    // still reach the old top-level table. The caller must stop all DMA
+    // transfers on the devices first. Must not allocate or free data pages.
+    oserr_t (*DisconnectHardwareIDs)(
+        _In_ void*    space,
+        _In_ void*    connection,
+        _In_ uint64_t timeoutNs);
+
+    // Release hardware ID reservations and connection tracking data after
+    // preparation alone or after a completed disconnect. Software cleanup only.
+    // Cannot fail, allocate memory, or submit hardware commands.
+    void (*DestroyHardwareIDs)(
+        _In_ void* space,
+        _In_ void* connection);
 } DMAIOMMUBackendOps_t;
 
 /**
- * @brief Copy a backend configuration and set up the unit's mutex and failure state.
+ * @brief Creates a new IOMMU unit from a backend configuration and callbacks.
  *
  * No hardware is touched and no device routing changes. Keep unitContext and
- * the resources it points to valid until unit destruction succeeds. A NULL
- * context is allowed for a backend that does not need one. The config and the
- * callbacks are copied, so the caller can free them after this returns.
+ * the resources it points to valid until unit destruction succeeds. Pass NULL
+ * for unitContext if the backend needs no context. Both config and ops are
+ * copied, so the caller can free them as soon as this returns.
  *
- * @param unitOut Address of a pointer that must be NULL. Unchanged on error.
- * @return OS_EOK, OS_EINVALPARAMS for a missing input or callback or invalid
- *         limits, OS_EBUSY if *unitOut is not NULL, or OS_EOOM if allocation
- *         failed.
+ * @param config      Hardware limits and wait budget for the unit.
+ * @param ops         Backend callbacks. Every callback pointer must be non-NULL.
+ * @param unitContext Opaque pointer passed to CreateSpace and DestroySpace.
+ * @param unitOut     Pointer to a NULL slot that receives the new unit. Unchanged on error.
+ * @return OS_EOK on success, OS_EINVALPARAMS for missing inputs, missing
+ *         callbacks, or invalid limits, OS_EBUSY if *unitOut is not NULL, or
+ *         OS_EOOM if allocation fails.
  */
 KERNELABI oserr_t KERNELAPI
 DMAIOMMUUnitCreate(
@@ -155,18 +208,20 @@ DMAIOMMUUnitCreate(
     _InOut_ DMAIOMMUUnit_t**            unitOut);
 
 /**
- * @brief Permanently stop new work on every address space this unit serves.
+ * @brief Permanently halts new work on every address space this IOMMU unit serves.
  *
- * Records the first reason that is not OS_EOK and logs it. This runs in thread
- * context and takes no mutex, so a callback that already holds the unit mutex
- * can call it. A backend must call it before it returns an error that means
- * the ordering or completion state shared by its mappings can no longer be
- * trusted. A single pending command that times out does not need to fail the
- * unit. This does not stop any device, and a failed unit cannot be reset. Keep
- * a reference to the unit or one of its spaces alive during the call.
+ * Records the first failure reason that is not OS_EOK and logs it. Runs in
+ * thread context without taking the unit lock, so a backend callback that
+ * already holds the unit lock can call it safely. A backend must call this
+ * before returning any error that means the IOMMU lost command ordering or can
+ * no longer report completions reliably across mappings. A single command
+ * timeout on its own does not need to fail the unit.
  *
- * @param unit Unit that has not been destroyed. NULL is a logged programming error.
- * @param reason Why the unit failed. OS_EOK is a logged programming error.
+ * This does not stop any physical device, and a failed unit cannot be reset.
+ * Keep a reference to the unit or one of its address spaces alive during the call.
+ *
+ * @param unit   Live unit that has not been destroyed. NULL logs a programming error.
+ * @param reason Error explaining why the unit failed. OS_EOK logs a programming error.
  */
 KERNELABI void KERNELAPI
 DMAIOMMUUnitFail(
@@ -174,43 +229,45 @@ DMAIOMMUUnitFail(
     _In_ oserr_t         reason);
 
 /**
- * @brief Free a unit that no space uses. The backend resources stay with its creator.
+ * @brief Frees an IOMMU unit once no address space uses it.
  *
- * First stop new calls into the unit and wait for running calls to return. A
- * space count of zero is not enough on its own, because a destructor on another
- * thread may have lowered the count without returning yet.
+ * The backend's own hardware resources stay with the caller that created them.
+ * Before calling this, stop all new calls into the unit and wait for any running
+ * calls to finish. Checking that the unit's space count is zero is not enough
+ * on its own, because a destructor on another thread may have decremented the
+ * count just before returning.
  *
- * @param unit Set to NULL only on success. Nothing happens if unit or *unit is NULL.
- * @return OS_EOK, or OS_EBUSY while any space remains. That includes a space
- *         whose cleanup did not finish.
+ * @param unit Address of the unit pointer. Cleared to NULL only on success.
+ *             Does nothing if unit or *unit is NULL.
+ * @return OS_EOK on success, or OS_EBUSY while any address space remains
+ *         (including one whose cleanup did not finish).
  */
 KERNELABI oserr_t KERNELAPI
 DMAIOMMUUnitDestroy(
     _InOut_ DMAIOMMUUnit_t** unit);
 
 /**
- * @brief Create an address space for a domain, with an IOVA allocator and a new translation root.
+ * @brief Creates a translated address space with an IOVA allocator and a top-level table.
  *
- * A domain is a group of devices that share one address space. The space holds
- * the device addresses (IOVAs) the domain may use and the tables that map them
- * to physical memory. The new root is not visible to any device yet.
+ * All devices in a domain share one address space. The space holds the device
+ * addresses (IOVAs) those devices can use and the page tables that translate them
+ * into physical memory. No device hardware ID is routed to the new table yet.
  *
- * The granularity in config must equal the unit granularity, and its Bounds
- * must fit within AddressLimit. Reserved ranges are handled as described for
- * DMAIOVAAllocatorCreate and are copied during this call. No requester is
- * connected here. A requester attachment added later must hold a space
- * reference until the requester is disconnected and the hardware has finished
- * any reads of the tables.
+ * The granule size in config must match the unit's granularity, and its Bounds
+ * must fit within AddressLimit. Reserved IOVA ranges follow the rules of
+ * DMAIOVAAllocatorCreate and are copied during this call. An attachment added
+ * later must keep a reference to this space until its hardware ID is
+ * disconnected and the hardware has finished all table lookups.
  *
- * @param unit Unit that has not been destroyed. The caller keeps it alive for the whole call.
- * @param config Left unchanged by the caller until this returns.
- * @param spaceOut Address of a pointer that must be NULL. On success it receives
- *                 the space with one reference.
- * @return OS_EOK, OS_EINVALPARAMS for invalid inputs, OS_EBUSY if *spaceOut is
- *         not NULL, OS_ECANCELLED for a failed unit, OS_EOVERFLOW for a count or
- *         size overflow, or an allocator or backend error. The output is
- *         unchanged on error. If the backend fails while the unit also fails,
- *         the backend error is returned.
+ * @param unit     Live unit that stays valid throughout this call.
+ * @param config   IOVA allocator settings, kept unchanged until this returns.
+ * @param spaceOut Address of a NULL pointer that receives the space with one
+ *                 reference on success. Unchanged on error.
+ * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs, OS_EBUSY if
+ *         *spaceOut is not NULL, OS_ECANCELLED if the unit has failed,
+ *         OS_EOVERFLOW for a count or size overflow, or an allocator or backend
+ *         error. If the backend fails while the unit also fails, the backend
+ *         error is returned.
  */
 KERNELABI oserr_t KERNELAPI
 DMAAddressSpaceCreateTranslated(

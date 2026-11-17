@@ -14,18 +14,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * IOMMU units. An IOMMU unit is the kernel's record of one IOMMU hardware
- * block. It holds the limits of that block and the backend callbacks that
- * program it. Several address spaces can share one unit. A unit that has
- * failed refuses all new work.
+ * IOMMU units. An IOMMU sits between devices and RAM, translating the device
+ * addresses (IOVAs) used in DMA into physical memory addresses and checking
+ * permissions. An IOMMU unit is the kernel's record of one IOMMU hardware block.
+ * It stores the hardware limits and the backend callbacks that program it.
+ * Several address spaces can share one unit, and a failed unit refuses all new
+ * work.
  */
 
 #include <debug.h>
 #include <heap.h>
 #include "private.h"
 
-// The IOMMU maps memory in blocks called granules. The smallest granule this
-// code accepts is 4 KiB.
+// Smallest memory block (granule) the IOMMU can map: 4 KiB.
 #define __DMA_IOMMU_MIN_GRANULE 4096ULL
 
 oserr_t
@@ -47,9 +48,9 @@ DMAIOMMUUnitCreate(
         return OS_EBUSY;
     }
 
-    // The granule must be a power of two. The address and physical limits must
-    // each be large enough for the first granule, which starts at address zero.
-    // Every callback is required.
+    // Granularity must be a power of two and at least 4 KiB. AddressLimit and
+    // PhysicalLimit are inclusive max addresses, so each must reach at least
+    // Granularity - 1 (room for one whole granule starting at zero).
     if (config == NULL || ops == NULL ||
         config->Granularity < __DMA_IOMMU_MIN_GRANULE ||
         (config->Granularity & (config->Granularity - 1)) != 0 ||
@@ -58,7 +59,9 @@ DMAIOMMUUnitCreate(
         config->CompletionTimeoutNs == 0 ||
         ops->CreateSpace == NULL || ops->DestroySpace == NULL ||
         ops->PrepareMapping == NULL || ops->InstallMapping == NULL ||
-        ops->RemoveMapping == NULL || ops->DestroyMapping == NULL) {
+        ops->RemoveMapping == NULL || ops->DestroyMapping == NULL ||
+        ops->PrepareHardwareIDs == NULL || ops->ConnectHardwareIDs == NULL ||
+        ops->DisconnectHardwareIDs == NULL || ops->DestroyHardwareIDs == NULL) {
         ERROR("DMAIOMMUUnitCreate: invalid unit config %p or backend ops %p", (void*)config, (void*)ops);
         return OS_EINVALPARAMS;
     }
@@ -69,8 +72,7 @@ DMAIOMMUUnitCreate(
         return OS_EOOM;
     }
 
-    // Config and ops are copied, so the backend can free its own copies after
-    // this call returns.
+    // Copy config and ops so the caller can free its own copies right away.
     MutexConstruct(&unit->Lock, MUTEX_FLAG_PLAIN);
     atomic_init(&unit->Failure, OS_EOK);
     unit->Spaces = 0;
@@ -95,9 +97,9 @@ DMAIOMMUUnitFail(
     }
 
     // A backend callback may already hold Lock, and a fault handler on
-    // another thread can report a failure as well. So the reason is stored
-    // with an atomic compare and never takes the lock. Only the first reason
-    // is kept. New work checks this value and is refused once it is set.
+    // another thread can report a failure too. Store the first failure reason
+    // with an atomic compare-and-swap without taking Lock. All new work checks
+    // this value and stops once a failure is recorded.
     if (atomic_compare_exchange_strong(&unit->Failure, &expected, reason)) {
         ERROR("DMAIOMMUUnitFail: unit %p failed: %u", (void*)unit, reason);
     }

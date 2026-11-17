@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Driver bindings for DMA attachments. Handles creating and publishing binding
+ * handles for drivers, attaching shared-memory (SHM) device contexts, and
+ * checking whether a recovery group is healthy when DMA operations start.
  */
 
 #include <assert.h>
@@ -43,6 +47,8 @@ DMABindingCloseLocked(
     }
 }
 
+// Handle close callback invoked when the driver closes its binding handle.
+// Blocks the recovery group and cancels any attached SHM context.
 static void
 __CloseBinding(
     _In_ void* resource)
@@ -99,13 +105,16 @@ __DeleteBinding(
     DMAManagerRelease(&manager);
 }
 
-// Hold manager->Lock. The group lock may be held too. A device in a domain can
-// only be bound after every device listed in the domain has a published
-// attachment. All bindings in a domain must come from the same owner security
-// ID (process security identity), and the first published binding sets it.
-// Returns OS_EBUSY if the domain is Closing or not complete yet,
-// OS_EPERMISSIONS for a different owner security ID, or the unit failure from
-// DMAAddressSpaceCheck.
+// Hold manager->Lock (group->Lock may be held too). A device in a domain can
+// only bind once every device in that domain has a published attachment and
+// the domain's hardware ID connection has completed. Every binding in a domain
+// must belong to the same process security identity (ownerSecurityID), set by
+// the first member that binds.
+//
+// Returns OS_EBUSY if the domain is Closing, not Connected, or still waiting
+// for members. Returns OS_EPERMISSIONS if another process already owns the
+// domain, or the unit error from DMAAddressSpaceCheck if any domain in the
+// same recovery group sits on a failed IOMMU unit.
 static oserr_t
 __CheckDomainBindingLocked(
     _In_ DMAAttachment_t* attachment,
@@ -115,7 +124,8 @@ __CheckDomainBindingLocked(
     oserr_t                status;
 
     if (domain != NULL) {
-        if (domain->State != DMATranslatedDomainReady || domain->Members != domain->DeviceCount) {
+        if (domain->State != DMATranslatedDomainReady ||
+            domain->ConnectionState != DMAConnectionConnected || domain->Members != domain->DeviceCount) {
             return OS_EBUSY;
         }
 
@@ -141,10 +151,10 @@ __CheckDomainBindingLocked(
     return OS_EOK;
 }
 
-// Call with no manager or group lock held. If a unit has failed, this blocks
-// and cancels the recovery groups that depend on it. An error is only logged,
-// so the caller still returns the result of its own binding step. The groups
-// stay blocked and their events stay queued, so a later call can retry.
+// Call with no manager or group lock held. Scans the manager's domains and
+// blocks and cancels any recovery group tied to a failed IOMMU unit. Errors
+// are only logged so the caller still gets the result of its own binding step.
+// Blocked groups and queued events stay in place so a later call can retry.
 static void
 __BlockFailedUnitGroupsForBinding(
     _In_ DMAManager_t* manager)
@@ -156,6 +166,8 @@ __BlockFailedUnitGroupsForBinding(
     }
 }
 
+// Hold manager->Lock. Returns true when the attachment has an active binding
+// whose recovery group is also Live.
 static bool
 __IsBindingLive(
     _In_ DMAAttachment_t* attachment,
@@ -208,14 +220,15 @@ __GroupHasBindingsOrEventsLocked(
     return false;
 }
 
-// Requires manager->Lock and UpdateLock. Makes sure the attachment's recovery
-// group is Live, so a new binding can be created. A group that was stopped and
-// cleaned can only be reused after every old binding and waiting event in the
-// group is gone. The stop round counter (Round) is advanced before switching
-// back to Live, so old stop tickets can never match the new session.
-// Returns OS_ECANCELLED if the group is still stopping, OS_EBUSY if the group
-// is not ready for reuse, OS_EOVERFLOW if the stop round counter is exhausted,
-// or the error from __CheckDomainBindingLocked.
+// Hold manager->Lock and UpdateLock. Ensures the attachment's recovery group is
+// Live so a new binding can start. A stopped and cleaned group can only go
+// Live again once every old binding and waiting event in the group is cleared.
+// Advancing Stop.Round before switching back to Live ensures old stop tickets
+// can never match the new session.
+//
+// Returns OS_EBUSY if the group is still stopping or not ready for reuse,
+// OS_EOVERFLOW if Stop.Round is exhausted, or the error from
+// __CheckDomainBindingLocked.
 static oserr_t
 __MakeGroupLiveLocked(
     _In_ DMAManager_t*    manager,
@@ -1019,6 +1032,7 @@ DMABindingCheckOperation(
     return status;
 }
 
+// Blocks the binding's recovery group and cancels all open SHM contexts in it.
 void
 DMABindingRevoke(
     _In_ DMABinding_t* binding)

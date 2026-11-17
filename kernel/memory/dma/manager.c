@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * DMA manager and attachment registry. Handles creating and closing the
+ * manager handle, validating device configurations, and preparing, publishing,
+ * or removing direct and translated device attachments.
  */
 
 #include <assert.h>
@@ -567,15 +571,17 @@ __CheckRecoveryUpdateLocked(
     return status;
 }
 
-// Hold manager->Lock and UpdateLock. For a translated registration, selected
-// is the domain the device joins. It must belong to this manager, be Ready,
-// list the device, and sit on a unit that has not failed. For a direct
-// registration, selected is NULL. A direct device cannot reuse the
-// RequesterGroup or device ID of any domain. This includes a Closing domain
-// whose destruction failed, because it keeps its IDs reserved until it is gone.
-// Returns OS_EINVALPARAMS for a wrong manager or a device that is not in the
-// domain, OS_EBUSY for a Closing domain or a reserved ID, or the unit failure
-// from DMAAddressSpaceCheck.
+// Hold manager->Lock and UpdateLock. Checks whether an attachment fits with
+// registered domains. For a translated attachment, selected is the domain the
+// device is joining. That domain must belong to this manager, be Ready and
+// Connected, list the device, and sit on a healthy IOMMU unit.
+//
+// For a direct attachment, selected is NULL. A direct device cannot share a
+// RequesterGroup or device ID with any domain, including a Closing domain whose
+// cleanup failed, because Closing domains keep their IDs reserved until gone.
+// Returns OS_EINVALPARAMS for a wrong manager or unlisted device, OS_EBUSY for
+// a Closing/unconnected domain or reserved ID, or the unit failure from
+// DMAAddressSpaceCheck.
 static oserr_t
 __CheckAttachmentDomainLocked(
     _In_ DMAManager_t*                      manager,
@@ -591,9 +597,11 @@ __CheckAttachmentDomainLocked(
             return OS_EINVALPARAMS;
         }
 
-        if (selected->State != DMATranslatedDomainReady) {
-            WARNING("__CheckAttachmentDomainLocked: domain %p is not ready for device %u, state %u",
-                    (void*)selected, parameters->Device, (uint32_t)selected->State);
+        if (selected->State != DMATranslatedDomainReady ||
+            selected->ConnectionState != DMAConnectionConnected) {
+            WARNING("__CheckAttachmentDomainLocked: domain %p is not ready for device %u, state %u, connection %u",
+                    (void*)selected, parameters->Device, (uint32_t)selected->State,
+                    (uint32_t)selected->ConnectionState);
             return OS_EBUSY;
         }
 
@@ -633,12 +641,14 @@ __CheckAttachmentDomainLocked(
 }
 
 // Hold manager->Lock and UpdateLock. Publishing an attachment can merge
-// recovery groups, which puts direct devices and domain devices that share a
+// recovery groups, putting direct devices and domain devices that share a
 // requester or reset key into one group. Check the address space of every
-// domain involved right before the groups are swapped, so a group never joins
-// a failed unit unnoticed. Removal checks the gate of the recovery group
-// instead. That way a domain whose unit failed and was fully cleaned can still
-// lose its attachments and be destroyed.
+// involved domain right before swapping groups so a healthy group never joins
+// a failed unit unnoticed.
+//
+// Removal checks the recovery group's gate instead of domain health, so a
+// domain on a failed unit can still lose its attachments and be destroyed once
+// cleanup finishes.
 static oserr_t
 __CheckAttachmentPublicationLocked(
     _In_ DMAAttachmentRegistration_t* prepared)
@@ -666,11 +676,11 @@ __CheckAttachmentPublicationLocked(
     );
 }
 
-// Call without manager->Lock held. UpdateLock may be held. If a unit has
-// failed, this blocks and cancels the recovery groups that depend on it. An
-// error here is only logged, so the caller still returns the result of its own
-// attachment step. The affected groups stay blocked and their events stay
-// queued, so a later call can retry the cancellation.
+// Call without manager->Lock held (UpdateLock may be held). Scans the
+// manager's domains and blocks and cancels any recovery group tied to a failed
+// IOMMU unit. Errors are only logged so the caller still receives the result of
+// its own attachment step. Blocked groups and queued events stay in place so a
+// later call can retry.
 static void
 __BlockFailedUnitGroupsForAttachment(
     _In_ DMAManager_t* manager)
@@ -1029,6 +1039,11 @@ DMAManagerRemoveAttachment(
     DMAAttachment_t*     removedAttachment;
     oserr_t              status;
 
+    // Removal runs in three steps:
+    // 1. Under UpdateLock and Lock, find the attachment while the manager is live.
+    // 2. Drop Lock and compute the updated recovery groups (allocates memory).
+    // 3. Re-acquire Lock, confirm no queued events, bindings, or active
+    //    operations appeared during step 2, then swap the groups and unlink.
     if (attachmentID == 0) {
         WARNING("DMAManagerRemoveAttachment: invalid attachment ID 0 for manager %u", manager->ID);
         return OS_EINVALPARAMS;

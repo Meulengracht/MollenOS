@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Internal DMA manager structures and helpers. Covers the manager registry,
+ * recovery groups, driver bindings, event queues, and translated domain
+ * connections shared across files in kernel/memory/dma/.
  */
 
 #ifndef __DMA_ATTACHMENT_PRIVATE_H__
@@ -28,12 +32,21 @@ DECL_STRUCT(MSContextSecurity);
 DECL_STRUCT(DMABinding);
 DECL_STRUCT(DMAAttachment);
 
+// Lifecycle states for a DMA manager handle.
+// Preparing: allocated and registered globally, waiting for DMAManagerPublish.
+// Live:      open and accepting attachment, domain, and binding requests.
+// Closed:    shutting down or closed. Refuses new requests and stops all groups.
 enum DMAManagerState {
     DMAManagerPreparing,
     DMAManagerLive,
     DMAManagerClosed
 };
 
+// Gate states controlling whether drivers in a recovery group can start DMA.
+// Live:          normal operation. New DMA operations can begin.
+// Blocked:       stop requested. New operations are refused while running ones drain.
+// StopConfirmed: all drivers in the group stopped and cancelled their contexts.
+// StopCleaned:   shared-memory cleanup ran after the stop. Ready to become Live again.
 enum DMARecoveryState {
     DMARecoveryLive,
     DMARecoveryBlocked,
@@ -110,22 +123,49 @@ typedef struct DMAAttachmentRegistry {
     uint64_t NextBindingGeneration;
 } DMAAttachmentRegistry_t;
 
+// Lifecycle states for a translated domain.
+// Ready:   accepting attachments and bindings (once its connection is Connected).
+// Closing: destruction started. Keeps its IDs reserved until cleanup succeeds.
 enum DMATranslatedDomainState {
     DMATranslatedDomainReady,
     DMATranslatedDomainClosing
 };
 
+// Hardware routing state for a domain's reserved hardware IDs.
+// Prepared:      IDs reserved in software. No hardware routes changed yet.
+// Connecting:    ConnectHardwareIDs is running (or failed partway through).
+// Connected:     every hardware ID points to the domain's address space.
+// Disconnecting: DisconnectHardwareIDs is running (or failed partway through).
+// Disconnected:  hardware routes are cleared. Ready for software-only cleanup.
+enum DMAConnectionState {
+    DMAConnectionPrepared,
+    DMAConnectionConnecting,
+    DMAConnectionConnected,
+    DMAConnectionDisconnecting,
+    DMAConnectionDisconnected
+};
+
 /**
- * @brief A registered domain: devices and requesters that share one address space.
+ * @brief A registered domain: devices and hardware IDs that share one IOMMU address space.
  *
- * Manager->Lock protects State, Members and OwnerSecurityID. Hold UpdateLock to
- * change the membership or destroy the domain, so only one such change runs at
- * a time. The requester and device sets and the address and cache limits never
- * change. Attachments keep the record alive through their own binding rules.
- * A Closing domain has no attachments. Its identities stay reserved while the
- * space is destroyed outside the manager locks. Recovery code must skip a
- * Closing domain before it reads AddressSpace. The record holds one manager
- * reference and the creator's reference to the space.
+ * Manager->Lock protects State, Members, and OwnerSecurityID. Hold UpdateLock to
+ * change membership or destroy the domain, so only one membership change runs
+ * at a time. The HardwareIDs and Devices arrays, AddressLimit, and CachePolicy
+ * never change after creation. Attachments keep the domain alive through
+ * Members and their binding rules.
+ *
+ * A Closing domain has zero member attachments. Its device IDs, hardware IDs,
+ * and RequesterGroup stay reserved while DMATranslatedDomainDestroy tears down
+ * the connection and address space outside manager locks. Recovery code must
+ * skip any Closing domain before reading AddressSpace, because the space may
+ * already be freed.
+ *
+ * The domain holds one manager reference and the creator's reference to
+ * AddressSpace. ConnectionSpace holds a second address-space reference until
+ * hardware ID cleanup finishes, so page tables stay allocated while hardware
+ * may still use them. While Ready, manager->Lock protects ConnectionState.
+ * Before registration and after Closing, only the single-threaded create or
+ * destroy caller touches connection fields.
  */
 struct DMATranslatedDomain {
     element_t                     Link;
@@ -133,17 +173,55 @@ struct DMATranslatedDomain {
     DMAIOMMUUnit_t*               Unit;
     struct DMAAddressSpace*       AddressSpace;
     enum DMATranslatedDomainState State;
+    enum DMAConnectionState       ConnectionState;
+    void*                        Connection;
+    struct DMAAddressSpace*       ConnectionSpace;
     uuid_t                        Host;
     uint64_t                      RequesterGroup;
     enum SHMDeviceCachePolicy     CachePolicy;
     uint64_t                      AddressLimit;
     uint64_t                      OwnerSecurityID;
     uint32_t                      Members;
-    uint32_t                      RequesterCount;
-    uint32_t*                     Requesters;
+    uint32_t                      HardwareIDCount;
+    uint32_t*                     HardwareIDs;
     uint32_t                      DeviceCount;
     uuid_t*                       Devices;
 };
+
+/**
+ * @brief Reserves the domain's full hardware ID set before registering the domain.
+ *
+ * Call without manager or group locks held. Takes an extra reference on the
+ * address space before calling the backend. Even if the IOMMU unit fails during
+ * preparation, the backend may still return a prepared connection. Always call
+ * DMAConnectionDestroy before discarding the domain.
+ *
+ * @param domain Newly created domain with a valid AddressSpace and HardwareIDs.
+ * @return OS_EOK on success, or an address-space or backend error.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAConnectionPrepare(
+    _In_ DMATranslatedDomain_t* domain);
+
+/**
+ * @brief Disconnects hardware IDs, frees connection tracking, and drops ConnectionSpace.
+ *
+ * The domain must be unregistered or Closing, with no concurrent create or
+ * destroy calls. Call without manager or group locks held. A Prepared
+ * connection has touched no hardware routes yet, so software cleanup alone runs
+ * even on a failed unit. Other states require disconnecting the hardware IDs
+ * while the unit stays healthy.
+ *
+ * On error, keep the connection, hardware ID reservations, and ConnectionSpace
+ * reference intact so the caller can retry later. Returns OS_EOK immediately
+ * when Connection is NULL.
+ *
+ * @param domain Valid domain whose hardware ID connection should be torn down.
+ * @return OS_EOK on success, or an error if disconnecting fails or the unit failed.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAConnectionDestroy(
+    _In_ DMATranslatedDomain_t* domain);
 
 /**
  * @brief Top-level DMA manager handle and registry.
@@ -182,6 +260,7 @@ typedef struct DMAAttachmentEventState {
     bool                   Queued;
 } DMAAttachmentEventState_t;
 
+// Lifecycle states for a driver's binding handle to an attachment.
 enum DMABindingState {
     DMABindingPreparing,
     DMABindingLive,
@@ -204,6 +283,7 @@ typedef struct DMAAttachmentBindingState {
     uint64_t      Generation;
 } DMAAttachmentBindingState_t;
 
+// Tracks whether a shared-memory DMA context is attached to a binding.
 enum DMABindingContextPhase {
     DMABindingContextNone,
     DMABindingContextPreparing,
@@ -425,6 +505,9 @@ DMABindingCloseLocked(
  * @brief Increments a recovery group's internal reference count if it is nonzero.
  *
  * Requires an existing reference or manager->Lock protecting the group in the registry.
+ *
+ * @param group Recovery group to reference.
+ * @return OS_EOK on success, or an error if the group has no remaining references.
  */
 KERNELABI oserr_t KERNELAPI
 DMARecoveryGroupAcquire(
@@ -435,6 +518,8 @@ DMARecoveryGroupAcquire(
  *
  * Call outside manager->Lock and group->Lock. Before the final reference drops,
  * the group must be removed from the registry with zero active operations.
+ *
+ * @param group Address of the group pointer. Cleared to NULL.
  */
 KERNELABI void KERNELAPI
 DMARecoveryGroupRelease(
@@ -444,7 +529,11 @@ DMARecoveryGroupRelease(
  * @brief Blocks the whole recovery group and closes its bindings under manager->Lock.
  *
  * Takes group->Lock internally and queues STOP_REQUIRED events without
- * allocating memory. Leaves SHM cancellation for DMARecoveryCancel outside locks.
+ * allocating memory. Leaves shared-memory (SHM) cancellation for
+ * DMARecoveryCancel outside locks.
+ *
+ * @param manager Manager holding the group.
+ * @param group   Recovery group to block.
  */
 KERNELABI void KERNELAPI
 DMARecoveryBlockLocked(
@@ -452,22 +541,26 @@ DMARecoveryBlockLocked(
     _In_ DMARecoveryGroup_t* group);
 
 /**
- * @brief Cancels all SHM contexts in a blocked recovery group.
+ * @brief Cancels all shared-memory (SHM) contexts in a blocked recovery group.
  *
  * Call outside manager->Lock and group->Lock with a valid group reference.
  * Only one cancel pass runs at a time. If another request arrives mid-pass,
  * the loop runs again. A failed pass keeps CompleteStop from confirming cleanup.
+ *
+ * @param group Blocked recovery group whose contexts should cancel.
  */
 KERNELABI void KERNELAPI
 DMARecoveryCancel(
     _In_ DMARecoveryGroup_t* group);
 
 /**
- * @brief Drop the global registry's reference to a closed manager that has nothing registered.
+ * @brief Drops the global registry's reference to an empty closed manager.
  *
  * Call without manager->Lock or UpdateLock held, and while holding another
- * manager reference. Nothing happens if the manager is still open. Registered
+ * manager reference. Does nothing if the manager is still open. Registered
  * attachments and domains also keep the global entry in place.
+ *
+ * @param manager Closed manager to check and detach.
  */
 KERNELABI void KERNELAPI
 DMAManagerDetachClosed(
