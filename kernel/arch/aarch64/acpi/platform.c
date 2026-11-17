@@ -23,8 +23,10 @@
 #include <component/ic.h>
 #include <machine.h>
 #include <debug.h>
+
 #include "spcr.h"
 #include "tables.h"
+#include "iort.h"
 
 static void
 __PublishCores(
@@ -33,10 +35,11 @@ __PublishCores(
     PlatformCpuCoreBlock_t* core;
     unsigned int            logicalId = 1;
 
-    // Logical core 0 is the CPU we are running on, and its TLS and scheduler
-    // state is already set up. MADT order and ACPI UIDs don't tell which CPU
-    // booted, so it was found by its affinity (BootIndex). The other enabled
-    // CPUs are registered in table order and numbered from 1 without gaps.
+    // Logical core 0 is the CPU running this boot code, with per-CPU storage
+    // and scheduler state already active. Because neither table order nor ACPI
+    // IDs identify the boot CPU, BootIndex matches it by its hardware CPU ID
+    // (affinity). Every other enabled CPU is registered in table order starting
+    // at logical ID 1 with no gaps.
     GetMachine()->Processor.NumberOfCores = description->Count;
     
     for (unsigned int i = 0; i < description->Count; i++) {
@@ -53,8 +56,9 @@ __PublishCores(
         core->EnableMethod = ARM64_CPU_ENABLE_PSCI;
     }
 
-    // NUMA (SRAT) and CPU hotplug are not handled yet. For now all enabled
-    // CPUs share one memory domain.
+    // Assume all CPUs have equal access time to all RAM for now. We do not
+    // parse the SRAT table (which maps which memory sits closest to which CPU),
+    // and we do not support adding or removing CPUs at runtime.
     SetMachineUmaMode();
 }
 
@@ -64,9 +68,9 @@ ArchAcpiInitialize(void)
     struct __AcpiPlatformDescription description = {0};
     oserr_t                          status;
 
-    // Set up the SPCR console first. It does not depend on the other tables,
-    // so if FADT, MADT or GTDT is rejected below, the error still shows up on
-    // the console.
+    // Start the serial console from the SPCR (Serial Port Console Redirection)
+    // table first. It needs none of the FADT, MADT, or GTDT tables, so errors
+    // from reading those later still appear on the console.
     Arm64AcpiInitializeConsole();
 
     status = Arm64AcpiReadFadt(&description.Platform);
@@ -88,11 +92,19 @@ ArchAcpiInitialize(void)
         return status;
     }
 
-    // All required tables have been checked and released at this point. The
-    // interrupt controller is registered before any CPU records are created,
-    // so a failure here can't leave us with CPUs that have no interrupt
-    // controller. CpuCoreRegister can't return an error. It asserts if the
-    // allocation fails, and the boot stops there.
+    // A missing IORT is fine on platforms without an SMMU or ITS. Initialize it
+    // before registering CPUs so every later DMA and interrupt lookup sees the
+    // same frozen catalogue or the same error for the rest of boot.
+    status = ArmIortInitialize();
+    if (status != OS_EOK && status != OS_ENOENT) {
+        WARNING("ARM64 IORT discovery unavailable: %u", status);
+    }
+
+    // Required tables are parsed and released now. Register the interrupt
+    // controller before creating CPU records so a failure here never leaves
+    // CPUs registered without an interrupt controller. CpuCoreRegister asserts
+    // internally on allocation failure and halts boot rather than returning an
+    // error.
     status = CreateInterruptController(
         description.GicId,
         0,

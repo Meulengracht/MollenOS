@@ -18,7 +18,8 @@
 
 #include <arch/acpi.h>
 #include <debug.h>
-#include "../smmu/discovery.h"
+
+#include "iort.h"
 #include "tables.h"
 #include "../../../acpi/pci.h"
 
@@ -27,19 +28,19 @@ __GetPciDmaLimit(
     _In_  uint16_t  segment,
     _Out_ uint64_t* addressLimitOut)
 {
-    ArmSMMUDiscovery_t* discovery = NULL;
-    ACPI_TABLE_HEADER* viot = NULL;
-    ACPI_STATUS        acpiStatus;
-    uint64_t           limit;
-    oserr_t            status;
+    const ArmIortCatalogue_t* catalogue;
+    ACPI_TABLE_HEADER*        viot = NULL;
+    ACPI_STATUS               acpiStatus;
+    uint64_t                  limit;
+    oserr_t                   status;
 
     if (addressLimitOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    // A VIOT table describes a different way of translating device addresses,
-    // which this code does not support. If the table exists we give up, even when
-    // the other tables look like a simple direct setup.
+    // The Virtual I/O Translation Table (VIOT) is used by virtual machines for
+    // an address-translation model we do not support. If a VIOT table exists,
+    // refuse direct DMA even when other tables look compatible.
     acpiStatus = AcpiGetTable(ACPI_SIG_VIOT, 1, &viot);
     if (ACPI_SUCCESS(acpiStatus)) {
         AcpiPutTable(viot);
@@ -52,22 +53,19 @@ __GetPciDmaLimit(
         return acpiStatus == AE_NO_MEMORY ? OS_EOOM : OS_EUNKNOWN;
     }
 
-    // The IORT data is only needed while the PCI roots are being discovered. The
-    // answer is stored with the root, so later queries and mappings never read
-    // the firmware tables again.
-    status = ArmSMMUDiscoverAcpi(&discovery);
+    // Read from the IORT catalogue built at boot. The same validated data also
+    // feeds SMMU discovery and PCI interrupt lookups.
+    status = ArmIortGetCatalogue(&catalogue);
     if (status != OS_EOK) {
         ERROR("ACPI PCI DMA: segment %u IORT discovery failed (%u)", segment, status);
         return status == OS_ENOENT ? OS_ENOTSUPPORTED : status;
     }
 
-    status = ArmSMMUGetPciDirectLimit(discovery, segment, &limit);
+    status = ArmIortGetPciDirectLimit(catalogue, segment, &limit);
     if (status != OS_EOK) {
         WARNING("ACPI PCI DMA: segment %u has no supported direct policy (%u)", segment, status);
-        ArmSMMUDiscoveryDestroy(&discovery);
         return status;
     }
-    ArmSMMUDiscoveryDestroy(&discovery);
 
     *addressLimitOut = limit;
     return OS_EOK;
@@ -87,16 +85,18 @@ ArchAcpiGetPciDma(
         return OS_EINVALPARAMS;
     }
 
-    // On Arm we only allow DMA when the firmware says devices are cache coherent
-    // (_CCA is 1). A _DMA list is also refused, because it would need the bridge
-    // windows to be taken into account and we treat the whole root the same way.
+    // Direct DMA on Arm requires _CCA to equal 1, meaning hardware keeps device
+    // memory accesses in sync with the CPU caches. An ACPI _DMA address window
+    // list is rejected too, because it restricts which addresses devices behind
+    // a bridge can reach, and we currently apply one DMA policy to the whole
+    // PCI root.
     status = AcpiPciReadDmaProperties(rootHandle, &properties);
     if (status != OS_EOK) {
         ERROR("ACPI PCI DMA: root %u segment %u namespace read failed (%u)",
               root->Id, root->Segment, status);
         return status;
     }
-    
+
     if (!properties.CoherencyPresent || !properties.Coherent || properties.HasDma) {
         WARNING("ACPI PCI DMA: root %u segment %u requires coherent _CCA and absent _DMA",
                 root->Id, root->Segment);
@@ -107,7 +107,7 @@ ArchAcpiGetPciDma(
     if (status != OS_EOK) {
         return status;
     }
-    
+
     dma.CachePolicy = SHMDeviceCacheCoherent;
     dma.Flags = ACPI_PCI_DMA_DIRECT;
 

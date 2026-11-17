@@ -22,45 +22,47 @@
 #include <acpi.h>
 #include "../common/private.h"
 
-// GICv2 targets CPUs with an 8-bit mask, so it can reach at most 8 CPUs. A
-// MADT with more CPUs is rejected, as the interrupt driver could not address
-// the extra ones.
+// GICv2 addresses target CPUs with an 8-bit bitmask, limiting it to 8 CPUs.
+// Reject any MADT listing more CPUs, because the driver cannot route interrupts
+// to extra cores.
 #define ARM64_ACPI_GICV2_CPUS 8U
 
-// Represents one MADT processor
+// Cap how many ITS (Interrupt Translation Service) controllers we accept.
+// Each entry is checked against all earlier ones for duplicate IDs and
+// overlapping register ranges, so an unbounded count could stall boot.
+#define ARM64_ACPI_MAX_ITS 256U
+
+// Parsed description of one enabled processor from the MADT.
 struct __AcpiCpuDescription {
-    // Affinity identifies the CPU to PSCI
+    // Hardware CPU ID (MPIDR affinity) passed to PSCI when starting the core.
     uint64_t Affinity;
-    // Uid identifies its ACPI namespace device
+    // ACPI processor UID matching the device in the ACPI namespace.
     uint32_t Uid;
-    // InterfaceNumber identifies its GICv2 target bit
+    // GICv2 target bit index (0-7) for this CPU.
     uint32_t InterfaceNumber;
-    // Redistributor is the GICR base of this CPU, only used if MADT has no GICR ranges
+    // Per-CPU GICR redistributor address, used only if MADT omits GICR ranges.
     uint64_t Redistributor;
 };
 
-// Acpi information gathered during initialization
+// Temporary ACPI platform state collected during boot initialization.
 struct __AcpiPlatformDescription {
-    struct Arm64Platform        Platform;
+    struct Arm64Platform         Platform;
     struct __AcpiCpuDescription* Cpus;
-    unsigned int                Count;
-    unsigned int                BootIndex;
-    uint32_t                    GicId;
+    unsigned int                 Count;
+    unsigned int                 BootIndex;
+    uint32_t                     GicId;
 };
 
 /**
- * @brief Checks the signature, minimum length and checksum of a mapped ACPI
- * table.
+ * @brief Checks the signature, minimum length, and checksum of a mapped ACPI table.
  *
- * All Header.Length bytes of the table must already be mapped by ACPICA. By
- * default ACPICA may only warn about a bad checksum, so we check it here
- * ourselves.
+ * ACPICA must already have mapped all Header.Length bytes. By default ACPICA
+ * may only log a warning on a bad checksum, so this check enforces it.
  *
- * @param header The table, with its header and body mapped.
- * @param signature The expected four-character signature.
- * @param minimumLength The number of bytes we read from the table, including
- *                      the ACPI header.
- * @return OS_EOK, or OS_EINVALPARAMS if the table is malformed.
+ * @param header        Mapped ACPI table header and body.
+ * @param signature     Expected four-character table signature (such as "MADT").
+ * @param minimumLength Minimum byte size needed by our reader, including the header.
+ * @return OS_EOK on success, or OS_EINVALPARAMS if the table fails validation.
  */
 __EXTERN oserr_t
 Arm64AcpiValidateTable(
@@ -69,17 +71,16 @@ Arm64AcpiValidateTable(
     _In_ size_t                   minimumLength);
 
 /**
- * @brief Gets a required ACPI table from ACPICA and checks it.
+ * @brief Looks up a required ACPI table through ACPICA and validates it.
  *
- * ACPICA must already be initialized. Only the first table with the given
- * signature is used.
+ * ACPICA must already be initialized. If multiple tables share the signature,
+ * only the first one is read.
  *
- * @param signature The expected signature.
- * @param minimumLength The number of bytes we read from the table, including
- *                      the ACPI header.
- * @param header Receives the checked table. Release it with AcpiPutTable.
- * @return OS_EOK, OS_ENOENT if the table is missing, or an error if the lookup
- *         or the checks fail.
+ * @param signature     Four-character ACPI table signature.
+ * @param minimumLength Minimum byte size needed by our reader, including the header.
+ * @param header        Receives the validated table. Release with AcpiPutTable.
+ * @return OS_EOK on success, OS_ENOENT if missing, or an error if lookup or
+ *         validation fails.
  */
 __EXTERN oserr_t
 Arm64AcpiGetTable(
@@ -88,56 +89,62 @@ Arm64AcpiGetTable(
     _Out_ ACPI_TABLE_HEADER** header);
 
 /**
- * @brief Reads the enabled CPUs and the GIC interrupt controller from the
- * MADT.
+ * @brief Reads enabled CPUs and GIC hardware details from the MADT.
  *
- * A single GICv2 or GICv3 distributor is supported. Nothing global is changed
- * here, so on failure the platform state is left as it was.
+ * Supports one GICv2 or GICv3 distributor (the main interrupt controller block).
+ * Global platform state stays untouched if anything fails.
  *
- * @param description Receives the CPUs and GIC addresses. BootIndex is set to
- *                    the entry that matches the MPIDR of the CPU we run on.
- * @return OS_EOK, or an error if the MADT is missing, malformed or describes
- *         something we don't support.
+ * For GICv3, Interrupt Translation Service (ITS) IDs and register ranges are
+ * copied out before releasing the table. No ITS hardware registers are accessed.
+ *
+ * @param description Receives CPU records and GIC addresses. BootIndex is set
+ *                    to the entry matching the boot CPU's hardware ID (MPIDR).
+ * @return OS_EOK on success, or an error if the MADT is missing, malformed, or
+ *         uses unsupported features.
  */
 __EXTERN oserr_t
 Arm64AcpiReadMadt(
     _InOut_ struct __AcpiPlatformDescription* description);
 
 /**
- * @brief Reads the interrupt of the non-secure EL1 physical timer from the
- * GTDT. This is the timer accessed through system registers.
+ * @brief Reads the non-secure EL1 physical timer interrupt from the GTDT.
  *
- * @param platform Receives the timer's PPI number and its kernel interrupt
- *                 flags.
- * @return OS_EOK, or an error if the GTDT is missing or describes a timer we
- *         don't support.
+ * This is the per-CPU hardware timer that the kernel accesses through CPU
+ * system registers.
+ *
+ * @param platform Receives the timer's Private Peripheral Interrupt (PPI) number
+ *                 and kernel interrupt flags.
+ * @return OS_EOK on success, or an error if the GTDT is missing or uses an
+ *         unsupported timer configuration.
  */
 __EXTERN oserr_t
 Arm64AcpiReadGtdt(
     _InOut_ struct Arm64Platform* platform);
 
 /**
- * @brief Reads the PSCI conduit from the FADT.
+ * @brief Reads which firmware call method (SMC or HVC) PSCI uses from the FADT.
  *
- * The FADT must be revision 5.1 or newer, describe a hardware-reduced ACPI
- * platform and report PSCI support.
+ * PSCI (Power State Coordination Interface) is the firmware interface used to
+ * power on secondary CPUs. The FADT must be revision 5.1 or newer, mark the
+ * system as hardware-reduced ACPI (no legacy x86 power hardware), and advertise
+ * PSCI support.
  *
- * @param platform Receives whether later CPU_ON calls use SMC or HVC.
- * @return OS_EOK, or an error if the FADT is missing or the firmware does not
- *         meet these requirements.
+ * @param platform Receives whether CPU power-on calls use SMC (secure monitor)
+ *                 or HVC (hypervisor).
+ * @return OS_EOK on success, or an error if the FADT is missing or fails these
+ *         requirements.
  */
 __EXTERN oserr_t
 Arm64AcpiReadFadt(
     _InOut_ struct Arm64Platform* platform);
 
 /**
- * @brief Frees the temporary CPU records, and the GICR ranges if they were
- * never published.
+ * @brief Frees temporary CPU records, plus unpublished GICR and ITS arrays.
  *
- * @param description The description that was read. It must have been zeroed
- *                    before the tables were read.
- * @param published   Non-zero once Platform has been copied to its permanent
- *                    location.
+ * @param description Platform description populated during boot. Must have been
+ *                    zero-initialized before reading tables.
+ * @param published   Non-zero once Platform has been copied to global state, so
+ *                    its GICR and ITS arrays are kept alive.
  */
 __EXTERN void
 Arm64AcpiReleaseDescription(
