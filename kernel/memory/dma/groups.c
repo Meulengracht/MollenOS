@@ -13,6 +13,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * DMA recovery groups. Devices that share a bus requester ID or a hardware
+ * reset line must be stopped and cleaned up together, so they belong to the
+ * same recovery group. Adding an attachment can merge existing groups, and
+ * removing one can split a group back into smaller pieces. Updates are built
+ * outside manager->Lock before swapping pointers under the lock.
  */
 
 #include <assert.h>
@@ -22,6 +28,8 @@
 
 #include "attachment_private.h"
 
+// Adds an internal reference to keep the group struct allocated. Fails with
+// OS_ECANCELLED if the count already dropped to zero.
 oserr_t
 DMARecoveryGroupAcquire(
     _In_ DMARecoveryGroup_t* group)
@@ -39,6 +47,8 @@ DMARecoveryGroupAcquire(
     return OS_EOK;
 }
 
+// Drops one group reference and frees the group once the last reference goes.
+// Every running operation and stop pass must be done before the final drop.
 void
 DMARecoveryGroupRelease(
     _InOut_ DMARecoveryGroup_t** group)
@@ -60,8 +70,8 @@ DMARecoveryGroupRelease(
     }
 }
 
-// Hold UpdateLock with manager->Lock unlocked. Allocate all new group structs
-// before publishing so running out of memory leaves existing groups untouched.
+// Initialize Access.Lock and its atomic gate fields before publishing the
+// group so fast DMA entry paths can check state without taking group->Lock.
 static oserr_t
 __PrepareGroupObjects(
     _In_ DMARecoveryUpdate_t* update)
@@ -92,7 +102,10 @@ __PrepareGroupObjects(
         ELEMENT_INIT(&group->Link, 0, group);
         group->Manager = update->Manager;
         group->ID = id;
-        group->Access.State = DMARecoveryLive;
+        SpinlockConstruct(&group->Access.Lock);
+        atomic_init(&group->Access.State, DMARecoveryLive);
+        atomic_init(&group->Access.Operations, 0);
+        atomic_init(&group->Access.ManagerClosed, false);
         group->Stop.Round = 1;
         group->Stop.CancellationError = OS_EOK;
         atomic_init(&group->References, 1);
@@ -212,6 +225,8 @@ unlock:
         return status;
     }
 
+    // Allocate the new group structs outside manager->Lock so running out of
+    // memory leaves existing groups untouched.
     status = __PrepareGroupObjects(update);
     if (status != OS_EOK) {
         DMARecoveryDiscardUpdate(&update);
@@ -338,6 +353,10 @@ unlock:
     return OS_EOK;
 }
 
+// Moves the prepared recovery groups into the manager's list and updates each
+// affected attachment's RecoveryGroup pointer. Old groups are moved into
+// update->OldGroups so DMARecoveryDiscardUpdate can drop their registry
+// references after manager->Lock is released.
 void
 DMARecoveryApplyUpdate(
     _In_ DMARecoveryUpdate_t* update)

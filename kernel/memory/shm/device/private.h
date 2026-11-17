@@ -13,6 +13,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Internal declarations for SHM device contexts, mappings, bounce storage,
+ * and operation tokens shared across kernel/memory/shm/device/.
  */
 
 #ifndef __MS_SHM_DEVICE_PRIVATE_H__
@@ -28,7 +31,13 @@
 
 #include "../private.h"
 #include "../../utils.h"
+#include "regions.h"
 
+// Tracks what an active device operation is currently doing.
+// Running:        allocating, copying, or syncing caches. Process exit cannot
+//                 safely undo partial work in this phase.
+// RangeAdmission: waiting for a conflicting CPU or device range access to
+//                 clear. Process exit can safely cancel this wait.
 enum SHMDeviceOperationPhase {
     SHMDeviceOperationRunning,
     SHMDeviceOperationRangeAdmission
@@ -198,6 +207,9 @@ struct SHMDeviceMapping {
         } Persistent;
     };
 
+    // Non-NULL only for SHMDeviceMappingRegions mappings. Holds per-region
+    // cache/fault state and the list of open device region sessions.
+    struct SHMDeviceRegions*  Regions;
     SHMSG_t*                  Extents;
     int                       ExtentCount;
     struct DMAAddressMapping* AddressMapping;

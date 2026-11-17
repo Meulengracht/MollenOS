@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SHM device mapping and transfer API. Maps SHM buffers for DMA devices,
+ * allocates shared device-pool buffers, synchronizes CPU caches for streaming
+ * and persistent transfers, and returns device segment lists.
  */
 
 //#define __TRACE
@@ -148,6 +152,7 @@ __CheckMapRequest(
         case SHMDeviceMappingStreamingDirect:
         case SHMDeviceMappingPersistent:
         case SHMDeviceMappingShared:
+        case SHMDeviceMappingRegions:
             return OS_EOK;
         default:
             return OS_EINVALPARAMS;
@@ -187,9 +192,9 @@ __AcquireSource(
         return OS_ENOENT;
     }
 
-    // Buffers backed by regions would need device mappings that understand
-    // regions. This code does not provide that.
-    if (source->Buffer->Flags & SHM_REGIONS) {
+    // Buffers created with SHM_REGIONS must use SHMDeviceMappingRegions, and
+    // ordinary buffers cannot use that mapping kind.
+    if (((source->Buffer->Flags & SHM_REGIONS) != 0) != (kind == SHMDeviceMappingRegions)) {
         status = OS_ENOTSUPPORTED;
         goto release;
     }

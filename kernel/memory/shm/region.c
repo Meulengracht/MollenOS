@@ -13,25 +13,27 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SHM region layouts and CPU access sessions. Buffers created with
+ * SHM_REGIONS can be divided once into sorted, cache-line-aligned regions.
+ * This file handles registering that layout, describing the regions covered by
+ * a device mapping range, and managing CPU access sessions and tokens.
  */
 
 #include <shm/region.h>
+#include <shm/region_usage.h>
 #include <shm/view.h>
 #include <arch/utils.h>
-#include <arch/interrupts.h>
-#include <ddk/barrier.h>
+#include <debug.h>
 #include <handles/global.h>
 #include <heap.h>
-#include <limits.h>
 #include <string.h>
 #include "private.h"
 
-_Static_assert(ATOMIC_INT_LOCK_FREE == 2, "Region admission requires lock-free integer atomics");
-
-/** Canonical bounds and admission count. UINT_MAX denotes an exclusive writer. */
+/** Bounds and usage of one region, shared by all sessions on it. */
 struct __SHMRegion {
     struct SHMRegionRange Range;
-    atomic_uint          Users;
+    SHMRegionUsage_t      Usage;
 };
 
 /** Fixed layout shared by all attachments. Buffer->Mutex protects publication. */
@@ -40,20 +42,148 @@ struct SHMRegionTable {
     struct __SHMRegion Entries[];
 };
 
-/** Generation persists after end. Access zero denotes an idle token. */
-struct __SHMRegionCpuToken {
-    unsigned int      Generation;
-    enum SHMCpuAccess Access;
-};
-
 /** Prepared slots and a global reference keeping their canonical region valid. */
 struct SHMRegionCpuSession {
     uuid_t                     ReferenceID;
     GrantTokenScope_t          Scope;
     struct __SHMRegion*        Region;
     unsigned int               Capacity;
-    struct __SHMRegionCpuToken Tokens[];
+    SHMRegionAccess_t          Tokens[];
 };
+
+// Checks that the ranges can be published as the layout of an allocation. Each
+// range must be nonempty, start after the previous range ends and lie inside the
+// allocation. Sorted, disjoint ranges mean one byte belongs to at most one
+// region, so usage of one region never needs to check another. Cache-line
+// alignment keeps cache maintenance for one region from touching bytes that
+// belong to a neighbor or a gap. Returns OS_EINVALPARAMS if any range is bad.
+static oserr_t
+__ValidateRegionRanges(
+    _In_ const struct SHMBuffer*      buffer,
+    _In_ const struct SHMRegionRange* ranges,
+    _In_ unsigned int                 count)
+{
+    size_t line = CpuDataCacheLineSize();
+    size_t end = 0;
+
+    if (line == 0) {
+        line = 1;
+    }
+
+    for (unsigned int i = 0; i < count; i++) {
+        if (ranges[i].Length == 0 || ranges[i].Offset < end) {
+            WARNING("__ValidateRegionRanges: range %u is empty or overlaps the previous range", i);
+            return OS_EINVALPARAMS;
+        }
+
+        if (!__SHMRangeContains(0, buffer->Length, ranges[i].Offset, ranges[i].Length)) {
+            WARNING("__ValidateRegionRanges: range %u lies outside the allocation", i);
+            return OS_EINVALPARAMS;
+        }
+
+        if ((buffer->Offset + ranges[i].Offset) % line != 0 || ranges[i].Length % line != 0) {
+            WARNING("__ValidateRegionRanges: range %u is not aligned to the %zu byte cache line", i, line);
+            return OS_EINVALPARAMS;
+        }
+
+        end = ranges[i].Offset + ranges[i].Length;
+    }
+    return OS_EOK;
+}
+
+// Allocates a region table for the ranges. Returns NULL if memory ran out.
+static struct SHMRegionTable*
+__CreateRegionTable(
+    _In_ const struct SHMRegionRange* ranges,
+    _In_ unsigned int                 count)
+{
+    struct SHMRegionTable* table;
+
+    table = kmalloc(sizeof(*table) + count * sizeof(table->Entries[0]));
+    if (table == NULL) {
+        return NULL;
+    }
+
+    table->Count = count;
+    for (unsigned int i = 0; i < count; i++) {
+        table->Entries[i].Range = ranges[i];
+        SHMRegionUsageInitialize(&table->Entries[i].Usage);
+    }
+    return table;
+}
+
+oserr_t
+SHMRegionDescribeRange(
+    _In_  struct SHMBuffer*    buffer,
+    _In_  size_t              offset,
+    _In_  size_t              length,
+    _Out_ SHMRegionBinding_t* bindings,
+    _In_  unsigned int        capacity,
+    _Out_ unsigned int*       countOut)
+{
+    struct SHMRegionTable* table;
+    unsigned int          first;
+    unsigned int          count = 0;
+    size_t                end;
+    size_t                position = offset;
+    oserr_t               status = OS_EINVALPARAMS;
+
+    if (length == 0 || offset > SIZE_MAX - length) {
+        return OS_EINVALPARAMS;
+    }
+    end = offset + length;
+
+    MutexLock(&buffer->Mutex);
+    table = buffer->Regions;
+    if (!(buffer->Flags & SHM_REGIONS) || table == NULL) {
+        status = OS_ENOTSUPPORTED;
+        goto unlock;
+    }
+
+    // Find the region starting at offset, then walk forward to confirm the
+    // table covers [offset, end) completely with no gaps or partial regions.
+    for (first = 0; first < table->Count; first++) {
+        if (table->Entries[first].Range.Offset == offset) {
+            break;
+        }
+    }
+    for (unsigned int i = first; i < table->Count && position < end; i++) {
+        const struct SHMRegionRange* range = &table->Entries[i].Range;
+
+        if (range->Offset != position || range->Length > end - position) {
+            goto unlock;
+        }
+        position += range->Length;
+        count++;
+    }
+    if (position != end) {
+        goto unlock;
+    }
+
+    // Callers pass bindings as NULL first to query the required slot count.
+    if (bindings != NULL && capacity < count) {
+        status = OS_EBUFFER;
+        goto unlock;
+    }
+    if (bindings != NULL) {
+        for (unsigned int i = 0; i < count; i++) {
+            struct __SHMRegion* region = &table->Entries[first + i];
+
+            // Region layouts never change once published, so Generation is 1.
+            bindings[i] = (SHMRegionBinding_t) {
+                .Identity = { .Buffer = buffer->ID, .Region = first + i, .Generation = 1 },
+                .Usage = &region->Usage,
+                .Offset = region->Range.Offset,
+                .Length = region->Range.Length
+            };
+        }
+    }
+    *countOut = count;
+    status = OS_EOK;
+unlock:
+    MutexUnlock(&buffer->Mutex);
+    return status;
+}
 
 oserr_t
 SHMRegionRegister(
@@ -64,25 +194,28 @@ SHMRegionRegister(
     SHMReference_t         source;
     struct SHMRegionTable* table;
     struct SHMBuffer*      buffer;
-    size_t                 line = CpuDataCacheLineSize();
-    size_t                 end = 0;
     oserr_t                status;
 
     if (count == 0 || count > SHM_REGION_LIMIT) {
+        WARNING("SHMRegionRegister: region count %u for buffer %u is not between 1 and %u",
+                count, shm, (unsigned int)SHM_REGION_LIMIT);
         return OS_EINVALPARAMS;
     }
+
     status = SHMResolve(shm, &source);
     if (status != OS_EOK) {
+        WARNING("SHMRegionRegister: SHMResolve buffer %u failed: %u", shm, status);
         return status;
     }
     buffer = source.Buffer;
-    
+
     // The layout covers the whole allocation and cannot be changed after it is
     // published, so every process that attaches later must use it. A view only
     // covers part of the allocation, and a read-only holder must not decide how
     // writers are admitted. Only an ordinary handle with write scope may register.
-    status = OS_EPERMISSIONS;
     if (source.View != NULL || !(source.Scope & GrantTokenScopeWrite)) {
+        WARNING("SHMRegionRegister: buffer %u needs an ordinary handle with write scope", shm);
+        status = OS_EPERMISSIONS;
         goto exit;
     }
 
@@ -90,48 +223,26 @@ SHMRegionRegister(
     // it are tracked by the legacy SHMAccess list, and that list does not check
     // the region table. Adding a table to such an allocation would let both
     // systems admit overlapping accesses without seeing each other.
-    status = OS_ENOTSUPPORTED;
     if (!(buffer->Flags & SHM_REGIONS)) {
+        WARNING("SHMRegionRegister: buffer %u was not created with region support", shm);
+        status = OS_ENOTSUPPORTED;
         goto exit;
     }
 
-    if (line == 0) {
-        line = 1;
+    status = __ValidateRegionRanges(buffer, ranges, count);
+    if (status != OS_EOK) {
+        goto exit;
     }
 
-    // Each range must be nonempty, start after the previous range ends and lie
-    // inside the allocation. Sorted, disjoint ranges mean one byte belongs to at
-    // most one region, so admission on one region never needs to check another.
-    // Cache-line alignment keeps cache maintenance for one region from touching
-    // bytes that belong to a neighbor or a gap.
-    status = OS_EINVALPARAMS;
-    for (unsigned int i = 0; i < count; i++) {
-        if (ranges[i].Length == 0 || ranges[i].Offset < end) {
-            goto exit;
-        }
-        if (!__SHMRangeContains(0, buffer->Length, ranges[i].Offset, ranges[i].Length)) {
-            goto exit;
-        }
-        if ((buffer->Offset + ranges[i].Offset) % line != 0 || ranges[i].Length % line != 0) {
-            goto exit;
-        }
-        end = ranges[i].Offset + ranges[i].Length;
-    }
-
-    table = kmalloc(sizeof(*table) + count * sizeof(table->Entries[0]));
+    table = __CreateRegionTable(ranges, count);
     if (table == NULL) {
+        ERROR("SHMRegionRegister: region table allocation for buffer %u failed", shm);
         status = OS_EOOM;
         goto exit;
     }
-    
-    table->Count = count;
-    for (unsigned int i = 0; i < count; i++) {
-        table->Entries[i].Range = ranges[i];
-        atomic_init(&table->Entries[i].Users, 0);
-    }
 
     // The layout is published once. Open CPU sessions point into the current
-    // table and its admission counters, so replacing it would leave them using
+    // table and its usage counters, so replacing it would leave them using
     // freed memory. A second register call fails and frees its own table.
     MutexLock(&buffer->Mutex);
     status = OS_EBUSY;
@@ -142,12 +253,45 @@ SHMRegionRegister(
     }
     MutexUnlock(&buffer->Mutex);
     if (table != NULL) {
+        WARNING("SHMRegionRegister: buffer %u already has a region layout", shm);
         kfree(table);
+    } else {
+        TRACE("SHMRegionRegister: buffer %u registered with %u regions", shm, count);
     }
 
 exit:
     ReleaseGlobalHandle(source.GlobalHandleID);
     return status;
+}
+
+// Finds the region entry for a session. The buffer must have a registered
+// layout and the reference must cover the whole region. Usage is counted
+// for the whole region, so a view that covers only part of it must not open a
+// session. A token would then admit or block access to bytes the caller cannot
+// reach through its own reference. Returns OS_ENOENT if no layout is registered
+// or the index is outside it, or OS_EPERMISSIONS for a partial reference.
+static oserr_t
+__FindRegionEntry(
+    _In_  const SHMReference_t* source,
+    _In_  unsigned int          region,
+    _Out_ struct __SHMRegion**  entryOut)
+{
+    struct SHMRegionTable* table;
+    struct __SHMRegion*    entry;
+
+    MutexLock(&source->Buffer->Mutex);
+    table = source->Buffer->Regions;
+    MutexUnlock(&source->Buffer->Mutex);
+    if (table == NULL || region >= table->Count) {
+        return OS_ENOENT;
+    }
+
+    entry = &table->Entries[region];
+    if (!__SHMRangeContains(source->Offset, source->Length, entry->Range.Offset, entry->Range.Length)) {
+        return OS_EPERMISSIONS;
+    }
+    *entryOut = entry;
+    return OS_EOK;
 }
 
 oserr_t
@@ -159,65 +303,59 @@ SHMRegionCpuCreate(
     _Out_ OSBufferIdentity_t*          identityOut)
 {
     SHMReference_t              source;
-    struct SHMRegionTable*      table;
     struct __SHMRegion*         entry;
     struct SHMRegionCpuSession* session;
+    size_t                      size;
     oserr_t                     status;
 
     if (capacity == 0 || capacity > SHM_REGION_TOKEN_LIMIT) {
+        WARNING("SHMRegionCpuCreate: token capacity %u for buffer %u is not between 1 and %u",
+                capacity, shm, (unsigned int)SHM_REGION_TOKEN_LIMIT);
         return OS_EINVALPARAMS;
     }
-    
+
     status = SHMResolve(shm, &source);
     if (status != OS_EOK) {
+        WARNING("SHMRegionCpuCreate: SHMResolve buffer %u failed: %u", shm, status);
         return status;
     }
-    
+
     // Every token gives at least read access to the region. Write scope is
     // checked later, when a write token is started.
-    status = OS_EPERMISSIONS;
     if (!(source.Scope & GrantTokenScopeRead)) {
+        WARNING("SHMRegionCpuCreate: buffer %u needs read scope", shm);
+        status = OS_EPERMISSIONS;
         goto error;
     }
 
-    MutexLock(&source.Buffer->Mutex);
-    table = source.Buffer->Regions;
-    MutexUnlock(&source.Buffer->Mutex);
-    // No layout has been registered yet, or the index is outside the layout.
-    // Both mean the requested region does not exist.
-    status = OS_ENOENT;
-    if (table == NULL || region >= table->Count) {
-        goto error;
-    }
-    
-    // Admission is counted for the whole region. A view that covers only part
-    // of it must not open a session, because a token would then admit or block
-    // access to bytes the caller cannot reach through its own reference.
-    entry = &table->Entries[region];
-    status = OS_EPERMISSIONS;
-    
-    if (!__SHMRangeContains(source.Offset, source.Length, entry->Range.Offset, entry->Range.Length)) {
+    status = __FindRegionEntry(&source, region, &entry);
+    if (status != OS_EOK) {
+        WARNING("SHMRegionCpuCreate: region %u of buffer %u is not available: %u", region, shm, status);
         goto error;
     }
 
-    session = kmalloc(sizeof(*session) + capacity * sizeof(session->Tokens[0]));
+    size = sizeof(*session) + capacity * sizeof(session->Tokens[0]);
+    session = kmalloc(size);
     if (session == NULL) {
+        ERROR("SHMRegionCpuCreate: session allocation for buffer %u failed", shm);
         status = OS_EOOM;
         goto error;
     }
-    
-    memset(session, 0, sizeof(*session) + capacity * sizeof(session->Tokens[0]));
+
+    memset(session, 0, size);
     session->ReferenceID = source.GlobalHandleID;
     session->Scope = source.Scope;
     session->Region = entry;
     session->Capacity = capacity;
-    
+
     identityOut->Buffer = source.Buffer->ID;
     identityOut->Region = region;
     identityOut->Generation = 1;
-    
+
     *sessionOut = session;
+    TRACE("SHMRegionCpuCreate: session opened on region %u of buffer %u with %u tokens", region, shm, capacity);
     return OS_EOK;
+
 error:
     ReleaseGlobalHandle(source.GlobalHandleID);
     return status;
@@ -230,62 +368,28 @@ SHMRegionCpuBegin(
     _In_ unsigned int                generation,
     _In_ enum SHMCpuAccess           access)
 {
-    struct __SHMRegionCpuToken* token;
-    unsigned int                users;
-    unsigned int                desired;
-    irqstate_t                  irqState;
-
     if (slot >= session->Capacity || generation == 0) {
+        WARNING("SHMRegionCpuBegin: slot %u or generation %u is invalid, capacity is %u",
+                slot, generation, session->Capacity);
         return OS_EINVALPARAMS;
     }
-
+    
     if (access != SHMCpuAccessRead && access != SHMCpuAccessWrite) {
+        WARNING("SHMRegionCpuBegin: access kind %u is invalid", (unsigned int)access);
         return OS_EINVALPARAMS;
     }
 
     if (access == SHMCpuAccessWrite && !(session->Scope & GrantTokenScopeWrite)) {
+        WARNING("SHMRegionCpuBegin: write access refused, the session has no write scope");
         return OS_EPERMISSIONS;
     }
 
-    token = &session->Tokens[slot];
-    if (token->Access != 0) {
-        return OS_EBUSY;
-    }
-
-    if (token->Generation == UINT_MAX) {
-        return OS_EOVERFLOW;
-    }
-
-    if (generation != token->Generation + 1) {
-        return OS_ENOENT;
-    }
-
-    users = atomic_load_explicit(&session->Region->Users, memory_order_relaxed);
-    if (users == UINT_MAX || (access == SHMCpuAccessWrite && users != 0)) {
-        return OS_EBUSY;
-    }
-
-    if (users == UINT_MAX - 1) {
-        return OS_EOVERFLOW;
-    }
-
-    desired = access == SHMCpuAccessWrite ? UINT_MAX : users + 1;
-    
-    // Thread termination must not separate admission from token publication.
-    // Keep interrupts disabled across both updates so process cleanup always
-    // finds an active token for each admitted access.
-    irqState = InterruptDisable();
-    if (!atomic_compare_exchange_strong_explicit(&session->Region->Users, &users, desired,
-            memory_order_acquire, memory_order_relaxed)) {
-        InterruptRestoreState(irqState);
-        return OS_EBUSY;
-    }
-
-    token->Generation = generation;
-    token->Access = access;
-    dma_mb();
-    InterruptRestoreState(irqState);
-    return OS_EOK;
+    return SHMRegionUsageBegin(
+        &session->Region->Usage,
+        &session->Tokens[slot],
+        generation,
+        access == SHMCpuAccessWrite
+    );
 }
 
 oserr_t
@@ -294,31 +398,12 @@ SHMRegionCpuEnd(
     _In_ unsigned int                slot,
     _In_ unsigned int                generation)
 {
-    struct __SHMRegionCpuToken* token;
-    irqstate_t                  irqState;
-
     if (slot >= session->Capacity || generation == 0) {
+        WARNING("SHMRegionCpuEnd: slot %u or generation %u is invalid, capacity is %u",
+                slot, generation, session->Capacity);
         return OS_EINVALPARAMS;
     }
-    
-    token = &session->Tokens[slot];
-    if (token->Generation != generation || token->Access == 0) {
-        return OS_ENOENT;
-    }
-
-    // Thread termination must not separate admission release from token clearing.
-    // Keep interrupts disabled across both updates so process cleanup cannot
-    // release the same access twice.
-    irqState = InterruptDisable();
-    dma_mb();
-    if (token->Access == SHMCpuAccessWrite) {
-        atomic_store_explicit(&session->Region->Users, 0, memory_order_release);
-    } else {
-        atomic_fetch_sub_explicit(&session->Region->Users, 1, memory_order_release);
-    }
-    token->Access = 0;
-    InterruptRestoreState(irqState);
-    return OS_EOK;
+    return SHMRegionUsageEnd(&session->Tokens[slot], generation);
 }
 
 oserr_t
@@ -329,15 +414,21 @@ SHMRegionCpuDestroy(
     struct SHMRegionCpuSession* released = *session;
 
     for (unsigned int i = 0; i < released->Capacity; i++) {
-        if (released->Tokens[i].Access != 0 && !abandon) {
+        if (released->Tokens[i].State != SHMRegionAccessIdle && !abandon) {
+            WARNING("SHMRegionCpuDestroy: session still has an access in slot %u", i);
             return OS_EBUSY;
         }
     }
 
     for (unsigned int i = 0; i < released->Capacity; i++) {
-        if (released->Tokens[i].Access != 0) {
-            // All process threads have stopped before abandon is called.
-            SHMRegionCpuEnd(released, i, released->Tokens[i].Generation);
+        if (released->Tokens[i].State != SHMRegionAccessIdle) {
+            // During process teardown, every thread in the process has already
+            // stopped before abandon is true, so remaining tokens can end here.
+            oserr_t status = SHMRegionCpuEnd(released, i, released->Tokens[i].Generation);
+            if (status != OS_EOK) {
+                ERROR("SHMRegionCpuDestroy: ending the access in slot %u failed: %u", i, status);
+                return status;
+            }
         }
     }
 

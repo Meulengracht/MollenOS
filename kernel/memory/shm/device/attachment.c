@@ -13,6 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * SHM device context attachment, revocation, stop cleanup, and operation
+ * tokens. Connects device contexts to DMA bindings, tracks running system
+ * calls so recovery groups wait for them to finish, and handles process exit
+ * cleanup.
  */
 
 #include <heap.h>
@@ -176,13 +181,19 @@ SHMDeviceContextRevoke(
     }
 
     while (mapping != NULL) {
-        // The recovery group has already blocked new work. Lock the whole buffer
-        // range, so neither the CPU nor another device can use it until the
-        // hardware is confirmed stopped. This only changes the access entry,
-        // under Buffer->Mutex. A caller that is still waiting for a range keeps
-        // its operation token until the wait returns or process exit cleanup
-        // ends it.
-        SHMAccessQuarantine(&mapping->Access);
+        // The recovery group has already blocked new work. Region mappings mark
+        // every covered region faulted so neither CPU nor device sessions can
+        // start new transfers there. Other mappings lock their whole range via
+        // SHMAccessQuarantine until hardware stop is confirmed.
+        if (mapping->Regions != NULL) {
+            status = SHMDeviceRegionsRevoke(mapping);
+            if (status != OS_EOK) {
+                SHMDeviceMappingRelease(&mapping);
+                return status;
+            }
+        } else {
+            SHMAccessQuarantine(&mapping->Access);
+        }
         
         status = __NextMapping(context, mapping, &next);
         if (status != OS_EOK) {
@@ -197,14 +208,14 @@ SHMDeviceContextRevoke(
     return status;
 }
 
-// Free the device resources of one mapping after the hardware stop. The caller
-// holds a walk reference and runs inside the exclusive stop cleanup pass.
+// Free the device resources of one mapping after the hardware has stopped.
+// The caller holds a walk reference inside the exclusive stop cleanup pass.
 //
-// Exactly two references are expected. One is the walk reference. The other is
-// held by the mapping's handle, or by the context list if the mapping was
-// abandoned. Any other count means someone is still using the mapping, so the
-// result is OS_EBUSY. A mapping whose handle is still open keeps its struct
-// after this, even though its device resources are freed.
+// Expects two base references (this walk plus either the open handle or the
+// context list for an abandoned mapping) on top of one reference per open
+// region session. Any extra reference means another thread is walking the list,
+// so return OS_EBUSY. Stop cleanup already waited for running region syscalls
+// to finish before entering here.
 static oserr_t
 __CompleteMapping(
     _In_ SHMDeviceMapping_t* mapping)
@@ -212,10 +223,12 @@ __CompleteMapping(
     SHMDeviceContext_t* context = mapping->Context;
     SHMDeviceMapping_t* abandoned = NULL;
     oserr_t             status;
+    unsigned int        sessions;
 
     MutexLock(&context->MappingLock);
+    sessions = mapping->Regions == NULL ? 0 : mapping->Regions->SessionCount;
     if (mapping->Lifetime.Cleaning ||
-        atomic_load(&mapping->Lifetime.References) != 2) {
+        atomic_load(&mapping->Lifetime.References) - sessions != 2) {
         MutexUnlock(&context->MappingLock);
         return OS_EBUSY;
     }
@@ -239,6 +252,10 @@ __CompleteMapping(
     // Only an abandoned mapping hands its original handle reference to this
     // pass, so only then is that reference dropped. A mapping with an open
     // handle keeps its reference and the handle's pointer stays untouched.
+    // Free any abandoned region sessions that now have no active tokens left.
+    if (mapping->Regions != NULL) {
+        SHMDeviceRegionsCollectSessions(mapping);
+    }
     SHMDeviceMappingRelease(&abandoned);
     return status;
 }

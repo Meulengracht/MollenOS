@@ -23,11 +23,30 @@
  */
 
 #include <debug.h>
+#include <assert.h>
 #include <heap.h>
+#include <limits.h>
 #include "private.h"
 
 // Smallest memory block (granule) the IOMMU can map: 4 KiB.
 #define __DMA_IOMMU_MIN_GRANULE 4096ULL
+
+// Increments by 1 each time any IOMMU unit records its first failure so DMA
+// managers can skip full domain scans when nothing changed. Once it reaches
+// UINT_MAX it stays pinned there instead of wrapping around, forcing managers to
+// scan on every check. IRQ fault handlers can read and update this too.
+static atomic_uint g_failureSequence;
+
+_Static_assert(
+    ATOMIC_INT_LOCK_FREE == 2,
+    "DMA failure reporting requires lock-free integers"
+);
+
+unsigned int
+DMAIOMMUGetFailureSequence(void)
+{
+    return atomic_load(&g_failureSequence);
+}
 
 oserr_t
 DMAIOMMUUnitCreate(
@@ -89,7 +108,8 @@ DMAIOMMUUnitFail(
     _In_ DMAIOMMUUnit_t* unit,
     _In_ oserr_t         reason)
 {
-    oserr_t expected = OS_EOK;
+    oserr_t      expected = OS_EOK;
+    unsigned int sequence;
 
     if (unit == NULL || reason == OS_EOK) {
         ERROR("DMAIOMMUUnitFail: invalid unit failure report %p: %u", (void*)unit, reason);
@@ -101,8 +121,43 @@ DMAIOMMUUnitFail(
     // with an atomic compare-and-swap without taking Lock. All new work checks
     // this value and stops once a failure is recorded.
     if (atomic_compare_exchange_strong(&unit->Failure, &expected, reason)) {
+        sequence = atomic_load(&g_failureSequence);
+        while (sequence != UINT_MAX &&
+               !atomic_compare_exchange_weak(&g_failureSequence, &sequence, sequence + 1)) {
+        }
         ERROR("DMAIOMMUUnitFail: unit %p failed: %u", (void*)unit, reason);
     }
+}
+
+// Exposed for backend driver paths that run outside DMAIOMMUBackendOps_t
+// callbacks and still need to serialize against them.
+void
+DMAIOMMUUnitLock(
+    _In_ DMAIOMMUUnit_t* unit)
+{
+    assert(unit != NULL);
+    MutexLock(&unit->Lock);
+}
+
+void
+DMAIOMMUUnitUnlock(
+    _In_ DMAIOMMUUnit_t* unit)
+{
+    assert(unit != NULL);
+    MutexUnlock(&unit->Lock);
+}
+
+// Reads Failure atomically without taking unit->Lock so callers holding an IRQ
+// spinlock (such as fast DMA start/commit paths) can still check unit health.
+oserr_t
+DMAIOMMUUnitCheck(
+    _In_ DMAIOMMUUnit_t* unit)
+{
+    if (unit == NULL) {
+        ERROR("DMAIOMMUUnitCheck: missing unit");
+        return OS_EINVALPARAMS;
+    }
+    return atomic_load(&unit->Failure) == OS_EOK ? OS_EOK : OS_ECANCELLED;
 }
 
 oserr_t

@@ -171,6 +171,10 @@ __AllocateManager(
     list_construct(&manager->Registry.Groups);
     list_construct(&manager->PendingEvents);
     list_construct(&manager->Domains);
+    
+    // Start at 0 so the first check skips scanning when 
+    // no IOMMU unit has failed.
+    atomic_init(&manager->CheckedFailureSequence, 0);
     MutexConstruct(&manager->Lock, MUTEX_FLAG_PLAIN);
     MutexConstruct(&manager->UpdateLock, MUTEX_FLAG_PLAIN);
     return manager;
@@ -688,7 +692,7 @@ __BlockFailedUnitGroupsForAttachment(
     oserr_t status = DMARecoveryBlockFailedUnits(manager);
 
     if (status != OS_EOK) {
-        ERROR("DMA attachment: failure propagation for manager %u failed: %u", manager->ID, status);
+        ERROR("__BlockFailedUnitGroupsForAttachment: failure propagation for manager %u failed: %u", manager->ID, status);
     }
 }
 

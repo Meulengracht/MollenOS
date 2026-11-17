@@ -13,6 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * DMA manager, attachment, binding, and recovery-group interface. Handles
+ * registering device attachments, handing driver binding handles to drivers,
+ * tracking active DMA operations, and stopping devices cleanly on teardown or
+ * hardware failure.
  */
 
 #ifndef __DMA_ATTACHMENT_H__
@@ -387,8 +392,8 @@ DMAManagerPrepareStop(
  * @brief Confirms hardware stop and cleans up every mapping in the ticket's group.
  *
  * Before calling this, physically stop every device in the group so none of
- * them can touch RAM. A driver message or disabled interrupts do not prove that
- * transfers have stopped.
+ * them can touch RAM. Wait for hardware confirmation that transfers stopped
+ * instead of trusting a driver message or disabled interrupts.
  *
  * Returns OS_EBUSY if system calls are still finishing up or cancellation is
  * running. Keep the hardware stopped and retry with the same ticket after
@@ -400,5 +405,76 @@ KERNELABI oserr_t KERNELAPI
 DMAManagerCompleteStop(
     _In_ DMAManager_t*            manager,
     _In_ const OSDmaStopTicket_t* ticket);
+
+/**
+ * @brief Registers a region DMA call as an active operation on a binding.
+ *
+ * Calls on a region session (starting a transfer or finishing one) must keep
+ * the recovery group from tearing down the mapping while the syscall runs.
+ * Holding the open region session keeps the mapping and its binding valid.
+ *
+ * When complete is false (starting new DMA work), the binding, its recovery
+ * group, and any attached IOMMU unit must all be live. When complete is true
+ * (finishing work that already started), the call is still allowed after the
+ * group is blocked or closed, as long as stop cleanup is not currently running.
+ *
+ * @param binding  Binding attached to the session's device context.
+ * @param complete True when finishing an existing transfer, false when starting
+ *                 new work.
+ * @param counted  Must be false on entry. Set to true when this call adds to
+ *                 the group's active operation count, and left false on error.
+ * @return OS_EOK on success, OS_EBUSY while stop cleanup is running,
+ *         OS_ECANCELLED if the binding or group cannot accept the call, or an
+ *         IOMMU failure or counter overflow error.
+ */
+KERNELABI oserr_t KERNELAPI
+DMABindingBeginRegionOperation(
+    _In_    DMABinding_t* binding,
+    _In_    bool          complete,
+    _InOut_ bool*         counted);
+
+/**
+ * @brief Removes a region operation from the group's active operation count.
+ *
+ * Clears *counted to false. If the recovery group is blocked waiting to stop
+ * and this was the last running operation, this runs another cancel pass and
+ * notifies the manager so stop cleanup can continue. Calling this when *counted
+ * is already false does nothing.
+ *
+ * @param binding Binding passed to DMABindingBeginRegionOperation.
+ * @param counted Flag tracking whether this call is currently counted.
+ */
+KERNELABI void KERNELAPI
+DMABindingEndRegionOperation(
+    _In_    DMABinding_t* binding,
+    _InOut_ bool*         counted);
+
+/**
+ * @brief Locks a binding's group spinlock right before flipping a region token active.
+ *
+ * Cache syncing runs before this call without holding any spinlock. This lock
+ * then verifies that the binding, recovery group, and IOMMU unit are still
+ * live at the instant the transfer is committed.
+ *
+ * On success, the spinlock stays held with interrupts disabled, so only fast
+ * token metadata updates may run before DMABindingUnlockRegionCommit. On
+ * failure, the spinlock is released and interrupts are restored.
+ *
+ * @param binding Binding attached to the session's device context.
+ * @return OS_EOK if live (caller must call DMABindingUnlockRegionCommit), or an
+ *         error if the binding, group, or IOMMU unit stopped.
+ */
+KERNELABI oserr_t KERNELAPI
+DMABindingLockRegionCommit(
+    _In_ DMABinding_t* binding);
+
+/**
+ * @brief Releases the spinlock taken by DMABindingLockRegionCommit and restores interrupts.
+ *
+ * @param binding Same binding passed to DMABindingLockRegionCommit.
+ */
+KERNELABI void KERNELAPI
+DMABindingUnlockRegionCommit(
+    _In_ DMABinding_t* binding);
 
 #endif //!__DMA_ATTACHMENT_H__

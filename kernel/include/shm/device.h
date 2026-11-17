@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Kernel interface for device DMA mappings and contexts over shared-memory
+ * (SHM) buffers. Handles mapping buffer ranges for devices, CPU cache syncing,
+ * bounce pages, device-pool allocations, and recovery-group revocation.
  */
 
 #ifndef __SHM_DEVICE_H__
@@ -59,7 +63,10 @@ enum SHMDeviceMappingKind {
     SHMDeviceMappingPersistent,
     // Pages from the device pool that the CPU and the device both use at the
     // same time. No sync calls are needed.
-    SHMDeviceMappingShared
+    SHMDeviceMappingShared,
+    // Fixed regions inside the buffer, each tracked by its own access token.
+    // Never uses bounce pages.
+    SHMDeviceMappingRegions
 };
 
 /**
@@ -155,6 +162,12 @@ SHMDeviceContextClose(
  * SHMAccessEnd, and add CPU memory barriers. A Shared mapping only accepts
  * pool pages that are uncached, or that belong to a device that keeps the CPU
  * cache up to date (cache-coherent). SHMDeviceAllocate sets this up for you.
+ *
+ * Regions mappings work only on buffers created with SHM_REGIONS whose layout
+ * has already been registered. The mapped range must cover one or more whole
+ * regions from start to end with no gaps. Transfers then run per region through
+ * device region sessions instead of SHMDeviceSyncForDevice or SHMDeviceBeginUse,
+ * and bounce pages are never used.
  *
  * @param operation Submit token for this context. Keep it until failure cleanup
  *                  is done.

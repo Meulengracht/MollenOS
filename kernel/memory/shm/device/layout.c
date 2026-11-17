@@ -13,17 +13,16 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Builds the device layout of a mapping. The layout is everything the device
+ * needs to reach a buffer range: the physical extents (blocks of RAM), any
+ * temporary bounce pages, and the device segments (the address ranges the
+ * driver programs into hardware).
+ *
+ * All of this is built while the mapping is still private to the caller and
+ * before any device can use it. Checking the caller's access rights, linking
+ * the mapping to its context, and installing it in the IOMMU happen in device.c.
  */
-
-// Builds the device layout of a mapping. The layout is everything the device
-// needs to reach a buffer range. That is the physical extents (blocks of RAM),
-// the bounce pages if any, and the device segments (the address ranges the
-// driver programs into the hardware). Bounce pages are spare pages the device
-// can reach, used when it cannot reach the buffer's own pages.
-//
-// All of this is built while the mapping is still private to the caller and
-// before any device can use it. Checking the caller's access rights, linking
-// the mapping to its context and installing it in the IOMMU happen in device.c.
 
 #include <shm/device.h>
 #include <shm/access.h>
@@ -816,7 +815,25 @@ SHMDeviceMappingPrepare(
         }
     }
 
-    __FillMapping(mapping, buffer, context, offset, length, direction, kind, &layout);
+    __FillMapping(
+        mapping,
+        buffer,
+        context,
+        offset,
+        length,
+        direction,
+        kind,
+        &layout
+    );
+    if (kind == SHMDeviceMappingRegions) {
+        // Look up the registered regions covering this range, verify each
+        // region's segments meet alignment rules, and set up fault tracking.
+        status = SHMDeviceRegionsPrepare(mapping, requirements);
+        if (status != OS_EOK) {
+            goto cleanup;
+        }
+    }
+
     *mappingOut = mapping;
     return OS_EOK;
 

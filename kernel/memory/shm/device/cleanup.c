@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Cleanup and unmapping for SHM device mappings. Handles linking mappings onto
+ * a context, freeing bounce pages and device addresses, and releasing
+ * abandoned mappings after hardware stop is confirmed.
  */
 
 #include <assert.h>
@@ -133,6 +137,13 @@ SHMDeviceMappingRelease(
     }
     MutexUnlock(&context->MappingLock);
 
+    // Every open region session holds a mapping reference, so by the time the
+    // last reference drops there can be no sessions left.
+    if (released->Regions != NULL) {
+        assert(released->Regions->SessionCount == 0);
+        kfree(released->Regions);
+    }
+
     kfree(released);
     SHMDeviceContextRelease(&context);
 }
@@ -151,13 +162,23 @@ SHMDeviceMappingCleanup(
 
     if (stopped && mapping->State != SHMDeviceMappingReleasingAfterStop) {
         // After a forced stop there is no count of how many bytes the device
-        // finished. So sync the caches for the whole mapping, even the parts
-        // that were not in use. Bounce pages are dropped without copying their
-        // data back to the source buffer, because that data may be incomplete.
-        SHMDeviceCompleteForCpu(mapping, 0, mapping->Length);
+        // finished. For region mappings, move active tokens to stopped, sync
+        // caches once live users drain, and retire them. For other mappings,
+        // sync caches across the whole range and drop bounce pages without
+        // copying uncertain bytes back to the source buffer.
+        if (mapping->Regions != NULL) {
+            status = SHMDeviceRegionsStop(mapping);
+            if (status != OS_EOK) {
+                return status;
+            }
+        } else {
+            SHMDeviceCompleteForCpu(mapping, 0, mapping->Length);
+        }
+
         if (mapping->Kind == SHMDeviceMappingPersistent) {
             mapping->Persistent.Uses = 0;
         }
+        
         mapping->State = SHMDeviceMappingReleasingAfterStop;
     }
 
@@ -174,13 +195,28 @@ SHMDeviceMappingCleanup(
     }
 
     if (stopped) {
-        SHMAccessCompleteStop(&mapping->Access);
+        // Device addresses are now gone, so lift the fault or range lock so
+        // healthy regions or the buffer can be used again.
+        if (mapping->Regions != NULL) {
+            status = SHMDeviceRegionsClearFaults(mapping);
+            if (status != OS_EOK) {
+                return status;
+            }
+        } else {
+            SHMAccessCompleteStop(&mapping->Access);
+        }
     }
 
     if (__SHMDeviceMappingIsStreaming(mapping)) {
         SHMDeviceReleaseBounce(&mapping->Stream.Bounce);
     }
 
+    // Clear Usage pointers before dropping the buffer reference that keeps them alive.
+    if (mapping->Regions != NULL) {
+        for (unsigned int i = 0; i < mapping->Regions->Count; i++) {
+            mapping->Regions->Entries[i].Binding.Usage = NULL;
+        }
+    }
     __ReleaseMemoryHandleReference(mapping->Access.ReferenceID, __func__);
     mapping->Access.ReferenceID = UUID_INVALID;
     mapping->Access.Buffer = NULL;
@@ -218,7 +254,9 @@ SHMDeviceUnmap(
     }
 
     MutexLock(&context->MappingLock);
-    if (current->Lifetime.Cleaning) {
+    // All region sessions on this mapping must close before unmapping.
+    if (current->Lifetime.Cleaning ||
+        (current->Regions != NULL && current->Regions->SessionCount != 0)) {
         MutexUnlock(&context->MappingLock);
         return OS_EBUSY;
     }

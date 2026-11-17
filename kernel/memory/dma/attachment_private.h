@@ -24,6 +24,7 @@
 
 #include <ds/list.h>
 #include <mutex.h>
+#include <spinlock.h>
 #include <stdatomic.h>
 
 #include "domain.h"
@@ -56,13 +57,17 @@ enum DMARecoveryState {
 
 /**
  * @brief Tracks whether new DMA work can start and how many operations are running.
- * Hold group->Lock.
+ * Lock protects the state, the operation count and cleanup exclusion. IRQs stay
+ * disabled only during these short updates. Slow paths may read the atomic
+ * fields under group->Lock. They must also take Lock before changing them.
  */
-typedef struct DMARecoveryAccess {
-    enum DMARecoveryState State;
-    unsigned int          Operations;
-    bool                  ManagerClosed;
-} DMARecoveryAccess_t;
+typedef struct DMARecoveryOperationState {
+    Spinlock_t                    Lock;
+    _Atomic(enum DMARecoveryState) State;
+    atomic_uint                   Operations;
+    atomic_bool                   ManagerClosed;
+    bool                          Cleaning;
+} DMARecoveryOperationState_t;
 
 /**
  * @brief Which cleanup or cancel step is currently running in this stop round.
@@ -96,18 +101,19 @@ typedef struct DMARecoveryStop {
  * holds no reference back to Manager.
  *
  * Locking order: always take manager->Lock before group->Lock. Callers that
- * only check whether an operation can start take group->Lock on its own and
- * must never try to take manager->Lock while holding it. Drop both locks before
- * calling into SHM to cancel waiters or free mappings.
+ * only check or count operations take Access.Lock. When nested, Access.Lock
+ * comes after these mutexes. Never take a mutex, call SHM cleanup, log, or scan
+ * attachments with the spinlock held. Drop the mutexes before cancelling waiters
+ * or freeing mappings.
  */
 typedef struct DMARecoveryGroup {
-    element_t           Link;
-    DMAManager_t*       Manager;
-    uint64_t            ID;
-    atomic_uint         References;
-    Mutex_t             Lock;
-    DMARecoveryAccess_t Access;
-    DMARecoveryStop_t   Stop;
+    element_t                   Link;
+    DMAManager_t*               Manager;
+    uint64_t                    ID;
+    atomic_uint                 References;
+    Mutex_t                     Lock;
+    DMARecoveryOperationState_t Access;
+    DMARecoveryStop_t           Stop;
 } DMARecoveryGroup_t;
 
 /**
@@ -231,7 +237,8 @@ DMAConnectionDestroy(
  * back to user space. Closing the manager skips UpdateLock so a stuck user-space
  * copy can never block handle cleanup. Saving OwnerSecurityID as a plain ID
  * without taking a handle reference on the service's security context lets the
- * service process exit and close this manager cleanly.
+ * service process exit and close this manager cleanly. CheckedFailureSequence
+ * records the last completed IOMMU fault scan and can be read without Lock.
  */
 typedef struct DMAManager {
     uuid_t                  ID;
@@ -243,6 +250,7 @@ typedef struct DMAManager {
     list_t                  PendingEvents;
     list_t                  Domains;
     uint32_t                DomainCount;
+    atomic_uint             CheckedFailureSequence;
 } DMAManager_t;
 
 /**
@@ -292,11 +300,12 @@ enum DMABindingContextPhase {
 
 /**
  * @brief Points to the driver's open DMA context without keeping it alive.
- * Hold group->Lock.
+ * Pointer requires group->Lock. Phase changes also take Access.Lock so fast
+ * operation start can read it without taking the mutex.
  */
 typedef struct DMABindingContextState {
-    struct SHMDeviceContext*    Pointer;
-    enum DMABindingContextPhase Phase;
+    struct SHMDeviceContext*            Pointer;
+    _Atomic(enum DMABindingContextPhase) Phase;
 } DMABindingContextState_t;
 
 /**
@@ -314,7 +323,7 @@ typedef struct DMABinding {
     uint64_t             OwnerSecurityID;
     uint64_t             RequestId;
     uint64_t             Generation;
-    enum DMABindingState State;
+    _Atomic(enum DMABindingState) State;
     DMARecoveryGroup_t*  Group;
     DMABindingContextState_t Context;
 } DMABinding_t;
@@ -582,5 +591,42 @@ DMAManagerDetachClosed(
 KERNELABI oserr_t KERNELAPI
 DMARecoveryBlockFailedUnits(
     _In_ DMAManager_t* manager);
+
+/**
+ * @brief Propagate a newly reported IOMMU failure before admitting or ending work.
+ * The unchanged sequence path only reads atomics. A changed sequence runs the
+ * full failure pass without holding Access.Lock. Slow recovery callers use
+ * DMARecoveryBlockFailedUnits directly to retry cancellation even without a new fault.
+ */
+KERNELABI oserr_t KERNELAPI
+DMARecoveryCheckFailures(
+    _In_ DMAManager_t* manager);
+
+/**
+ * @brief Counts one more running operation in a recovery group.
+ * Call with access->Lock held. The count is changed with a plain store so that
+ * readers without the lock never see a torn value.
+ *
+ * @param access Operation state of the recovery group.
+ * @return OS_EOK, or OS_EOVERFLOW if the count has no room left.
+ */
+KERNELABI oserr_t KERNELAPI
+DMARecoveryAddOperationLocked(
+    _In_ DMARecoveryOperationState_t* access);
+
+/**
+ * @brief Removes one running operation from a recovery group.
+ * Call with access->Lock held. The count must not be zero.
+ *
+ * @param access Operation state of the recovery group.
+ */
+KERNELABI void KERNELAPI
+DMARecoveryRemoveOperationLocked(
+    _In_ DMARecoveryOperationState_t* access);
+
+/** Check a referenced binding while group->Lock or Access.Lock is held. */
+KERNELABI oserr_t KERNELAPI
+DMABindingCheckLiveLocked(
+    _In_ DMABinding_t* binding);
 
 #endif //!__DMA_ATTACHMENT_PRIVATE_H__

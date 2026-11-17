@@ -229,6 +229,66 @@ DMAIOMMUUnitFail(
     _In_ oserr_t         reason);
 
 /**
+ * @brief Takes the IOMMU unit's mutex from backend code outside the DMA callbacks.
+ *
+ * A backend driver can call this during driver-specific maintenance, fault
+ * handling, or teardown so it does not race with CreateSpace, PrepareMapping,
+ * or other DMA callbacks. The standard callbacks in DMAIOMMUBackendOps_t already
+ * hold this mutex and must never call DMAIOMMUUnitLock again.
+ *
+ * Requires a live, non-NULL unit in thread context, and the caller must not
+ * already hold the mutex. Failed units still allow locking so diagnostics and
+ * cleanup can serialize safely. While locked, only touch backend driver state
+ * and the lock-free DMAIOMMUUnitCheck or DMAIOMMUUnitFail helpers. Never call
+ * into generic DMA, manager, recovery-group, or SHM code.
+ *
+ * @param unit Live IOMMU unit to lock.
+ */
+KERNELABI void KERNELAPI
+DMAIOMMUUnitLock(
+    _In_ DMAIOMMUUnit_t* unit);
+
+/**
+ * @brief Releases the unit mutex acquired by DMAIOMMUUnitLock.
+ *
+ * @param unit Same IOMMU unit passed to DMAIOMMUUnitLock.
+ */
+KERNELABI void KERNELAPI
+DMAIOMMUUnitUnlock(
+    _In_ DMAIOMMUUnit_t* unit);
+
+/**
+ * @brief Reads the global counter of IOMMU unit failures without locking.
+ *
+ * Every time an IOMMU unit records its first failure, this counter increases
+ * by 1. DMA managers compare this value against their last checked sequence to
+ * skip scanning all their domains when no new unit has failed. If the counter
+ * reaches UINT_MAX, it stays pinned there instead of wrapping, forcing managers
+ * to scan on every check.
+ *
+ * @return Current global failure sequence number.
+ */
+KERNELABI unsigned int KERNELAPI
+DMAIOMMUGetFailureSequence(void);
+
+/**
+ * @brief Checks whether an IOMMU unit has failed, without taking its mutex.
+ *
+ * Safe to call while holding spinlocks or IRQ locks. Keep a reference to the
+ * unit alive for the duration of the call. Returning OS_EOK only reports that
+ * no failure has been recorded yet. Callers still need the normal binding and
+ * recovery-group checks before starting DMA. This also reports failures logged
+ * by generic DMA code through DMAIOMMUUnitFail.
+ *
+ * @param unit IOMMU unit to inspect.
+ * @return OS_EOK if healthy, OS_ECANCELLED if the unit failed, or
+ *         OS_EINVALPARAMS if unit is NULL.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAIOMMUUnitCheck(
+    _In_ DMAIOMMUUnit_t* unit);
+
+/**
  * @brief Frees an IOMMU unit once no address space uses it.
  *
  * The backend's own hardware resources stay with the caller that created them.

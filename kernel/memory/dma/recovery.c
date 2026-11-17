@@ -13,10 +13,16 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * DMA recovery and hardware stop handling. Blocks recovery groups when a
+ * binding closes, an IOMMU unit fails, or a service asks to stop a device.
+ * Drains running system calls, revokes shared-memory mappings, and cleans up
+ * device resources once the hardware is confirmed stopped.
  */
 
 #include <assert.h>
 #include <debug.h>
+#include <limits.h>
 #include <shm/device.h>
 
 #include "attachment_private.h"
@@ -44,32 +50,64 @@ __QueueGroupEventLocked(
     }
 }
 
+// Hold access->Lock. Uses relaxed atomic stores so readers outside the lock
+// never observe a torn count while the spinlock serializes updates.
+oserr_t
+DMARecoveryAddOperationLocked(
+    _In_ DMARecoveryOperationState_t* access)
+{
+    unsigned int operations = atomic_load_explicit(&access->Operations, memory_order_relaxed);
+
+    if (operations == UINT_MAX) {
+        return OS_EOVERFLOW;
+    }
+    atomic_store_explicit(&access->Operations, operations + 1, memory_order_relaxed);
+    return OS_EOK;
+}
+
+// Hold access->Lock. Decrements the active operation count, which must be nonzero.
 void
-DMARecoveryBlockLocked(
+DMARecoveryRemoveOperationLocked(
+    _In_ DMARecoveryOperationState_t* access)
+{
+    unsigned int operations = atomic_load_explicit(&access->Operations, memory_order_relaxed);
+
+    assert(operations != 0);
+    atomic_store_explicit(&access->Operations, operations - 1, memory_order_relaxed);
+}
+
+// Hold group->Lock. Records that the manager closed, then moves a Live group to
+// Blocked. Returns true only if this call blocked the group.
+static bool
+__MarkGroupBlockedLocked(
     _In_ DMAManager_t*       manager,
     _In_ DMARecoveryGroup_t* group)
 {
-    MutexLock(&group->Lock);
+    bool blocked = false;
+
+    SpinlockAcquireIrq(&group->Access.Lock);
     if (manager->State == DMAManagerClosed) {
         // Record that the manager closed even if recovery is already under way.
         // A stop pass that is allowed to run can still finish, but a driver
         // cannot retry cleanup later.
-        group->Access.ManagerClosed = true;
+        atomic_store(&group->Access.ManagerClosed, true);
     }
 
-    if (group->Access.State != DMARecoveryLive) {
-        MutexUnlock(&group->Lock);
-        return;
+    if (group->Access.State == DMARecoveryLive) {
+        group->Access.State = DMARecoveryBlocked;
+        blocked = true;
     }
+    SpinlockReleaseIrq(&group->Access.Lock);
+    return blocked;
+}
 
-    // The stop round (Round) was reserved before operations could start, so
-    // blocking never needs memory or new IDs, and a second close cannot undo a
-    // confirmed stop.
-    group->Access.State = DMARecoveryBlocked;
-    group->Stop.CancellationError = OS_EBUSY;
-    TRACE("DMARecoveryBlockLocked: recovery group %llu blocked, stop round %llu",
-          (unsigned long long)group->ID, (unsigned long long)group->Stop.Round);
-
+// Hold manager->Lock and group->Lock. Closes the binding of every attachment in
+// the group and queues a stop required event for it.
+static void
+__CloseGroupBindingsLocked(
+    _In_ DMAManager_t*       manager,
+    _In_ DMARecoveryGroup_t* group)
+{
     foreach (node, &manager->Registry.Attachments) {
         DMAAttachment_t* attachment = node->value;
 
@@ -89,6 +127,27 @@ DMARecoveryBlockLocked(
             DMA_ATTACHMENT_STOP_REQUIRED
         );
     }
+}
+
+void
+DMARecoveryBlockLocked(
+    _In_ DMAManager_t*       manager,
+    _In_ DMARecoveryGroup_t* group)
+{
+    MutexLock(&group->Lock);
+    if (!__MarkGroupBlockedLocked(manager, group)) {
+        MutexUnlock(&group->Lock);
+        return;
+    }
+
+    // The stop round (Round) was reserved before operations could start, so
+    // blocking never needs memory or new IDs, and a second close cannot undo a
+    // confirmed stop.
+    group->Stop.CancellationError = OS_EBUSY;
+    TRACE("DMARecoveryBlockLocked: recovery group %llu blocked, stop round %llu",
+          (unsigned long long)group->ID, (unsigned long long)group->Stop.Round);
+
+    __CloseGroupBindingsLocked(manager, group);
     MutexUnlock(&group->Lock);
 }
 
@@ -250,13 +309,85 @@ __CancelBlockedGroup(
     return status;
 }
 
+// Fast check for IOMMU failures. Compares the manager's last checked sequence
+// against the global failure counter, skipping the domain walk when nothing
+// changed (unless the counter saturated at UINT_MAX).
+oserr_t
+DMARecoveryCheckFailures(
+    _In_ DMAManager_t* manager)
+{
+    unsigned int sequence = DMAIOMMUGetFailureSequence();
+
+    if (sequence != UINT_MAX && atomic_load(&manager->CheckedFailureSequence) == sequence) {
+        return OS_EOK;
+    }
+    return DMARecoveryBlockFailedUnits(manager);
+}
+
+// Hold manager->Lock. Takes a reference on each group in the list, because the
+// group pointers are only safe while the lock is held. A group that cannot be
+// referenced is set to NULL and skipped by the caller. Returns the first
+// reference error, or OS_EOK.
+static oserr_t
+__AcquireGroupReferencesLocked(
+    _In_ DMARecoveryGroup_t** groups,
+    _In_ uint32_t             count)
+{
+    oserr_t firstError = OS_EOK;
+
+    for (uint32_t i = 0; i < count; i++) {
+        oserr_t status = DMARecoveryGroupAcquire(groups[i]);
+
+        if (status != OS_EOK) {
+            ERROR("__AcquireGroupReferencesLocked: group %llu reference failed: %u",
+                  (unsigned long long)groups[i]->ID, status);
+            groups[i] = NULL;
+            if (firstError == OS_EOK) {
+                firstError = status;
+            }
+        }
+    }
+    return firstError;
+}
+
+// Call with no manager or group lock held. Cancels every referenced group in
+// the list and releases the references. Every group is attempted, even after a
+// failure. Returns the first cancellation error, or OS_EOK.
+static oserr_t
+__CancelAndReleaseGroups(
+    _In_ DMARecoveryGroup_t** groups,
+    _In_ uint32_t             count)
+{
+    oserr_t firstError = OS_EOK;
+
+    for (uint32_t i = 0; i < count; i++) {
+        oserr_t status;
+
+        if (groups[i] == NULL) {
+            continue;
+        }
+
+        status = __CancelBlockedGroup(groups[i]);
+        if (status != OS_EOK) {
+            ERROR("__CancelAndReleaseGroups: group %llu cancellation incomplete: %u",
+                  (unsigned long long)groups[i]->ID, status);
+            if (firstError == OS_EOK) {
+                firstError = status;
+            }
+        }
+        DMARecoveryGroupRelease(&groups[i]);
+    }
+    return firstError;
+}
+
 oserr_t
 DMARecoveryBlockFailedUnits(
     _In_ DMAManager_t* manager)
 {
     DMARecoveryGroup_t* groups[DMA_MANAGER_MAX_ATTACHMENTS];
     uint32_t            count = 0;
-    oserr_t             firstError = OS_EOK;
+    unsigned int        sequence = DMAIOMMUGetFailureSequence();
+    oserr_t             firstError;
     oserr_t             status;
 
     MutexLock(&manager->Lock);
@@ -277,37 +408,14 @@ DMARecoveryBlockFailedUnits(
     }
 
     // Every affected group is already blocked and has its stop event queued, so
-    // a failed reference below cannot leave a group half handled. The group
-    // pointers are only safe while manager->Lock is held, so take a reference
-    // on each group now. A group that cannot be referenced is dropped from the
-    // list. Only referenced groups are used after the unlock.
-    for (uint32_t i = 0; i < count; i++) {
-        status = DMARecoveryGroupAcquire(groups[i]);
-        if (status != OS_EOK) {
-            ERROR("DMARecoveryBlockFailedUnits: group %llu reference failed: %u",
-                  (unsigned long long)groups[i]->ID, status);
-            groups[i] = NULL;
-            if (firstError == OS_EOK) {
-                firstError = status;
-            }
-        }
-    }
+    // a failed reference cannot leave a group half handled. Only referenced
+    // groups are used after the unlock.
+    firstError = __AcquireGroupReferencesLocked(groups, count);
     MutexUnlock(&manager->Lock);
 
-    for (uint32_t i = 0; i < count; i++) {
-        if (groups[i] == NULL) {
-            continue;
-        }
-
-        status = __CancelBlockedGroup(groups[i]);
-        if (status != OS_EOK) {
-            ERROR("DMARecoveryBlockFailedUnits: group %llu cancellation incomplete: %u",
-                  (unsigned long long)groups[i]->ID, status);
-            if (firstError == OS_EOK) {
-                firstError = status;
-            }
-        }
-        DMARecoveryGroupRelease(&groups[i]);
+    status = __CancelAndReleaseGroups(groups, count);
+    if (firstError == OS_EOK) {
+        firstError = status;
     }
 
     if (count != 0) {
@@ -316,36 +424,94 @@ DMARecoveryBlockFailedUnits(
         // read retries the cancellation.
         DMAManagerNotifyEvents(manager, __func__);
     }
+
+    // Publish only the sequence sampled before the scan. A fault arriving
+    // during this pass must trigger another pass, as must incomplete cancellation.
+    if (firstError == OS_EOK) {
+        atomic_store(&manager->CheckedFailureSequence, sequence);
+    }
     return firstError;
 }
 
-void
-DMABindingEndOperation(
+// Removes the binding's operation from the group count. Returns true if the
+// group is Blocked, which means a stop may be waiting for the count to drop.
+static bool
+__RemoveBindingOperation(
+    _In_     DMABinding_t* binding,
+    _InOut_  bool*         counted)
+{
+    DMARecoveryGroup_t* group = binding->Group;
+    bool                blocked;
+
+    SpinlockAcquireIrq(&group->Access.Lock);
+    DMARecoveryRemoveOperationLocked(&group->Access);
+    if (counted != NULL) {
+        *counted = false;
+    }
+    blocked = group->Access.State == DMARecoveryBlocked;
+    SpinlockReleaseIrq(&group->Access.Lock);
+    return blocked;
+}
+
+// Reads the stop progress of a Blocked group. retryOut is set when another
+// cancel pass is needed, and drainedOut when no operations are left.
+static void
+__ReadBlockedGroupProgress(
+    _In_  DMARecoveryGroup_t* group,
+    _Out_ bool*               retryOut,
+    _Out_ bool*               drainedOut)
+{
+    MutexLock(&group->Lock);
+    *retryOut = group->Access.State == DMARecoveryBlocked &&
+        (group->Stop.Phase != DMARecoveryStopIdle || group->Stop.CancellationError != OS_EOK);
+    *drainedOut = group->Access.State == DMARecoveryBlocked && group->Access.Operations == 0;
+    MutexUnlock(&group->Lock);
+}
+
+// Queues the stop required event again once the Blocked group has no running
+// operations. Returns true if an event was queued and watchers need a signal.
+static bool
+__QueueStopWhenDrained(
     _In_ DMABinding_t* binding)
 {
+    DMAManager_t*       manager = binding->Manager;
+    DMARecoveryGroup_t* group = binding->Group;
+    bool                queued = false;
+
+    MutexLock(&manager->Lock);
+    MutexLock(&group->Lock);
+    if (manager->State == DMAManagerLive && group->Access.State == DMARecoveryBlocked &&
+        group->Access.Operations == 0) {
+        __QueueGroupEventLocked(manager, group, DMA_ATTACHMENT_STOP_REQUIRED);
+        queued = true;
+    }
+    MutexUnlock(&group->Lock);
+    MutexUnlock(&manager->Lock);
+    return queued;
+}
+
+static void
+__EndBindingOperation(
+    _In_    DMABinding_t* binding,
+    _InOut_ bool*         counted)
+{
     bool    retryCancellation;
-    bool    notifyManager = false;
     bool    drained;
     oserr_t status;
 
-    // A unit can fail while this operation runs, before any check notices.
-    // Run the failure pass first, while the operation is still counted. Stop
-    // cleanup keeps waiting for it, so cleanup cannot finish before the failure
-    // reaches the recovery groups.
-    status = DMARecoveryBlockFailedUnits(binding->Manager);
+    // Propagate newly reported failures before the count drops. The unchanged
+    // sequence path reads atomics and does not take a manager or group mutex.
+    status = DMARecoveryCheckFailures(binding->Manager);
     if (status != OS_EOK) {
-        ERROR("DMABindingEndOperation: failure propagation for manager %u, binding %u failed: %u",
-              binding->Manager->ID, binding->ID, status);
+        ERROR("DMABindingEndOperation: failure propagation for binding %u failed: %u",
+              binding->ID, status);
     }
 
-    MutexLock(&binding->Group->Lock);
-    assert(binding->Group->Access.Operations != 0);
-    binding->Group->Access.Operations--;
-    retryCancellation = binding->Group->Access.State == DMARecoveryBlocked &&
-        (binding->Group->Stop.Phase != DMARecoveryStopIdle ||
-         binding->Group->Stop.CancellationError != OS_EOK);
-    drained = binding->Group->Access.State == DMARecoveryBlocked && binding->Group->Access.Operations == 0;
-    MutexUnlock(&binding->Group->Lock);
+    if (!__RemoveBindingOperation(binding, counted)) {
+        return;
+    }
+
+    __ReadBlockedGroupProgress(binding->Group, &retryCancellation, &drained);
 
     // A release operation that overlapped the first cancel pass just finished.
     // Run another cancel pass outside the locks so any waiting contexts get
@@ -354,26 +520,27 @@ DMABindingEndOperation(
         DMARecoveryCancel(binding->Group);
     }
 
-    if (!drained) {
-        return;
-    }
-
-    MutexLock(&binding->Manager->Lock);
-    MutexLock(&binding->Group->Lock);
-    if (binding->Manager->State == DMAManagerLive && binding->Group->Access.State == DMARecoveryBlocked &&
-        binding->Group->Access.Operations == 0) {
-        __QueueGroupEventLocked(
-            binding->Manager,
-            binding->Group,
-            DMA_ATTACHMENT_STOP_REQUIRED
-        );
-        notifyManager = true;
-    }
-    MutexUnlock(&binding->Group->Lock);
-    MutexUnlock(&binding->Manager->Lock);
-
-    if (notifyManager) {
+    if (drained && __QueueStopWhenDrained(binding)) {
         DMAManagerNotifyEvents(binding->Manager, __func__);
+    }
+}
+
+void
+DMABindingEndOperation(
+    _In_ DMABinding_t* binding)
+{
+    __EndBindingOperation(binding, NULL);
+}
+
+// Ends a counted region operation and clears *counted. Repeating this call when
+// *counted is already false does nothing, which keeps error cleanup simple.
+void
+DMABindingEndRegionOperation(
+    _In_    DMABinding_t* binding,
+    _InOut_ bool*         counted)
+{
+    if (*counted) {
+        __EndBindingOperation(binding, counted);
     }
 }
 
@@ -535,8 +702,19 @@ __BeginStopCleanupLocked(
         return status;
     }
 
+    // A release call can enter a blocked group right while contexts are being
+    // collected. Lock Access.Lock to freeze new releases, confirm Operations
+    // is still zero, and mark Cleaning before touching any mapping.
+    SpinlockAcquireIrq(&group->Access.Lock);
+    if (group->Access.Operations != 0) {
+        SpinlockReleaseIrq(&group->Access.Lock);
+        return OS_EBUSY;
+    }
     group->Access.State = DMARecoveryStopConfirmed;
+    group->Access.Cleaning = true;
+    SpinlockReleaseIrq(&group->Access.Lock);
     group->Stop.Phase = DMARecoveryStopCleaning;
+
     *cleanupOut = true;
     return OS_EOK;
 }
@@ -594,8 +772,15 @@ __FinishStopCleanup(
     MutexLock(&manager->Lock);
     MutexLock(&group->Lock);
     group->Stop.Phase = DMARecoveryStopIdle;
+
+    SpinlockAcquireIrq(&group->Access.Lock);
+    group->Access.Cleaning = false;
     if (cleanupStatus == OS_EOK) {
         group->Access.State = DMARecoveryStopCleaned;
+    }
+    SpinlockReleaseIrq(&group->Access.Lock);
+
+    if (cleanupStatus == OS_EOK) {
         TRACE("__FinishStopCleanup: recovery group %llu cleaned, stop round %llu",
               (unsigned long long)group->ID, (unsigned long long)group->Stop.Round);
     } else {

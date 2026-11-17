@@ -23,13 +23,25 @@
 #include <debug.h>
 #include <handles/global.h>
 #include <heap.h>
-#include <limits.h>
 #include <memoryspace.h>
 #include <string.h>
 
 #include "attachment_private.h"
 #include "../utils.h"
 
+// Updates the binding state under Access.Lock so fast DMA entry paths
+// (which check Access.Lock without taking group->Lock) see changes right away.
+static void
+__SetBindingState(
+    _In_ DMABinding_t*        binding,
+    _In_ enum DMABindingState state)
+{
+    SpinlockAcquireIrq(&binding->Group->Access.Lock);
+    binding->State = state;
+    SpinlockReleaseIrq(&binding->Group->Access.Lock);
+}
+
+// Marks a binding closed and blocks its recovery group if a context is attached.
 void
 DMABindingCloseLocked(
     _In_ DMABinding_t* binding)
@@ -39,7 +51,7 @@ DMABindingCloseLocked(
     bool hasContext;
 
     MutexLock(&binding->Group->Lock);
-    binding->State = DMABindingClosed;
+    __SetBindingState(binding, DMABindingClosed);
     hasContext = binding->Context.Pointer != NULL;
     MutexUnlock(&binding->Group->Lock);
     if (hasContext) {
@@ -162,7 +174,7 @@ __BlockFailedUnitGroupsForBinding(
     oserr_t status = DMARecoveryBlockFailedUnits(manager);
 
     if (status != OS_EOK) {
-        ERROR("DMA binding: failure propagation for manager %u failed: %u", manager->ID, status);
+        ERROR("__BlockFailedUnitGroupsForBinding: failure propagation for manager %u failed: %u", manager->ID, status);
     }
 }
 
@@ -264,7 +276,9 @@ __MakeGroupLiveLocked(
         }
 
         group->Stop.Round++;
+        SpinlockAcquireIrq(&group->Access.Lock);
         group->Access.State = DMARecoveryLive;
+        SpinlockReleaseIrq(&group->Access.Lock);
         TRACE("__MakeGroupLiveLocked: recovery group %llu is live again, stop round %llu",
               (unsigned long long)group->ID, (unsigned long long)group->Stop.Round);
     }
@@ -450,7 +464,8 @@ __CreateBinding(
     binding->OwnerSecurityID = parameters->Principal;
     binding->RequestId = parameters->RequestId;
     binding->Generation = generation;
-    binding->State = DMABindingPreparing;
+    atomic_init(&binding->State, DMABindingPreparing);
+    atomic_init(&binding->Context.Phase, DMABindingContextNone);
 
     // UpdateLock keeps this group registered until publish or cancel finishes.
     // Acquire a reference before creating the handle in case the driver guesses
@@ -696,7 +711,8 @@ DMAManagerPublishBinding(
         if (prepared->Attachment->Domain != NULL) {
             prepared->Attachment->Domain->OwnerSecurityID = binding->OwnerSecurityID;
         }
-        binding->State = DMABindingLive;
+
+        __SetBindingState(binding, DMABindingLive);
     }
 
 unlock:
@@ -739,13 +755,13 @@ DMAManagerCancelBinding(
     __FinishBindingRegistration(registration, true);
 }
 
-// Requires group->Lock and a binding reference. The binding must be live and
-// its recovery group not blocked. For a domain member, the unit must also not
+// Requires group->Lock or group->Access.Lock, and a binding reference. The
+// binding and its recovery group must be live. For a domain member, the unit must not
 // have failed. Returns OS_ECANCELLED, or the unit failure from
-// DMAAddressSpaceCheck. Sharing this helper ensures context publish and
+// DMAIOMMUUnitCheck. Sharing this helper ensures context publish and
 // operation checks follow the exact same rules.
-static oserr_t
-__CheckBindingLiveLocked(
+oserr_t
+DMABindingCheckLiveLocked(
     _In_ DMABinding_t* binding)
 {
     if (binding->State != DMABindingLive || binding->Group->Access.State != DMARecoveryLive) {
@@ -753,9 +769,9 @@ __CheckBindingLiveLocked(
     }
 
     if (binding->Attachment->Domain != NULL) {
-        return DMAAddressSpaceCheck(
-            binding->Attachment->Domain->AddressSpace
-        );
+        // A domain always has a referenced unit. Its failure latch is safe to
+        // read under Access.Lock and does not log or take the unit mutex.
+        return DMAIOMMUUnitCheck(binding->Attachment->Domain->Unit);
     }
     return OS_EOK;
 }
@@ -789,7 +805,7 @@ __ReserveContextLocked(
         return OS_ECANCELLED;
     }
 
-    status = __CheckBindingLiveLocked(binding);
+    status = DMABindingCheckLiveLocked(binding);
     if (status != OS_EOK) {
         return status;
     }
@@ -798,21 +814,20 @@ __ReserveContextLocked(
         return OS_EBUSY;
     }
 
-    if (binding->Group->Access.Operations == UINT_MAX) {
-        ERROR("__ReserveContextLocked: binding %u cannot open a context, the operation count is exhausted", binding->ID);
-        return OS_EOVERFLOW;
-    }
-
     configurationOut->CachePolicy = binding->Attachment->Configuration.CachePolicy;
     configurationOut->AddressLimit = binding->Attachment->Configuration.AddressLimit;
     if (parameters->AddressLimit < configurationOut->AddressLimit) {
         configurationOut->AddressLimit = parameters->AddressLimit;
     }
 
-    binding->Context.Pointer = context;
-    binding->Context.Phase = DMABindingContextPreparing;
-    binding->Group->Access.Operations++;
-    return OS_EOK;
+    SpinlockAcquireIrq(&binding->Group->Access.Lock);
+    status = DMARecoveryAddOperationLocked(&binding->Group->Access);
+    if (status == OS_EOK) {
+        binding->Context.Pointer = context;
+        binding->Context.Phase = DMABindingContextPreparing;
+    }
+    SpinlockReleaseIrq(&binding->Group->Access.Lock);
+    return status;
 }
 
 // Get the address space the binding's context will use. A device in a domain
@@ -884,7 +899,12 @@ DMABindingAttachContext(
     status = __ReserveContextLocked(binding, caller, parameters, context, &configuration);
     MutexUnlock(&binding->Group->Lock);
     if (status != OS_EOK) {
-        WARNING("DMABindingAttachContext: context open on binding %u refused: %u", binding->ID, status);
+        if (status == OS_EOVERFLOW) {
+            ERROR("DMABindingAttachContext: binding %u cannot open a context, the operation count is exhausted",
+                  binding->ID);
+        } else {
+            WARNING("DMABindingAttachContext: context open on binding %u refused: %u", binding->ID, status);
+        }
         __BlockFailedUnitGroupsForBinding(binding->Manager);
         __ReleaseMemoryHandleReference(binding->ID, __func__);
         return status;
@@ -927,17 +947,21 @@ DMABindingPublishContext(
     oserr_t status;
 
     MutexLock(&binding->Group->Lock);
+    SpinlockAcquireIrq(&binding->Group->Access.Lock);
     assert(binding->Context.Phase == DMABindingContextPreparing);
-    status = __CheckBindingLiveLocked(binding);
+
+    status = DMABindingCheckLiveLocked(binding);
     if (status == OS_EOK) {
         binding->Context.Phase = DMABindingContextLive;
-        assert(binding->Group->Access.Operations != 0);
-        binding->Group->Access.Operations--;
+        DMARecoveryRemoveOperationLocked(&binding->Group->Access);
     }
+    SpinlockReleaseIrq(&binding->Group->Access.Lock);
     MutexUnlock(&binding->Group->Lock);
+
     if (status != OS_EOK) {
         WARNING("DMABindingPublishContext: context publish on binding %u refused: %u", binding->ID, status);
     }
+
     __BlockFailedUnitGroupsForBinding(binding->Manager);
     return status;
 }
@@ -953,13 +977,17 @@ DMABindingDetachContext(
     if (current == NULL) {
         return;
     }
-    
+
     *binding = NULL;
-    
+
     MutexLock(&current->Group->Lock);
     assert(current->Context.Pointer == context);
     preparing = current->Context.Phase == DMABindingContextPreparing;
-    memset(&current->Context, 0, sizeof(DMABindingContextState_t));
+
+    SpinlockAcquireIrq(&current->Group->Access.Lock);
+    current->Context.Pointer = NULL;
+    current->Context.Phase = DMABindingContextNone;
+    SpinlockReleaseIrq(&current->Group->Access.Lock);
     MutexUnlock(&current->Group->Lock);
 
     if (preparing) {
@@ -971,25 +999,23 @@ DMABindingDetachContext(
     __ReleaseMemoryHandleReference(current->ID, __func__);
 }
 
-oserr_t
-DMABindingBeginOperation(
-    _In_  DMABinding_t* binding,
-    _In_  bool          release,
-    _Out_ bool*         stoppedOut)
+// Hold group->Access.Lock. Checks whether a binding can start a DMA operation.
+// A release operation frees mappings, so it is still allowed after the group
+// stops. It waits with OS_EBUSY only while the group is Blocked (stop not yet
+// confirmed) or while stop cleanup is already freeing those same mappings.
+// Returns OS_ECANCELLED if the binding, context, or manager closed, OS_EBUSY
+// when a release must wait, or the unit error from DMABindingCheckLiveLocked.
+static oserr_t
+__CheckOperationAllowedLocked(
+    _In_ DMABinding_t* binding,
+    _In_ bool          release)
 {
     DMARecoveryGroup_t* group = binding->Group;
-    oserr_t             status;
+    oserr_t             status = DMABindingCheckLiveLocked(binding);
 
-    MutexLock(&group->Lock);
-    status = __CheckBindingLiveLocked(binding);
-
-    // A release operation frees mappings, so it must still be allowed after
-    // the group stopped. It is refused only while the group is Blocked (the
-    // stop is not confirmed yet) or while stop cleanup is running, because
-    // cleanup frees the same mappings.
     if (release && group->Access.State != DMARecoveryLive) {
         status = group->Access.State == DMARecoveryBlocked ||
-            group->Stop.Phase == DMARecoveryStopCleaning ? OS_EBUSY : OS_EOK;
+            group->Access.Cleaning ? OS_EBUSY : OS_EOK;
     }
 
     if (group->Access.ManagerClosed) {
@@ -999,23 +1025,44 @@ DMABindingBeginOperation(
     if (status == OS_EOK && binding->Context.Phase != DMABindingContextLive) {
         status = OS_ECANCELLED;
     }
+    return status;
+}
+
+oserr_t
+DMABindingBeginOperation(
+    _In_  DMABinding_t* binding,
+    _In_  bool          release,
+    _Out_ bool*         stoppedOut)
+{
+    DMARecoveryGroup_t* group = binding->Group;
+    oserr_t             status;
+
+    // Propagate any new IOMMU unit failures before taking Access.Lock because
+    // blocking failed-unit groups takes mutexes and walks domains.
+    status = DMARecoveryCheckFailures(binding->Manager);
+    if (status != OS_EOK) {
+        ERROR("DMABindingBeginOperation: failure propagation for binding %u failed: %u", binding->ID, status);
+    }
+
+    SpinlockAcquireIrq(&group->Access.Lock);
+    status = __CheckOperationAllowedLocked(binding, release);
 
     // Count the operation, so stop cleanup waits for it to end. For a release
     // on a stopped group, stoppedOut tells the caller the device is already
     // known to be stopped.
     if (status == OS_EOK) {
-        if (group->Access.Operations == UINT_MAX) {
-            ERROR("DMABindingBeginOperation: binding %u cannot start an operation, the operation count is exhausted",
-                  binding->ID);
-            status = OS_EOVERFLOW;
-        } else {
-            group->Access.Operations++;
-            *stoppedOut = release && (group->Access.State == DMARecoveryStopConfirmed ||
-                                     group->Access.State == DMARecoveryStopCleaned);
-        }
+        status = DMARecoveryAddOperationLocked(&group->Access);
     }
-    MutexUnlock(&group->Lock);
-    __BlockFailedUnitGroupsForBinding(binding->Manager);
+    if (status == OS_EOK) {
+        *stoppedOut = release && (group->Access.State == DMARecoveryStopConfirmed ||
+                                 group->Access.State == DMARecoveryStopCleaned);
+    }
+    SpinlockReleaseIrq(&group->Access.Lock);
+
+    if (status == OS_EOVERFLOW) {
+        ERROR("DMABindingBeginOperation: binding %u cannot start an operation, the operation count is exhausted",
+              binding->ID);
+    }
     return status;
 }
 
@@ -1025,10 +1072,15 @@ DMABindingCheckOperation(
 {
     oserr_t status;
 
-    MutexLock(&binding->Group->Lock);
-    status = __CheckBindingLiveLocked(binding);
-    MutexUnlock(&binding->Group->Lock);
-    __BlockFailedUnitGroupsForBinding(binding->Manager);
+    // Check for recent IOMMU failures before reading the fast spinlock state.
+    status = DMARecoveryCheckFailures(binding->Manager);
+    if (status != OS_EOK) {
+        ERROR("DMABindingCheckOperation: failure propagation for binding %u failed: %u", binding->ID, status);
+    }
+
+    SpinlockAcquireIrq(&binding->Group->Access.Lock);
+    status = DMABindingCheckLiveLocked(binding);
+    SpinlockReleaseIrq(&binding->Group->Access.Lock);
     return status;
 }
 
