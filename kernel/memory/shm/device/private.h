@@ -257,33 +257,51 @@ __SHMDeviceMappingIsStreaming(
 }
 
 /**
- * @brief Convert physical byte ranges into a count or list of device segments.
+ * @brief Prepare a buffer range and its device layout, without installing it.
  *
- * A device segment is a run of bytes with consecutive device addresses, so the
- * device can transfer it as one block. Hold a context reference until the call
- * returns. The caller must check requirements before calling. Call once with
- * segmentsOut set to NULL to count the segments, then again with room for that
- * many entries. Keep extents and requirements unchanged between the two calls.
+ * The device layout is what the device needs to reach the range. That is the
+ * physical extents, the bounce pages if any, and the device addresses. The
+ * device cannot use any of it until the mapping is installed later.
  *
- * @param context Context whose address rules do not change.
- * @param extents Physical byte ranges in buffer order.
- * @param extentCount Number of entries in extents, at least one.
- * @param requirements Optional alignment requirements for completed segments.
- * @param segmentsOut NULL to count only, otherwise room for every segment.
- * @param countOut Receives the number of segments on success.
- * @return OS_EOK on success. OS_EINVALPARAMS for an empty or overflowing range.
- *         OS_ENOENT if a byte has no device address. OS_ENOTSUPPORTED for unmet
- *         alignment or a segment count that does not fit in uint32_t.
- *         Discard partial output on failure.
+ * Call this after the buffer kind, direction, requirements and the caller's
+ * access to the range have been checked. Offset is counted from the start of
+ * the backing buffer, and length must not be zero. The caller must hold the
+ * buffer reference, the context reference and an active operation token. This
+ * function does not take or release any of them.
+ *
+ * On success the mapping is returned in the Preparing state and is not on the
+ * context list yet. The caller sets Access.ReferenceID and Access.Scope, links
+ * the mapping and then installs its device addresses. Once linked, the mapping
+ * holds the caller's buffer and context references. On failure, everything
+ * allocated here is freed and mappingOut is unchanged. The caller still holds
+ * its references and must release them.
+ *
+ * @param buffer Backing buffer. Its pages must stay allocated during the call.
+ * @param context Context whose address space and cache policy describe the device.
+ * @param offset First byte of the range, counted from the start of buffer.
+ * @param length Number of bytes to map.
+ * @param direction Whether the device reads, writes or both. Must be valid.
+ * @param kind Streaming, persistent or shared mapping kind. Must be valid.
+ * @param requirements Optional alignment limits for each device segment.
+ * @param allocationRequirements Optional limits for the whole buffer as the
+ *                               device sees it (one segment, alignment, boundary).
+ * @param mappingOut Receives the prepared mapping only on success.
+ * @return OS_EOK on success. OS_EINCOMPLETE if a page in the range was never
+ *         allocated. OS_ENOTSUPPORTED if the layout cannot meet the limits.
+ *         Otherwise the error from allocating bounce pages or building the
+ *         device addresses.
  */
 KERNELABI oserr_t KERNELAPI
-SHMDeviceContextWalkSegments(
-    _In_  const struct SHMDeviceContext*   context,
-    _In_  const SHMSG_t*                   extents,
-    _In_  int                              extentCount,
+SHMDeviceMappingPrepare(
+    _In_  struct SHMBuffer*                buffer,
+    _In_  SHMDeviceContext_t*              context,
+    _In_  size_t                           offset,
+    _In_  size_t                           length,
+    _In_  enum DMADirection                direction,
+    _In_  enum SHMDeviceMappingKind        kind,
     _In_  const struct DMAMapRequirements* requirements,
-    _Out_ struct DMASegment*               segmentsOut,
-    _Out_ uint32_t*                        countOut);
+    _In_  const struct DMARequirements*    allocationRequirements,
+    _Out_ SHMDeviceMapping_t**             mappingOut);
 
 /**
  * @brief Free the kernel views of the bounce pages and return the pages to the

@@ -30,19 +30,21 @@
 static Mutex_t       g_managerRegistryLock = OS_MUTEX_INIT(MUTEX_FLAG_PLAIN);
 static DMAManager_t* g_manager;
 
-static void
-__DetachClosedManager(
+void
+DMAManagerDetachClosed(
     _In_ DMAManager_t* manager)
 {
     bool releaseRegistryReference = false;
 
     // Call with both UpdateLock and manager->Lock unlocked. Both handle close and
     // failed creation can reach here, so clear g_manager under the locks to
-    // make sure only one path drops the global registry reference.
+    // make sure only one path drops the global registry reference. The
+    // reference is only dropped once the manager is closed and has no
+    // attachments and no domains left.
     MutexLock(&g_managerRegistryLock);
     MutexLock(&manager->Lock);
     if (g_manager == manager && manager->State == DMAManagerClosed &&
-        manager->Registry.Count == 0) {
+        manager->Registry.Count == 0 && manager->DomainCount == 0) {
         g_manager = NULL;
         releaseRegistryReference = true;
     }
@@ -50,6 +52,7 @@ __DetachClosedManager(
     MutexUnlock(&g_managerRegistryLock);
 
     if (releaseRegistryReference) {
+        TRACE("DMAManagerDetachClosed: manager %u dropped from the global registry", manager->ID);
         __ReleaseMemoryHandleReference(manager->ID, __func__);
     }
 }
@@ -94,14 +97,16 @@ __CloseManager(
 {
     DMAManager_t* manager = resource;
 
+    TRACE("__CloseManager: closing manager %u", manager->ID);
+
     // Run without UpdateLock so a registration stalled on copying to user space
     // cannot block handle cleanup. Any attachments still registered keep the
-    // global registry reference alive until reboot.
+    // global registry reference alive until reboot. Registered domains do too.
     MutexLock(&manager->Lock);
     __CloseManagerLocked(manager);
     MutexUnlock(&manager->Lock);
     __CancelClosedManager(manager);
-    __DetachClosedManager(manager);
+    DMAManagerDetachClosed(manager);
 }
 
 static void
@@ -110,9 +115,11 @@ __DeleteManager(
 {
     DMAManager_t* manager = resource;
 
-    // The global registry keeps the manager alive as long as attachments remain.
+    // The global registry holds a manager reference while any attachment or
+    // domain exists. Both must be gone by the time the manager is deleted.
     assert(manager->State == DMAManagerClosed);
     assert(manager->Registry.Count == 0);
+    assert(manager->DomainCount == 0 && manager->Domains.count == 0);
     assert(manager->Registry.Groups.count == 0);
     assert(manager->PendingEvents.count == 0);
     MutexDestruct(&manager->UpdateLock);
@@ -135,6 +142,36 @@ __CheckManagerStateLocked(
     return OS_EOK;
 }
 
+// Allocate a manager in the Preparing state, with empty lists and ID counters
+// that start at 1. Nothing is registered and no handle exists yet. Returns NULL
+// if the allocation fails.
+static DMAManager_t*
+__AllocateManager(
+    _In_ const MSContextSecurity_t* serviceContext)
+{
+    DMAManager_t* manager;
+
+    manager = kmalloc(sizeof(DMAManager_t));
+    if (manager == NULL) {
+        return NULL;
+    }
+
+    memset(manager, 0, sizeof(DMAManager_t));
+    manager->ID = UUID_INVALID;
+    manager->OwnerSecurityID = (uint64_t)serviceContext->GlobalHandleID;
+    manager->State = DMAManagerPreparing;
+    manager->Registry.NextAttachmentID = 1;
+    manager->Registry.NextRecoveryGroupID = 1;
+    manager->Registry.NextBindingGeneration = 1;
+    list_construct(&manager->Registry.Attachments);
+    list_construct(&manager->Registry.Groups);
+    list_construct(&manager->PendingEvents);
+    list_construct(&manager->Domains);
+    MutexConstruct(&manager->Lock, MUTEX_FLAG_PLAIN);
+    MutexConstruct(&manager->UpdateLock, MUTEX_FLAG_PLAIN);
+    return manager;
+}
+
 oserr_t
 DMAManagerPrepareCreate(
     _Out_ DMAManager_t** managerOut,
@@ -150,29 +187,20 @@ DMAManagerPrepareCreate(
 
     serviceContext = MemorySpaceGetSecurityContext();
     if (serviceContext == NULL) {
+        WARNING("DMAManagerPrepareCreate: manager create denied, the caller has no security context");
         return OS_EPERMISSIONS;
     }
 
-    manager = kmalloc(sizeof(DMAManager_t));
+    manager = __AllocateManager(serviceContext);
     if (manager == NULL) {
+        ERROR("DMAManagerPrepareCreate: failed to allocate a manager for security group %u",
+              serviceContext->GlobalHandleID);
         return OS_EOOM;
     }
 
-    memset(manager, 0, sizeof(DMAManager_t));
-    manager->ID = UUID_INVALID;
-    manager->Principal = (uint64_t)serviceContext->GlobalHandleID;
-    manager->State = DMAManagerPreparing;
-    manager->Registry.NextAttachmentID = 1;
-    manager->Registry.NextRecoveryGroupID = 1;
-    manager->Registry.NextBindingGeneration = 1;
-    list_construct(&manager->Registry.Attachments);
-    list_construct(&manager->Registry.Groups);
-    list_construct(&manager->PendingEvents);
-    MutexConstruct(&manager->Lock, MUTEX_FLAG_PLAIN);
-    MutexConstruct(&manager->UpdateLock, MUTEX_FLAG_PLAIN);
-
     MutexLock(&g_managerRegistryLock);
     if (g_manager != NULL) {
+        WARNING("DMAManagerPrepareCreate: manager create refused, manager %u already exists", g_manager->ID);
         MutexUnlock(&g_managerRegistryLock);
         manager->State = DMAManagerClosed;
         __DeleteManager(manager);
@@ -185,6 +213,8 @@ DMAManagerPrepareCreate(
     MutexLock(&manager->Lock);
     handle = CreateHandle(HandleTypeDMAManager, __CloseManager, __DeleteManager, manager);
     if (handle == UUID_INVALID) {
+        ERROR("DMAManagerPrepareCreate: failed to create a handle for the manager of security group %u",
+              serviceContext->GlobalHandleID);
         MutexUnlock(&manager->Lock);
         MutexUnlock(&g_managerRegistryLock);
         manager->State = DMAManagerClosed;
@@ -212,6 +242,7 @@ DMAManagerPrepareCreate(
     MutexUnlock(&manager->Lock);
     MutexUnlock(&g_managerRegistryLock);
 
+    TRACE("DMAManagerPrepareCreate: manager %u created, waiting to be published", handle);
     *managerOut = manager;
     *handleOut = handle;
     return OS_EOK;
@@ -247,7 +278,7 @@ DMAManagerPublish(
     // Take a temporary reference to the service's security group to make sure
     // it is not shutting down, then drop it so the manager does not keep the
     // security group alive.
-    status = MSContextAcquireSecurity(manager->Principal, &serviceContext);
+    status = MSContextAcquireSecurity(manager->OwnerSecurityID, &serviceContext);
     if (status != OS_EOK) {
         ERROR("DMAManagerPublish: MSContextAcquireSecurity for manager %u failed: %u",
               manager->ID, status);
@@ -267,6 +298,9 @@ DMAManagerPublish(
         status = OS_ECANCELLED;
     }
     MutexUnlock(&manager->Lock);
+    if (status == OS_EOK) {
+        TRACE("DMAManagerPublish: manager %u is live", manager->ID);
+    }
 
     __ReleaseMemoryHandleReference(
         serviceContext->GlobalHandleID,
@@ -305,23 +339,26 @@ DMAManagerReference(
 
     caller = MemorySpaceGetSecurityContext();
     if (caller == NULL) {
+        WARNING("DMAManagerReference: manager %u reference denied, the caller has no security context", handle);
         return OS_EPERMISSIONS;
     }
 
     status = AcquireHandleReference(handle, HandleTypeDMAManager, (void**)&manager);
     if (status != OS_EOK) {
+        WARNING("DMAManagerReference: AcquireHandleReference for manager %u failed: %u", handle, status);
         return status;
     }
 
-    if (manager->Principal != (uint64_t)caller->GlobalHandleID) {
+    if (manager->OwnerSecurityID != (uint64_t)caller->GlobalHandleID) {
+        WARNING("DMAManagerReference: manager %u reference denied, security group %u is not the owner",
+                handle, caller->GlobalHandleID);
         DMAManagerRelease(&manager);
         return OS_EPERMISSIONS;
     }
 
-    status = MSContextAcquireSecurity(manager->Principal, &serviceContext);
+    status = MSContextAcquireSecurity(manager->OwnerSecurityID, &serviceContext);
     if (status != OS_EOK) {
-        ERROR("DMAManagerReference: MSContextAcquireSecurity for manager %u failed: %u",
-              handle, status);
+        ERROR("DMAManagerReference: MSContextAcquireSecurity for manager %u failed: %u", handle, status);
         MutexLock(&manager->Lock);
         __CloseManagerLocked(manager);
         MutexUnlock(&manager->Lock);
@@ -334,8 +371,7 @@ DMAManagerReference(
     status = __CheckManagerStateLocked(manager);
     MutexUnlock(&manager->Lock);
     if (status != OS_EOK) {
-        ERROR("DMAManagerReference: __CheckManagerStateLocked for manager %u failed: %u",
-              handle, status);
+        WARNING("DMAManagerReference: manager %u is not accepting requests: %u", handle, status);
         __ReleaseMemoryHandleReference(serviceContext->GlobalHandleID, __func__);
         DMAManagerRelease(&manager);
         return status;
@@ -360,41 +396,65 @@ DMAManagerRelease(
     *manager = NULL;
 
     handle = released->ID;
-    __DetachClosedManager(released);
+    DMAManagerDetachClosed(released);
     __ReleaseMemoryHandleReference(handle, __func__);
 }
 
 static oserr_t
 __ValidateAttachmentParameters(
-    _In_ const OSDmaAttachmentParameters_t* parameters)
+    _In_ const OSDmaAttachmentParameters_t* parameters,
+    _In_ bool                              translated)
 {
     oserr_t status;
 
     if (parameters->Version != DMA_ATTACHMENT_VERSION || parameters->Reserved != 0) {
+        WARNING("__ValidateAttachmentParameters: attachment for device %u rejected, bad version %u or reserved value %u",
+                parameters->Device, parameters->Version, parameters->Reserved);
         return OS_EINVALPARAMS;
     }
 
     if (parameters->Device == UUID_INVALID || parameters->Host == UUID_INVALID) {
+        WARNING("__ValidateAttachmentParameters: attachment rejected, invalid device %u or host %u",
+                parameters->Device, parameters->Host);
         return OS_EINVALPARAMS;
     }
 
     if (parameters->RequesterGroup == 0 || parameters->ResetGroup == 0) {
+        WARNING("__ValidateAttachmentParameters: attachment for device %u rejected, requester group %llu or reset group %llu is zero",
+                parameters->Device, (unsigned long long)parameters->RequesterGroup,
+                (unsigned long long)parameters->ResetGroup);
         return OS_EINVALPARAMS;
     }
 
     if (parameters->CachePolicy != SHMDeviceCacheNonCoherent &&
         parameters->CachePolicy != SHMDeviceCacheCoherent) {
+        WARNING("__ValidateAttachmentParameters: attachment for device %u rejected, bad cache policy %u",
+                parameters->Device, parameters->CachePolicy);
         return OS_EINVALPARAMS;
     }
 
-    status = DMAAddressRangesValidate(parameters->Ranges, parameters->RangeCount);
-    if (status != OS_EOK) {
-        return status;
+    if (translated) {
+        // A domain member uses the address space of its domain, so it has no
+        // address ranges of its own.
+        if (parameters->RangeCount != 0) {
+            WARNING("__ValidateAttachmentParameters: attachment for domain device %u rejected, it lists %u ranges",
+                    parameters->Device, parameters->RangeCount);
+            return OS_EINVALPARAMS;
+        }
+    } else {
+        status = DMAAddressRangesValidate(parameters->Ranges, parameters->RangeCount);
+        if (status != OS_EOK) {
+            WARNING("__ValidateAttachmentParameters: attachment for device %u rejected, %u ranges are invalid: %u",
+                    parameters->Device, parameters->RangeCount, status);
+            return status;
+        }
     }
 
     for (uint32_t i = parameters->RangeCount; i < DMA_MAX_RANGES; i++) {
         if (parameters->Ranges[i].PhysicalBase != 0 ||
             parameters->Ranges[i].DeviceBase != 0 || parameters->Ranges[i].Length != 0) {
+            WARNING("__ValidateAttachmentParameters: attachment for device %u rejected, unused range %u is not zero",
+                    parameters->Device, i);
             return OS_EINVALPARAMS;
         }
     }
@@ -480,6 +540,8 @@ __CheckRecoveryUpdateLocked(
     for (uint32_t i = 0; i < update->Count; i++) {
         DMAAttachment_t* attachment = update->Entries[i].Attachment;
         if (attachment->Event.Sequence == UINT64_MAX) {
+            ERROR("__CheckRecoveryUpdateLocked: event sequence of attachment %llu in manager %u is exhausted",
+                  (unsigned long long)attachment->ID, manager->ID);
             return OS_EOVERFLOW;
         }
 
@@ -494,9 +556,9 @@ __CheckRecoveryUpdateLocked(
             DMARecoveryGroup_t* group = attachment->RecoveryGroup;
 
             MutexLock(&group->Lock);
-            if (group->Gate.State == DMARecoveryBlocked ||
-                group->Gate.State == DMARecoveryConfirmed ||
-                group->Gate.Operations != 0 || group->Stop.Phase != DMARecoveryStopIdle) {
+            if (group->Access.State == DMARecoveryBlocked ||
+                group->Access.State == DMARecoveryStopConfirmed ||
+                group->Access.Operations != 0 || group->Stop.Phase != DMARecoveryStopIdle) {
                 status = OS_EBUSY;
             }
             MutexUnlock(&group->Lock);
@@ -505,11 +567,128 @@ __CheckRecoveryUpdateLocked(
     return status;
 }
 
+// Hold manager->Lock and UpdateLock. For a translated registration, selected
+// is the domain the device joins. It must belong to this manager, be Ready,
+// list the device, and sit on a unit that has not failed. For a direct
+// registration, selected is NULL. A direct device cannot reuse the
+// RequesterGroup or device ID of any domain. This includes a Closing domain
+// whose destruction failed, because it keeps its IDs reserved until it is gone.
+// Returns OS_EINVALPARAMS for a wrong manager or a device that is not in the
+// domain, OS_EBUSY for a Closing domain or a reserved ID, or the unit failure
+// from DMAAddressSpaceCheck.
+static oserr_t
+__CheckAttachmentDomainLocked(
+    _In_ DMAManager_t*                      manager,
+    _In_ DMATranslatedDomain_t*             selected,
+    _In_ const OSDmaAttachmentParameters_t* parameters)
+{
+    oserr_t status;
+
+    if (selected != NULL) {
+        if (selected->Manager != manager) {
+            ERROR("__CheckAttachmentDomainLocked: domain %p does not belong to manager %u, device %u",
+                  (void*)selected, manager->ID, parameters->Device);
+            return OS_EINVALPARAMS;
+        }
+
+        if (selected->State != DMATranslatedDomainReady) {
+            WARNING("__CheckAttachmentDomainLocked: domain %p is not ready for device %u, state %u",
+                    (void*)selected, parameters->Device, (uint32_t)selected->State);
+            return OS_EBUSY;
+        }
+
+        for (uint32_t i = 0; i < selected->DeviceCount; i++) {
+            if (selected->Devices[i] == parameters->Device) {
+                status = DMAAddressSpaceCheck(selected->AddressSpace);
+                if (status != OS_EOK) {
+                    WARNING("__CheckAttachmentDomainLocked: address space of domain %p is not usable for device %u: %u",
+                            (void*)selected, parameters->Device, status);
+                }
+                return status;
+            }
+        }
+
+        WARNING("__CheckAttachmentDomainLocked: device %u is not a member of domain %p", parameters->Device, (void*)selected);
+        return OS_EINVALPARAMS;
+    }
+    foreach (node, &manager->Domains) {
+        DMATranslatedDomain_t* domain = node->value;
+
+        if (domain->RequesterGroup == parameters->RequesterGroup) {
+            WARNING("__CheckAttachmentDomainLocked: direct device %u cannot use requester group %llu, domain %p holds it",
+                    parameters->Device, (unsigned long long)parameters->RequesterGroup,
+                    (void*)domain);
+            return OS_EBUSY;
+        }
+
+        for (uint32_t i = 0; i < domain->DeviceCount; i++) {
+            if (domain->Devices[i] == parameters->Device) {
+                WARNING("__CheckAttachmentDomainLocked: direct device %u is already listed in domain %p",
+                        parameters->Device, (void*)domain);
+                return OS_EBUSY;
+            }
+        }
+    }
+    return OS_EOK;
+}
+
+// Hold manager->Lock and UpdateLock. Publishing an attachment can merge
+// recovery groups, which puts direct devices and domain devices that share a
+// requester or reset key into one group. Check the address space of every
+// domain involved right before the groups are swapped, so a group never joins
+// a failed unit unnoticed. Removal checks the gate of the recovery group
+// instead. That way a domain whose unit failed and was fully cleaned can still
+// lose its attachments and be destroyed.
+static oserr_t
+__CheckAttachmentPublicationLocked(
+    _In_ DMAAttachmentRegistration_t* prepared)
+{
+    DMARecoveryUpdate_t* update = prepared->RecoveryUpdate;
+    oserr_t              status;
+
+    for (uint32_t i = 0; update != NULL && i < update->Count; i++) {
+        DMATranslatedDomain_t* domain = update->Entries[i].Attachment->Domain;
+
+        if (domain != NULL) {
+            status = DMAAddressSpaceCheck(domain->AddressSpace);
+            if (status != OS_EOK) {
+                WARNING("__CheckAttachmentPublicationLocked: address space of domain %p is not usable for a group merge: %u",
+                        (void*)domain, status);
+                return status;
+            }
+        }
+    }
+
+    return __CheckAttachmentDomainLocked(
+        prepared->Manager,
+        prepared->Attachment->Domain,
+        &prepared->Attachment->Configuration
+    );
+}
+
+// Call without manager->Lock held. UpdateLock may be held. If a unit has
+// failed, this blocks and cancels the recovery groups that depend on it. An
+// error here is only logged, so the caller still returns the result of its own
+// attachment step. The affected groups stay blocked and their events stay
+// queued, so a later call can retry the cancellation.
+static void
+__BlockFailedUnitGroupsForAttachment(
+    _In_ DMAManager_t* manager)
+{
+    oserr_t status = DMARecoveryBlockFailedUnits(manager);
+
+    if (status != OS_EOK) {
+        ERROR("DMA attachment: failure propagation for manager %u failed: %u", manager->ID, status);
+    }
+}
+
 // Hold manager->Lock and UpdateLock. Retrying an identical setup needs neither
-// a free registry slot nor a new attachment ID.
+// a free registry slot nor a new attachment ID. The domain is NULL for a direct
+// attachment. A retry must name the same domain as the existing attachment.
 static oserr_t
 __PrepareAttachmentRequestLocked(
     _In_    DMAManager_t*                      manager,
+    _In_    DMATranslatedDomain_t*             domain,
     _In_    const OSDmaAttachmentParameters_t* parameters,
     _InOut_ DMAAttachmentRegistration_t*       registration,
     _Out_   uint64_t*                          attachmentIDOut)
@@ -519,12 +698,22 @@ __PrepareAttachmentRequestLocked(
 
     status = __CheckManagerStateLocked(manager);
     if (status != OS_EOK) {
+        WARNING("__PrepareAttachmentRequestLocked: manager %u is not accepting attachments for device %u: %u",
+                manager->ID, parameters->Device, status);
+        return status;
+    }
+
+    status = __CheckAttachmentDomainLocked(manager, domain, parameters);
+    if (status != OS_EOK) {
         return status;
     }
 
     existing = __FindAttachmentByDevice(manager, parameters->Device);
     if (existing != NULL) {
-        if (!__SameAttachmentConfiguration(&existing->Configuration, parameters)) {
+        if (existing->Domain != domain ||
+            !__SameAttachmentConfiguration(&existing->Configuration, parameters)) {
+            WARNING("__PrepareAttachmentRequestLocked: device %u is already attached as attachment %llu with another setup",
+                    parameters->Device, (unsigned long long)existing->ID);
             return OS_EBUSY;
         }
 
@@ -534,10 +723,13 @@ __PrepareAttachmentRequestLocked(
     }
 
     if (manager->Registry.Count == DMA_MANAGER_MAX_ATTACHMENTS) {
+        ERROR("__PrepareAttachmentRequestLocked: manager %u has no free attachment slots for device %u",
+              manager->ID, parameters->Device);
         return OS_ENOTSUPPORTED;
     }
 
     if (manager->Registry.NextAttachmentID == UINT64_MAX) {
+        ERROR("__PrepareAttachmentRequestLocked: manager %u has run out of attachment IDs", manager->ID);
         return OS_EOVERFLOW;
     }
 
@@ -546,15 +738,70 @@ __PrepareAttachmentRequestLocked(
     return OS_EOK;
 }
 
-oserr_t
-DMAManagerPrepareAttachment(
+// Allocate a new attachment record and work out which recovery groups it will
+// join or merge. Nothing is published yet, so cancelling the registration
+// frees everything made here.
+static oserr_t
+__CreateAttachmentRecord(
+    _In_    DMAManager_t*                      manager,
+    _In_    DMATranslatedDomain_t*             domain,
+    _In_    const OSDmaAttachmentParameters_t* parameters,
+    _In_    uint64_t                           attachmentID,
+    _InOut_ DMAAttachmentRegistration_t*       registration)
+{
+    DMAAttachment_t* attachment;
+    oserr_t          status;
+
+    attachment = kmalloc(sizeof(DMAAttachment_t));
+    if (attachment == NULL) {
+        ERROR("__CreateAttachmentRecord: failed to allocate attachment %llu for device %u",
+              (unsigned long long)attachmentID, parameters->Device);
+        return OS_EOOM;
+    }
+
+    memset(attachment, 0, sizeof(DMAAttachment_t));
+    ELEMENT_INIT(&attachment->Link, 0, attachment);
+    ELEMENT_INIT(&attachment->Event.Link, 0, attachment);
+    attachment->ID = attachmentID;
+    attachment->Configuration = *parameters;
+    attachment->Domain = domain;
+    registration->Attachment = attachment;
+
+    status = DMARecoveryPrepareRegistration(
+        manager,
+        attachment,
+        &registration->RecoveryUpdate
+    );
+    if (status != OS_EOK) {
+        ERROR("__CreateAttachmentRecord: DMARecoveryPrepareRegistration for attachment %llu, device %u failed: %u",
+              (unsigned long long)attachmentID, parameters->Device, status);
+    }
+    return status;
+}
+
+// Prepare a new or retried attachment, with or without a domain. The order of
+// the steps matters:
+// 1. Take UpdateLock, so only one attachment change runs at a time, then check
+//    that the manager can still accept attachments.
+// 2. Validate the parameters and allocate the registration. Nothing is visible
+//    to other callers yet.
+// 3. Under Lock, decide whether this is a retry of an existing attachment or a
+//    new one, and reserve the attachment ID for a new one.
+// 4. Outside Lock, allocate the attachment record and work out its recovery
+//    group changes. This may allocate memory, which is why Lock is not held.
+// 5. Under Lock again, check that the recovery groups and the domain are still
+//    valid, because Lock was dropped in step 4.
+// On success UpdateLock stays held until the caller publishes or cancels. On
+// failure everything made here is freed and UpdateLock is released.
+static oserr_t
+__PrepareAttachment(
     _In_  DMAManager_t*                      manager,
+    _In_  DMATranslatedDomain_t*             domain,
     _In_  const OSDmaAttachmentParameters_t* parameters,
     _Out_ DMAAttachmentRegistration_t**      registrationOut,
     _Out_ OSDmaAttachmentId_t*               attachmentOut)
 {
     DMAAttachmentRegistration_t* registration;
-    DMAAttachment_t*             attachment;
     uint64_t                     attachmentID;
     oserr_t                      status;
 
@@ -565,16 +812,20 @@ DMAManagerPrepareAttachment(
     status = __CheckManagerStateLocked(manager);
     MutexUnlock(&manager->Lock);
     if (status != OS_EOK) {
+        WARNING("__PrepareAttachment: manager %u is not accepting attachments for device %u: %u",
+                manager->ID, parameters->Device, status);
         goto unlock;
     }
 
-    status = __ValidateAttachmentParameters(parameters);
+    status = __ValidateAttachmentParameters(parameters, domain != NULL);
     if (status != OS_EOK) {
         goto unlock;
     }
 
     registration = kmalloc(sizeof(DMAAttachmentRegistration_t));
     if (registration == NULL) {
+        ERROR("__PrepareAttachment: failed to allocate a registration for device %u in manager %u",
+              parameters->Device, manager->ID);
         status = OS_EOOM;
         goto unlock;
     }
@@ -585,6 +836,7 @@ DMAManagerPrepareAttachment(
     MutexLock(&manager->Lock);
     status = __PrepareAttachmentRequestLocked(
         manager,
+        domain,
         parameters,
         registration,
         &attachmentID
@@ -595,23 +847,12 @@ DMAManagerPrepareAttachment(
     }
 
     if (registration->CreatesAttachment) {
-        attachment = kmalloc(sizeof(DMAAttachment_t));
-        if (attachment == NULL) {
-            status = OS_EOOM;
-            goto cancel;
-        }
-
-        memset(attachment, 0, sizeof(DMAAttachment_t));
-        ELEMENT_INIT(&attachment->Link, 0, attachment);
-        ELEMENT_INIT(&attachment->Event.Link, 0, attachment);
-        attachment->ID = attachmentID;
-        attachment->Configuration = *parameters;
-        registration->Attachment = attachment;
-
-        status = DMARecoveryPrepareRegistration(
+        status = __CreateAttachmentRecord(
             manager,
-            attachment,
-            &registration->RecoveryUpdate
+            domain,
+            parameters,
+            attachmentID,
+            registration
         );
         if (status != OS_EOK) {
             goto cancel;
@@ -619,12 +860,25 @@ DMAManagerPrepareAttachment(
     }
 
     MutexLock(&manager->Lock);
-    status = __CheckRecoveryUpdateLocked(manager, registration->RecoveryUpdate);
+    status = __CheckRecoveryUpdateLocked(
+        manager,
+        registration->RecoveryUpdate
+    );
+    if (status != OS_EOK) {
+        WARNING("__PrepareAttachment: recovery groups for device %u in manager %u changed during prepare: %u",
+                parameters->Device, manager->ID, status);
+        MutexUnlock(&manager->Lock);
+        goto cancel;
+    }
+
+    status = __CheckAttachmentDomainLocked(manager, domain, parameters);
     MutexUnlock(&manager->Lock);
     if (status != OS_EOK) {
         goto cancel;
     }
 
+    TRACE("__PrepareAttachment: attachment %llu prepared for device %u in manager %u",
+          (unsigned long long)attachmentID, parameters->Device, manager->ID);
     *attachmentOut = (OSDmaAttachmentId_t) { 
         .Value = attachmentID
     };
@@ -637,7 +891,59 @@ cancel:
 
 unlock:
     MutexUnlock(&manager->UpdateLock);
+    __BlockFailedUnitGroupsForAttachment(manager);
     return status;
+}
+
+oserr_t
+DMAManagerPrepareAttachment(
+    _In_  DMAManager_t*                      manager,
+    _In_  const OSDmaAttachmentParameters_t* parameters,
+    _Out_ DMAAttachmentRegistration_t**      registrationOut,
+    _Out_ OSDmaAttachmentId_t*               attachmentOut)
+{
+    return __PrepareAttachment(manager, NULL, parameters, registrationOut, attachmentOut);
+}
+
+oserr_t
+DMAManagerPrepareTranslatedAttachment(
+    _In_  DMAManager_t*                            manager,
+    _In_  DMATranslatedDomain_t*                    domain,
+    _In_  const DMATranslatedAttachmentParameters_t* parameters,
+    _Out_ DMAAttachmentRegistration_t**             registrationOut,
+    _Out_ OSDmaAttachmentId_t*                       attachmentOut)
+{
+    OSDmaAttachmentParameters_t configuration;
+
+    if (manager == NULL || domain == NULL || parameters == NULL ||
+        registrationOut == NULL || attachmentOut == NULL ||
+        parameters->AddressLimit > domain->AddressLimit) {
+        WARNING("DMAManagerPrepareTranslatedAttachment: invalid translated attachment request, manager %p domain %p parameters %p",
+                (void*)manager, (void*)domain, (void*)parameters);
+        return OS_EINVALPARAMS;
+    }
+
+    // The fields read here never change after the domain is created, and the
+    // caller keeps the domain pointer valid. The domain state, its member count
+    // and the health of its unit can change, so those are checked later inside
+    // the transaction.
+    configuration = (OSDmaAttachmentParameters_t) {
+        .Version = DMA_ATTACHMENT_VERSION,
+        .Device = parameters->Device,
+        .Host = domain->Host,
+        .RequesterGroup = domain->RequesterGroup,
+        .ResetGroup = parameters->ResetGroup,
+        .AddressLimit = parameters->AddressLimit,
+        .CachePolicy = domain->CachePolicy
+    };
+
+    return __PrepareAttachment(
+        manager,
+        domain,
+        &configuration,
+        registrationOut,
+        attachmentOut
+    );
 }
 
 oserr_t
@@ -654,6 +960,16 @@ DMAManagerPublishAttachment(
         ERROR("DMAManagerPublishAttachment: __CheckRecoveryUpdateLocked for manager %u failed: %u",
               manager->ID, status);
         MutexUnlock(&manager->Lock);
+        __BlockFailedUnitGroupsForAttachment(manager);
+        return status;
+    }
+
+    status = __CheckAttachmentPublicationLocked(prepared);
+    if (status != OS_EOK) {
+        ERROR("DMAManagerPublishAttachment: __CheckAttachmentPublicationLocked for manager %u failed: %u",
+              manager->ID, status);
+        MutexUnlock(&manager->Lock);
+        __BlockFailedUnitGroupsForAttachment(manager);
         return status;
     }
 
@@ -664,13 +980,20 @@ DMAManagerPublishAttachment(
         DMARecoveryApplyUpdate(prepared->RecoveryUpdate);
         list_append(&manager->Registry.Attachments, &prepared->Attachment->Link);
         manager->Registry.Count++;
+        // The member count blocks domain destruction while devices are attached.
+        if (prepared->Attachment->Domain != NULL) {
+            prepared->Attachment->Domain->Members++;
+        }
     }
     MutexUnlock(&manager->Lock);
 
+    TRACE("DMAManagerPublishAttachment: attachment %llu published in manager %u",
+          (unsigned long long)prepared->Attachment->ID, manager->ID);
     DMARecoveryDiscardUpdate(&prepared->RecoveryUpdate);
     kfree(prepared);
     *registration = NULL;
     MutexUnlock(&manager->UpdateLock);
+    __BlockFailedUnitGroupsForAttachment(manager);
     return OS_EOK;
 }
 
@@ -694,6 +1017,7 @@ DMAManagerCancelAttachment(
 
     *registration = NULL;
     MutexUnlock(&manager->UpdateLock);
+    __BlockFailedUnitGroupsForAttachment(manager);
 }
 
 oserr_t
@@ -706,6 +1030,7 @@ DMAManagerRemoveAttachment(
     oserr_t              status;
 
     if (attachmentID == 0) {
+        WARNING("DMAManagerRemoveAttachment: invalid attachment ID 0 for manager %u", manager->ID);
         return OS_EINVALPARAMS;
     }
 
@@ -713,14 +1038,14 @@ DMAManagerRemoveAttachment(
     MutexLock(&manager->Lock);
     status = __CheckManagerStateLocked(manager);
     if (status != OS_EOK) {
-        ERROR("DMAManagerRemoveAttachment: __CheckManagerStateLocked for manager %u failed: %u",
+        WARNING("DMAManagerRemoveAttachment: manager %u is not accepting requests: %u",
               manager->ID, status);
         goto unlock_registry;
     }
 
     removedAttachment = __FindAttachmentByID(manager, attachmentID);
     if (removedAttachment == NULL) {
-        ERROR("DMAManagerRemoveAttachment: attachment %llu not found for manager %u",
+        WARNING("DMAManagerRemoveAttachment: attachment %llu not found for manager %u",
               (unsigned long long)attachmentID, manager->ID);
         status = OS_ENOENT;
         goto unlock_registry;
@@ -745,7 +1070,14 @@ DMAManagerRemoveAttachment(
     DMARecoveryApplyUpdate(update);
     list_remove(&manager->Registry.Attachments, &removedAttachment->Link);
     manager->Registry.Count--;
+    // Pairs with the increment made when the attachment was published.
+    if (removedAttachment->Domain != NULL) {
+        assert(removedAttachment->Domain->Members != 0);
+        removedAttachment->Domain->Members--;
+    }
     MutexUnlock(&manager->Lock);
+    TRACE("DMAManagerRemoveAttachment: attachment %llu removed from manager %u",
+          (unsigned long long)attachmentID, manager->ID);
     kfree(removedAttachment);
     goto discard;
 

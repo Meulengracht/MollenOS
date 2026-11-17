@@ -188,6 +188,7 @@ SHMDeviceMappingCleanup(
     mapping->Extents = NULL;
     mapping->ExtentCount = 0;
     mapping->State = SHMDeviceMappingStopped;
+    TRACE("SHMDeviceMappingCleanup: mapping %p device resources freed, stopped %i", mapping, (int)stopped);
     return OS_EOK;
 }
 
@@ -198,6 +199,8 @@ SHMDeviceUnmap(
 {
     SHMDeviceMapping_t* current;
     SHMDeviceContext_t* context;
+    unsigned int        references;
+    unsigned int        expectedReferences;
     oserr_t             status;
 
     if (mapping == NULL || *mapping == NULL) {
@@ -209,6 +212,8 @@ SHMDeviceUnmap(
 
     if (!SHMDeviceOperationIsValid(operation, context, current, SHMDeviceOperationRelease) &&
         !SHMDeviceOperationIsValid(operation, context, NULL, SHMDeviceOperationSubmit)) {
+        WARNING("SHMDeviceUnmap: mapping %p operation %p is not a valid release or submit token",
+                current, operation);
         return OS_EINVALPARAMS;
     }
 
@@ -224,9 +229,12 @@ SHMDeviceUnmap(
         return OS_EOK;
     }
 
-    if (atomic_load(&current->Lifetime.References) !=
-        (current->Operation.Setup >= SHMDeviceOperationSetupMapping ? 2U : 1U)) {
+    references = atomic_load(&current->Lifetime.References);
+    expectedReferences = current->Operation.Setup >= SHMDeviceOperationSetupMapping ? 2U : 1U;
+    if (references != expectedReferences) {
         MutexUnlock(&context->MappingLock);
+        WARNING("SHMDeviceUnmap: mapping %p has %u references, expected %u",
+                current, references, expectedReferences);
         return OS_EBUSY;
     }
     current->Lifetime.Cleaning = true;
@@ -280,6 +288,7 @@ SHMDeviceAbandon(
         current->Lifetime.Abandoned = true;
         *mapping = NULL;
         MutexUnlock(&context->MappingLock);
+        TRACE("SHMDeviceAbandon: mapping %p handed to context %p", current, context);
     } else {
         // Already fully cleaned, so only the handle's reference is left.
         MutexUnlock(&context->MappingLock);

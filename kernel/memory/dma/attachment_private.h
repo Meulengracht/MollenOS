@@ -18,10 +18,11 @@
 #ifndef __DMA_ATTACHMENT_PRIVATE_H__
 #define __DMA_ATTACHMENT_PRIVATE_H__
 
-#include <dma/attachment.h>
 #include <ds/list.h>
 #include <mutex.h>
 #include <stdatomic.h>
+
+#include "domain.h"
 
 DECL_STRUCT(MSContextSecurity);
 DECL_STRUCT(DMABinding);
@@ -36,19 +37,19 @@ enum DMAManagerState {
 enum DMARecoveryState {
     DMARecoveryLive,
     DMARecoveryBlocked,
-    DMARecoveryConfirmed,
-    DMARecoveryCleaned
+    DMARecoveryStopConfirmed,
+    DMARecoveryStopCleaned
 };
 
 /**
  * @brief Tracks whether new DMA work can start and how many operations are running.
  * Hold group->Lock.
  */
-typedef struct DMARecoveryGate {
+typedef struct DMARecoveryAccess {
     enum DMARecoveryState State;
     unsigned int          Operations;
     bool                  ManagerClosed;
-} DMARecoveryGate_t;
+} DMARecoveryAccess_t;
 
 /**
  * @brief Which cleanup or cancel step is currently running in this stop round.
@@ -65,11 +66,11 @@ enum DMARecoveryStopPhase {
  * @brief Stop round counter, active cleanup step, and last cancellation result.
  *
  * Hold group->Lock. Both cancellation phases block cleanup until they finish.
- * If cleanup fails, Phase goes back to Idle while Gate.State stays Confirmed so
+ * If cleanup fails, Phase goes back to Idle while Access.State stays Confirmed so
  * the manager can retry cleanup with the same ticket.
  */
 typedef struct DMARecoveryStop {
-    uint64_t                  Epoch;
+    uint64_t                  Round;
     oserr_t                   CancellationError;
     enum DMARecoveryStopPhase Phase;
 } DMARecoveryStop_t;
@@ -87,13 +88,13 @@ typedef struct DMARecoveryStop {
  * calling into SHM to cancel waiters or free mappings.
  */
 typedef struct DMARecoveryGroup {
-    element_t         Link;
-    DMAManager_t*     Manager;
-    uint64_t          ID;
-    atomic_uint       References;
-    Mutex_t           Lock;
-    DMARecoveryGate_t Gate;
-    DMARecoveryStop_t Stop;
+    element_t           Link;
+    DMAManager_t*       Manager;
+    uint64_t            ID;
+    atomic_uint         References;
+    Mutex_t             Lock;
+    DMARecoveryAccess_t Access;
+    DMARecoveryStop_t   Stop;
 } DMARecoveryGroup_t;
 
 /**
@@ -109,24 +110,61 @@ typedef struct DMAAttachmentRegistry {
     uint64_t NextBindingGeneration;
 } DMAAttachmentRegistry_t;
 
+enum DMATranslatedDomainState {
+    DMATranslatedDomainReady,
+    DMATranslatedDomainClosing
+};
+
+/**
+ * @brief A registered domain: devices and requesters that share one address space.
+ *
+ * Manager->Lock protects State, Members and OwnerSecurityID. Hold UpdateLock to
+ * change the membership or destroy the domain, so only one such change runs at
+ * a time. The requester and device sets and the address and cache limits never
+ * change. Attachments keep the record alive through their own binding rules.
+ * A Closing domain has no attachments. Its identities stay reserved while the
+ * space is destroyed outside the manager locks. Recovery code must skip a
+ * Closing domain before it reads AddressSpace. The record holds one manager
+ * reference and the creator's reference to the space.
+ */
+struct DMATranslatedDomain {
+    element_t                     Link;
+    DMAManager_t*                 Manager;
+    DMAIOMMUUnit_t*               Unit;
+    struct DMAAddressSpace*       AddressSpace;
+    enum DMATranslatedDomainState State;
+    uuid_t                        Host;
+    uint64_t                      RequesterGroup;
+    enum SHMDeviceCachePolicy     CachePolicy;
+    uint64_t                      AddressLimit;
+    uint64_t                      OwnerSecurityID;
+    uint32_t                      Members;
+    uint32_t                      RequesterCount;
+    uint32_t*                     Requesters;
+    uint32_t                      DeviceCount;
+    uuid_t*                       Devices;
+};
+
 /**
  * @brief Top-level DMA manager handle and registry.
  *
  * Lock protects State, the registry, and waiting events. UpdateLock allows only
  * one attachment or binding change at a time, including across copying results
  * back to user space. Closing the manager skips UpdateLock so a stuck user-space
- * copy can never block handle cleanup. Saving Principal as a plain ID without
- * taking a handle reference on the service's security context lets the service
- * process exit and close this manager cleanly.
+ * copy can never block handle cleanup. Saving OwnerSecurityID as a plain ID
+ * without taking a handle reference on the service's security context lets the
+ * service process exit and close this manager cleanly.
  */
 typedef struct DMAManager {
     uuid_t                  ID;
-    uint64_t                Principal;
+    uint64_t                OwnerSecurityID;
     enum DMAManagerState    State;
     Mutex_t                 Lock;
     Mutex_t                 UpdateLock;
     DMAAttachmentRegistry_t Registry;
     list_t                  PendingEvents;
+    list_t                  Domains;
+    uint32_t                DomainCount;
 } DMAManager_t;
 
 /**
@@ -154,14 +192,14 @@ enum DMABindingState {
  * @brief Active binding pointer and history of the last published bind request.
  *
  * Current does not keep the binding struct alive. The binding's delete callback
- * clears Current under manager->Lock while leaving Principal, RequestId, and
- * Generation in place so late retries can still tell what happened. Principal
- * stays 0 until the first binding is published. Hold manager->Lock (plus
- * UpdateLock when publishing).
+ * clears Current under manager->Lock while leaving OwnerSecurityID,
+ * RequestId, and Generation in place so late retries can still tell what
+ * happened. OwnerSecurityID stays 0 until the first binding is published. Hold
+ * manager->Lock (plus UpdateLock when publishing).
  */
 typedef struct DMAAttachmentBindingState {
     DMABinding_t* Current;
-    uint64_t      Principal;
+    uint64_t      OwnerSecurityID;
     uint64_t      RequestId;
     uint64_t      Generation;
 } DMAAttachmentBindingState_t;
@@ -193,7 +231,7 @@ typedef struct DMABinding {
     uuid_t               ID;
     DMAManager_t*        Manager;
     DMAAttachment_t*     Attachment;
-    uint64_t             Principal;
+    uint64_t             OwnerSecurityID;
     uint64_t             RequestId;
     uint64_t             Generation;
     enum DMABindingState State;
@@ -204,8 +242,8 @@ typedef struct DMABinding {
 /**
  * @brief Prepared binding update waiting to be published or cancelled.
  *
- * UpdateLock stays held while this exists. Receiver keeps the driver's security
- * context alive until finished, and Binding holds a handle reference.
+ * UpdateLock stays held while this exists. DriverSecurity keeps the driver's
+ * security context alive until finished, and Binding holds a handle reference.
  * CreatesBinding is true for a new binding and false for an identical retry.
  * Keep the caller's manager reference alive until publish or cancel finishes.
  */
@@ -213,7 +251,7 @@ typedef struct DMABindingRegistration {
     DMAManager_t*        Manager;
     DMAAttachment_t*     Attachment;
     DMABinding_t*        Binding;
-    MSContextSecurity_t* Receiver;
+    MSContextSecurity_t* DriverSecurity;
     bool                 CreatesBinding;
 } DMABindingRegistration_t;
 
@@ -229,6 +267,7 @@ typedef struct DMAAttachment {
     OSDmaAttachmentParameters_t Configuration;
     uint64_t                    ID;
     DMARecoveryGroup_t*         RecoveryGroup;
+    DMATranslatedDomain_t*      Domain; // NULL for direct attachments.
     DMAAttachmentEventState_t   Event;
     DMAAttachmentBindingState_t Binding;
 } DMAAttachment_t;
@@ -346,7 +385,7 @@ DMARecoveryDiscardUpdate(
  * @param manager    Manager that holds the attachment.
  * @param attachment Attachment whose state changed.
  * @param generation Binding generation for the event.
- * @param stopEpoch  Stop round number, or 0 for a clean idle event.
+ * @param stopRound  Stop round number, or 0 for a clean idle event.
  * @param reasons    Bitmask of DMA_ATTACHMENT_* flags to set.
  */
 KERNELABI void KERNELAPI
@@ -354,7 +393,7 @@ DMAAttachmentQueueEventLocked(
     _In_ DMAManager_t*    manager,
     _In_ DMAAttachment_t* attachment,
     _In_ uint64_t         generation,
-    _In_ uint64_t         stopEpoch,
+    _In_ uint64_t         stopRound,
     _In_ uint32_t         reasons);
 
 /**
@@ -422,5 +461,33 @@ DMARecoveryBlockLocked(
 KERNELABI void KERNELAPI
 DMARecoveryCancel(
     _In_ DMARecoveryGroup_t* group);
+
+/**
+ * @brief Drop the global registry's reference to a closed manager that has nothing registered.
+ *
+ * Call without manager->Lock or UpdateLock held, and while holding another
+ * manager reference. Nothing happens if the manager is still open. Registered
+ * attachments and domains also keep the global entry in place.
+ */
+KERNELABI void KERNELAPI
+DMAManagerDetachClosed(
+    _In_ DMAManager_t* manager);
+
+/**
+ * @brief Block recovery groups on failed Ready domains, then cancel them outside the registry locks.
+ *
+ * Hold a manager reference throughout the call. No backend, manager, group or
+ * SHM lock may be held. Every affected group is blocked and has its events
+ * queued before any step that can fail begins. If an error occurs, the gates
+ * and events stay in place so a later call can retry. Closing domains are
+ * skipped, because their address spaces may already be freed.
+ *
+ * @param manager Manager whose domains are checked.
+ * @return OS_EOK, or the first error from taking a group reference or from an
+ *         incomplete cancellation.
+ */
+KERNELABI oserr_t KERNELAPI
+DMARecoveryBlockFailedUnits(
+    _In_ DMAManager_t* manager);
 
 #endif //!__DMA_ATTACHMENT_PRIVATE_H__

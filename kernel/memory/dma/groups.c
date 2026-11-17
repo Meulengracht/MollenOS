@@ -53,7 +53,7 @@ DMARecoveryGroupRelease(
     *group = NULL;
 
     if (atomic_fetch_sub(&current->References, 1) == 1) {
-        assert(current->Gate.Operations == 0);
+        assert(current->Access.Operations == 0);
         assert(current->Stop.Phase == DMARecoveryStopIdle);
         MutexDestruct(&current->Lock);
         kfree(current);
@@ -92,8 +92,8 @@ __PrepareGroupObjects(
         ELEMENT_INIT(&group->Link, 0, group);
         group->Manager = update->Manager;
         group->ID = id;
-        group->Gate.State = DMARecoveryLive;
-        group->Stop.Epoch = 1;
+        group->Access.State = DMARecoveryLive;
+        group->Stop.Round = 1;
         group->Stop.CancellationError = OS_EOK;
         atomic_init(&group->References, 1);
         MutexConstruct(&group->Lock, MUTEX_FLAG_PLAIN);

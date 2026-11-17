@@ -17,10 +17,10 @@
 
 #include <heap.h>
 #include <limits.h>
+#include <debug.h>
 #include <string.h>
 
 #include "private.h"
-#include "../../dma/private.h"
 
 void
 SHMDeviceContextInitialize(
@@ -41,9 +41,10 @@ SHMDeviceContextAcquire(
     // cannot be freed in between. Atomic updates let several threads add
     // references at the same time.
     if (context == NULL) {
+        WARNING("SHMDeviceContextAcquire: called with a NULL context");
         return OS_EINVALPARAMS;
     }
-    
+
     references = atomic_load(&context->References);
     do {
         // Refuse to count past the maximum. A wrapped count could free the
@@ -53,6 +54,7 @@ SHMDeviceContextAcquire(
         }
 
         if (references == UINT_MAX) {
+            WARNING("SHMDeviceContextAcquire: context %p reference count is at its maximum", context);
             return OS_EOVERFLOW;
         }
     } while (!atomic_compare_exchange_weak(&context->References, &references, references + 1));
@@ -77,6 +79,7 @@ SHMDeviceContextRelease(
     if (atomic_fetch_sub(&owned->References, 1) == 1) {
         // A failed preparation can reach the last release before a binding was
         // attached.
+        TRACE("SHMDeviceContextRelease: context %p freed", owned);
         DMABindingDetachContext(&owned->Binding, owned);
         DMAAddressSpaceRelease(&owned->AddressSpace);
         MutexDestruct(&owned->MappingLock);
@@ -107,24 +110,3 @@ SHMDeviceContextClose(
     SHMDeviceContextRelease(context);
     return OS_EOK;
 }
-
-oserr_t
-SHMDeviceContextWalkSegments(
-    _In_  const struct SHMDeviceContext*   context,
-    _In_  const SHMSG_t*                   extents,
-    _In_  int                              extentCount,
-    _In_  const struct DMAMapRequirements* requirements,
-    _Out_ struct DMASegment*               segmentsOut,
-    _Out_ uint32_t*                        countOut)
-{
-    return DMADirectWalkSegments(
-        context->AddressSpace,
-        context->AddressLimit,
-        extents,
-        extentCount,
-        requirements,
-        segmentsOut,
-        countOut
-    );
-}
-

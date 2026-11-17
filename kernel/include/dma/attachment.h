@@ -270,14 +270,32 @@ DMAManagerCancelBinding(
     _InOut_ DMABindingRegistration_t** registration);
 
 /**
+ * @brief Settings for a new device context, plus the address space it will use.
+ *
+ * Holds the cache policy, the highest device address and one referenced
+ * address space. They do not change afterwards. A direct binding creates its
+ * own private space. A domain binding adds a reference to the domain's shared
+ * space. The context drops its reference to AddressSpace after its last
+ * mapping is gone.
+ */
+typedef struct DMABindingContextConfig {
+    enum SHMDeviceCachePolicy CachePolicy;
+    uint64_t                  AddressLimit;
+    struct DMAAddressSpace*   AddressSpace;
+} DMABindingContextConfig_t;
+
+/**
  * @brief Attaches a new bound DMA context to a driver's binding handle.
  *
  * Verifies that the caller holds the binding handle, belongs to its security
- * group, and passed the exact generation. On success, takes a binding
- * reference, counts this open as an active operation so a stop pass waits for
- * it to finish, and copies the attachment configuration (lowering AddressLimit
- * if the caller asked for a smaller ceiling). Fails without changing outputs.
- * Does not hold UpdateLock while setting up the address space.
+ * group, and passed the exact generation. On success, it takes a binding
+ * reference and counts this open as a running operation, so a stop pass waits
+ * for it to finish. It also gives the caller a reference to the address space
+ * in configurationOut. AddressLimit is the lower of the attachment's limit and
+ * the limit the caller asked for. On failure the outputs are unchanged and the
+ * counted open is undone. The address space is set up while no manager, group
+ * or UpdateLock lock is held. The caller must initialize context before this
+ * call, because cancellation may look at it while the open is running.
  */
 KERNELABI oserr_t KERNELAPI
 DMABindingAttachContext(
@@ -285,7 +303,7 @@ DMABindingAttachContext(
     _In_  const OSDmaBoundOpenParameters_t* parameters,
     _In_  SHMDeviceContext_t*               context,
     _Out_ DMABinding_t**                    bindingOut,
-    _Out_ OSDmaAttachmentParameters_t*      configurationOut);
+    _Out_ DMABindingContextConfig_t*        configurationOut);
 
 /**
  * @brief Finishes opening a bound context once its handle is copied to user space.

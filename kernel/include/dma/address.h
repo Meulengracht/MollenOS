@@ -70,6 +70,66 @@ DMAAddressSpaceRelease(
     _InOut_ struct DMAAddressSpace** space);
 
 /**
+ * @brief Add a reference to a space after checking that this is still allowed.
+ *
+ * This gives no device access to anything. Call it while holding an existing
+ * reference, or while holding the manager lock of a domain that is registered
+ * and Ready. A domain in the Closing state does not keep its space allocated.
+ * This also works after the unit has failed, so cleanup code can keep the
+ * space allocated.
+ *
+ * @param space Address space to add a reference to.
+ * @return OS_EOK, OS_EINVALPARAMS for NULL, OS_ECANCELLED if the count is zero
+ *         because the space is being destroyed, or OS_EOVERFLOW if the count
+ *         cannot go any higher.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAAddressSpaceAcquire(
+    _In_ struct DMAAddressSpace* space);
+
+/**
+ * @brief Destroy a space, but only if the creator's reference is the last one.
+ *
+ * Before calling, stop other threads from finding the space and wait for calls
+ * that use the creator's pointer to return. Any other reference, from a device
+ * context or a mapping, makes this return OS_EBUSY. If cleanup fails, the
+ * reference is put back and the pointer is kept, so the call can be retried.
+ * No device is disconnected by this call.
+ *
+ * @param space Set to NULL on success. NULL or *space == NULL does nothing and succeeds.
+ * @return OS_EOK, OS_EBUSY, or an error from the allocator or backend cleanup.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAAddressSpaceDestroy(
+    _InOut_ struct DMAAddressSpace** space);
+
+/**
+ * @brief Get the granule size of a space. Hold a reference to the space first.
+ *
+ * A granule is the smallest block of memory the IOMMU can map. A direct space
+ * does no translation, so it returns zero. A translated space returns the
+ * granule size of its IOMMU unit. The value never changes.
+ */
+KERNELABI uint64_t KERNELAPI
+DMAAddressSpaceGetGranularity(
+    _In_ const struct DMAAddressSpace* space);
+
+/**
+ * @brief Check whether this space can accept new DMA work right now.
+ *
+ * Hold a space reference. Success only holds for this moment, because the unit
+ * can fail right after the check. Code that starts a transfer must therefore
+ * pair this check with the binding recovery gate. This function does not stop
+ * devices and does not remove existing translations.
+ *
+ * @return OS_EOK for direct or healthy translated spaces, OS_ECANCELLED for a
+ *         failed translated unit, or OS_EINVALPARAMS for NULL.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAAddressSpaceCheck(
+    _In_ const struct DMAAddressSpace* space);
+
+/**
  * @brief Work out the device segments for a buffer, without letting the device use them yet.
  *
  * The caller must keep the physical pages allocated until release succeeds.
@@ -79,6 +139,11 @@ DMAAddressSpaceRelease(
  * synchronize CPU caches. Preparation does neither. The input arrays are only
  * needed during this call. The mapping keeps its own reference to the address
  * space.
+ * A translated space needs extents that cover whole granules. It returns one
+ * segment of consecutive IOVAs with no padding. An IOVA is an address the
+ * device uses, which the IOMMU translates to a physical address. The device can
+ * reach every byte of each granule, so the caller must check that it may expose
+ * all of those bytes to the device.
  *
  * @param space Address space. Hold a reference until the call returns.
  * @param extents Kernel array describing the buffer's allocated physical bytes.
@@ -116,7 +181,9 @@ DMAAddressMappingPrepare(
  * @param mapping Prepared mapping whose physical pages are still allocated.
  * @return OS_EOK once the device addresses are usable. OS_EINVALPARAMS for NULL.
  *         OS_EBUSY if the mapping is already installed. The mapping is then
- *         unchanged. After any other failure, the mapping may only be released.
+ *         unchanged. OS_ECANCELLED if an earlier install or removal of this
+ *         mapping failed. After any other failure, the mapping may only be
+ *         released.
  *         Direct mappings allocate nothing here and cannot fail.
  */
 KERNELABI oserr_t KERNELAPI

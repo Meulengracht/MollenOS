@@ -38,9 +38,10 @@ typedef struct DMAIOVARange {
 /**
  * @brief Describes the address space an allocator hands out from.
  *
- * Granule is the smallest unit of address space that can be handed out, for
- * example the IOMMU page size. It must be a power of two and not zero. Bounds
- * and every Reserved range must start and end on a granule boundary.
+ * Granularity is the size of one granule, the smallest block of address space
+ * that can be handed out, for example the IOMMU page size. It must be a power
+ * of two and not zero. Bounds and every Reserved range must start and end on a
+ * granule boundary.
  *
  * Reserved lists address ranges that must never be handed out, such as ranges
  * the hardware already uses. The entries may come in any order and may touch
@@ -48,7 +49,7 @@ typedef struct DMAIOVARange {
  */
 typedef struct DMAIOVAConfig {
     DMAIOVARange_t        Bounds;
-    uint64_t              Granule;
+    uint64_t              Granularity;
     const DMAIOVARange_t* Reserved;
     uint32_t              ReservedCount;
 } DMAIOVAConfig_t;

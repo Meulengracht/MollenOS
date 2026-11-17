@@ -30,11 +30,12 @@ SHMDeviceContextPrepareBound(
     _Out_ SHMDeviceContext_t**              contextOut)
 {
     SHMDeviceContext_t*         context;
-    OSDmaAttachmentParameters_t configuration;
+    DMABindingContextConfig_t   configuration;
     oserr_t                     status;
 
     context = kmalloc(sizeof(SHMDeviceContext_t));
     if (context == NULL) {
+        ERROR("SHMDeviceContextPrepareBound: failed to allocate a context for binding %u", binding);
         return OS_EOOM;
     }
 
@@ -42,8 +43,9 @@ SHMDeviceContextPrepareBound(
 
     // As soon as the binding points to this context, a cancel pass (the code
     // that cuts off a binding's contexts) may visit it. That is why the
-    // reference count and mapping list are set up first. No mappings can be
-    // added until the address rules are built and the context is published.
+    // reference count and mapping list are set up first. The binding call
+    // also sets up the address space the context will use. No mappings can be
+    // added until that is done and the context is published.
     status = DMABindingAttachContext(
         binding,
         parameters,
@@ -59,18 +61,9 @@ SHMDeviceContextPrepareBound(
 
     context->CachePolicy = configuration.CachePolicy;
     context->AddressLimit = configuration.AddressLimit;
-    
-    status = DMAAddressSpaceCreateDirect(
-        configuration.Ranges,
-        configuration.RangeCount,
-        &context->AddressSpace
-    );
-    if (status != OS_EOK) {
-        ERROR("SHMDeviceContextPrepareBound: DMAAddressSpaceCreateDirect binding %u failed: %u", binding, status);
-        SHMDeviceContextRelease(&context);
-        return status;
-    }
+    context->AddressSpace = configuration.AddressSpace;
 
+    TRACE("SHMDeviceContextPrepareBound: binding %u prepared context %p", binding, context);
     *contextOut = context;
     return OS_EOK;
 }
@@ -79,7 +72,14 @@ oserr_t
 SHMDeviceContextPublishBound(
     _In_ SHMDeviceContext_t* context)
 {
-    return DMABindingPublishContext(context->Binding);
+    oserr_t status;
+
+    status = DMABindingPublishContext(context->Binding);
+    if (status != OS_EOK) {
+        WARNING("SHMDeviceContextPublishBound: DMABindingPublishContext context %p failed: %u",
+                context, status);
+    }
+    return status;
 }
 
 void
@@ -315,6 +315,7 @@ __BeginOperation(
     // A context has no binding only while a failed preparation is being
     // undone. Such a context must never take a mapping or a device operation.
     if (context->Binding == NULL) {
+        WARNING("__BeginOperation: context %p has no binding, kind %u", context, (unsigned int)kind);
         return OS_EINVALPARAMS;
     }
 
@@ -329,6 +330,7 @@ __BeginOperation(
     
     status = SHMDeviceContextAcquire(context);
     if (status != OS_EOK) {
+        ERROR("__BeginOperation: SHMDeviceContextAcquire context %p failed: %u", context, status);
         goto error;
     }
 
@@ -336,6 +338,7 @@ __BeginOperation(
     if (mapping != NULL) {
         status = SHMDeviceMappingAcquire(mapping);
         if (status != OS_EOK) {
+            ERROR("__BeginOperation: SHMDeviceMappingAcquire mapping %p failed: %u", mapping, status);
             goto error;
         }
         operation->Setup = SHMDeviceOperationSetupMapping;
@@ -347,6 +350,9 @@ __BeginOperation(
         &operation->Stopped
     );
     if (status != OS_EOK) {
+        // The group refuses new work while it is being stopped, which is expected.
+        TRACE("__BeginOperation: DMABindingBeginOperation context %p, kind %u refused: %u",
+              context, (unsigned int)kind, status);
         goto error;
     }
     operation->Setup = SHMDeviceOperationSetupCounted;
@@ -449,11 +455,19 @@ oserr_t
 SHMDeviceOperationCheck(
     _In_ const SHMDeviceOperation_t* operation)
 {
+    oserr_t status;
+
     assert(operation != NULL && operation->Record != NULL);
-    if (operation->Kind == SHMDeviceOperationSubmit) {
-        return DMABindingCheckOperation(operation->Context->Binding);
+    if (operation->Kind != SHMDeviceOperationSubmit) {
+        return OS_EOK;
     }
-    return OS_EOK;
+
+    status = DMABindingCheckOperation(operation->Context->Binding);
+    if (status != OS_EOK) {
+        WARNING("SHMDeviceOperationCheck: context %p binding no longer accepts work: %u",
+                operation->Context, status);
+    }
+    return status;
 }
 
 void
@@ -506,6 +520,8 @@ SHMDeviceOperationCancel(
         // allocating, copying, or syncing caches. There is no way to tell what
         // state it left behind, so return OS_EBUSY. The group's operation count
         // and the memory stay in place until reboot.
+        WARNING("SHMDeviceOperationCancel: resource %u interrupted in phase %u, kind %u",
+                record->Handle, (unsigned int)operation->Phase, (unsigned int)operation->Kind);
         return OS_EBUSY;
     }
     

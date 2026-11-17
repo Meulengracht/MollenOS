@@ -41,7 +41,7 @@ DMAAttachmentQueueEventLocked(
     _In_ DMAManager_t*    manager,
     _In_ DMAAttachment_t* attachment,
     _In_ uint64_t         generation,
-    _In_ uint64_t         stopEpoch,
+    _In_ uint64_t         stopRound,
     _In_ uint32_t         reasons)
 {
     DMAAttachmentEventState_t* eventState = &attachment->Event;
@@ -58,21 +58,21 @@ DMAAttachmentQueueEventLocked(
         // Queued events must be read and cleared before changing groups or
         // starting a new stop cycle.
         assert(eventState->Value.Generation == generation);
-        if (eventState->Value.StopEpoch == 0 && stopEpoch != 0) {
+        if (eventState->Value.StopEpoch == 0 && stopRound != 0) {
             // Another device in the same group may trigger a stop after this
             // attachment already went idle. Keep its generation and earlier
             // flags, set StopEpoch, and bump Sequence so an older snapshot
             // cannot accidentally clear this upgraded event.
             assert((reasons & DMA_ATTACHMENT_STOP_REQUIRED) != 0);
-            eventState->Value.StopEpoch = stopEpoch;
+            eventState->Value.StopEpoch = stopRound;
         }
-        assert(eventState->Value.StopEpoch == stopEpoch);
+        assert(eventState->Value.StopEpoch == stopRound);
         eventState->Value.Reasons |= reasons;
     } else {
         eventState->Value = (OSDmaAttachmentEvent_t) {
             .Attachment = attachment->ID,
             .Generation = generation,
-            .StopEpoch = stopEpoch,
+            .StopEpoch = stopRound,
             .Reasons = reasons
         };
         eventState->Queued = true;
@@ -117,6 +117,15 @@ DMAManagerSnapshotEvents(
     uint32_t eventCount = 0;
     bool     notifyManager;
     oserr_t  status = OS_EOK;
+    oserr_t  propagationStatus;
+
+    // A previous event read or cancellation pass may have failed, so check the
+    // domains again here. If that still fails, log it and carry on, because
+    // the event copy below must not be affected.
+    propagationStatus = DMARecoveryBlockFailedUnits(manager);
+    if (propagationStatus != OS_EOK) {
+        ERROR("DMAManagerSnapshotEvents: failure propagation failed: %u", propagationStatus);
+    }
 
     MutexLock(&manager->Lock);
     if (manager->State != DMAManagerLive) {

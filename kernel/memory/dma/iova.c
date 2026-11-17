@@ -42,7 +42,7 @@ struct DMAIOVAAllocator {
     Mutex_t                  Lock;
     rb_tree_t                Intervals;
     DMAIOVARange_t           Bounds;
-    uint64_t                 Granule;
+    uint64_t                 Granularity;
     size_t                   ActiveCount;
     struct __DMAIOVAInterval Reserved[];
 };
@@ -141,34 +141,41 @@ DMAIOVAAllocatorCreate(
     oserr_t             status;
 
     if (config == NULL || allocatorOut == NULL) {
+        WARNING("DMAIOVAAllocatorCreate: allocator create called with config %p, output %p",
+                (const void*)config, (void*)allocatorOut);
         return OS_EINVALPARAMS;
     }
 
     if (*allocatorOut != NULL) {
+        WARNING("DMAIOVAAllocatorCreate: allocator create called with an existing allocator %p", (void*)*allocatorOut);
         return OS_EBUSY;
     }
 
-    if (config->Granule == 0 || (config->Granule & (config->Granule - 1)) != 0 ||
-        !__WholeGranules(&config->Bounds, config->Granule) ||
+    if (config->Granularity == 0 || (config->Granularity & (config->Granularity - 1)) != 0 ||
+        !__WholeGranules(&config->Bounds, config->Granularity) ||
         (config->ReservedCount != 0 && config->Reserved == NULL)) {
+        WARNING("DMAIOVAAllocatorCreate: invalid allocator config (granularity 0x%" PRIx64 ", reserved %u)",
+                config->Granularity, config->ReservedCount);
         return OS_EINVALPARAMS;
     }
 
     maxReserved = (SIZE_MAX - sizeof(DMAIOVAAllocator_t)) / sizeof(struct __DMAIOVAInterval);
     if (config->ReservedCount > maxReserved) {
+        WARNING("DMAIOVAAllocatorCreate: too many reserved ranges: %u", config->ReservedCount);
         return OS_EOVERFLOW;
     }
 
     bytes = sizeof(DMAIOVAAllocator_t) + config->ReservedCount * sizeof(struct __DMAIOVAInterval);
     allocator = kmalloc(bytes);
     if (allocator == NULL) {
+        WARNING("DMAIOVAAllocatorCreate: failed to allocate %u bytes for an allocator", (unsigned int)bytes);
         return OS_EOOM;
     }
 
     MutexConstruct(&allocator->Lock, MUTEX_FLAG_PLAIN);
     rb_tree_construct_cmp(&allocator->Intervals, __CompareAddresses);
     allocator->Bounds = config->Bounds;
-    allocator->Granule = config->Granule;
+    allocator->Granularity = config->Granularity;
     allocator->ActiveCount = 0;
 
     // Nobody else can see the allocator yet, so no lock is needed here. The
@@ -178,11 +185,13 @@ DMAIOVAAllocatorCreate(
         struct __DMAIOVAInterval* interval = &allocator->Reserved[i];
 
         interval->Range = config->Reserved[i];
-        if (!__WholeGranules(&interval->Range, allocator->Granule) ||
+        if (!__WholeGranules(&interval->Range, allocator->Granularity) ||
             interval->Range.First < allocator->Bounds.First ||
             interval->Range.Last > allocator->Bounds.Last ||
             __OverlapsReservation(allocator, &interval->Range)) {
             status = OS_EINVALPARAMS;
+            WARNING("DMAIOVAAllocatorCreate: reserved range [0x%" PRIx64 ", 0x%" PRIx64 "] is invalid",
+                    interval->Range.First, interval->Range.Last);
             goto cleanup;
         }
 
@@ -277,7 +286,7 @@ __FindRange(
 {
     uint64_t   first = allocator->Bounds.First;
     uint64_t   limit = MIN(allocator->Bounds.Last, request->Limit);
-    uint64_t   alignment = MAX(allocator->Granule, request->Alignment);
+    uint64_t   alignment = MAX(allocator->Granularity, request->Alignment);
     rb_leaf_t* node;
 
     if (first > limit || (request->Boundary != 0 && request->Length > request->Boundary)) {
@@ -318,16 +327,21 @@ DMAIOVAAllocate(
     oserr_t              status;
 
     if (allocator == NULL || request == NULL || allocationOut == NULL) {
+        WARNING("DMAIOVAAllocate: allocate called with allocator %p, request %p, output %p",
+                (void*)allocator, (const void*)request, (void*)allocationOut);
         return OS_EINVALPARAMS;
     }
 
     if (*allocationOut != NULL) {
+        WARNING("DMAIOVAAllocate: allocate called with an existing allocation %p", (void*)*allocationOut);
         return OS_EBUSY;
     }
 
-    if (request->Length == 0 || (request->Length & (allocator->Granule - 1)) != 0 ||
+    if (request->Length == 0 || (request->Length & (allocator->Granularity - 1)) != 0 ||
         (request->Alignment & (request->Alignment - 1)) != 0 ||
         (request->Boundary & (request->Boundary - 1)) != 0) {
+        WARNING("DMAIOVAAllocate: invalid request (length 0x%" PRIx64 ", alignment 0x%" PRIx64 ", boundary 0x%" PRIx64 ")",
+                request->Length, request->Alignment, request->Boundary);
         return OS_EINVALPARAMS;
     }
 
@@ -335,6 +349,7 @@ DMAIOVAAllocate(
     // This also means a memory failure is reported before a no-fit error.
     allocation = kmalloc(sizeof(DMAIOVAAllocation_t));
     if (allocation == NULL) {
+        WARNING("DMAIOVAAllocate: failed to allocate an allocation record");
         return OS_EOOM;
     }
 
@@ -342,11 +357,14 @@ DMAIOVAAllocate(
 
     MutexLock(&allocator->Lock);
     if (allocator->ActiveCount == SIZE_MAX) {
+        WARNING("DMAIOVAAllocate: active allocation count overflow");
         status = OS_EOVERFLOW;
         goto cleanup;
     }
 
     if (!__FindRange(allocator, request, &allocation->Interval.Range)) {
+        WARNING("DMAIOVAAllocate: no free range of length 0x%" PRIx64 " in allocator %p",
+                request->Length, (void*)allocator);
         status = OS_ENOENT;
         goto cleanup;
     }
@@ -430,6 +448,8 @@ DMAIOVAAllocatorDestroy(
 
     MutexLock(&released->Lock);
     if (released->ActiveCount != 0) {
+        WARNING("DMAIOVAAllocatorDestroy: allocator %p still has %u active allocations",
+                (void*)released, (unsigned int)released->ActiveCount);
         MutexUnlock(&released->Lock);
         return OS_EBUSY;
     }

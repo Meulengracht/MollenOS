@@ -707,9 +707,11 @@ __CloneMapping(
     // Increase the source allocation's reference count before cloning. Allocations
     // outside process memory may be untracked, so sourceAllocation can be NULL.
     sourceAllocation = MSAllocationAcquire(__MSContextGet(sourceSpace), sourceAddress);
+    // Translate page starts. The MMU preserves the first address's byte offset,
+    // which would otherwise become page-table attribute bits when installed.
     oserr = __GetAndVerifyPhysicalMapping(
             sourceSpace,
-            sourceAddress,
+            sourceAddress - pageOffset,
             pageCount,
             &pages,
             &pagesRetrieved
