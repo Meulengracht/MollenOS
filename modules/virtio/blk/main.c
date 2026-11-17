@@ -210,10 +210,6 @@ __OnEvent(
     oserr_t queueStatus = OS_EOK;
     oserr_t configStatus = OS_EOK;
 
-    if (event == NULL || !(event->events & IOSETSYN)) {
-        return OS_ENOENT;
-    }
-
     // The device may be removed while this event waits for the module lock.
     // Look it up by the increasing storage ID, so queued events do not need
     // a pointer to the device.
@@ -436,6 +432,12 @@ OnEvent(
     _In_ struct ioset_event* event)
 {
     oserr_t status;
+
+    // IPC events must reach gracht without waiting for the device lock. A
+    // job holding that lock may be waiting for a reply from the event loop.
+    if (event == NULL || !(event->events & IOSETSYN)) {
+        return OS_ENOENT;
+    }
 
     // Service calls can yield. Keep the device and DMA state locked until done.
     usched_mtx_lock(&g_lock);
