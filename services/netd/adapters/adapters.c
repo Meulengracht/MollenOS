@@ -15,12 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  *
- * The public functions in this file take g_lock, record what the caller wants (for
- * example "close this port"), and then wake the worker thread. The worker does the
- * actual work under the same lock: attaching drivers, talking to them over IPC and
- * moving each adapter through its lifecycle. Consumer callbacks are called while the
- * lock is held, so they must never block or call back into netd.
- * See private.h for the internal registry and transport functions.
+ * Global adapter registry, locking, and worker loop.
+ *
+ * Public functions here take g_lock, record what the caller wants (like closing
+ * a port or queueing a frame), and wake the worker thread. The worker runs all
+ * adapter logic under that same lock: attaching drivers, polling Gracht IPC, and
+ * advancing each port's state machine. Consumer callbacks run with g_lock held,
+ * so they must never block or call back into netd.
+ *
+ * See private.h for internal registry and transport helpers.
  */
 
 //#define __TRACE
@@ -39,12 +42,15 @@
 #include "private.h"
 
 static struct AdapterEntry g_adapters[NET_ADAPTER_LIMIT];
+static uint64_t            g_nextInstanceId = 1;
 static NetworkAdapterOps_t g_ops;
 static struct usched_mtx   g_lock;
 static bool                g_initialized;
 static int                 g_eventSet;
 static int                 g_wake;
 
+// Write to the reset-event descriptor so ioset_wait wakes up right away when a
+// caller queues new work from another thread.
 static void
 __WakeWorker(void)
 {
@@ -54,6 +60,8 @@ __WakeWorker(void)
     }
 }
 
+// The callbacks below wrap the consumer's global NetworkAdapterOps_t table,
+// tagging each adapter event with the entry's Device, Port, and InstanceId.
 static void
 __OnReceive(
     _In_ void*       context,
@@ -62,7 +70,7 @@ __OnReceive(
 {
     struct AdapterEntry* entry = context;
     if (g_ops.Receive) {
-        g_ops.Receive(entry->Device, entry->Port, bytes, length);
+        g_ops.Receive(entry->Device, entry->Port, entry->InstanceId, bytes, length);
     }
 }
 
@@ -79,6 +87,7 @@ __OnReceivePacket(
     return g_ops.ReceivePacket(
         entry->Device,
         entry->Port,
+        entry->InstanceId,
         packet
     );
 }
@@ -91,7 +100,7 @@ __OnTransmitted(
 {
     struct AdapterEntry* entry = context;
     if (g_ops.Transmitted) {
-        g_ops.Transmitted(entry->Device, entry->Port, cookie, status);
+        g_ops.Transmitted(entry->Device, entry->Port, entry->InstanceId, cookie, status);
     }
 }
 
@@ -102,16 +111,31 @@ __OnLink(
 {
     struct AdapterEntry* entry = context;
     if (g_ops.Link) {
-        g_ops.Link(entry->Device, entry->Port, link);
+        g_ops.Link(entry->Device, entry->Port, entry->InstanceId, link);
+    }
+}
+
+static void
+__OnState(
+    _In_ void*                     context,
+    _In_ const NetAdapterStatus_t* status)
+{
+    struct AdapterEntry* entry = context;
+    if (g_ops.State) {
+        g_ops.State(
+            entry->Device,
+            entry->Port,
+            entry->InstanceId,
+            status
+        );
     }
 }
 
 /** 
- * @brief Build the callback table for one adapter. If the consumer did not install a
- * Receive or ReceivePacket callback, the entry is left NULL instead of pointing at a
- * wrapper that does nothing. That way the adapter can tell nobody is listening: it
- * counts frames without a receiver as dropped, and skips copying frames for a consumer
- * that cannot keep them.
+ * @brief Build the callback table for one adapter entry.
+ * Leaves Receive or ReceivePacket null if the consumer did not install one.
+ * That lets rx.c know when no consumer is listening so it skips backup copies
+ * and counts unhandled frames as dropped.
  */
 static NetAdapterCallbacks_t
 __AdapterCallbacks(struct AdapterEntry* entry)
@@ -120,6 +144,7 @@ __AdapterCallbacks(struct AdapterEntry* entry)
         .Receive = g_ops.Receive ? __OnReceive : NULL,
         .Transmitted = __OnTransmitted,
         .Link = __OnLink,
+        .State = __OnState,
         .Context = entry,
         .ReceivePacket = g_ops.ReceivePacket ? __OnReceivePacket : NULL
     };
@@ -139,6 +164,24 @@ __FindPort(
     return NULL;
 }
 
+/**
+ * @brief Look up a port only if its active session matches instance.
+ * Stops requests meant for an old driver session from hitting its replacement
+ * on the same device and port.
+ */
+static struct AdapterEntry*
+__FindInstance(
+    _In_ uuid_t   device,
+    _In_ uint32_t port,
+    _In_ uint64_t instance)
+{
+    struct AdapterEntry* entry = __FindPort(device, port);
+    if (entry && (instance == 0 || entry->InstanceId != instance)) {
+        return NULL;
+    }
+    return entry;
+}
+
 struct AdapterEntry*
 NetAdapterRegistryFindClient(
     _In_ gracht_client_t* client)
@@ -152,11 +195,10 @@ NetAdapterRegistryFindClient(
 }
 
 /** 
- * @brief Create the adapter for a port that has a driver waiting to be attached. This
- * only happens once the port's previous adapter, if any, has been fully closed and
- * cleaned up. If attaching fails, the waiting driver is kept on the entry, so a
- * discovery event that is only sent once is not lost. The worker tries again at most
- * once per second, creating a new client connection for each attempt.
+ * @brief Attach a pending driver to an empty registry slot.
+ * Only runs once any prior adapter on that port has finished closing and been
+ * freed. On failure, PendingDriver stays set so the worker retries once per
+ * second without losing a one-shot device discovery event.
  */
 static void
 AttachPendingPort(
@@ -169,8 +211,8 @@ AttachPendingPort(
     oserr_t               oserr;
     int                   status;
 
-    // Nothing to do if the entry already has an adapter, if no driver is waiting
-    // to be attached, or if the one second wait after the last attempt is not over.
+    // Skip if already attached, if no driver is waiting, or while waiting out
+    // the one-second retry backoff.
     if (entry->Adapter || !entry->PendingDriver || now < entry->AttachAfter) {
         if (entry->AttachAfter && now < entry->AttachAfter) {
             TRACE("AttachPendingPort: backoff device=%u port=%u retry_in=%llu ms",
@@ -179,7 +221,15 @@ AttachPendingPort(
         return;
     }
 
-    // Do not try again for one second, so a failing driver is not retried in a tight loop.
+    // Stop attaching if 64-bit instance IDs ever reach the limit, since a wrap
+    // could make a stale instance ID match a brand-new session.
+    if (g_nextInstanceId == UINT64_MAX) {
+        ERROR("AttachPendingPort: adapter instance identities are used up");
+        return;
+    }
+
+    // Space attach attempts at least one second apart so a failing driver cannot
+    // spin the worker loop.
     entry->AttachAfter = now + NET_ADAPTER_ATTACH_RETRY_MILLISECONDS;
     
     TRACE("AttachPendingPort: attempting attach device=%u port=%u driver=%u",
@@ -212,6 +262,7 @@ AttachPendingPort(
     // Update the provided entry with the new adapter and client information.
     *entry = (struct AdapterEntry){
         .Adapter = adapter,
+        .InstanceId = g_nextInstanceId++,
         .Device = entry->Device,
         .Driver = entry->PendingDriver,
         .Port = entry->Port,
@@ -241,11 +292,8 @@ NetAdapterRegistryDiscover(
     
     existing = __FindPort(device, port);
     if (existing) {
-        // An existing adapter was found for this device and port.
-        // Check if it needs to be replaced, it does if the following is true
-        // 1. Adapter needs replacement if it is not currently attached, 
-        // 2. Has been removed
-        // 3. The driver has changed.
+        // Close and replace an existing entry when it has no active adapter, is
+        // already marked removed, or switched to a different driver UUID.
         if (!existing->Adapter || existing->Removed || existing->Driver != driver) {
             TRACE("NetAdapterRegistryDiscover: marking existing adapter for replacement device=%u port=%u",
                   device, port);
@@ -259,8 +307,7 @@ NetAdapterRegistryDiscover(
         return;
     }
 
-    // No existing adapter was found for this device and port, 
-    // so we look for a free slot to register a new entry.
+    // No existing entry matched. Take the first free registry slot.
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
         struct AdapterEntry* entry = &g_adapters[i];
         if (!entry->Adapter && !entry->PendingDriver) {
@@ -281,13 +328,13 @@ NetAdapterRegistryDiscover(
 static void
 __CloseEntry(struct AdapterEntry* entry)
 {
-    // Mark the entry for removal and close the adapter if it is active.
+    // Drop any pending replacement driver. If an adapter is active, start an
+    // orderly close. Otherwise clear the slot right away.
     entry->PendingDriver = UUID_INVALID;
     if (entry->Adapter) {
         entry->Removed = true;
         NetAdapterClose(entry->Adapter);
     } else {
-        // The adapter was not active, so we can safely clear the entry.
         memset(entry, 0, sizeof(struct AdapterEntry));
     }
 }
@@ -298,12 +345,10 @@ NetAdapterRegistryRemove(
 {
     TRACE("NetAdapterRegistryRemove: device=%u", device);
     
-    // Removal forgets any driver waiting to be attached and asks active ports to
-    // close. It does not guarantee the device has stopped writing to our buffers;
-    // ports stuck in the quarantined state keep their buffers until that is known.
+    // Clear waiting drivers and close all open ports for this device. Quarantined
+    // ports hold their shared buffers until a retry confirms the close.
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
         struct AdapterEntry* entry = &g_adapters[i];
-        // Skip entries that do not match the device being removed.
         if (entry->Device != device) {
             continue;
         }
@@ -318,8 +363,6 @@ NetworkAdaptersDiscover(
 {
     TRACE("NetworkAdaptersDiscover: device=%u driver=%u", device, driver);
 
-    // Validate that the network adapter system is 
-    // initialized and that both the device and driver UUIDs are valid.
     if (!g_initialized || !device || !driver) {
         if (!g_initialized) {
             WARNING("NetworkAdaptersDiscover: not initialized");
@@ -328,9 +371,9 @@ NetworkAdaptersDiscover(
     }
     
     usched_mtx_lock(&g_lock);
-    // When the driver changes, also close the extra ports (port 1 and up) set up by
-    // the old driver. Only port 0 is registered here; the new driver's GET_INFO reply
-    // tells us how many ports it has, which may be fewer than before.
+    // When a driver changes on a device, close any extra ports (port 1+) created
+    // by the old driver. Only port 0 starts here, and extra ports get added once
+    // the new driver replies to GET_INFO with its port_count.
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
         struct AdapterEntry* entry = &g_adapters[i];
         if (entry->Device == device && entry->Port &&
@@ -341,7 +384,6 @@ NetworkAdaptersDiscover(
     NetAdapterRegistryDiscover(device, driver, 0);
     usched_mtx_unlock(&g_lock);
     
-    // Notify the worker
     __WakeWorker();
 }
 
@@ -366,10 +408,8 @@ NetworkAdaptersRemove(
 }
 
 /** 
- * @brief Periodic housekeeping for one attached port. Logs state changes, registers the
- * extra ports of a device with more than one port once port 0 has learned how many
- * there are, and frees the adapter of a removed port once it has fully closed or
- * failed.
+ * @brief Run periodic housekeeping on one attached port: log failures, discover
+ * extra ports on multiport devices, and destroy removed ports once closed.
  */
 static void
 __UpdatePort(
@@ -377,12 +417,10 @@ __UpdatePort(
 {
     NetAdapterSnapshot_t snapshot;
 
-    // Take a snapshot of the current state of the network adapter.
     NetAdapterSnapshot(entry->Adapter, &snapshot);
     if (snapshot.State != entry->LastState) {
         entry->LastState = snapshot.State;
 
-        // If the state has changed to quarantined or failed, log a warning.
         if (snapshot.State == NET_ADAPTER_QUARANTINED || snapshot.State == NET_ADAPTER_FAILED) {
             WARNING("netadapter device=%u port=%u state=%u error=%u",
                 entry->Device,
@@ -393,12 +431,10 @@ __UpdatePort(
         }
     }
 
-    // Discover additional ports for multiport devices, if we are the
-    // primary port and additional ports are available.
+    // Once port 0 receives GET_INFO, register ports 1..port_count-1.
     if (entry->Port == 0 && !entry->Removed && snapshot.Info.port_count) {
         TRACE("UpdatePort: expanding multiport device=%u port_count=%u",
             entry->Device, snapshot.Info.port_count);
-        // Start at port 1
         for (uint32_t port = 1; port < snapshot.Info.port_count; ++port) {
             if (port >= NET_ADAPTER_LIMIT) {
                 WARNING("UpdatePort: port %u exceeds NET_ADAPTER_LIMIT", port);
@@ -417,20 +453,17 @@ __UpdatePort(
             TRACE("UpdatePort: reclaimed device=%u port=%u", entry->Device, entry->Port);
             NetAdapterClientDestroy(g_eventSet, entry->Client);
             
-            // Keep the driver waiting to be attached, if any, so a replacement can
-            // start right away. A close the driver never confirmed leaves the port
-            // quarantined and never gets here, so a new driver cannot be attached while
-            // the device might still write to the old buffers. A later removal clears
-            // PendingDriver explicitly.
+            // Preserve PendingDriver so a replacement driver attaches next.
+            // Quarantined ports never reach CLOSED, keeping old buffers safe
+            // from any replacement driver until resolved or explicitly removed.
             *entry = (struct AdapterEntry){
                 .Device = entry->Device,
                 .Port = entry->Port,
                 .PendingDriver = entry->PendingDriver
             };
         } else if (oserr != OS_EBUSY) {
-            // Only errors other than OS_EBUSY are logged. OS_EBUSY is expected while
-            // callers still hold packets after the close; returning the last of them
-            // wakes the worker, and we try to free the adapter again then.
+            // OS_EBUSY is normal while callers still hold RX or TX packets.
+            // Returning the final packet wakes the worker to try again.
             WARNING("UpdatePort: failed to destroy adapter device=%u port=%u",
                     entry->Device, entry->Port);
         }
@@ -438,12 +471,9 @@ __UpdatePort(
 }
 
 /** 
- * @brief Sleep until there is something to do, or for at most NET_ADAPTER_WORKER_WAIT_MILLISECONDS
- * milliseconds so timed work such as retries still runs. If the last pass did not 
- * finish all queued work, return right away instead of sleeping.
- * 
- * @param busy true if the last pass stopped early with work still queued, in which
- *             case the worker should not sleep.
+ * @brief Wait for an IPC event or wake signal, up to NET_ADAPTER_WORKER_WAIT_MILLISECONDS.
+ * @param busy true if a port hit its per-poll work budget and still has queued
+ *             work, in which case we poll again immediately without sleeping.
  */
 static void
 __WaitForWork(
@@ -454,10 +484,8 @@ __WaitForWork(
     struct timespec    until;
     TRACE("WaitForWork: %s", busy ? "immediate reschedule" : "waiting for work");
     
-    // Packet work is woken immediately when a client becomes readable. The short
-    // timeout below only exists so retries and device discovery still run when
-    // nothing else happens. If the work budget was used up, there is more work
-    // waiting, so we reschedule immediately instead of sleeping.
+    // Client traffic and API calls wake ioset_wait right away. The short sleep
+    // only drives retry timers and periodic polls when traffic is idle.
     timespec_get(&until, TIME_UTC);
     if (!busy) {
         until.tv_nsec += NET_ADAPTER_WORKER_WAIT_MILLISECONDS * 1000000;
@@ -467,9 +495,9 @@ __WaitForWork(
         }
     }
     
-    // Wait for events or until the specified timeout.
     count = ioset_wait(g_eventSet, events, NET_ADAPTER_LIMIT + 2, &until);
     for (int i = 0; i < count; ++i) {
+        // Drain the wake signal so the next ioset_wait sleeps normally.
         if (events[i].data.iod == g_wake) {
             unsigned int value;
             (void)read(g_wake, &value, sizeof(value));
@@ -489,17 +517,15 @@ __WorkerMain(
         uint64_t        now;
         bool            busy = false;
         
-        // Use a clock that never jumps backwards, so retry timers are not upset by
-        // changes to the wall-clock time. The value is in milliseconds.
+        // Use a monotonic clock in milliseconds so wall-clock adjustments never
+        // break retry deadlines.
         timespec_get(&time, TIME_MONOTONIC);
         now = (uint64_t)time.tv_sec * 1000 + (uint64_t)time.tv_nsec / 1000000;
         
         usched_mtx_lock(&g_lock);
         for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
-            // Attempt to attach any pending ports for this adapter before polling it.
             AttachPendingPort(&g_adapters[i], now);
             
-            // Poll the adapter if it is attached.
             if (g_adapters[i].Adapter) {
                 busy |= NetAdapterTransportPoll(&g_adapters[i], now);
                 __UpdatePort(&g_adapters[i]);
@@ -507,7 +533,6 @@ __WorkerMain(
         }
         usched_mtx_unlock(&g_lock);
 
-        // Wait for work to become available or until the next timeout.
         __WaitForWork(busy);
     }
 }
@@ -589,11 +614,25 @@ NetworkAdaptersSetHooks(
         memset(&g_ops, 0, sizeof(g_ops));
     }
     
-    // Go through the adapters and update their callbacks
+    // Update every active adapter and bring late consumers up to date with
+    // each port's current state and link before any new packets arrive.
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
         if (g_adapters[i].Adapter) {
             NetAdapterCallbacks_t callbacks = __AdapterCallbacks(&g_adapters[i]);
             NetAdapterSetCallbacks(g_adapters[i].Adapter, &callbacks);
+            
+            if (ops && ops->State) {
+                NetAdapterStatus_t status;
+                NetAdapterGetStatus(g_adapters[i].Adapter, &status);
+                ops->State(g_adapters[i].Device, g_adapters[i].Port, g_adapters[i].InstanceId, &status);
+            }
+
+            // Link updates only fire when the link changes. Replay the cached
+            // link if sequence != 0 (meaning the driver already reported one).
+            if (ops && ops->Link && g_adapters[i].Adapter->Link.sequence != 0) {
+                ops->Link(g_adapters[i].Device, g_adapters[i].Port, g_adapters[i].InstanceId,
+                          &g_adapters[i].Adapter->Link);
+            }
         }
     }
     usched_mtx_unlock(&g_lock);
@@ -603,6 +642,7 @@ oserr_t
 NetworkAdaptersSend(
     _In_ uuid_t      device,
     _In_ uint32_t    port,
+    _In_ uint64_t    instance,
     _In_ const void* data,
     _In_ uint32_t    length,
     _In_ uint64_t    cookie)
@@ -617,7 +657,7 @@ NetworkAdaptersSend(
     }
     
     usched_mtx_lock(&g_lock);
-    entry = __FindPort(device, port);
+    entry = __FindInstance(device, port, instance);
     if (entry != NULL && entry->Adapter != NULL) {
         status = NetAdapterSend(entry->Adapter, data, length, cookie);
         if (status != OS_EOK) {
@@ -625,31 +665,40 @@ NetworkAdaptersSend(
                 status, device, port);
         }
     } else if (entry != NULL && entry->Adapter == NULL) {
-        // In this case the adapter is likely migrating or unavailable.
+        // Port is registered and waiting for its driver to attach.
         status = OS_EBUSY;
     } else {
         TRACE("NetworkAdaptersSend: port not found device=%u port=%u", device, port);
     }
     usched_mtx_unlock(&g_lock);
 
-    // Notify the worker of new work
     __WakeWorker();
     return status;
 }
 
 oserr_t
-NetworkAdaptersTxAcquire(uuid_t device, uint32_t port, NetAdapterTxPacket_t* packet)
+NetworkAdaptersTxAcquire(
+    _In_ uuid_t                device,
+    _In_ uint32_t              port,
+    _In_ uint64_t              instance,
+    _In_ NetAdapterTxPacket_t* packet)
 {
+    struct AdapterEntry* entry;
+    oserr_t              status = OS_ENOENT;
+
     if (!packet) {
         return OS_EINVALPARAMS;
     }
+
     memset(packet, 0, sizeof(*packet));
+    
     if (!g_initialized) {
         return OS_ENOTSUPPORTED;
     }
+
+    // No worker wake needed here because acquiring a slot queues nothing for the driver yet.
     usched_mtx_lock(&g_lock);
-    struct AdapterEntry* entry = __FindPort(device, port);
-    oserr_t status = OS_ENOENT;
+    entry = __FindInstance(device, port, instance);
     if (entry) {
         status = entry->Adapter ? NetAdapterTxAcquire(entry->Adapter, packet) : OS_EBUSY;
     }
@@ -658,15 +707,23 @@ NetworkAdaptersTxAcquire(uuid_t device, uint32_t port, NetAdapterTxPacket_t* pac
 }
 
 oserr_t
-NetworkAdaptersTxSubmit(uuid_t device, uint32_t port, NetAdapterTxPacket_t* packet,
-                        uint32_t length, uint64_t cookie)
+NetworkAdaptersTxSubmit(
+    _In_ uuid_t                device,
+    _In_ uint32_t              port,
+    _In_ uint64_t              instance,
+    _In_ NetAdapterTxPacket_t* packet,
+    _In_ uint32_t              length,
+    _In_ uint64_t              cookie)
 {
+    struct AdapterEntry* entry;
+    oserr_t              status = OS_ENOENT;
+
     if (!g_initialized) {
         return OS_ENOTSUPPORTED;
     }
+
     usched_mtx_lock(&g_lock);
-    struct AdapterEntry* entry = __FindPort(device, port);
-    oserr_t status = OS_ENOENT;
+    entry = __FindInstance(device, port, instance);
     if (entry && entry->Adapter) {
         status = NetAdapterTxSubmit(entry->Adapter, packet, length, cookie);
     }
@@ -676,16 +733,23 @@ NetworkAdaptersTxSubmit(uuid_t device, uint32_t port, NetAdapterTxPacket_t* pack
 }
 
 oserr_t
-NetworkAdaptersTxCancel(uuid_t device, uint32_t port, NetAdapterTxPacket_t* packet)
+NetworkAdaptersTxCancel(
+    _In_ uuid_t                device,
+    _In_ uint32_t              port,
+    _In_ uint64_t              instance,
+    _In_ NetAdapterTxPacket_t* packet)
 {
+    struct AdapterEntry* entry;
+    oserr_t              status = OS_ENOENT;
+
     if (!g_initialized) {
         return OS_ENOTSUPPORTED;
     }
+    
     usched_mtx_lock(&g_lock);
-    // A removed port stays in the table until every packet taken from it has been
-    // returned, so this lookup still works after removal.
-    struct AdapterEntry* entry = __FindPort(device, port);
-    oserr_t status = OS_ENOENT;
+    // Removed ports stay in g_adapters until every held packet returns, so
+    // cancel still finds the adapter after device removal.
+    entry = __FindInstance(device, port, instance);
     if (entry && entry->Adapter) {
         status = NetAdapterTxCancel(entry->Adapter, packet);
     }
@@ -698,6 +762,7 @@ oserr_t
 NetworkAdaptersRxRelease(
     _In_ uuid_t                device,
     _In_ uint32_t              port,
+    _In_ uint64_t              instance,
     _In_ NetAdapterRxPacket_t* packet)
 {
     struct AdapterEntry* entry;
@@ -707,10 +772,9 @@ NetworkAdaptersRxRelease(
         return OS_ENOTSUPPORTED;
     }
 
-    // RX packets held by a consumer keep a removed entry 
-    // alive until the final release.
+    // Kept RX packets hold the removed entry open until the final release.
     usched_mtx_lock(&g_lock);
-    entry = __FindPort(device, port);
+    entry = __FindInstance(device, port, instance);
     if (entry && entry->Adapter) {
         status = NetAdapterRxRelease(
             entry->Adapter,
@@ -719,7 +783,7 @@ NetworkAdaptersRxRelease(
     }
     usched_mtx_unlock(&g_lock);
 
-    // Notify the worker of new events
+    // Wake the worker so freed RX slots can be posted back to the driver.
     __WakeWorker();
     return status;
 }
@@ -747,11 +811,11 @@ NetworkAdaptersSnapshot(
     if (entry) {
         if (entry->Adapter) {
             NetAdapterSnapshot(entry->Adapter, out);
+            out->InstanceId = entry->InstanceId;
             NetAdapterRefreshCounters(entry->Adapter);
         } else {
-            // The port is visible as soon as it is discovered, before its adapter
-            // is created. Report an empty snapshot in the INFO state rather than
-            // leaving the output uninitialized.
+            // Port is discovered but still waiting to attach. Report an empty
+            // snapshot in NET_ADAPTER_INFO so callers get clean zeroes.
             TRACE("NetworkAdaptersSnapshot: adapter not yet allocated device=%u port=%u",
                   device, port);
             memset(out, 0, sizeof(*out));
@@ -763,7 +827,6 @@ NetworkAdaptersSnapshot(
     }
     usched_mtx_unlock(&g_lock);
 
-    // Notify the worker of new events
     __WakeWorker();
     return status;
 }
@@ -786,23 +849,18 @@ NetworkAdaptersSetRunning(
     usched_mtx_lock(&g_lock);
     entry = __FindPort(device, port);
     if (entry != NULL && entry->Adapter == NULL) {
-        // Entry exists but adapter is not yet allocated. This typically occurs
-        // during the discovery or attachment phase. Return EBUSY to indicate
-        // the port is present but not yet ready for I/O operations.
+        // Port is discovered, though its adapter object has not been created yet.
         TRACE("NetworkAdaptersSetRunning: adapter not yet allocated device=%u port=%u",
               device, port);
         status = OS_EBUSY;
     } else if (entry != NULL) {
-        // Entry and adapter is attached
         if (start) {
-            // Start the network adapter and check for failures.
             status = NetAdapterStart(entry->Adapter);
             if (status != OS_EOK) {
                 WARNING("NetworkAdaptersSetRunning: failed to start device=%u port=%u status=%i",
                         device, port, status);
             }
         } else {
-            // Stop the network adapter.
             NetAdapterStop(entry->Adapter);
             status = OS_EOK;
         }
@@ -811,7 +869,6 @@ NetworkAdaptersSetRunning(
     }
     usched_mtx_unlock(&g_lock);
     
-    // Notify the worker thread of the state change.
     __WakeWorker();
     return status;
 }

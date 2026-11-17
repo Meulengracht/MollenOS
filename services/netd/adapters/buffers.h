@@ -15,44 +15,40 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Packet-pool API and the rules for which component manages each lease.
+ * Packet-pool API and per-slot tracking rules.
  * 
- * netd packet pools: the packet data lives in shared memory that is kept for the whole
- * session, while the records of who manages each slot are kept in netd's private memory.
+ * Packet data lives in shared memory kept for the full lifetime of the session,
+ * while the records tracking who holds each slot live in netd's private memory.
  *
- * One manager belongs to one netadapter session and manages one TX pool and one RX pool.
- * Slot spacing satisfies the adapter's alignment and keeps adjacent slots on separate
- * CPU cache lines so their shared-memory accesses can run at the same time.
- * Do not create a new manager for a session that is still open: the new manager would
- * start its registration IDs over from the beginning, clashing with the IDs the driver
- * already knows. All calls, including any use of a lease, must run on the adapter's
- * executor, which runs one task at a time. This module deliberately does not take locks,
- * send RPCs, retry batches or map memory for DMA. The adapter client passes in RPC
- * results it has already validated; checking that the peer really is the expected
- * driver is a separate IPC task that has not been done yet.
+ * One manager belongs to one driver session and manages one TX pool and one RX
+ * pool. Slots are padded to match the driver's alignment and keep neighboring
+ * slots on separate CPU cache lines so hardware DMA and CPU reads do not collide.
+ *
+ * Never create a second manager for a session that is still open, because a new
+ * manager starts pool registration IDs back at 1 and would clash with IDs the
+ * driver already has. All calls, including using a lease, must run one at a time
+ * on the adapter's single worker loop. This module takes no locks, sends no IPC,
+ * retries no batches, and sets up no DMA mappings itself.
  *
  * Slot lifecycle:
  *   FREE -> HELD -> PENDING -> DRIVER -> READY -> FREE
- *                         \-> READY (completion before admission)
- *                    rejection -> HELD
- * FREE slots are in the pool. HELD slots are managed by the caller. PENDING slots have
- * been prepared for the driver and are waiting for its admission reply (the driver's
- * answer saying whether it accepted the packet). DRIVER slots were accepted and are
- * managed by the driver. READY slots have a completion (the driver's final result for
- * the packet) and are managed by the caller again. If the completion arrives before the
- * admission reply, the slot goes straight from PENDING to READY. If the driver rejects
- * the packet, the slot goes back to HELD.
- * A READY slot cannot be released until its admission reply has arrived and been applied.
- * PENDING means it is unknown who manages the slot: even a send that failed may have
- * reached the driver, so the driver may be using the buffer.
+ *                         \-> READY (completion arrived before admission reply)
+ *                    rejected -> HELD
  *
- * Received data must be read before the lease for it is released. The adapter's
- * retained-packet API lets a consumer keep a limited number of completed leases
- * until the consumer releases them.
- * Never keep a view after Release or Prepare. The adapter's TX builder API can give
- * exclusive access to the payload outside the executor while the lease stays HELD;
- * code that calls this low-level manager directly must still make sure all access
- * happens one call at a time.
+ *   FREE    - Available in the pool.
+ *   HELD    - Acquired by netd (caller is writing TX data or preparing RX).
+ *   PENDING - Sent to the driver, waiting for the driver to confirm it took it.
+ *   DRIVER  - Accepted by the driver and actively in use by hardware.
+ *   READY   - Driver finished the transfer and reported its final result.
+ *
+ * A READY slot cannot return to FREE until its admission reply arrives and gets
+ * matched. PENDING means control over the buffer is uncertain: even a failed IPC
+ * send might have reached the driver, so the driver could still touch that memory.
+ *
+ * Read received data before releasing its lease. Never keep a NetBufferView_t
+ * pointer across NetBuffersRelease or NetBuffersPrepare. The TX builder API lets
+ * callers write frame bytes outside the worker while the lease stays HELD, though
+ * direct callers of this manager must run one call at a time.
  */
 #ifndef __NETD_BUFFERS_H__
 #define __NETD_BUFFERS_H__
@@ -60,23 +56,21 @@
 #include <os/osdefs.h>
 #include <ctt_netadapter_service.h>
 
-// Number of bytes in the fixed Ethernet header included in every frame.
-// Redefined from adapter.h to avoid inclusion
+// Fixed 14-byte Ethernet header size included in every frame.
+// Redefined here so buffers.h does not have to include adapter.h.
 #define NET_ADAPTER_ETHERNET_HEADER_SIZE 14
 
-// Callers cannot see inside the manager. Its records live in netd's private memory,
-// never in shared memory, so the controller driver cannot modify them.
+// Opaque handle. All manager state lives in netd's private heap, never in shared
+// memory, so the driver cannot corrupt bookkeeping records.
 typedef struct NetBufferManager NetBufferManager_t;
 
 /** 
- * @brief Resource limits chosen by the caller. All sizes are in bytes and all counts must be
- * nonzero. FrameCapacity is the largest frame a slot can hold; it includes the Ethernet
- * header but not the frame check sequence (FCS) or any private headers of the driver.
- * MemoryBudget is the most memory the manager may use. The shared memory it requests
- * (rounded up to whole pages), the manager itself, the per-slot records and the table
- * used to track completions are all counted against it. Memory the allocator or kernel
- * uses for its own bookkeeping is not counted. Everything is allocated when the manager
- * is created; nothing is allocated per packet.
+ * @brief Pool sizing and memory budget parameters.
+ * All sizes are in bytes and every field must be nonzero. FrameCapacity is the
+ * largest frame a slot can carry (including the 14-byte Ethernet header, without
+ * hardware FCS or driver-private headers). MemoryBudget caps all memory used by
+ * the manager: page-rounded shared pools, the manager struct, per-slot records,
+ * and the completion table. Everything is allocated up front when created.
  */
 typedef struct NetBufferConfig {
     uint32_t TxSlots;
@@ -86,10 +80,10 @@ typedef struct NetBufferConfig {
 } NetBufferConfig_t;
 
 /** 
- * @brief A lease is netd's local handle to an acquired slot; it is never sent to the driver.
- * Sequence changes every time the slot is acquired, so a lease left over from an earlier
- * use of the slot cannot release or modify the slot after it has been reused.
- * Do not modify these fields.
+ * @brief Local handle to an acquired pool slot. Never sent over IPC.
+ * Sequence increments each time the slot is acquired, stopping an old handle
+ * from touching or releasing the slot after it gets reused. Treat fields as
+ * read-only.
  */
 typedef struct NetBufferLease {
     struct ctt_netadapter_session Session;
@@ -99,11 +93,11 @@ typedef struct NetBufferLease {
 } NetBufferLease_t;
 
 /** 
- * @brief Temporary CPU access to a slot's data, valid only while the caller manages the lease.
- * Length is zero for HELD slots. Completed is set once the driver has reported the final
- * result for the packet; check Status and Detail before reading received bytes, because
- * a failed or cancelled packet contains no valid data. Capacity only covers the usable
- * frame area, never the headroom, tailroom or alignment padding around it.
+ * @brief CPU view into a slot's frame area while the caller holds the lease.
+ * Length is zero for HELD slots. Completed turns true once the driver reports a
+ * final result. Always check Status and Detail before reading Data, because a
+ * failed or cancelled transfer holds no valid frame bytes. Capacity covers only
+ * the usable frame area, excluding device headroom, tailroom, and padding.
  */
 typedef struct NetBufferView {
     void* Data;
@@ -115,35 +109,34 @@ typedef struct NetBufferView {
 } NetBufferView_t;
 
 /** 
- * @brief Counters used to decide when to stop accepting more work and for diagnostics; these
- * are not hardware statistics. ProcessedCompletion is the highest completion sequence
- * for which every earlier completion has also been processed. AcknowledgedCompletion is
- * the highest sequence the driver has confirmed as acknowledged.
+ * @brief Snapshot of buffer pool usage and completion progress for diagnostics
+ * and flow control. These are netd's local counters, separate from hardware stats.
  */
 typedef struct NetBufferStats {
-    uint32_t TxFree;
-    uint32_t RxFree;
-    uint32_t TxOutstanding;
-    uint32_t RxOutstanding;
-    uint32_t UnackedCompletions;
-    uint64_t ProcessedCompletion;
-    uint64_t AcknowledgedCompletion;
+    uint32_t TxFree;                 // Free TX slots available for new packets.
+    uint32_t RxFree;                 // Free RX slots available for posting to the driver.
+    uint32_t TxOutstanding;          // TX slots currently pending admission or with the driver.
+    uint32_t RxOutstanding;          // RX slots currently pending admission or with the driver.
+    uint32_t UnackedCompletions;     // Completed transfers received locally but not yet confirmed retired.
+    uint64_t ProcessedCompletion;    // Highest completion sequence processed with no earlier gaps.
+    uint64_t AcknowledgedCompletion; // Highest completion sequence the driver has confirmed retired.
 } NetBufferStats_t;
 
 /** 
- * @brief Allocate two zeroed shared memory pools (TX and RX) that a device driver can use,
- * plus the private records. Before anything is allocated, the configuration is checked
- * against the adapter limits, the size calculations are checked for overflow, and the
- * alignment and the total size within MemoryBudget are verified. The driver may still
- * need bounce buffers or scatter-gather mapping: slots that are next to each other in
- * the pool are not necessarily next to each other in physical memory.
- * On failure *managerOut is NULL and anything allocated so far is freed.
+ * @brief Allocate zeroed TX and RX shared-memory pools and private slot tables.
+ *
+ * Checks driver limits, integer overflows, alignment, and MemoryBudget before
+ * allocating anything. Neighboring slots are contiguous in virtual memory, though
+ * physical pages may be scattered so the driver still handles its own DMA setup.
+ * On failure, *managerOut stays null and any partial allocations are freed.
  * 
- * @param session The current network adapter session.
- * @param info The network adapter information.
- * @param config The configuration for the buffer pools.
- * @param managerOut Receives the created buffer manager on success.
- * @return OS_EOK on success, or an error code on failure.
+ * @param session Active driver session identity.
+ * @param info Driver capabilities and memory limits.
+ * @param config Slot counts, frame capacity, and total memory cap.
+ * @param managerOut Receives the new buffer manager on success.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad inputs, OS_EOVERFLOW if
+ *         sizes exceed limits or MemoryBudget, OS_EOOM on allocation failure,
+ *         or a shared-memory error.
  */
 oserr_t
 NetBuffersCreate(
@@ -153,34 +146,37 @@ NetBuffersCreate(
     _Out_ NetBufferManager_t**                 managerOut);
 
 /** 
- * @brief Free the manager. This is only allowed once both pools have been unregistered from
- * the driver (or were never offered for registration) AND every lease has been released;
- * otherwise OS_EBUSY is returned and nothing is changed. A registration timeout, a
- * driver fault or a stop request does not count as unregistering, because the driver
- * may still be using the memory in those cases. Only a successful unregister reply or a
- * confirmed session close does. On success *manager is set to NULL; passing a NULL
- * *manager is allowed.
+ * @brief Destroy the buffer manager and release its shared memory.
+ *
+ * Allowed only when both pools are unregistered (or were never registered) and
+ * every lease has been returned. Otherwise returns OS_EBUSY without changing
+ * state. Request timeouts, driver faults, or stopping a run do not unregister a
+ * pool, because the driver might still access the memory. Only explicit
+ * unregister replies or a confirmed session close do.
  * 
- * @param manager The buffer manager to destroy.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Address of the manager pointer. Cleared to null on success.
+ *                Passing *manager == NULL returns OS_EOK.
+ * @return OS_EOK on success, OS_EINVALPARAMS if manager is null, or OS_EBUSY if
+ *         pools are still registered or leases are still held.
  */
 oserr_t
 NetBuffersDestroy(
     _InOut_ NetBufferManager_t** manager);
 
 /**
- * @brief Call this BEFORE sending register_pool. It marks the pool as registering, because once
- * the request is sent the driver may have registered the pool even if no reply arrives.
- * It returns the pool description and the registration request ID. These never change,
- * so a retry sends exactly the same request. The IDs are 1 for TX and 2 for RX within
- * this session. Once a pool has been unregistered it cannot be registered again or
- * replaced within the same manager.
+ * @brief Mark a pool as registering and return its registration request data.
+ *
+ * Call this before sending register_pool over IPC. Marking the pool early ensures
+ * it stays protected if the reply gets lost after the driver already mapped the
+ * memory. Request IDs stay fixed per session (1 for TX, 2 for RX) so retries
+ * send the exact same parameters. Retired pools cannot be registered again.
  * 
- * @param manager The buffer manager containing the pool to register.
- * @param direction The direction of the pool (TX or RX).
- * @param registrationOut Receives the registration request ID.
- * @param poolOut Receives the pool description.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager containing the pool.
+ * @param direction TX or RX pool to register.
+ * @param registrationOut Receives the fixed registration ID for this pool.
+ * @param poolOut Receives the pool geometry and shared-memory grant description.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad inputs, or OS_ENOENT if
+ *         the manager is closed or the pool was already retired.
  */
 oserr_t
 NetBuffersBeginRegistration(
@@ -190,17 +186,19 @@ NetBuffersBeginRegistration(
     _Out_   struct ctt_netadapter_pool*   poolOut);
 
 /**
- * @brief Apply a successful register_pool reply. A pool ID of zero, a pool ID already used by
- * the other pool, and replies for an older or different session are rejected. Receiving
- * the same reply more than once is harmless. If registration fails or its outcome is
- * unknown, the pool stays in the registering state until the session close is
- * confirmed: to be safe, we assume the driver may be using the memory until then.
+ * @brief Record a successful register_pool reply from the driver.
+ *
+ * Rejects zero pool IDs, duplicate IDs already assigned to the other pool, and
+ * replies for a different session. Duplicate confirmations with the same poolId
+ * return OS_EOK. If registration fails or times out, the pool stays marked
+ * registering until the session closes so shared memory is never freed too soon.
  * 
- * @param manager The buffer manager containing the pool.
- * @param session The current network adapter session.
- * @param direction The direction of the pool (TX or RX).
- * @param poolId The ID of the pool that has been registered.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager containing the pool.
+ * @param session Session ID and generation from the reply.
+ * @param direction Pool direction that was registered.
+ * @param poolId Driver-assigned nonzero pool ID.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad inputs, OS_ENOENT if closed
+ *         or retired, or OS_EPROTOCOL for conflicting state or pool IDs.
  */
 oserr_t
 NetBuffersRegistered(
@@ -210,16 +208,19 @@ NetBuffersRegistered(
     _In_ uint32_t                             poolId);
 
 /**
- * @brief Apply a successful unregister_pool reply. Only call this after all completions have
- * been processed and the driver has confirmed the acknowledgement that covers them.
- * The pool cannot be unregistered while any of its packets are still with the driver.
- * Leases that are HELD or READY locally may still exist after unregistering, but they
- * still prevent Destroy until they are released.
+ * @brief Mark a registered pool as retired after a successful unregister_pool
+ * reply.
+ *
+ * Only valid once no packets remain with the driver, every completion has been
+ * acknowledged and confirmed retired, and no slots are still waiting for late
+ * admission replies. Local HELD or READY leases may still exist afterwards, and
+ * will keep NetBuffersDestroy from freeing memory until released.
  * 
- * @param manager The buffer manager containing the pool.
- * @param session The current network adapter session.
- * @param direction The direction of the pool (TX or RX).
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager containing the pool.
+ * @param session Session ID and generation from the reply.
+ * @param direction Pool direction being unregistered.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad state or inputs, or
+ *         OS_EBUSY if packets or unacknowledged completions are still active.
  */
 oserr_t
 NetBuffersUnregistered(
@@ -228,15 +229,17 @@ NetBuffersUnregistered(
     _In_ enum ctt_netadapter_direction        direction);
 
 /**
- * @brief Take a free slot from a registered pool in constant time. OS_EBUSY means the pool has
- * no free slots. The whole slot is zeroed on reuse, including the padding before and
- * after the frame. If the slot's sequence number would overflow, OS_EOVERFLOW is
- * returned instead of wrapping around, because a wrapped number could match an old lease.
+ * @brief Take a free slot from a registered pool in O(1) time.
+ *
+ * Clears the entire slot (including headroom and tailroom padding) so old frame
+ * bytes never leak to the driver. Refuses to wrap a slot's 64-bit sequence back
+ * to zero so stale leases can never match a reused slot.
  * 
- * @param manager The buffer manager containing the pool.
- * @param direction The direction of the pool (TX or RX).
- * @param leaseOut Receives the acquired lease on success.
- * @return OS_EOK on success, OS_EBUSY if no free slots are available, or an error code on failure.
+ * @param manager Buffer manager containing the pool.
+ * @param direction TX or RX pool to allocate from.
+ * @param leaseOut Receives the new lease handle on success.
+ * @return OS_EOK on success, OS_EBUSY if no slots are free, OS_ENOENT if closed
+ *         or unregistered, OS_EOVERFLOW if sequence would wrap, or OS_EINVALPARAMS.
  */
 oserr_t
 NetBuffersAcquire(
@@ -245,15 +248,16 @@ NetBuffersAcquire(
     _Out_ NetBufferLease_t*             leaseOut);
 
 /**
- * @brief Get CPU access to a slot that is HELD, or READY with its admission reply already
- * applied. Slots managed by the driver, or where it is unknown who manages them, are
- * rejected. The pointer is a CPU address, not a DMA address, and must not be kept after
- * the slot is prepared for the driver or released.
+ * @brief Map a HELD or fully settled READY lease to a CPU data pointer.
+ * Rejects slots still with the driver or waiting for an admission reply. The
+ * returned pointer is a CPU address (not a bus DMA address) and must not be
+ * kept after NetBuffersPrepare or NetBuffersRelease.
  * 
- * @param manager The buffer manager containing the pool.
- * @param lease The lease for the slot to view.
- * @param viewOut Receives the CPU-accessible view of the slot on success.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager containing the slot.
+ * @param lease Lease handle for the slot.
+ * @param viewOut Receives the CPU view on success.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad inputs or stale lease, or
+ *         OS_EBUSY if the slot is with the driver or awaiting admission.
  */
 oserr_t
 NetBuffersView(
@@ -262,14 +266,14 @@ NetBuffersView(
     _Out_ NetBufferView_t*        viewOut);
 
 /**
- * @brief Return a HELD or READY lease to the free list. Releasing the same lease twice, or
- * releasing with a lease from an earlier use of the slot, fails. Slots managed by the
- * driver, slots where that is unknown, and completed slots still waiting for their
- * admission reply return OS_EBUSY.
+ * @brief Return a HELD or settled READY lease back to the pool free list.
+ * Double releases, stale leases, slots with the driver, and completed slots
+ * still waiting for their admission reply are all rejected.
  * 
- * @param manager The buffer manager containing the pool.
- * @param lease The lease to release.
- * @return OS_EOK on success, OS_EBUSY if the slot cannot be released, or an error code on failure.
+ * @param manager Buffer manager containing the slot.
+ * @param lease Lease handle to release.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad or stale lease, or
+ *         OS_EBUSY if the slot cannot be released yet.
  */
 oserr_t
 NetBuffersRelease(
@@ -277,26 +281,24 @@ NetBuffersRelease(
     _In_ const NetBufferLease_t* lease);
 
 /**
- * @brief Build the packet descriptor for a HELD slot and mark the slot PENDING. Do this BEFORE
- * the RPC is sent, because from the moment sending starts the driver may be using the
- * buffer, even if no reply ever arrives. TX length must be at least
- * NET_ADAPTER_ETHERNET_HEADER_SIZE (the Ethernet header size) and no more than
- * FrameCapacity; RX length must equal FrameCapacity. A lease can only
- * be prepared once: if the RPC has to be retried, keep the returned descriptor and send
- * it again. If the driver rejects the packet, release the slot and acquire it again
- * before submitting it again, so it gets a new sequence number.
- * The driver can only keep a limited number of completions that we have not yet
- * acknowledged, so packets with the driver plus completions received but not yet
- * acknowledged may never exceed that number. Each direction also has its own limit on
- * packets with the driver, and RX is kept at least one below the completion limit so a
- * TX can always be sent. OS_EBUSY can therefore mean one of these limits was reached,
- * even when a free local slot exists.
+ * @brief Build a driver packet descriptor from a HELD slot and move it to PENDING.
+ *
+ * Call this before sending the batch over IPC. Once sending starts, the driver
+ * may touch the buffer even if the IPC call fails or times out. A slot can only
+ * be prepared once per lease: on retry, resend the same descriptor, and if the
+ * driver rejects the packet, release and reacquire the slot to get a fresh
+ * sequence number.
+ *
+ * TX length must be between NET_ADAPTER_ETHERNET_HEADER_SIZE and FrameCapacity.
+ * RX length must equal FrameCapacity. Enforces per-direction active caps and
+ * leaves room inside max_unacked_completions so RX never starves TX.
  * 
- * @param manager The buffer manager containing the pool.
- * @param lease The lease for the slot to prepare.
- * @param length The length of the packet.
- * @param packetOut Receives the prepared packet descriptor on success.
- * @return OS_EOK on success, OS_EBUSY if the driver cannot accept more packets, or an error code on failure.
+ * @param manager Buffer manager containing the slot.
+ * @param lease HELD lease to prepare.
+ * @param length Frame bytes for TX, or FrameCapacity for RX.
+ * @param packetOut Receives the wire descriptor on success.
+ * @return OS_EOK on success, OS_EBUSY if driver queues or completion window are
+ *         full, OS_ENOENT if closed or unregistered, or OS_EINVALPARAMS.
  */
 oserr_t
 NetBuffersPrepare(
@@ -306,20 +308,24 @@ NetBuffersPrepare(
     _Out_ struct ctt_netadapter_packet*  packetOut);
 
 /**
- * @brief Apply the driver's admission reply for one packet, telling whether it accepted or
- * rejected the submission. OS_EOK means the reply was applied, not that the packet was
- * accepted: check admission->status for that. A rejected packet goes back to HELD and
- * is managed by the caller again. Never pretend a packet was rejected after a transport
- * timeout: the request may have reached the driver, which may then be using the buffer.
- * Outputs are only filled in on success. readyOut is set when the completion arrived
- * before this reply and was kept waiting for it, so the packet can now be delivered.
+ * @brief Apply the driver's admission reply saying whether it accepted or
+ * rejected one submitted packet.
+ *
+ * Returning OS_EOK means the reply was valid and applied, check admission->status
+ * to see whether the driver accepted the packet. Rejected slots return to HELD so
+ * the caller can release them. Never fake a rejection after an IPC timeout,
+ * because the driver may already have accepted the packet.
+ *
+ * If the packet's completion already arrived ahead of this reply, *readyOut is
+ * set to true so the caller can deliver and release it now.
  * 
- * @param manager The buffer manager containing the pool.
- * @param session The session associated with the packet.
- * @param admission The driver's admission reply for the packet.
- * @param leaseOut Receives the lease for the packet on success.
- * @param readyOut Set to true if the packet is ready to be delivered.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager containing the slot.
+ * @param session Session ID and generation from the event.
+ * @param admission Admission record from the driver.
+ * @param leaseOut Receives the matching lease on success.
+ * @param readyOut Set to true if a completion was already waiting for this reply.
+ * @return OS_EOK on success, OS_EEXISTS for a matching duplicate, OS_ENOENT if
+ *         closed, OS_EPROTOCOL for invalid or conflicting replies, or OS_EINVALPARAMS.
  */
 oserr_t
 NetBuffersAdmission(
@@ -330,21 +336,24 @@ NetBuffersAdmission(
     _Out_ bool*                                  readyOut);
 
 /**
- * @brief Check and apply a completion (the driver's final result for a packet), returning the
- * packet's lease and whether it is ready to be delivered. OS_EEXISTS means this
- * completion was already processed, so it must not be delivered again. Completions may
- * arrive out of order, but no more than max_unacked_completions ahead of the oldest one
- * not yet processed; OS_EBUSY means earlier completions are missing and must be
- * received first. An invalid completion never changes who manages the slot.
- * If the completion arrives before the admission reply, it is stored but readyOut is
- * false; the packet is not passed to the network stack until the reply arrives.
+ * @brief Validate and record one completion (final transfer result) from the
+ * driver.
  *
- * @param manager The buffer manager containing the pool.
- * @param session The session associated with the packet.
- * @param completion The driver's completion for the packet.
- * @param leaseOut Receives the lease for the packet on success.
- * @param readyOut Set to true if the packet is ready to be delivered.
- * @return OS_EOK on success, OS_EEXISTS if the completion was already processed, OS_EBUSY if earlier completions are missing, or an error code on failure.
+ * Returns OS_EEXISTS if this sequence was already processed so the caller does
+ * not deliver the same packet twice. Completions may arrive out of order within
+ * max_unacked_completions ahead of ProcessedCompletion. Further ahead returns
+ * OS_EBUSY so the caller can drain the missing completions first.
+ *
+ * If a completion beats its admission reply, it is saved internally with
+ * *readyOut set to false until NetBuffersAdmission matches that reply.
+ *
+ * @param manager Buffer manager containing the slot.
+ * @param session Session ID and generation from the event.
+ * @param completion Driver completion record.
+ * @param leaseOut Receives the matching lease on success.
+ * @param readyOut Set to true if the packet can be delivered right away.
+ * @return OS_EOK on success, OS_EEXISTS if already processed, OS_EBUSY if
+ *         earlier completions are missing, OS_ENOENT if closed, or OS_EPROTOCOL.
  */
 oserr_t
 NetBuffersComplete(
@@ -355,17 +364,11 @@ NetBuffersComplete(
     _Out_ bool*                                   readyOut);
 
 /**
- * @brief Acknowledgements to the driver cover every completion up to a given sequence, so only
- * acknowledge up to ProcessedCompletion: the highest sequence for which every earlier
- * completion has also been processed. Acknowledging past a gap could make the driver
- * discard a completion we have not seen yet. Call NetBuffersConfirmAcknowledged only
- * after the driver confirms it has freed those completions, never just after sending
- * the request. Confirming a sequence older than one already confirmed is harmless.
- * 
- * @param manager The buffer manager containing the pool.
- * @param session The session associated with the acknowledgements.
- * @param sequence The highest sequence number for which all earlier completions have been processed.
- * @return OS_EOK on success, or an error code on failure.
+ * @brief Copy current pool slot counts and completion sequence progress.
+ * Safe no-op if either pointer is null.
+ *
+ * @param manager Buffer manager to inspect.
+ * @param statsOut Receives the copied statistics.
  */
 void
 NetBuffersGetStats(
@@ -373,12 +376,18 @@ NetBuffersGetStats(
     _Out_ NetBufferStats_t*         statsOut);
 
 /**
- * @brief Confirm that the driver has acknowledged all completions up to a given sequence.
+ * @brief Record that the driver has retired completions up to sequence.
+ *
+ * Only acknowledge up to ProcessedCompletion (the highest sequence with no
+ * earlier gaps), otherwise the driver could discard missing completions. Call
+ * this only after the driver's progress report confirms retirement, never right
+ * after sending an ACK. Confirming an older sequence is a harmless no-op.
  * 
- * @param manager The buffer manager containing the pool.
- * @param session The session associated with the acknowledgements.
- * @param sequence The highest sequence number for which all earlier completions have been processed.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager containing the completion window.
+ * @param session Session ID and generation from the event.
+ * @param sequence Highest completion sequence confirmed retired by the driver.
+ * @return OS_EOK on success, OS_ENOENT if closed, or OS_EINVALPARAMS if the
+ *         session mismatches or sequence exceeds ProcessedCompletion.
  */
 oserr_t
 NetBuffersConfirmAcknowledged(
@@ -387,17 +396,17 @@ NetBuffersConfirmAcknowledged(
     _In_ uint64_t                             sequence);
 
 /**
- * @brief Apply ONLY a successful close reply for this exact session. A successful close is the
- * point where the driver guarantees it no longer uses any of the pool memory. Both pools
- * are marked as unregistered. Packets that were still with the driver, or waiting for
- * an admission reply, become READY with status CANCELLED so their callers can release
- * the leases. Leases already managed by the caller, including received packets, remain
- * valid. No new acquisitions or submissions are allowed afterwards. Do not call this on
- * a stop reply alone: stopping does not guarantee the driver is done with the memory.
+ * @brief Retire both pools after a confirmed close reply for this session.
+ *
+ * A confirmed close means the driver promises it has stopped touching shared
+ * memory. Any slots still in PENDING or DRIVER move to READY with status
+ * OS_ECANCELLED so callers can release them cleanly. Leases already held by
+ * callers (such as kept RX packets) remain valid until released. Never call
+ * this after a stop reply alone, since stopping does not release shared pools.
  * 
- * @param manager The buffer manager containing the pool.
- * @param session The session associated with the close reply.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager to close.
+ * @param session Session ID and generation from the close reply.
+ * @return OS_EOK on success, or OS_EINVALPARAMS if the session does not match.
  */
 oserr_t
 NetBuffersClosed(
@@ -405,16 +414,17 @@ NetBuffersClosed(
     _In_ const struct ctt_netadapter_session* session);
 
 /**
- * @brief Check an admission reply or a completion without changing anything. The functions that
- * apply them run exactly the same checks. Use these to check every entry of an incoming
- * event before applying any of them, so a bad entry cannot leave the event half applied;
- * the caller should also reject events that mention the same packet more than once.
- * These calls must still run on the executor, one at a time with all pool operations.
+ * @brief Check an admission record without modifying any manager state.
+ * Runs the same checks as NetBuffersAdmission. Call this on every entry of a
+ * batch admission event before applying any of them so bad data never leaves an
+ * event half applied. Callers must also reject duplicate packet IDs within the
+ * same event. Must run on the adapter's single worker loop.
  * 
- * @param manager The buffer manager containing the pool.
- * @param session The session associated with the admission or completion.
- * @param admission The admission reply to validate.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager to validate against.
+ * @param session Session ID and generation from the event.
+ * @param admission Admission record to check.
+ * @return OS_EOK if valid, OS_EEXISTS for a matching repeat, OS_ENOENT if
+ *         closed, OS_EPROTOCOL for bad data, or OS_EINVALPARAMS.
  */
 oserr_t
 NetBuffersValidateAdmission(
@@ -423,17 +433,18 @@ NetBuffersValidateAdmission(
     _In_ const struct ctt_netadapter_admission* admission);
 
 /**
- * @brief Check a completion without changing anything. The functions that apply 
- * completions run exactly the same checks. Use this to check every entry of an 
- * incoming completion before applying any of them, so a bad entry cannot 
- * leave the completion half applied; the caller should also reject completions 
- * that mention the same packet more than once.
- * These calls must still run on the executor, one at a time with all pool operations.
+ * @brief Check a completion record without modifying any manager state.
+ * Runs the same checks as NetBuffersComplete. Call this on every entry of a
+ * completion event before applying any of them so bad data never leaves an event
+ * half applied. Callers must also reject duplicate packet IDs within the same
+ * event. Must run on the adapter's single worker loop.
  *
- * @param manager The buffer manager containing the pool.
- * @param session The session associated with the completion.
- * @param completion The completion to validate.
- * @return OS_EOK on success, or an error code on failure.
+ * @param manager Buffer manager to validate against.
+ * @param session Session ID and generation from the event.
+ * @param completion Completion record to check.
+ * @return OS_EOK if valid, OS_EEXISTS if already processed, OS_EBUSY if out
+ *         of window (missing earlier completions), OS_ENOENT if closed,
+ *         OS_EPROTOCOL for bad data, or OS_EINVALPARAMS.
  */
 oserr_t
 NetBuffersValidateCompletion(

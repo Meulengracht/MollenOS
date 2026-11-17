@@ -15,16 +15,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Gracht client setup and generated protocol callback dispatch.
- * 
- * Handling of the netadapter client API and session management.
+ * Gracht IPC client setup and incoming driver event handlers.
+ *
+ * Bridges per-port Gracht IPC connections into NetAdapterEvent,
+ * NetAdapterLinkChanged, and NetAdapterClose.
  */
 
 #include <ioset.h>
 #include <errno.h>
 #include <string.h>
 
-// protocol clients
+// Generated Gracht client protocol definitions.
 #include <ctt_netadapter_service_client.h>
 
 #include "private.h"
@@ -42,46 +43,44 @@ NetAdapterClientCreate(
     int                           iod;
     int                           status;
     
-    // The reason we create a dedicated gracht link for each adapter is to
-    // make sure each adapter has their own IPC buffer. If we consolidated the
-    // IPC client into the one provided by the crt (GetGrachtClient()), we would
-    // maybe end up congesting the IPC link under heavy load.
+    // Give each port its own Gracht client and buffer instead of sharing
+    // GetGrachtClient(). Under heavy traffic, one busy adapter cannot stall
+    // unrelated control or adapter traffic.
     status = gracht_link_vali_create(&link);
     if (status) {
         return status;
     }
     
-    // Setting the timeout to 1 essentially means we never really block on
-    // sending messages.
+    // Use a 1 ms send timeout so the single worker thread never blocks on IPC.
     gracht_link_vali_set_send_timeout(link, 1);
 
     gracht_client_configuration_init(&config);
     gracht_client_configuration_set_link(&config, (struct gracht_link*)link);
 
-    // Set the maximum message size to the frame limit.
+    // Size the client's message buffer to the largest allowed protocol frame.
     gracht_client_configuration_set_max_msg_size(
         &config,
         CTT_NETADAPTER_LIMIT_FRAME_BYTES
     );
     
-    // From here on the client manages the link, and frees it if creation fails.
+    // From here on, the client manages link and frees it if creation fails.
     status = gracht_client_create(&config, &client);
     if (status) {
         return status;
     }
    
-    // Connect the client to initialize the IPC.
+    // Open the underlying IPC connection.
     status = gracht_client_connect(client);
     if (status) {
         gracht_client_shutdown(client);
         return status;
     }
 
-    // Register the adapter protocol
+    // Register the netadapter client callbacks on this connection.
     gracht_client_register_protocol(client, protocol);
 
-    // The worker thread will poll this I/O descriptor for incoming events,
-    // so we add it to the i/o set.
+    // Add the client descriptor to the worker's I/O set so incoming driver
+    // replies and events wake the worker thread right away.
     iod = gracht_client_iod(client);
     status = ioset_ctrl(
         eventSet,
@@ -109,6 +108,7 @@ NetAdapterClientDestroy(
         return;
     }
     
+    // Remove from the worker's I/O set before shutting down the descriptor.
     ioset_ctrl(eventSet, IOSET_DEL, gracht_client_iod(client), NULL);
     gracht_client_shutdown(client);
 }
@@ -124,7 +124,7 @@ __FindSession(
         return NULL;
     }
 
-    // Reject the entry if the session ID or generation does not match.
+    // Drop events whose session ID or generation does not match the active port.
     if (entry->Session.id != session->id || entry->Session.generation != session->generation) {
         return NULL;
     }
@@ -148,6 +148,8 @@ ctt_netadapter_event_batch_admitted_invocation(
         return;
     }
     
+    // Generated decoder arrays are temporary and only valid during this callback.
+    // Check count first, then copy the records into NetAdapterEvent_t.
     if (count > NET_ADAPTER_BATCH_MAX) {
         NetAdapterSetProtocolError(entry->Adapter);
         return;
@@ -184,6 +186,7 @@ ctt_netadapter_event_completions_invocation(
         return;
     }
     
+    // Copy completion records out before the generated decoder buffer disappears.
     if (count > NET_ADAPTER_BATCH_MAX) {
         NetAdapterSetProtocolError(entry->Adapter);
         return;
@@ -280,6 +283,7 @@ ctt_netadapter_event_fault_invocation(
     struct AdapterEntry* entry = __FindSession(client, session);
     (void)fault;
     
+    // Driver reported a fatal fault on this session. Start an orderly close.
     if (entry) {
         NetAdapterClose(entry->Adapter);
     }

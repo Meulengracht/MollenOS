@@ -15,10 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Tracking of packet leases and construction of RX/TX batch requests. A batch
- * never holds more packets than the batch size agreed with the driver. This file
- * only prepares requests; sending them over IPC is done in requests.c.
- * 
+ * Packet lease lookup and RX/TX batch building.
+ *
+ * A batch holds at most the number of packets agreed with the driver. This file
+ * builds batch requests and manages pool budgets, while requests.c sends them
+ * over Gracht.
  */
 
 #define __need_minmax
@@ -31,11 +32,8 @@ __IsLeaseValid(
     _In_ NetworkAdapter_t*       adapter,
     _In_ const NetBufferLease_t* lease)
 {
-    // The lease must be:
-    // - Associated with a valid session.
-    // - Has a nonzero sequence number.
-    // - Has a valid direction (TX or RX).
-    // - Matches the current adapter session ID and generation.
+    // Require a nonzero sequence, valid direction, and an exact match on the
+    // active session ID and generation.
     if (!lease->Session.id || !lease->Sequence ||
         (lease->Direction != CTT_NETADAPTER_DIRECTION_TX &&
          lease->Direction != CTT_NETADAPTER_DIRECTION_RX) ||
@@ -46,14 +44,6 @@ __IsLeaseValid(
     return true;
 }
 
-/**
- * @brief Look up the adapter's lease entry for a pool lease. Before the lookup we check
- * that the lease belongs to the current session (both the session id and its
- * generation) and that it has a valid direction, since the direction decides
- * whether the TX or the RX table is used. Without the session check, a lease left
- * over from an older session could match an entry just because its slot number
- * and sequence number happen to be the same.
- */
 struct AdapterLease*
 NetAdapterFindLease(
     _In_ NetworkAdapter_t*       adapter,
@@ -66,7 +56,8 @@ NetAdapterFindLease(
         return NULL;
     }
 
-    // Validate the lease and session information before proceeding.
+    // Check session identity first so a lease from an old session cannot match
+    // an entry that happens to share the same slot and sequence number.
     if (!__IsLeaseValid(adapter, lease)) {
         return NULL;
     }
@@ -81,7 +72,6 @@ NetAdapterFindLease(
         return NULL;
     }
 
-    // Ensure the lease sequence matches before returning the entry.
     return entry->Lease.Sequence == lease->Sequence ? entry : NULL;
 }
 
@@ -107,18 +97,9 @@ NetAdapterFindPacketLease(
         return NULL;
     }
 
-    // Ensure the lease is in the requested state before returning it.
     return entry->State == state ? entry : NULL;
 }
 
-/** 
- * @brief Report the final result of a lease and give its slot back to the pool. For TX,
- * the caller is told the result through the Transmitted callback. For RX, the
- * packet is offered to the consumer: if the consumer accepts the packet directly
- * from the pool, the slot stays in use until the consumer releases it. If the
- * frame was only lent to the consumer for the duration of the callback, or was
- * copied, the slot is given back to the pool right away.
- */
 oserr_t
 NetAdapterReleaseLease(
     _In_ NetworkAdapter_t*    adapter,
@@ -130,12 +111,12 @@ NetAdapterReleaseLease(
     oserr_t         result;
 
     if (entry->State == ADAPTER_LEASE_RX_RETAINED) {
-        // Never redeliver or revoke a lease that is managed by the consumer.
+        // Consumer holds this packet and must return it via NetAdapterRxRelease.
         return OS_EEXISTS;
     }
 
     if (!__AdapterLeaseIsManagedByWorker(entry)) {
-        // TX builders and inactive entries are not managed by the worker and have no result.
+        // Callers control TX_BUILDING and FREE slots, so the worker leaves them alone.
         return OS_EBUSY;
     }
     
@@ -149,6 +130,7 @@ NetAdapterReleaseLease(
             adapter->Callbacks.Transmitted(adapter->Callbacks.Context, entry->Cookie, status);
         }
     } else if (receive && status == OS_EOK) {
+        // If the consumer keeps the pool slot itself, leave it held and return now.
         if (NetAdapterDeliverReceive(adapter, entry, &view)) {
             return OS_EOK;
         }
@@ -179,6 +161,7 @@ NetAdapterReleaseCompletedLease(
         return OS_EPROTOCOL;
     }
 
+    // Stop offering newly completed RX packets once a session close begins.
     return NetAdapterReleaseLease(
         adapter,
         entry,
@@ -204,6 +187,8 @@ NetAdapterCompletePacket(
         &ready
     );
     
+    // Duplicate completions return OS_EEXISTS. Wait silently if !ready because
+    // the admission reply has not arrived yet.
     if (oserr == OS_EEXISTS) {
         return OS_EOK;
     } else if (oserr != OS_EOK) {
@@ -215,6 +200,7 @@ NetAdapterCompletePacket(
     return NetAdapterReleaseCompletedLease(adapter, &lease);
 }
 
+// Allocate the shared packet pools, worker lease arrays, and backup RX copy buffers.
 static oserr_t
 __CreateBuffers(
     _In_ NetworkAdapter_t* adapter,
@@ -258,21 +244,6 @@ __CreateBuffers(
     return OS_EOK;
 }
 
-/**
- * @brief Decide how many TX and RX slots the packet pools get, and check that everything
- * fits within the memory budget from the adapter configuration.
- *
- * The slot counts start from the configuration and are reduced to whatever the
- * driver reported it can handle. The memory budget has to pay for more than the
- * shared packet storage: the adapter structure itself, the per-slot lease tables
- * and the RX copy slots are all counted against it as well. Those are added up
- * first, and whatever is left of the budget is given to the packet pools.
- *
- * The driver can only keep a limited number of completions that we have not yet
- * acknowledged. Receive buffers waiting in the driver could use all of them, so we
- * post at most one less receive buffer than that limit. This leaves room for at
- * least one TX completion, so transmits keep working even when receive is busy.
- */
 oserr_t
 NetAdapterSetupBuffers(
     _In_ NetworkAdapter_t* adapter)
@@ -283,6 +254,8 @@ NetAdapterSetupBuffers(
     uint32_t             reserve;
     uint64_t             copyUnit;
 
+    // Cap slot counts to what the driver supports, and leave at least one slot
+    // in max_unacked_completions for TX so receive traffic never locks out send.
     tx->Slots = MIN(adapter->Config.TxSlots, adapter->Info.max_slots_per_pool);
     rx->Slots = MIN(adapter->Config.RxSlots, adapter->Info.max_slots_per_pool);
     adapter->Rx.Target = MIN(rx->Slots, adapter->Info.max_outstanding_rx);
@@ -295,16 +268,14 @@ NetAdapterSetupBuffers(
         return OS_ENOTSUPPORTED;
     }
     
-    // The lease tables are paid for from the same memory budget as the packet pools.
-    // The slot counts were capped above, so this 64-bit multiplication cannot
-    // overflow on either 32-bit or 64-bit targets.
+    // Subtract adapter struct, lease tables, and backup RX copy buffers from
+    // MemoryBudget first so the remaining budget goes to the shared pools.
     metadata = sizeof(*adapter) + 
         ((uint64_t)tx->Slots + rx->Slots) *
         sizeof(struct AdapterLease);
     
-    // Consumers may hold on to RX pool slots instead of returning them immediately.
-    // Always keep some slots back (the driver's minimum, or at least one) so the
-    // driver still has receive buffers even when consumers hold as many as allowed.
+    // Always reserve enough RX slots for the driver's minimum so consumers
+    // holding kept packets cannot starve the receive ring.
     reserve = adapter->Info.min_rx_slots ? adapter->Info.min_rx_slots : 1;
     adapter->Rx.RetentionLimit = MIN(adapter->Config.RxRetainedSlots, rx->Slots - reserve);
     adapter->Rx.Copy.Count = MIN(adapter->Config.RxCopySlots, rx->Slots);
@@ -321,12 +292,6 @@ NetAdapterSetupBuffers(
     return __CreateBuffers(adapter, metadata);
 }
 
-/**
- * @brief Cancel the TX frames that are still waiting in the local queue. Frames that have
- * already been prepared for the driver are left alone: they may already have been
- * sent, so we cannot know whether the driver is using them until it reports a
- * completion or the session is closed.
- */
 void
 NetAdapterCancelQueued(
     _In_ NetworkAdapter_t* adapter)
@@ -337,6 +302,8 @@ NetAdapterCancelQueued(
         return;
     }
     
+    // Only cancel frames still waiting in the local queue. Frames already packed
+    // into batches (PREPARED) stay untouched until completed or session close.
     for (uint32_t i = 0; i < tx->Slots; ++i) {
         struct AdapterLease* entry = &tx->Leases[i];
         if (entry->State == ADAPTER_LEASE_QUEUED) {
@@ -358,6 +325,7 @@ __AcquireBatchLease(
     NetBufferLease_t     lease;
     
     if (rx) {
+        // Stop acquiring RX slots once the posted count hits Rx.Target.
         if (stats->RxOutstanding + request->Count >= adapter->Rx.Target) {
             return OS_EBUSY;
         }
@@ -374,8 +342,8 @@ __AcquireBatchLease(
             .Length = adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE
         };
     } else {
-        // Once slots have been reused, a lower slot number does not mean the frame
-        // was queued earlier, so search for the lowest queue order instead.
+        // Pick the queued TX frame with the lowest Order so frames leave FIFO
+        // even when pool slots are reused out of order.
         for (uint32_t i = 0; i < adapter->Queues[NET_ADAPTER_TX].Slots; ++i) {
             struct AdapterLease* candidate = &adapter->Queues[NET_ADAPTER_TX].Leases[i];
             if (candidate->State == ADAPTER_LEASE_QUEUED &&
@@ -384,7 +352,6 @@ __AcquireBatchLease(
             }
         }
         if (!entry) {
-            // No queued TX frames available
             return OS_EBUSY;
         }
     }
@@ -399,19 +366,14 @@ __ReleaseBatchLease(
     _In_ bool                 rx,
     _In_ struct AdapterLease* entry)
 {
+    // Only newly acquired RX slots are released on prepare failure. TX frames
+    // stay queued for the next batch attempt.
     if (rx) {
         (void)NetBuffersRelease(adapter->Buffers, &entry->Lease);
         memset(entry, 0, sizeof(*entry));
     }
 }
 
-/**
- * @brief Fill a batch request with packets for the driver. For RX, new receive slots are
- * taken from the pool until the number of receive buffers given to the driver
- * reaches the RX target. For TX, queued frames are taken oldest first. Each packet
- * is marked PREPARED before the request is sent, because from the moment we start
- * sending, the driver may be using the buffer even if we never receive a reply.
- */
 oserr_t
 NetAdapterBuildBatch(
     _In_ NetworkAdapter_t*    adapter,
@@ -420,7 +382,6 @@ NetAdapterBuildBatch(
 {
     NetBufferStats_t stats;
     
-    // Update the adapter buffer stats
     NetBuffersGetStats(adapter->Buffers, &stats);
     if (adapter->Window.NextBatch == UINT64_MAX) {
         return OS_EOVERFLOW;
@@ -438,6 +399,8 @@ NetAdapterBuildBatch(
             return oserr;
         }
 
+        // Mark the slot PENDING in the buffer manager before returning so it
+        // stays protected even if the IPC send fails or times out.
         oserr = NetBuffersPrepare(
             adapter->Buffers,
             &entry->Lease,
@@ -466,12 +429,6 @@ NetAdapterBuildBatch(
     return OS_EOK;
 }
 
-/**
- * @brief Find the stored copy of a batch that was sent earlier, so it can be resent or
- * matched with a reply from the driver. A batch keeps its window slot even after
- * the driver has accepted it; the slot is only freed once the driver confirms it
- * is completely finished with the batch (it has retired it).
- */
 struct AdapterBatch*
 NetAdapterFindBatch(
     _In_ NetworkAdapter_t* adapter,

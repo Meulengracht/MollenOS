@@ -15,28 +15,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Core API for one netd adapter session. The core does not depend on how messages
- * are carried, so it can be driven by the Gracht transport as well as directly by
- * host tests.
+ * Core API for a single netd adapter session.
  *
- * The work is split across several files: adapter.c manages the session lifecycle
- * and request state, buffers.c keeps track of which pool slots are leased out,
- * queue.c handles submitting packets and processing their completions, rx.c decides
- * who manages received packets, requests.c decides which protocol request to send
- * next, and client.c sends and receives the Gracht messages. adapters.c serializes
- * access so netd service code can safely call in from several threads.
+ * This module has no dependency on the IPC transport itself. That keeps it
+ * easy to drive either from the Gracht client loop or directly from host tests.
  *
- * Each adapter is driven by a single worker that handles one call at a time. The
- * request pump hands out at most one request to send per call. The answer to a
- * control request comes back as a NetAdapterReply_t, while messages the driver sends
- * on its own (batch admissions, acknowledgement progress and packet completions)
- * arrive as a NetAdapterEvent_t.
- * When a request times out, the exact same operation or batch is sent again with
- * the same identity. A timeout never causes the packets to be submitted again as a
- * new batch, because the driver may already have processed the first copy.
- * Callbacks are invoked synchronously on the worker and must not call back into
- * this API. The driver and session checks route messages to the right session and
- * reject old messages; they are not a form of OS authentication.
+ * How the files fit together:
+ *   adapter.c   - Session startup, capability checks, state changes, and replies.
+ *   buffers.c   - Shared-memory packet pools and per-slot tracking.
+ *   tx.c        - Building and queuing outgoing (TX) frames.
+ *   rx.c        - Delivering incoming (RX) frames and managing backup copy slots.
+ *   queue.c     - Sizing pools and packing TX or RX leases into driver batches.
+ *   scheduler.c - Picking the next protocol request or retry to send.
+ *   events.c    - Checking and applying unsolicited driver events.
+ *   requests.c  - Sending scheduled requests over Gracht and polling for replies.
+ *   client.c    - Creating per-port Gracht clients and copying incoming events.
+ *   adapters.c  - Global port registry, lock, and single worker thread.
+ *
+ * Each adapter runs on one worker thread, one call at a time. On each turn, the
+ * scheduler (NetAdapterNextRequest) returns at most one request to send. Control
+ * requests wait for a matching NetAdapterReply_t. Unsolicited updates from the
+ * driver, such as batch admissions, acknowledgements, and packet completions,
+ * arrive as NetAdapterEvent_t values.
+ *
+ * When a request times out, the exact same request or batch is sent again with
+ * its original ID. That way the driver can spot duplicates instead of running
+ * the same work twice if the first copy already arrived.
+ *
+ * Callbacks run directly inside the worker call, so they must return quickly
+ * and must never call back into this API. Driver and session ID checks filter
+ * out stale messages from earlier drivers. Real peer authentication lives in
+ * the IPC layer, not here.
  */
 
 #ifndef __NETMANAGER_ADAPTER_H__
@@ -82,6 +91,26 @@
 // Forward declarations
 typedef struct NetworkAdapter NetworkAdapter_t;
 
+/**
+ * @brief Lifecycle states for a single network adapter port.
+ *
+ * Normal startup walks through these states in order:
+ *   INFO -> OPEN -> REGISTER_TX -> REGISTER_RX -> CONFIGURE -> PREPARE -> PRIME -> START -> RUNNING
+ *
+ * Stopping a run pauses traffic without tearing down shared memory:
+ *   RUNNING (or PRIME) -> STOPPING -> STOPPED
+ * From STOPPED, NetAdapterStart moves back to PREPARE for a new traffic run.
+ *
+ * Closing tears down the session cleanly:
+ *   CLOSING -> CLOSED
+ *
+ * Error states:
+ *   FAILED      - Unrecoverable error where no driver session or shared buffer
+ *                 is left active (or after a close completed on failure).
+ *   QUARANTINED - An OPEN or CLOSE outcome is unknown, so the driver may still
+ *                 access shared memory. Buffers stay allocated until a retry
+ *                 resolves the request.
+ */
 enum NetAdapterState {
     NET_ADAPTER_INFO,
     NET_ADAPTER_OPEN,
@@ -101,37 +130,35 @@ enum NetAdapterState {
 };
 
 /**
- * @brief Per-port resource and timing limits used when negotiating and running a session.
- * An MTU of NET_ADAPTER_MTU_AUTO selects min(current_mtu, NET_ADAPTER_MTU_DEFAULT), raised to the
- * driver's minimum MTU if it is lower than that. The configured MTU is payload-only
- * and excludes NET_ADAPTER_ETHERNET_HEADER_SIZE bytes for the Ethernet header.
- * Slot counts are the most we ask for; if the driver supports fewer, the driver's
- * limits are used instead.
+ * @brief Resource limits and timers used when opening and running a port.
+ *
+ * MTU is the largest packet payload in bytes, excluding the 14-byte Ethernet
+ * header (NET_ADAPTER_ETHERNET_HEADER_SIZE). Passing NET_ADAPTER_MTU_AUTO picks
+ * the smaller of the driver's current MTU and NET_ADAPTER_MTU_DEFAULT, raised to
+ * the driver's minimum MTU if needed.
+ *
+ * TxSlots, RxSlots, and BatchWindow are upper bounds. If the driver advertises
+ * smaller limits, the driver's limits win.
  */
 typedef struct NetAdapterConfig {
-    uint32_t TxSlots;            // Requested TX pool slots; must be nonzero.
-    uint32_t RxSlots;            // Requested RX pool slots; must be nonzero and meet the driver's minimum.
-    uint32_t Mtu;                // Payload MTU, or NET_ADAPTER_MTU_AUTO for the negotiated default.
-    uint64_t MemoryBudget;       // Total budget for buffers and per-session bookkeeping; must be nonzero.
-    uint32_t RetryMilliseconds;  // How long to wait for an answer before resending, in milliseconds; must be nonzero.
-    uint32_t RetryLimit;         // Maximum times a request is sent, including the first; must be nonzero.
-    uint32_t PollMilliseconds;   // Interval between asynchronous status polls; must be nonzero.
-    uint32_t RxRetainedSlots;    // Most RX pool slots consumers may hold at once; zero means they may hold none.
-    uint32_t RxCopySlots;        // RX copy slots allocated up front, used when consumers hold too many pool slots; zero disables copies.
-    uint32_t BatchWindow;        // Most batches sent but not yet finished at once: 1..WINDOW_MAX, and at most the driver's limit.
+    uint32_t TxSlots;            // Number of TX packet buffers to request. Must be nonzero.
+    uint32_t RxSlots;            // Number of RX packet buffers to request. Must be nonzero and meet the driver minimum.
+    uint32_t Mtu;                // Payload MTU in bytes, or NET_ADAPTER_MTU_AUTO to use the negotiated default.
+    uint64_t MemoryBudget;       // Total byte cap for shared packet buffers and adapter tables. Must be nonzero.
+    uint32_t RetryMilliseconds;  // Wait time in milliseconds before resending an unanswered request. Must be nonzero.
+    uint32_t RetryLimit;         // Total send attempts per request before giving up. Must be nonzero.
+    uint32_t PollMilliseconds;   // Interval in milliseconds between status polls while packets are active. Must be nonzero.
+    uint32_t RxRetainedSlots;    // Max RX pool buffers the consumer may hold at once. Zero forces immediate copy or lending.
+    uint32_t RxCopySlots;        // Backup RX copy buffers allocated at startup for when RxRetainedSlots is full. Zero disables copies.
+    uint32_t BatchWindow;        // Max batches allowed with the driver at once (1..NET_ADAPTER_WINDOW_MAX, capped by driver limit).
 } NetAdapterConfig_t;
 
 /** 
- * @brief Describes where the memory behind a packet comes from. This is only used
- * inside netd and is never sent to the driver.
- *   * NONE marks a cleared or invalid packet.
- *   * POOL means the packet uses a slot leased from the shared memory pool that is
- *     registered with the driver.
- *   * COPY means the packet was copied into one of the RX copy slots that the
- *     adapter allocated up front.
- * 
- * The tag selects which of the two storage variants in NetAdapterPacketIdentity_t is
- * valid. Code outside the adapter must treat all of it as opaque, including Owner.
+ * @brief Identifies which kind of memory backs a packet handle inside netd.
+ * This tag is internal to netd and is never sent to the driver.
+ *   - NONE: Cleared or invalid packet.
+ *   - POOL: Slot inside the shared-memory pool registered with the driver.
+ *   - COPY: Backup RX buffer allocated in netd's private memory.
  */
 enum NetAdapterPacketBacking {
     NET_ADAPTER_PACKET_NONE,
@@ -139,8 +166,12 @@ enum NetAdapterPacketBacking {
     NET_ADAPTER_PACKET_COPY
 };
 
+/**
+ * @brief Internal handle linking a TX or RX packet back to its underlying slot.
+ * Callers outside the adapter core must treat every field, including Owner, as opaque.
+ */
 typedef struct NetAdapterPacketIdentity {
-    NetworkAdapter_t* Owner;
+    NetworkAdapter_t*            Owner;
     enum NetAdapterPacketBacking Backing;
     union {
         NetBufferLease_t Pool;
@@ -152,12 +183,12 @@ typedef struct NetAdapterPacketIdentity {
 } NetAdapterPacketIdentity_t;
 
 /** 
- * @brief A read-only received packet offered through ReceivePacket. Only one party
- * manages it at a time and it is not reference counted. If the consumer accepts it,
- * it should copy this value once into its own queue and later release it exactly
- * once with NetAdapterRxRelease. The payload stays valid even if the adapter is
- * stopped or closed in the meantime. The Private fields are opaque; they tie the
- * packet to either a pool lease or an RX copy slot of the adapter that produced it.
+ * @brief Read-only received packet offered through ReceivePacket.
+ *
+ * Packets are not reference counted. Only one piece of code may hold a packet at
+ * a time. If ReceivePacket returns true, copy this struct once into your queue
+ * and later pass it once to NetAdapterRxRelease. Data stays readable even if the
+ * adapter stops or closes before release. Treat Private as opaque.
  */
 typedef struct NetAdapterRxPacket {
     const void*                Data;
@@ -165,88 +196,116 @@ typedef struct NetAdapterRxPacket {
     NetAdapterPacketIdentity_t Private;
 } NetAdapterRxPacket_t;
 
-/** Release a packet accepted by ReceivePacket, giving its pool slot or copy slot
- * back to the adapter. The packet stays valid through stop and close until it is
- * released. Call this from the adapter's serialized worker context, but never from
- * inside a receive callback; to refuse a packet, return false from ReceivePacket
- * instead. Code running outside the worker can use the synchronized wrapper
- * provided by the netd service.
- * @param adapter The adapter that produced the packet.
- * @param packet The accepted token; cleared on success.
- * @return OS_EOK on release, OS_EINVALPARAMS for null inputs, or OS_ENOENT if the
- * token is out of date, was already released, or belongs to another adapter.
+/**
+ * @brief Return a packet accepted from ReceivePacket back to the adapter.
+ *
+ * Call this from the adapter's worker context, never from inside a receive
+ * callback. To decline a packet, return false from ReceivePacket instead. Code
+ * running outside the worker should call NetworkAdaptersRxRelease, which takes
+ * the registry lock first.
+ *
+ * @param adapter Adapter that produced the packet.
+ * @param packet Accepted packet handle. Cleared on success.
+ * @return OS_EOK when released, OS_EINVALPARAMS if an argument is null, or
+ *         OS_ENOENT if the handle is stale, already released, or belongs to
+ *         another adapter.
  */
 __EXTERN oserr_t
 NetAdapterRxRelease(
     _In_ NetworkAdapter_t*     adapter,
     _In_ NetAdapterRxPacket_t* packet);
 
-/** Optional notifications, invoked synchronously on the adapter's serialized worker.
- * Callbacks must not block or call back into this API. The bytes passed to Receive
- * are only valid during the call. Transmitted is called exactly once for every send
- * the adapter accepted, when it is completed, rejected or cancelled; it is not
- * called when the submit call itself fails. A successful transmit means the device
- * has finished reading the frame from memory (DMA), not that the peer received it.
- * Link is called with link state that has been validated and that is newer than the
- * last one reported (every link report carries an increasing sequence number).
+/**
+ * @brief Summary of an adapter's link-layer readiness for network consumers.
+ * Mtu is the payload limit (excluding the Ethernet header) and stays zero until
+ * the driver reports its capabilities.
+ */
+typedef struct NetAdapterStatus {
+    enum NetAdapterState State;
+    uint32_t             Mtu;
+    uint8_t              Mac[6];
+} NetAdapterStatus_t;
+
+/**
+ * @brief Event callbacks invoked synchronously on the adapter worker.
+ *
+ * Callbacks must never block or call back into this API.
+ *
+ * Transmitted fires once for every send accepted by NetAdapterTxSubmit or
+ * NetAdapterSend, whether it succeeds, fails, or gets cancelled. It does not
+ * fire if the submit call itself fails. A successful status means the network
+ * hardware finished reading the frame from shared memory (DMA), not that a
+ * remote peer received it.
+ *
+ * Link only fires when the driver sends a validated report with a higher
+ * sequence number than the previous one.
  */
 typedef struct NetAdapterCallbacks {
     /**
-     * @brief Receive an incoming frame when packet delivery to the consumer is unavailable
-     * or declined. The frame bytes are borrowed only until this callback returns.
-     * @param context User-defined context passed to all callback functions.
-     * @param frame Pointer to the received frame data.
-     * @param length Length of the received frame data.
+     * @brief Deliver a received frame when ReceivePacket is unset or declines it.
+     * The frame pointer is only valid until this callback returns.
+     * @param context User-defined pointer passed to all callbacks.
+     * @param frame Start of the received Ethernet frame.
+     * @param length Frame size in bytes.
      */
     void (*Receive)(void* context, const void* frame, uint32_t length);
 
     /**
-    * @brief Report the final result of a frame accepted for transmission.
-     * @param context User-defined context passed to all callback functions.
-     * @param cookie The user cookie associated with the transmission.
-    * @param status Completion, rejection, or cancellation status; success means
-    * the device finished DMA, not that the frame was delivered remotely.
+     * @brief Report the outcome of a queued transmit frame.
+     * @param context User-defined pointer passed to all callbacks.
+     * @param cookie Caller value supplied when the frame was submitted.
+     * @param status OS_EOK when hardware finished reading the frame, or an error/cancellation code.
      */
     void (*Transmitted)(void* context, uint64_t cookie, oserr_t status);
 
     /**
-    * @brief Report a validated link snapshot with a newer sequence number.
-     * @param context User-defined context passed to all callback functions.
-    * @param link The current carrier, duplex, and speed snapshot; borrowed for
-    * the duration of the callback.
+     * @brief Report a validated link state change with a newer sequence number.
+     * @param context User-defined pointer passed to all callbacks.
+     * @param link Carrier, duplex, and speed state. Valid only during this call.
      */
     void (*Link)(void* context, const struct ctt_netadapter_link* link);
     
     /** 
-     * @brief The preferred way to deliver received packets. Return true to accept the
-     * packet; the consumer then manages it and must release it later. Return false
-     * to decline it. The callback must not block or call back into this API. If an
-     * accepted packet is handed to another thread, the consumer must provide the
-     * synchronization for that itself. Consumers may only hold a limited number of
-     * pool slots at once; once that limit is reached, the packet offered is a copy
-     * stored in one of a fixed number of copy slots that were allocated up front.
-     * If this hook is not set, or the packet is declined or cannot be offered,
-     * Receive is called instead with a view that is only valid during that call.
-     * If there is no Receive hook either, the frame is dropped and its pool slot
-     * is reused.
-     * @param context User-defined context passed to all callback functions.
-     * @param packet The RX packet being offered for delivery.
-     * @return True if the packet is accepted for delivery, false otherwise.
+     * @brief Offer a received packet so the consumer can keep reading it after the
+     * callback returns. Return true to accept it (you must release it later with
+     * NetAdapterRxRelease) or false to decline.
+     *
+     * Consumers may only hold RxRetainedSlots pool buffers at once. Past that cap,
+     * the adapter copies the frame into a backup copy slot so the shared pool
+     * buffer can go back to the driver right away. If this callback is unset,
+     * declines, or all copy slots are busy, the adapter falls back to Receive, and
+     * drops the frame if Receive is also unset. If you pass an accepted packet to
+     * another thread, synchronize that handoff yourself.
+     *
+     * @param context User-defined pointer passed to all callbacks.
+     * @param packet Offered packet handle.
+     * @return true if accepted for later release, false to decline.
      */
     bool (*ReceivePacket)(void* context, const NetAdapterRxPacket_t* packet);
 
-    // User-defined context passed to all callback functions.
+    /**
+     * @brief Report every adapter state change along with the effective MTU and MAC.
+     * Runs immediately when the state changes, before any packet callbacks for the
+     * new state.
+     * @param context User-defined pointer passed to all callbacks.
+     * @param status Current adapter status. Valid only during this call.
+     */
+    void (*State)(void* context, const NetAdapterStatus_t* status);
+
+    // Opaque pointer passed back as context in every callback.
     void* Context;
 } NetAdapterCallbacks_t;
 
-/** A fixed-size request produced by the request pump for the transport to send. Only
- * the fields used by Operation have meaning. Serial is used to match a control
- * request with its response and stays the same when the request is resent. The
- * returned storage is only valid until the next call into the adapter core.
- * When a batch is resent, its batch ID, run and packet descriptors stay exactly the
- * same so the driver can recognize it as a repeat. Only the acknowledgement (Ack)
- * that is sent along with the batch may be newer, because it reports how far we
- * have processed the driver's results.
+/**
+ * @brief Outgoing protocol request built by NetAdapterNextRequest for the IPC layer.
+ *
+ * Only the fields needed by Operation are populated. Serial matches a control
+ * request to its reply and stays unchanged on retries. The returned pointer is
+ * only valid until the next call into the adapter core.
+ *
+ * When a TX or RX batch is resent, its batch ID (Value), Run, and packet list
+ * stay identical so the driver recognizes it as a repeat. Ack may carry newer
+ * numbers because netd can always acknowledge more completed work.
  */
 typedef struct NetAdapterRequest {
     uint64_t                      Serial;
@@ -257,8 +316,7 @@ typedef struct NetAdapterRequest {
     uint32_t                      Mtu;
     uint32_t                      Count;
     struct ctt_netadapter_session Session;
-    // Registration ID, batch ID or drain request ID. For starting or stopping a run,
-    // the ID of the last batch the driver has accepted.
+    // Pool registration ID, batch ID, drain ID, or the last admitted batch ID for START_RUN/STOP_RUN.
     uint64_t                      Value;
     uint64_t                      Run;
     uint64_t                      After;
@@ -267,8 +325,9 @@ typedef struct NetAdapterRequest {
     struct ctt_netadapter_packet Packets[NET_ADAPTER_BATCH_MAX];
 } NetAdapterRequest_t;
 
-/** Decoded response payload passed with its driver and request serial to
- * HandleAdapterRequest. Only the fields defined for that operation are meaningful.
+/**
+ * @brief Decoded reply to a control request, passed to HandleAdapterRequest.
+ * Only the fields defined for the matching request operation are meaningful.
  */
 typedef struct NetAdapterReply {
     oserr_t                        Status;
@@ -276,38 +335,44 @@ typedef struct NetAdapterReply {
     struct ctt_netadapter_session  Session;
     struct ctt_netadapter_link     Link;
     struct ctt_netadapter_counters Counters;
-    // Enabled features for OPEN. For STOP_RUN, the sequence number of the last
-    // completion the driver will report for the run. Or a drain's highest sequence.
+    // Enabled feature mask (OPEN), last completion sequence for STOP_RUN, or highest sequence for a drain.
     uint64_t                       Value;
     uint32_t                       PoolId;
 } NetAdapterReply_t;
 
-/** Nonblocking copy of the adapter's cached lifecycle, link, counters, and resource
- * state. Buffer statistics remain zero until buffer pools have been created.
+/**
+ * @brief Nonblocking copy of an adapter's cached state, link, counters, and buffer usage.
+ * Buffer fields remain zero until shared memory pools are created.
  */
 typedef struct NetAdapterSnapshot {
     enum NetAdapterState           State;
+    // Effective payload MTU negotiated at open (may differ from Info.current_mtu). Zero before capabilities arrive.
+    uint32_t                       Mtu;
+    // Unique session instance ID filled in by the registry in adapters.c.
+    uint64_t                       InstanceId;
     oserr_t                        LastError;
     struct ctt_netadapter_info     Info;
     struct ctt_netadapter_link     Link;
     struct ctt_netadapter_counters Counters;
     NetBufferStats_t               Buffers;
-    uint64_t                       Run;
-    uint64_t                       AdmittedBatch;
-    uint64_t                       RetiredBatch;
-    uint32_t                       PendingBatches;
-    uint32_t                       RxPoolRetained;
-    uint32_t                       RxCopyRetained;
-    uint64_t                       RxFallbackCopies;
-    uint64_t                       RxDropped;
+    uint64_t                       Run;               // Current start/stop run number.
+    uint64_t                       AdmittedBatch;     // Highest batch ID accepted by the driver without gaps.
+    uint64_t                       RetiredBatch;      // Highest batch ID the driver has finished with completely.
+    uint32_t                       PendingBatches;    // Batches currently sitting in the active window.
+    uint32_t                       RxPoolRetained;    // RX pool slots currently held by the consumer.
+    uint32_t                       RxCopyRetained;    // RX copy slots currently held by the consumer.
+    uint64_t                       RxFallbackCopies;  // Total frames copied to backup slots because RxRetainedSlots was full.
+    uint64_t                       RxDropped;         // Total frames dropped because no receive callback was installed.
 } NetAdapterSnapshot_t;
 
-/** An event from the driver, copied by the transport callback once the generated
- * decoder has decoded it successfully. For an admission event (the driver telling us
- * which packets of a batch it accepted) Id is the batch ID; for completion and drain
- * events it is the request ID. The arrays from the generated decoder are only valid
- * during the decoder callback, so check Count against NET_ADAPTER_BATCH_MAX and copy
- * them into this value before the callback returns.
+/**
+ * @brief Copy of an unsolicited driver event produced by the transport callbacks.
+ *
+ * Generated decoder arrays only live for the duration of the IPC callback, so
+ * client.c checks Count against NET_ADAPTER_BATCH_MAX and copies the entries
+ * here before calling NetAdapterEvent. For batch admission events, Id is the
+ * batch ID. For completion and drain-end events, Id is the drain request ID
+ * (or zero for unsolicited completions).
  */
 typedef struct NetAdapterEvent {
     uint8_t                          Operation;
@@ -326,13 +391,13 @@ typedef struct NetAdapterEvent {
 } NetAdapterEvent_t;
 
 /** 
- * @brief A writable TX packet backed by a pool lease. Treat the Private fields as opaque.
- * Only one party manages this value at a time and it is not reference counted, so do
- * not copy it or use it from several threads at once. Data points at the start of
- * the Ethernet header. Capacity does not include any extra space the device keeps
- * before or after the frame for its own use, so build all headers within Capacity.
- * The view stays valid, and this value stays set, until a successful Submit or
- * Cancel clears it.
+ * @brief Writable transmit packet backed by a shared-memory pool slot.
+ *
+ * Packets are not reference counted. Do not copy this struct or access it from
+ * multiple threads at once. Data points to the start of the Ethernet header, and
+ * Capacity covers the writable frame area (excluding any private device headroom
+ * or tailroom). Data remains valid until a successful NetAdapterTxSubmit or
+ * NetAdapterTxCancel clears the struct. Treat Private as opaque.
  */
 typedef struct NetAdapterTxPacket {
     void*                      Data;
@@ -340,29 +405,29 @@ typedef struct NetAdapterTxPacket {
     NetAdapterPacketIdentity_t Private;
 } NetAdapterTxPacket_t;
 
-/** Initialize conservative per-port defaults from the NET_ADAPTER_*_DEFAULT constants.
- * RX limits are reduced later if the driver supports less.
- * 
- * @param config Destination configuration; null is ignored.
+/**
+ * @brief Populate a configuration struct with safe default limits and timers.
+ * RX limits are automatically lowered later if the driver supports less.
+ *
+ * @param config Configuration struct to fill. Ignored if null.
  */
 __EXTERN void
 NetAdapterConfigInitializeDefault(
     _In_ NetAdapterConfig_t* config);
 
 /** 
- * @brief Allocate an idle adapter and copy its configuration and optional callbacks. This
- * creates only local state; the request pump later starts by asking the driver for
- * its capabilities.
- * 
- * @param device Device identity to discover.
- * @param driver Driver endpoint identity used to route and validate replies.
- * @param port Per-device port index to open.
- * @param config Required configuration, copied into the adapter.
- * @param callbacks Optional callback table, copied when non-null.
- * @param out Receives the new adapter; set to null on failure.
- * @return OS_EOK,
- *         OS_EINVALPARAMS for invalid inputs/configuration,
- *         OS_EOOM.
+ * @brief Allocate a new adapter in its initial state and copy its configuration
+ * and optional callbacks. No IPC is sent here. The scheduler starts by asking
+ * the driver for its capabilities on the first poll.
+ *
+ * @param device Network device UUID.
+ * @param driver Driver endpoint UUID used to send requests and validate replies.
+ * @param port Port index on the device.
+ * @param config Configuration limits and timers to copy.
+ * @param callbacks Optional callback table to copy, or null for none.
+ * @param out Receives the new adapter, or null on failure.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad arguments or config, or
+ *         OS_EOOM if allocation fails.
  */
 __EXTERN oserr_t
 NetAdapterCreate(
@@ -374,12 +439,12 @@ NetAdapterCreate(
     _Out_ NetworkAdapter_t**           out);
 
 /** 
- * @brief Replace the callback hooks. Must be called from the adapter's serialized worker
- * context. A null callback table clears
- * all hooks. This affects future notifications only; packets already accepted by
- * ReceivePacket remain managed by the caller and must still be released.
+ * @brief Replace the adapter's callback table.
+ * Must be called from the adapter's single worker context. Passing null clears
+ * all callbacks. This only changes future notifications. Any received packets
+ * already accepted through ReceivePacket stay with the consumer until released.
  * 
- * @param adapter Adapter whose callbacks are changed; null is ignored.
+ * @param adapter Adapter to update. Ignored if null.
  * @param callbacks New callback table, or null to clear all callbacks.
  */
 __EXTERN void
@@ -388,43 +453,42 @@ NetAdapterSetCallbacks(
     _In_ const NetAdapterCallbacks_t* callbacks);
 
 /** 
- * @brief Destroy an adapter that has finished all its work and release its local
- * resources. The adapter must be CLOSED or FAILED, consumers must have released
- * every received packet they kept, and no pool slots may still be in use. This
- * cannot be forced: if the outcome of an OPEN or CLOSE request is unknown, the
- * driver may still have a session and may still be using the shared memory for DMA,
- * so that memory must not be freed.
+ * @brief Free an adapter and its local resources once all work has finished.
+ *
+ * The adapter must already be CLOSED or FAILED, and callers must have returned
+ * every TX and RX packet handle they held. Destroy refuses to run while an OPEN
+ * or CLOSE outcome is still unknown, because the driver might still have an
+ * active session and access the shared memory via DMA.
  * 
- * @param adapter Pointer to the adapter pointer; null pointer is invalid and a
- * null adapter value is already destroyed.
- * @return OS_EOK and clears *adapter on success, 
- *         OS_EINVALPARAMS for a null pointer, 
- *         OS_EBUSY while the adapter is still active or any packet resource is
- *                  still in use, or a buffer-destruction error.
+ * @param adapter Address of the adapter pointer. Passing a null pointer is
+ *                invalid, while *adapter == NULL returns OS_EOK immediately.
+ * @return OS_EOK and sets *adapter to null on success, OS_EINVALPARAMS if
+ *         adapter is null, OS_EBUSY while the adapter is active or packets are
+ *         still held, or an error from tearing down the buffer pools.
  */
 __EXTERN oserr_t
 NetAdapterDestroy(
     _In_ NetworkAdapter_t** adapter);
 
 /**
- * @brief Apply one decoded control response to the matching outstanding request. The
- * response is only used if it comes from the adapter's driver, a request is
- * actually pending, and the serial matches; this keeps old or misrouted responses
- * from changing the lifecycle state. If the result of an OPEN or CLOSE cannot be
- * trusted, the adapter is quarantined and the request is kept, so a later retry can
- * resolve it with the same identity instead of forgetting a session the driver may
- * have created.
+ * @brief Apply a decoded control reply to the matching pending request.
+ *
+ * The reply is only accepted if it comes from the adapter's driver while a
+ * control request with the same serial is pending. That blocks stale or
+ * misrouted replies from touching the session state.
+ *
+ * If an OPEN or CLOSE reply is malformed or fails, the adapter enters
+ * QUARANTINED and keeps the saved request so a retry can resend it with the
+ * same identity. That avoids leaking a session the driver might have created.
  * 
- * @param adapter Adapter with the outstanding request.
- * @param driver Source driver identity.
- * @param serial Serial of the request this response answers.
- * @param reply Decoded response payload.
- * @param now Current time in milliseconds, from a clock that never goes backwards;
- * used to schedule follow-up work.
- * @return OS_EOK when applied, 
- *         OS_ENOENT when it matches no pending request,
- *         OS_EINVALPARAMS for null inputs, the error reported by the driver, 
- *         OS_EPROTOCOL for a malformed response, or an error from local setup.
+ * @param adapter Adapter waiting for the reply.
+ * @param driver Source driver UUID.
+ * @param serial Request serial number returned by the transport.
+ * @param reply Decoded reply payload.
+ * @param now Current monotonic time in milliseconds, used to schedule follow-up timers.
+ * @return OS_EOK if applied, OS_ENOENT if no matching request is pending,
+ *         OS_EINVALPARAMS for null pointers, OS_EPROTOCOL for a bad reply,
+ *         or the error returned by the driver or local setup.
  */
 __EXTERN oserr_t
 HandleAdapterRequest(
@@ -435,25 +499,28 @@ HandleAdapterRequest(
     _In_ uint64_t                 now);
 
 /**
- * @brief Check whether a request expects a control response, as opposed to the
- * one-way batch, ACK and drain requests whose results arrive as events.
- * @param request Request returned by NetAdapterNextRequest; null is not control.
+ * @brief Check whether a request expects a synchronous control reply.
+ * Batch posts, acknowledgements, and drains report results later through events
+ * instead of control replies.
+ *
+ * @param request Request returned by NetAdapterNextRequest. Null returns false.
+ * @return true for a control request, false for a one-way request or null.
  */
 __EXTERN bool
 NetAdapterRequestIsControl(
     _In_ const NetAdapterRequest_t* request);
 
 /**
- * @brief Return the next request the transport should send, if any is due. The
- * returned storage is borrowed and only valid until the next call into the core.
- * A resent request keeps its original identity.
+ * @brief Return the next request the transport should send, if one is ready.
+ * The returned pointer points to internal storage and stays valid only until the
+ * next call into the adapter core. Retries keep the original request identity.
+ *
  * @param adapter Adapter to schedule.
- * @param now Current time in milliseconds from a monotonic clock.
- * @param out Receives the borrowed request, or null when nothing is due.
- * @return OS_EOK when a request was produced,
- *         OS_ENOENT when nothing is due,
- *         OS_EINVALPARAMS for null inputs,
- *         OS_ETIMEOUT or another error when the adapter failed while scheduling.
+ * @param now Current monotonic time in milliseconds.
+ * @param out Receives the request pointer, or null when nothing is due.
+ * @return OS_EOK when a request is ready, OS_ENOENT when nothing is due,
+ *         OS_EINVALPARAMS for null inputs, or an error (such as OS_ETIMEOUT)
+ *         if scheduling failed the adapter.
  */
 __EXTERN oserr_t
 NetAdapterNextRequest(
@@ -462,17 +529,19 @@ NetAdapterNextRequest(
     _Out_ const NetAdapterRequest_t** out);
 
 /**
- * @brief Validate and apply one driver event (admission, completions, drain end or
- * ACK progress). The whole event is checked before any lease or callback is touched.
+ * @brief Validate and apply an unsolicited driver event (batch admission,
+ * packet completions, drain end, or ACK progress).
+ * Every record in the event is checked before any lease or callback is touched.
  * A malformed event fails the adapter.
+ *
  * @param adapter Adapter receiving the event.
- * @param driver Source driver identity.
- * @param event Decoded event copied out of transport storage.
- * @param now Current time in milliseconds from a monotonic clock.
- * @return OS_EOK when applied or deferred until missing completions are drained,
- *         OS_ENOENT for stale or foreign events,
- *         OS_EINVALPARAMS for null inputs or an unknown operation,
- *         OS_EPROTOCOL or another error when the event was rejected.
+ * @param driver Source driver UUID.
+ * @param event Decoded event copied out of temporary transport storage.
+ * @param now Current monotonic time in milliseconds.
+ * @return OS_EOK when applied or when missing completions trigger a drain,
+ *         OS_ENOENT for stale or unrelated events, OS_EINVALPARAMS for null
+ *         inputs or an unknown operation, or OS_EPROTOCOL / another error if
+ *         the event was invalid.
  */
 __EXTERN oserr_t
 NetAdapterEvent(
@@ -482,17 +551,17 @@ NetAdapterEvent(
     _In_ uint64_t                 now);
 
 /** 
- * @brief Acquire a TX pool slot that the caller can build a frame in. This does not queue a
- * transmission; the writable view is managed only by the caller until a successful
- * Submit or Cancel. The adapter must be running and the link must be up.
- * Packets that are still being built keep their pool storage alive through stop and
- * close, so cancel any packet you no longer need.
+ * @brief Reserve a TX pool slot so the caller can write a frame directly into it.
+ *
+ * This does not queue a transmission yet. The caller has sole access to Data
+ * until NetAdapterTxSubmit or NetAdapterTxCancel is called. The adapter must be
+ * running and its link must be up. Unsubmitted packets keep the pool alive across
+ * stop and close, so always cancel any packet you decide not to send.
  * 
  * @param adapter Running adapter.
- * @param packet Unused output token; cleared on failure.
- * @return OS_EOK for success,
- *         OS_EINVALPARAMS for null inputs,
- *         OS_ENOTCONNECTED when TX is unavailable, or the underlying pool error.
+ * @param packet Output packet handle. Cleared on failure.
+ * @return OS_EOK on success, OS_EINVALPARAMS for null inputs, OS_ENOTCONNECTED
+ *         when TX is unavailable, or the error from the buffer pool.
  */
 __EXTERN oserr_t
 NetAdapterTxAcquire(
@@ -500,25 +569,26 @@ NetAdapterTxAcquire(
     _Out_ NetAdapterTxPacket_t* packet);
 
 /** 
- * @brief Queue a finished Ethernet frame from an acquired TX lease, without copying it.
- * Length includes the Ethernet header and must be between
- * NET_ADAPTER_ETHERNET_HEADER_SIZE and MTU+NET_ADAPTER_ETHERNET_HEADER_SIZE. On success
- * the lease is handed to the adapter, the token is cleared, and the cookie is later
- * reported through Transmitted. On failure the token and lease stay with the caller.
- * A lease acquired before the adapter was stopped and started again cannot be
- * submitted in the new run; cancel it instead. This call must be serialized with
- * other core calls, but the frame itself may be built outside the worker while the
- * lease is managed only by the caller.
+ * @brief Queue a finished Ethernet frame written into a TX slot, without copying.
+ *
+ * Length includes the 14-byte Ethernet header and must fall between
+ * NET_ADAPTER_ETHERNET_HEADER_SIZE and MTU + NET_ADAPTER_ETHERNET_HEADER_SIZE.
+ * On success, the adapter takes over the slot, clears packet, and later calls
+ * Transmitted with cookie. On failure, the caller still holds packet and must
+ * fix and resubmit it or cancel it.
+ *
+ * Packets acquired before a stop/restart cannot be sent in the new run. Cancel
+ * them instead. Calls into this API must be serialized on the worker, though the
+ * caller may fill Data on another thread while holding the packet.
  * 
- * @param adapter Adapter the lease was acquired from.
- * @param packet Acquired TX token; consumed only on success.
+ * @param adapter Adapter the packet came from.
+ * @param packet Acquired TX packet handle. Cleared only on success.
  * @param length Complete Ethernet frame length in bytes.
- * @param cookie Caller value returned by the eventual Transmitted callback.
- * @return OS_EOK for success,
- *         OS_EINVALPARAMS for invalid length/input, 
- *         OS_ENOENT for an invalid token, 
- *         OS_ENOTCONNECTED when the run has ended or the link is down, 
- *         OS_EOVERFLOW when the counter used to order queued frames has run out, or a pool error.
+ * @param cookie Caller value passed back to Transmitted.
+ * @return OS_EOK on success, OS_EINVALPARAMS for bad inputs or length,
+ *         OS_ENOENT for an invalid handle, OS_ENOTCONNECTED if the run ended or
+ *         the link dropped, OS_EOVERFLOW if the TX order counter ran out, or a
+ *         pool error.
  */
 __EXTERN oserr_t
 NetAdapterTxSubmit(
@@ -528,15 +598,15 @@ NetAdapterTxSubmit(
     _In_ uint64_t              cookie);
 
 /** 
- * @brief Release an acquired but unsubmitted TX lease, including after stop, close, or
- * link loss. This abandons the frame and does not call Transmitted.
+ * @brief Return an acquired TX slot that will not be sent.
+ * Works even after stop, close, or link loss. Drops the frame without calling
+ * Transmitted.
  * 
- * @param adapter Adapter the lease was acquired from.
- * @param packet Acquired token; cleared only after successful release.
- * @return OS_EOK for success,
- *         OS_EINVALPARAMS for null inputs, 
- *         OS_ENOENT for a token that is out of date, belongs to another adapter 
- *                   or was already submitted, or a pool-release error.
+ * @param adapter Adapter the packet came from.
+ * @param packet Acquired TX packet handle. Cleared on success.
+ * @return OS_EOK on success, OS_EINVALPARAMS for null inputs, OS_ENOENT if the
+ *         handle is stale, already submitted, or belongs to another adapter, or
+ *         a pool release error.
  */
 __EXTERN oserr_t
 NetAdapterTxCancel(
@@ -544,17 +614,17 @@ NetAdapterTxCancel(
     _In_ NetAdapterTxPacket_t* packet);
 
 /** 
- * @brief Copy a complete Ethernet frame into a TX pool slot and queue it. This is a
- * convenience path equivalent to Acquire/copy/Submit; local rejection does not
- * produce a Transmitted callback. Requires a running adapter and carrier-up link.
+ * @brief Copy an Ethernet frame into a TX pool slot and queue it in one step.
+ * Equivalent to calling Acquire, memcpy, and Submit. Local rejection returns an
+ * error directly and never calls Transmitted. Requires a running adapter and an
+ * active link.
  * 
  * @param adapter Running adapter.
- * @param frame Ethernet frame to copy; must remain readable for this call.
- * @param length Frame length in bytes, including the Ethernet header.
- * @param cookie Caller value returned if the frame is accepted.
- * @return OS_EOK when queued,
- *         OS_EINVALPARAMS for invalid frame/input, or an
- *                         acquisition/submission error such as OS_ENOTCONNECTED or OS_EBUSY.
+ * @param frame Frame bytes to copy, starting at the Ethernet header.
+ * @param length Frame length in bytes.
+ * @param cookie Caller value passed back to Transmitted if queued.
+ * @return OS_EOK when queued, OS_EINVALPARAMS for bad inputs or length, or an
+ *         error from acquire/submit such as OS_ENOTCONNECTED or OS_EBUSY.
  */
 __EXTERN oserr_t
 NetAdapterSend(
@@ -564,14 +634,14 @@ NetAdapterSend(
     _In_ uint64_t          cookie);
 
 /** 
- * @brief Request an orderly stop of the current run. The request is recorded immediately,
- * so new TX acquires and submits are rejected from now on. The request pump then
- * carries out the stop asynchronously: it stops sending new batches, waits until the
- * driver has accepted or rejected every batch already sent, and sends STOP_RUN. The
- * driver answers with the sequence number of the last completion it will report for
- * the run; the pump then collects and acknowledges every completion up to that
- * number. The adapter must reach STOPPED before Start can begin another run. Null
- * is ignored.
+ * @brief Request an orderly stop of the current traffic run.
+ *
+ * Takes effect right away for new TX: further acquires and submits are rejected.
+ * The scheduler finishes the stop in the background. It stops sending new
+ * batches, waits for every batch already in flight to be answered, sends
+ * STOP_RUN, and drains and acknowledges all remaining completions up to the
+ * driver's stop sequence. The adapter must reach STOPPED before NetAdapterStart
+ * can start a new run. Null is ignored.
  * 
  * @param adapter Adapter to stop.
  */
@@ -580,28 +650,25 @@ NetAdapterStop(
     _In_ NetworkAdapter_t* adapter);
 
 /** 
- * @brief Begin a new run from STOPPED. The request pump asynchronously prepares the run,
- * posts the initial receive buffers to the driver and starts it; this call does not
- * wait for the device to become active.
+ * @brief Start a new traffic run on a STOPPED adapter.
+ * Schedules PREPARE_RUN, initial RX buffer priming, and START_RUN in the
+ * background without blocking.
  * 
- * @param adapter Adapter to start.
- * @return OS_EOK when the new run is scheduled, 
- *         OS_EINVALPARAMS for null,
- *         OS_EBUSY unless STOPPED,
- *         OS_EOVERFLOW if the run identifier is exhausted.
+ * @param adapter Stopped adapter.
+ * @return OS_EOK when scheduled, OS_EINVALPARAMS if null, OS_EBUSY if not in
+ *         NET_ADAPTER_STOPPED, or OS_EOVERFLOW if the run counter ran out.
  */
 __EXTERN oserr_t
 NetAdapterStart(
     _In_ NetworkAdapter_t* adapter);
 
 /** 
- * @brief Request an orderly close; this also works while the adapter is still being set
- * up. The request is recorded immediately and new TX is rejected from now on. If an
- * OPEN request is still unanswered, the request pump first resolves it by resending
- * it with its original identity, because the driver may already have created a
- * session. Storage is only freed after the driver has confirmed the close, since
- * only then is it certain the driver no longer uses the shared memory. Null is
- * ignored.
+ * @brief Request an orderly close of the adapter, even during startup.
+ *
+ * New TX is rejected right away. If an OPEN request is still waiting for a
+ * reply, the scheduler resolves it first (resending with the same serial if
+ * needed) because the driver may already have opened a session. Shared buffers
+ * are only freed after the driver confirms the close. Null is ignored.
  * 
  * @param adapter Adapter to close.
  */
@@ -610,26 +677,26 @@ NetAdapterClose(
     _In_ NetworkAdapter_t* adapter);
 
 /** 
- * @brief Try again to recover a failed adapter. If the adapter is QUARANTINED because the
- * outcome of an OPEN or CLOSE request is unknown, that same request is sent again
- * with its original identity, so the driver can recognize it as a repeat. If the
- * adapter FAILED before a session was opened and holds no session or buffers, it
- * starts over by asking the driver for its capabilities. Retrying does not reset the
- * driver, and it does not make an unknown outcome safe; it only gives the driver
- * another chance to answer.
+ * @brief Retry a failed or quarantined adapter.
+ *
+ * In QUARANTINED, the pending OPEN or CLOSE request is resent with its original
+ * serial and parameters so the driver recognizes it as a repeat. In FAILED with
+ * no open session or allocated pools, startup restarts from GET_INFO. Retrying
+ * does not reset the driver or make an unknown device state safe, it only gives
+ * the driver another chance to answer.
  * 
- * @param adapter Adapter to recover.
- * @return OS_EOK when the retry is scheduled,
- *         OS_EINVALPARAMS for null or for any state other than a recoverable 
- *                         FAILED or QUARANTINED.
+ * @param adapter Failed or quarantined adapter.
+ * @return OS_EOK when retry is scheduled, or OS_EINVALPARAMS if null or in a
+ *         state that cannot be retried.
  */
 __EXTERN oserr_t
 NetAdapterRetry(
     _In_ NetworkAdapter_t* adapter);
 
 /** 
- * @brief Mark the cached counters as out of date and request an asynchronous refresh. It does
- * not perform IPC in this call; use Snapshot to read the current cache. Null is ignored.
+ * @brief Schedule an asynchronous refresh of cached traffic counters.
+ * Performs no IPC directly. Read the cached values with NetAdapterSnapshot.
+ * Null is ignored.
  * 
  * @param adapter Adapter whose counters should be refreshed.
  */
@@ -638,10 +705,9 @@ NetAdapterRefreshCounters(
     _In_ NetworkAdapter_t* adapter);
 
 /** 
- * @brief Copy the cached lifecycle state, batch progress (how many batches the driver has
- * accepted and finished), link state, counters and pool usage.
- * This is a nonblocking read and schedules no IPC. If either pointer is null, no
- * output is written; otherwise the output is cleared before cached fields are copied.
+ * @brief Copy cached state, batch progress, link status, counters, and buffer stats.
+ * Nonblocking, triggers no IPC. If either pointer is null, nothing is written.
+ * Otherwise, out is zeroed before filling.
  * 
  * @param adapter Adapter to inspect.
  * @param out Destination snapshot.
@@ -651,13 +717,38 @@ NetAdapterSnapshot(
     _In_  const NetworkAdapter_t* adapter,
     _Out_ NetAdapterSnapshot_t*   out);
 
+/**
+ * @brief Copy the status summary passed to State callbacks.
+ * Used by the registry to catch up a consumer that attaches after startup.
+ *
+ * @param adapter Adapter to inspect.
+ * @param statusOut Destination status struct. Zeroed before filling.
+ */
+__EXTERN void
+NetAdapterGetStatus(
+    _In_  const NetworkAdapter_t* adapter,
+    _Out_ NetAdapterStatus_t*     statusOut);
+
+/**
+ * @brief Move the adapter to a new state and invoke the State callback if it changed.
+ * Does nothing if the adapter is already in that state.
+ *
+ * @param adapter Adapter to update.
+ * @param state Target state.
+ */
+__EXTERN void
+NetAdapterSetState(
+    _In_ NetworkAdapter_t*    adapter,
+    _In_ enum NetAdapterState state);
+
 /** 
- * @brief Report that an incoming control response could not be trusted (for example, the
- * generated decoder failed, or the response did not match the pending request).
- * If the pending request is an OPEN or CLOSE, the adapter is quarantined: we do not
- * know whether the driver created or closed the session, so its memory may still be
- * in use. Other requests go through the normal failure handling. Null is ignored.
- * This is not used for an error reply sent by the driver.
+ * @brief Handle an untrusted or unparseable control reply from the transport layer
+ * (for example, a failed decoder call or mismatched serial).
+ *
+ * If the pending request is OPEN or CLOSE, the adapter moves to QUARANTINED
+ * because the driver may still hold a session or access shared memory. Any other
+ * pending request fails normally. Null is ignored. Do not call this for a normal
+ * error code returned inside a valid driver reply.
  * 
  * @param adapter Adapter reporting the protocol error.
  */
@@ -666,20 +757,20 @@ NetAdapterSetProtocolError(
     _In_ NetworkAdapter_t* adapter);
 
 /** 
- * @brief Apply a link state report, but only if it comes from the adapter's driver and
- * current session. Reports with an older sequence number are ignored so the cached
- * state never goes back to an older value; a report that reuses the current sequence
- * number with different data is a protocol error. Valid newer state is cached and
- * passed to the Link callback.
+ * @brief Apply a link state update from the driver.
+ *
+ * Ignored unless it comes from the adapter's driver and current session. Older
+ * sequence numbers are quietly ignored so cached state never rolls back. Reusing
+ * the current sequence number with different link values fails as a protocol
+ * error. Valid newer reports update the cache and fire the Link callback.
  * 
  * @param adapter Adapter receiving the update.
- * @param driver Source driver identity.
- * @param session Source session identity and generation.
- * @param link Sequenced link snapshot.
- * @return OS_EOK when applied or an older report is ignored, 
- *         OS_ENOENT when the session does not match or is closing, 
- *         OS_EINVALPARAMS for a null link,
- *         OS_EPROTOCOL for invalid or contradictory link data.
+ * @param driver Source driver UUID.
+ * @param session Source session ID and generation.
+ * @param link Link state snapshot.
+ * @return OS_EOK when applied or an older report is ignored, OS_ENOENT if the
+ *         session does not match or is closing, OS_EINVALPARAMS if link is null,
+ *         or OS_EPROTOCOL for invalid or conflicting link data.
  */
 __EXTERN oserr_t
 NetAdapterLinkChanged(

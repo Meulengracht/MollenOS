@@ -15,13 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Persistent packet pools and private lease-state tracking.
- * 
- * Persistent TX/RX buffers for netd.
+ * Persistent TX and RX packet pools and private per-slot tracking.
  *
- * See buffers.h for the rules about the executor and about who manages each lease.
- * Every state change is checked in full before any counters are modified, so a
- * request that is refused leaves the state untouched.
+ * See buffers.h for the single-worker rules and slot lifecycle. Every state
+ * change checks all preconditions before touching counters or fields, so a
+ * rejected operation always leaves the manager untouched.
  */
 
 #include "buffers.h"
@@ -236,6 +234,8 @@ __ValidateInfo(
     _In_ const struct ctt_netadapter_info* info,
     _In_ size_t                          pageSize)
 {
+    // Check that the driver supports protocol v2, Ethernet framing, single-queue
+    // single-segment frames, and both TX and RX pools.
     if (info->min_version > 2 || info->max_version < 2) {
         return OS_EINVALPARAMS;
     }
@@ -252,6 +252,8 @@ __ValidateInfo(
     if (info->max_outstanding_rx < info->min_rx_slots) {
         return OS_EINVALPARAMS;
     }
+    // Completion space must hold at least min_rx_slots plus one TX completion
+    // so receive buffers can never lock out transmit progress.
     if (info->max_unacked_completions < 2 ||
         info->max_unacked_completions <= info->min_rx_slots) {
         return OS_EINVALPARAMS;
@@ -307,6 +309,9 @@ __GetSlotAlignment(
         return OS_EINVALPARAMS;
     }
 
+    // Pad slots to whichever is larger: CPU cache line size or device alignment.
+    // Keeping each slot on its own cache line prevents DMA on one slot from
+    // corrupting CPU writes or reads on a neighboring slot.
     *alignmentOut = line > deviceAlignment ? line : deviceAlignment;
     return OS_EOK;
 }
@@ -324,16 +329,15 @@ __CalculateBufferLayout(
     bool     valid;
     int      i;
 
-    // Leave headroom before the frame and align the data offset for the device.
-    // SHM is page-aligned, so this works for alignments up to one page. The driver
-    // checks any other memory requirements.
+    // Reserve device headroom before the frame and align DataOffset. Because SHM
+    // allocations are page-aligned, any alignment up to pageSize holds here.
     valid = __RoundUpAligned(info->required_headroom, info->buffer_alignment, &offset);
     if (!valid) {
         return OS_EOVERFLOW;
     }
     
-    // SHM reserves whole cache lines during DMA, including on coherent devices.
-    // Pad each slot so a receive cannot conflict with the adjacent slot's access.
+    // Round the full slot stride up to slotAlignment so adjacent slots never
+    // share a cache line during DMA.
     valid = __RoundUpAligned(
         offset + config->FrameCapacity + info->required_tailroom,
         slotAlignment,
@@ -343,32 +347,28 @@ __CalculateBufferLayout(
         return OS_EOVERFLOW;
     }
     
-    // The slot size must fit in the protocol's 32-bit field.
     if (stride > UINT32_MAX) {
         return OS_EOVERFLOW;
     }
 
-    // Check both pool sizes before allocating memory, so a request that exceeds
-    // the limits needs no cleanup.
+    // Validate both pools against driver limits and MemoryBudget before
+    // allocating anything.
     layout->SlotCounts[0] = config->TxSlots;
     layout->SlotCounts[1] = config->RxSlots;
     for (i = 0; i < __POOL_COUNT; ++i) {
-        // The device advertises a maximum slot count for each pool separately.
         if (layout->SlotCounts[i] > info->max_slots_per_pool) {
             return OS_EOVERFLOW;
         }
 
-        // SHM requires whole pages.
+        // Shared memory regions must be whole pages.
         if (!__RoundUpAligned(stride * layout->SlotCounts[i], pageSize, &layout->PoolBytes[i])) {
             return OS_EOVERFLOW;
         }
 
-        // The pool must fit in size_t and within the device's per-pool limit.
         if (layout->PoolBytes[i] > SIZE_MAX || layout->PoolBytes[i] > info->max_pool_bytes) {
             return OS_EOVERFLOW;
         }
 
-        // Count the local slot records in the memory budget too.
         slotBytes = (uint64_t)layout->SlotCounts[i] * sizeof(struct __BufferSlot);
         if (slotBytes > SIZE_MAX) {
             return OS_EOVERFLOW;
@@ -381,7 +381,7 @@ __CalculateBufferLayout(
         }
     }
     
-    // The combined TX and RX pool size must also fit the device's limit.
+    // Check that TX + RX together stay under the driver's total registered limit.
     if (layout->PoolBytes[0] > info->max_registered_bytes) {
         return OS_EOVERFLOW;
     }
@@ -390,8 +390,7 @@ __CalculateBufferLayout(
         return OS_EOVERFLOW;
     }
 
-    // Each unacknowledged completion needs a local record. Count these against
-    // our memory budget, separately from the device's shared-memory limit.
+    // Count the out-of-order completion window against MemoryBudget as well.
     windowBytes = (uint64_t)info->max_unacked_completions * sizeof(struct __CompletionEntry);
     if (windowBytes > SIZE_MAX) {
         return OS_EOVERFLOW;
@@ -401,7 +400,6 @@ __CalculateBufferLayout(
         return OS_EOVERFLOW;
     }
 
-    // Save the checked values for pool creation and for locating frame data in a slot.
     layout->DataOffset = (uint32_t)offset;
     layout->SlotSize = (uint32_t)stride;
     return OS_EOK;
@@ -449,6 +447,8 @@ __InitializePool(
         .slot_count = count
     };
     
+    // Grant read-only access for TX (the driver only reads outgoing frames) and
+    // read-write access for RX (the driver writes incoming frames into memory).
     status = __SHMTransferCreate(
         pool->Handle.ID,
         0,
@@ -466,6 +466,7 @@ __InitializePool(
         return status;
     }
 
+    // Chain every slot into a singly-linked free list for constant-time acquire.
     pool->FreeHead = 0;
     pool->FreeCount = count;
     for (slot = 0; slot < count; ++slot) {
@@ -533,8 +534,8 @@ NetBuffersCreate(
     manager->OutstandingLimit[0] = info->max_outstanding_tx;
     manager->OutstandingLimit[1] = info->max_outstanding_rx;
     
-    // Leave room for one TX completion. If RX uses every completion entry, we
-    // cannot send the ARP packets needed to get traffic flowing.
+    // Leave one entry in the completion ring for TX so heavy receive traffic
+    // can never block sending ARP or control frames.
     if (manager->OutstandingLimit[1] >= info->max_unacked_completions) {
         manager->OutstandingLimit[1] = info->max_unacked_completions - 1;
     }
@@ -1318,6 +1319,8 @@ __RetirePool(
     struct __BufferSlot* slot;
     uint32_t             i;
 
+    // Move any active or pending slots to READY with OS_ECANCELLED so callers
+    // and the worker can release them cleanly after the session closes.
     pool->State = POOL_RETIRED;
     for (i = 0; i < pool->Description.slot_count; ++i) {
         slot = &pool->Slots[i];
@@ -1349,7 +1352,7 @@ NetBuffersClosed(
     manager->Closed = true;
     manager->UnackedCount = 0;
     
-    // Cancel pending packets before making the closed pools available for cleanup.
+    // Cancel all in-flight slots and retire both pools.
     for (int i = 0; i < __POOL_COUNT; ++i) {
         __RetirePool(&manager->Pools[i]);
     }

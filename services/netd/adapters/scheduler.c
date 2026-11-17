@@ -15,12 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Protocol request scheduling and retry deadlines.
- * 
- * Decides which request to send to the driver next, resends requests whose reply did
- * not arrive in time, and resends ACKs until the driver confirms it has freed the
- * completion records we are done with. This file has no IPC dependencies; the
- * transport in requests.c sends whatever NetAdapterNextRequest returns.
+ * Protocol request scheduling and retry timers.
+ *
+ * Picks the next request to send to the driver, resends timed-out requests or
+ * batches, and sends ACKs until the driver confirms it retired completed work.
+ * Has no IPC dependencies because requests.c sends whatever NetAdapterNextRequest
+ * returns.
  */
 
 #include "private.h"
@@ -80,12 +80,11 @@ __UpdateSentACK(
         NetworkAdapter_t*    adapter,
         NetAdapterRequest_t* request)
 {
-    // Fill in the newest admitted batch and processed completion we can acknowledge
+    // Fill the newest gap-free batch ID and completion sequence to acknowledge.
     __FillACK(adapter, &request->Ack);
 
-    // Remember the ACK we are sending. The driver may never receive it, so this alone
-    // never frees batch slots or completion space; that only happens once the driver
-    // reports it has retired the work (see __HandleSessionProgress).
+    // Save what we sent. Space is only freed when the driver's progress report
+    // confirms retirement, never just from sending this ACK.
     adapter->Ack.Sent = request->Ack;
 }
 
@@ -154,12 +153,12 @@ __InitializeBatchRequest(
     
     oserr = __InitializeRequest(adapter, &batch->Request);
     if (oserr != OS_EOK) {
-        // The packets were already prepared for the driver, so their leases stay
-        // unresolved until the session is closed.
+        // Packets are already marked PENDING in the buffer manager and stay
+        // reserved until the session closes.
         return oserr;
     }
     
-    // Nothing can fail past this point, so use up the batch ID.
+    // Everything succeeded, so consume NextBatch and arm the retry timer.
     adapter->Window.NextBatch++;
     
     batch->Used = true;
@@ -172,8 +171,8 @@ __InitializeBatchRequest(
 }
 
 /** 
- * @brief Resend the oldest batch that still has no answer from the driver and whose
- * retry deadline has passed. This is checked before any new batch is created.
+ * @brief Resend the oldest unanswered batch whose retry deadline passed.
+ * Checked before building new batches so lost answers settle first.
  */
 static oserr_t
 __RetryBatchRequest(
@@ -181,9 +180,6 @@ __RetryBatchRequest(
     _In_  uint64_t                    now,
     _Out_ const NetAdapterRequest_t** out)
 {
-    // Pick the overdue, unanswered batch with the lowest ID. If one exists it is sent
-    // instead of a new batch, so a batch whose result is unknown (its answer was lost,
-    // or the driver was busy) is settled before more new work goes out.
     struct AdapterBatch* retry = NULL;
     for (uint32_t i = 0; i < adapter->Window.Size; ++i) {
         struct AdapterBatch* batch = &adapter->Window.Batches[i];
@@ -197,7 +193,6 @@ __RetryBatchRequest(
         return OS_ENOENT;
     }
     
-    // Have we exhausted our attempts? then we timeout
     if (retry->Attempts >= adapter->Config.RetryLimit) {
         NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
         return OS_ETIMEOUT;
@@ -212,10 +207,9 @@ __RetryBatchRequest(
 }
 
 /** 
- * @brief Send a standalone ACK while the driver has not yet confirmed that it retired
- * work we acknowledged: batches we know were admitted, or completion records we have
- * processed. It runs on its own retry timer, so it does not wait for data traffic or
- * for replies to optional control requests.
+ * @brief Send a standalone ACK when the driver has not yet confirmed retiring
+ * work we finished processing. Uses its own retry timer so it never stalls
+ * waiting for data traffic.
  */
 static oserr_t
 __PrepareACK(
@@ -237,7 +231,6 @@ __PrepareACK(
         return OS_ENOENT;
     }
     
-    // Have we exhausted our attempts? then we timeout
     if (adapter->Ack.Attempts >= adapter->Config.RetryLimit) {
         NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
         return OS_ETIMEOUT;
@@ -283,14 +276,16 @@ __CanStartDrain(
     _In_  uint64_t               now,
     _In_ const NetBufferStats_t* stats)
 {
+    // Start a drain right away if completions appear missing (Drain.Needed), or
+    // periodically poll while packets are in flight in case an event was lost.
     return (!adapter->Drain.Active && (adapter->Drain.Needed ||
            ((stats->TxOutstanding || stats->RxOutstanding) && now >= adapter->Drain.NextPoll)));
 }
 
 /** 
- * @brief Ask the driver to resend completion records we may have missed, at most one
- * batch worth at a time. A retry uses a new drain ID, and the count of records we
- * have already processed makes sure no packet is delivered twice.
+ * @brief Ask the driver to resend up to BatchSize completion records after
+ * ProcessedCompletion. Each attempt uses a fresh drain ID so late replies from
+ * an earlier timed-out drain are ignored.
  */
 static oserr_t
 __PrepareDrainRequest(
@@ -301,7 +296,6 @@ __PrepareDrainRequest(
 {
     oserr_t oserr;
 
-    // Clear the drain status if it has completed
     if (__HasDrainCompleted(adapter, stats)) {
         adapter->Drain.Active = false;
         adapter->Drain.Attempts = 0;
@@ -313,7 +307,6 @@ __PrepareDrainRequest(
     }
 
     if (__DrainInProgress(adapter, now) || __CanStartDrain(adapter, now, stats)) {
-        // Have we exceeded the retry limit or reached the maximum drain ID?
         if (adapter->Drain.Attempts >= adapter->Config.RetryLimit ||
             adapter->Drain.Id == UINT64_MAX) {
             NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
@@ -346,9 +339,7 @@ __PrepareDrainRequest(
 }
 
 /**
- * @brief General request initiation for the network adapter.
- * It uses the adapter state to determine the next request to be executed, if
- * any needs to be run.
+ * @brief Start the next lifecycle step or read-only query for the current state.
  */
 static oserr_t
 __BeginRequest(
@@ -357,6 +348,7 @@ __BeginRequest(
     _Out_ const NetAdapterRequest_t** out,
     _In_  const NetBufferStats_t*     stats)
 {
+    // True when every batch handed out so far has been admitted by the driver.
     bool    resolved = adapter->Window.Admitted == adapter->Window.NextBatch - 1;
     oserr_t status = OS_ENOENT;
     
@@ -409,10 +401,12 @@ __BeginRequest(
             );
             break;
         case NET_ADAPTER_PRIME:
+            // Post initial RX buffers before starting traffic. Once all posted
+            // batches are admitted and min_rx_slots are with the driver, start.
             status = __InitializeBatchRequest(adapter, true, now, out);
             if (status == OS_ENOENT && resolved &&
                 stats->RxOutstanding >= adapter->Info.min_rx_slots) {
-                adapter->State = NET_ADAPTER_START;
+                NetAdapterSetState(adapter, NET_ADAPTER_START);
                 status = __BeginControlRequest(
                         adapter,
                         SERVICE_CTT_NETADAPTER_START_RUN_ID,
@@ -421,6 +415,9 @@ __BeginRequest(
             }
             break;
         case NET_ADAPTER_STOPPING:
+            // Wait for every sent batch to be answered before sending STOP_RUN.
+            // Afterward, wait until all completions up to StopBarrier are
+            // processed, acknowledged, and retired before moving to STOPPED.
             if (!adapter->Intent.StopReplied && resolved) {
                 status = __BeginControlRequest(
                     adapter,
@@ -433,16 +430,15 @@ __BeginRequest(
                 if (stats->TxOutstanding || stats->RxOutstanding) {
                     status = OS_EPROTOCOL;
                 } else {
-                    adapter->State = NET_ADAPTER_STOPPED;
+                    NetAdapterSetState(adapter, NET_ADAPTER_STOPPED);
                     adapter->Drain.Active = adapter->Drain.Needed = false;
                 }
             }
             break;
         case NET_ADAPTER_RUNNING:
         case NET_ADAPTER_STOPPED:
-            // Stopping the run only ends packet exchange with the driver; read-only
-            // queries still work. Operators need the final counters and link state
-            // before the adapter is restarted or closed.
+            // Read-only link and counter queries stay allowed while stopped so
+            // consumers can read final stats before restarting or closing.
             if (adapter->Intent.CountersNeeded) {
                 status = __BeginControlRequest(
                     adapter,
@@ -467,7 +463,6 @@ static bool
 __IsAdapterDead(
     _In_ NetworkAdapter_t* adapter)
 {
-    // Adapter is considered dead if it is quarantined, closed, or failed.
     return adapter->State == NET_ADAPTER_QUARANTINED || 
            adapter->State == NET_ADAPTER_CLOSED ||
            adapter->State == NET_ADAPTER_FAILED;
@@ -481,16 +476,13 @@ __IsAdapterStoppable(
 }
 
 /** 
- * Pick the next request to send, in this priority order:
- *  - lifecycle recovery (retrying or giving up on a pending control request, closing)
- *  - batches whose retry deadline has passed
- *  - ACKs telling the driver which batches and completions we are done with
- *  - drains that fetch completion records we may have missed
- *  - lifecycle and control requests (open, start, stop, link, counters, ...)
- *  - new RX and TX packet batches
- * 
- * Recovery comes first so it never waits behind replies to optional link or counter
- * queries.
+ * @brief Pick the next request to send, ordered by priority:
+ *  1. Control retries, timeouts, and close requests.
+ *  2. Overdue TX/RX batches waiting for admission.
+ *  3. Standalone ACKs for unconfirmed retired work.
+ *  4. Completion drains when completions are missing or polls are due.
+ *  5. New lifecycle steps or link/counter queries.
+ *  6. New RX and TX packet batches while running.
  */
 oserr_t
 NetAdapterNextRequest(
@@ -501,54 +493,40 @@ NetAdapterNextRequest(
     NetBufferStats_t stats = { 0 };
     oserr_t          status;
 
-    // The scheduler always expects both the adapter and the
-    // output pointer to be valid, otherwise it cannot safely 
-    // stash a request or update caller-visible state.
     if (!adapter || !out) {
         return OS_EINVALPARAMS;
     }
     *out = NULL;
 
-    // Once an adapter has been quarantined, closed, or failed, we stop issuing
-    // new protocol work. The runtime will recover the session from the outside,
-    // but no in-band scheduling decisions should try to continue driving a dead
-    // adapter state machine.
+    // Quarantined, closed, and failed adapters emit no new requests until
+    // recovered externally via NetAdapterRetry.
     if (__IsAdapterDead(adapter)) {
         return OS_ENOENT;
     }
 
-    // If a close has been requested and we have an active session we need
-    // to check whether we must abandon the current request
+    // If a close was requested while another control request (other than CLOSE)
+    // is pending, drop the old request so CLOSE goes out next.
     if (adapter->Intent.CloseRequested && adapter->Session.id) {
-        // If a client requested shutdown while another request is still in flight, 
-        // we must intentionally abandon the current pending operation so the close 
-        // becomes the next message.
         if (!adapter->Control.Pending || adapter->Control.Request.Operation != SERVICE_CTT_NETADAPTER_CLOSE_ID) {
             adapter->Control.Pending = false;
-            adapter->State = NET_ADAPTER_CLOSING;
+            NetAdapterSetState(adapter, NET_ADAPTER_CLOSING);
         }
     }
 
-    // Retries are deadline based. If a request has stayed unresolved past its
-    // retry window, we either resend the same request or declare it failed. This
-    // keeps transport loss and delayed replies from deadlocking the session.
+    // Check whether the active control request timed out.
     if (adapter->Control.Pending && now >= adapter->Control.Deadline) {
-        // Open and close requests are special: a timeout here means we can no longer
-        // be sure whether the adapter was opened or closed, so we quarantine it
-        // instead of silently continuing with a session state we cannot verify.
         if (adapter->Control.Attempts >= adapter->Config.RetryLimit) {
-            // The retry limit has been reached. If this is an open or close request,
-            // quarantine the adapter to prevent further unreliable operations.
+            // Quarantine on OPEN or CLOSE timeouts because we cannot tell if
+            // the driver created or closed the session.
             if (adapter->Control.Request.Operation == SERVICE_CTT_NETADAPTER_OPEN_ID ||
                 adapter->Control.Request.Operation == SERVICE_CTT_NETADAPTER_CLOSE_ID) {
                 adapter->LastError = OS_ETIMEOUT;
-                adapter->State = NET_ADAPTER_QUARANTINED;
+                NetAdapterSetState(adapter, NET_ADAPTER_QUARANTINED);
                 return OS_ETIMEOUT;
             }
 
             NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
         } else {
-            // For requests that not lifecycle related we can try the operation again.
             adapter->Control.Attempts++;
             adapter->Control.Deadline = __NetAdapterDeadline(now, adapter->Config.RetryMilliseconds);
             
@@ -557,25 +535,17 @@ NetAdapterNextRequest(
         }
     }
 
-    // Close is strictly higher priority than any other work. If shutdown was
-    // requested, we must not keep scheduling normal data or control traffic
-    // behind the close path. This also preserves the exact ordering required by
-    // the adapter lifecycle, where close must be the last operation sent to the
-    // driver before the session is torn down.
+    // Close takes priority over all other traffic so shutdown happens promptly
+    // and CLOSE is the final control message sent on the session.
     if (adapter->Intent.CloseRequested) {
-        // If a previous operation is still unresolved, the adapter must not be
-        // allowed to issue a new close request because the underlying session
-        // identity is still attached to the older open or prepare state.
+        // Wait for any in-flight CLOSE or OPEN request to finish first.
         if (adapter->Control.Pending) {
-            // We cannot issue a new close request while a previous one is pending
             return OS_ENOENT;
         }
         
-        // When the session has already been released, there is no further control
-        // flow to drive; the adapter is effectively closed and should simply
-        // stop polling for more work.
+        // No active driver session remains, so move straight to CLOSED.
         if (!adapter->Session.id) {
-            adapter->State = NET_ADAPTER_CLOSED;
+            NetAdapterSetState(adapter, NET_ADAPTER_CLOSED);
             return OS_ENOENT;
         }
         
@@ -590,49 +560,38 @@ NetAdapterNextRequest(
         return NetAdapterNextRequest(adapter, now, out);
     }
 
-    // A stop request is only acted on while the run is active. We cancel queued
-    // packet work first so the adapter can transition cleanly into STOPPING and
-    // wait for all in-flight completion/recovery to settle before ending the run.
+    // Cancel locally queued TX frames before moving into STOPPING to drain
+    // frames already handed to the driver.
     if (adapter->Intent.StopRequested && __IsAdapterStoppable(adapter)) {
         NetAdapterCancelQueued(adapter);
-        adapter->State = NET_ADAPTER_STOPPING;
+        NetAdapterSetState(adapter, NET_ADAPTER_STOPPING);
     }
 
-    // Resending overdue batches comes before new work, because an earlier batch may
-    // still be waiting for the driver's answer. Resending the oldest overdue batch
-    // first lets the gap-free range of admitted batches keep moving forward, so a
-    // missing or repeated batch is not mistaken for a healthy stream.
+    // Resend overdue unanswered batches before creating new batches so the
+    // driver's admission sequence keeps moving forward.
     status = __RetryBatchRequest(adapter, now, out);
     if (status != OS_ENOENT) {
         return status;
     }
 
-    // Read the latest buffer counters before deciding whether an ACK or a drain is
-    // needed. They tell us whether the driver has yet to confirm work we acknowledged,
-    // and whether a running drain still has records left to process.
     if (adapter->Buffers) {
         NetBuffersGetStats(adapter->Buffers, &stats);
     }
 
-    // ACKs do not depend on data traffic and are sent whenever the driver has not yet
-    // confirmed work we acknowledged. This lets the driver free the batches and
-    // completion records it stores for us even when the packet queues are full.
+    // Send standalone ACKs even when packet queues are idle or full so the
+    // driver can free retired batch and completion records.
     status = __PrepareACK(adapter, now, out, &stats);
     if (status != OS_ENOENT) {
         return status;
     }
 
-    // Drain requests are sent when we have fallen behind on completions, or when a
-    // stop/close needs every completion processed before it can continue. Each drain
-    // only asks for a limited number of records, and can be retried if lost.
+    // Fetch missing completions or run the periodic completion poll.
     status = __PrepareDrainRequest(adapter, now, out, &stats);
     if (status != OS_ENOENT) {
         return status;
     }
 
-    // Only if there is no pending request do we begin a new lifecycle or control
-    // request. This avoids interleaving a fresh control message with an already
-    // active retry or close sequence.
+    // Start at most one control request at a time.
     if (!adapter->Control.Pending) {
         status = __BeginRequest(adapter, now, out, &stats);
         if (status != OS_EOK && status != OS_ENOENT && status != OS_EBUSY) {
@@ -640,29 +599,25 @@ NetAdapterNextRequest(
             return status;
         }
 
-        // If a new lifecycle phase or control request was created, return it
-        // immediately; otherwise, we may still need to recurse once the request
-        // is marked pending by the helper.
         if (*out) {
             return OS_EOK;
         }
 
+        // __BeginRequest armed Control.Request with Deadline == 0. Recurse once
+        // so the timeout check above sends the first attempt right away.
         if (adapter->Control.Pending) {
             return NetAdapterNextRequest(adapter, now, out);
         }
     }
 
-    // The running state is the only place where in-band packet batches are
-    // admitted. We try the preferred direction first, then the opposite
-    // direction if the first attempt was not available, so receive and transmit
-    // both keep moving without one starving the other.
+    // While running, alternate between RX and TX batches so neither direction
+    // starves the other.
     if (adapter->State == NET_ADAPTER_RUNNING) {
         status = __InitializeBatchRequest(adapter, adapter->Window.PreferRx, now, out);
         if (status == OS_ENOENT) {
             status = __InitializeBatchRequest(adapter, !adapter->Window.PreferRx, now, out);
         }
         if (status == OS_EOK) {
-            // Prefer the other direction next time, so RX and TX take turns.
             adapter->Window.PreferRx = 
                 (*out)->Operation != SERVICE_CTT_NETADAPTER_POST_RX_BATCH_ID;
         } else if (status != OS_ENOENT && status != OS_EBUSY) {

@@ -29,20 +29,33 @@
 #include "buffers.h"
 
 /** 
- * @brief The worker uses these states to track who manages a lease locally: the
- * caller, the TX queue, the driver or an RX consumer. DMA, admission and completion
- * are tracked separately by buffers.c. PREPARED means the packet has been placed in
- * a batch that may already have been sent to the driver; it does not mean the driver
- * has accepted or finished it yet.
+ * @brief Tracks who currently handles a pool slot on the adapter worker side.
  *
- * TX: FREE -> TX_BUILDING -> QUEUED -> PREPARED -> FREE
- * RX: FREE -> QUEUED -> PREPARED -> RX_RETAINED -> FREE
- * RX leases are only QUEUED briefly, while a newly acquired receive slot is being
- * added to a batch. If the consumer declines to keep a received packet, the lease
- * goes from RX_RETAINED back to PREPARED so its slot can be reused right away.
- * When the adapter stops or closes, QUEUED and PREPARED leases are freed once the
- * driver is known to no longer use them. TX_BUILDING and RX_RETAINED leases are
- * managed by the caller, who must cancel or release them explicitly.
+ * Low-level shared memory state (DMA, admission, and completion) lives inside
+ * buffers.c. This enum tracks the higher-level handoff between callers, the
+ * worker queues, and the driver.
+ *
+ *   FREE        - Unused entry in the adapter's lease array.
+ *   TX_BUILDING - Caller acquired a TX slot via NetAdapterTxAcquire and is
+ *                 still writing frame bytes into it.
+ *   QUEUED      - Caller submitted a TX frame (or worker grabbed an RX slot)
+ *                 and it is waiting to be packed into a batch.
+ *   PREPARED    - Packed into a batch that may already have been sent to the
+ *                 driver. Does not mean the driver accepted or finished it yet.
+ *   RX_RETAINED - Consumer accepted a received packet from ReceivePacket and
+ *                 must release it later with NetAdapterRxRelease.
+ *
+ * Typical paths:
+ *   TX: FREE -> TX_BUILDING -> QUEUED -> PREPARED -> FREE
+ *   RX: FREE -> QUEUED -> PREPARED -> RX_RETAINED -> FREE
+ *
+ * RX leases sit in QUEUED only briefly while a newly acquired slot is being
+ * packed into a batch. If the consumer declines a packet, its lease returns
+ * from RX_RETAINED to PREPARED so the slot can go straight back to the pool.
+ *
+ * When stopping or closing, QUEUED and PREPARED leases are released once the
+ * driver stops using them. TX_BUILDING and RX_RETAINED leases belong to callers,
+ * who must cancel or release them explicitly.
  */
 enum AdapterLeaseState {
     ADAPTER_LEASE_FREE,
@@ -53,27 +66,27 @@ enum AdapterLeaseState {
 };
 
 /**
- * @brief This structure contains the adapter's local view of one pool slot. Each
- * direction keeps one entry per slot, indexed by the lease's slot number, to track
- * who currently manages the packet (caller, TX queue, driver or RX consumer). For TX it
- * also carries the caller's completion cookie, frame length and queue order.
+ * @brief Worker-side tracking record for a single TX or RX pool slot.
+ * Each direction keeps one array of these indexed by the slot number.
  */
 struct AdapterLease {
-    NetBufferLease_t       Lease;
-    uint64_t               Cookie;
-    uint64_t               Order;
-    enum AdapterLeaseState State;
-    // Run the TX lease was acquired in. After a stop and restart it can no
-    // longer be submitted, but it can still be cancelled.
+    NetBufferLease_t       Lease;     // Pool handle tying this entry to the buffer manager.
+    uint64_t               Cookie;    // TX caller value passed back to Transmitted.
+    uint64_t               Order;     // Monotonic TX queue order so reused slots still send FIFO.
+    enum AdapterLeaseState State;     // Who currently holds this slot.
+    // Traffic run (Window.Run) when this TX lease was acquired. If the adapter
+    // stops and restarts, the caller can still cancel it, never submit it.
     uint64_t               BuildRun;
-    uint32_t               Length;
+    uint32_t               Length;    // Frame length in bytes for TX, or full slot capacity for RX.
 };
 
 /**
- * @brief Only leases managed by the worker may be reclaimed by completion, rejection
- * or safe close.
- * @param entry The adapter lease entry to check against.
- * @return True if the lease is currently managed by the worker, false otherwise.
+ * @brief Check whether the worker (not a caller or RX consumer) controls a lease.
+ * Only worker-managed leases can be freed automatically on completion, batch
+ * rejection, or session close.
+ *
+ * @param entry Lease entry to check.
+ * @return true if the lease is QUEUED or PREPARED, false otherwise.
  */
 static inline bool
 __AdapterLeaseIsManagedByWorker(

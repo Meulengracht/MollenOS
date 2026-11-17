@@ -15,18 +15,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Protocol handling for the adapter request scheduler.
+ * Gracht IPC transport loop for one adapter port.
  * 
- * Sends the requests chosen by NetAdapterNextRequest (scheduler.c) to the driver
- * and feeds decoded control responses back into the adapter core.
+ * Polls incoming Gracht messages, decodes replies for pending control requests,
+ * and sends the next requests returned by NetAdapterNextRequest (scheduler.c).
  */
 
 #include "private.h"
 #include "session.h"
 
-// protocol handling
+// Generated Gracht client stubs.
 #include <ctt_netadapter_service_client.h>
 
+// Poll for a reply to the currently pending control request, decode it, and
+// forward it to HandleAdapterRequest.
 static void
 __GetMessageResult(
     _In_ struct AdapterEntry* entry)
@@ -129,6 +131,8 @@ __GetMessageResult(
         }
     }
     
+    // Free Gracht's tracking state for this message before handing the reply
+    // to the adapter core.
     (void)gracht_client_abandon(entry->Client, &entry->Context.base);
     entry->AwaitReply = false;
     if (result) {
@@ -142,19 +146,22 @@ __GetMessageResult(
             entry->Now
         );
     }
+    // Cache the opened session ID + generation so client.c can validate
+    // incoming unsolicited events before calling into the adapter core.
     if (!result && entry->Operation == SERVICE_CTT_NETADAPTER_OPEN_ID && reply.Status == OS_EOK) {
         entry->Session = reply.Session;
     }
 }
 
+// Send one scheduled request over Gracht. Control requests save entry->Context
+// so __GetMessageResult can later read the reply.
 static void
 __HandleMessageRequest(
         struct AdapterEntry*       entry,
         const NetAdapterRequest_t* request)
 {
-    // A Gracht message ID is 32-bit. Never reuse one on an endpoint while a
-    // delayed response might still exist. Keep the last IDs free so close and
-    // recovery retries can still be sent.
+    // Gracht message IDs are 32-bit and must not wrap while older replies might
+    // still arrive. Reserve the last 64 IDs for CLOSE and retry traffic.
     if (entry->SentFrames >= UINT32_MAX - 64 &&
         request->Operation != SERVICE_CTT_NETADAPTER_CLOSE_ID) {
         NetAdapterClose(entry->Adapter);
@@ -169,6 +176,7 @@ __HandleMessageRequest(
     struct gracht_message_context* message = &context.base;
     bool                           control = NetAdapterRequestIsControl(request);
     if (control) {
+        // Drop any stale Gracht context before sending a retry or new control request.
         if (entry->AwaitReply) {
             (void)gracht_client_abandon(entry->Client, &entry->Context.base);
         }
@@ -261,10 +269,10 @@ __HandleMessageRequest(
     if (control) {
         entry->AwaitReply = result == 0;
     }
-    // If sending failed, we do not know whether the driver got the request. The retry
-    // deadlines resend it with the same batch, run or registration ID, so the driver
-    // can recognize the repeat. The new Gracht message ID used for each send only
-    // routes the reply and has no other meaning.
+    // If sending failed, the message might still have reached the driver. The
+    // scheduler's retry timers resend it later with the same batch, run, or
+    // registration ID so the driver can spot duplicates. The fresh Gracht
+    // message ID only routes the reply.
 }
 
 bool
@@ -276,24 +284,31 @@ NetAdapterTransportPoll(
     
     entry->Now = now;
     
+    // Step 1: Drain incoming Gracht messages (replies and driver events) up to
+    // NET_ADAPTER_WORK_BUDGET so one noisy port cannot starve others.
     for (int i = 0; i < NET_ADAPTER_WORK_BUDGET; ++i) {
         int result = gracht_client_wait_message(entry->Client, NULL, 0);
         if (result && errno != EPROTO && errno != ENOENT && errno != EALREADY) {
-            // Vali's connectionless iprecv reports an empty nonblocking inbox
-            // as ENODATA. It is not an end-of-stream or proof of driver death.
+            // Vali's connectionless iprecv returns ENODATA when the inbox is empty.
+            // Only EPIPE signals a broken connection that warrants closing.
             if (errno == EPIPE) {
                 NetAdapterClose(entry->Adapter);
             }
             break;
         }
-        // Invalid or late frames are ignored. If a reply was lost, the request is
-        // retried a limited number of times; we never pretend a packet was rejected.
+        // Bad or late frames are ignored. Lost replies time out and retry up
+        // to RetryLimit instead of pretending packets were rejected.
         if (i == NET_ADAPTER_WORK_BUDGET - 1) {
             busy = true;
         }
     }
     
+    // Step 2: Check whether a pending control request has finished and advance
+    // the adapter state machine if so.
     __GetMessageResult(entry);
+
+    // Step 3: Send outgoing requests produced by the scheduler, bounded by the
+    // same per-poll budget.
     for (int i = 0; i < NET_ADAPTER_WORK_BUDGET; ++i) {
         const NetAdapterRequest_t* request;
         if (NetAdapterNextRequest(entry->Adapter, now, &request) != OS_EOK) {

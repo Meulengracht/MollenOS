@@ -17,8 +17,9 @@
  *
  * Building TX packets and handing them over for transmission.
  *
- * A caller reserves a TX pool slot, writes a frame into it, and then either submits
- * it to the TX queue or cancels it. Until then the slot is managed by the caller.
+ * A caller reserves a TX pool slot, writes a frame directly into shared memory,
+ * and then either queues it with Submit or drops it with Cancel. Until then,
+ * only the caller touches that slot.
  */
 
 #include <os/osdefs.h>
@@ -29,11 +30,8 @@ static bool
 __AdapterCanTransmit(
     _In_ const NetworkAdapter_t* adapter)
 {
-    // For an adapter to be able to transmit
-    // - Must be in running state
-    // - Stop must not be requested
-    // - Close must not be requested
-    // - Link must be up
+    // Transmit is allowed only when the adapter is actively running, no stop or
+    // close has been asked for, and the physical link is up.
     return adapter->State == NET_ADAPTER_RUNNING && !adapter->Intent.StopRequested &&
            !adapter->Intent.CloseRequested && adapter->Link.status == CTT_NETADAPTER_LINK_STATUS_UP;
 }
@@ -51,14 +49,13 @@ NetAdapterTxAcquire(
         return OS_EINVALPARAMS;
     }
 
-    // Only hand out a TX slot while the adapter is running, is not being stopped or
-    // closed, and the link is up.
+    // Refuse new TX slots once stopping, closing, or link-down starts.
     if (!__AdapterCanTransmit(adapter)) {
         memset(packet, 0, sizeof(NetAdapterTxPacket_t));
         return OS_ENOTCONNECTED;
     }
 
-    // Reserve a TX slot before exposing its payload to the caller.
+    // Take a free TX slot from the shared pool before exposing its buffer.
     oserr = NetBuffersAcquire(
         adapter->Buffers,
         CTT_NETADAPTER_DIRECTION_TX,
@@ -69,7 +66,7 @@ NetAdapterTxAcquire(
         return oserr;
     }
 
-    // Resolve the acquired lease to its writable view; return it if lookup fails.
+    // Resolve the CPU pointer for the slot. Release the lease if lookup fails.
     oserr = NetBuffersView(adapter->Buffers, &lease, &view);
     if (oserr != OS_EOK) {
         NetBuffersRelease(adapter->Buffers, &lease);
@@ -77,8 +74,8 @@ NetAdapterTxAcquire(
         return oserr;
     }
     
-    // Record the slot as being written by the caller, and remember which run of the
-    // adapter (Window.Run, increased on every start) it was taken in.
+    // Mark this slot as currently being written by the caller and tag it with
+    // the current traffic run (Window.Run).
     adapter->Queues[NET_ADAPTER_TX].Leases[lease.Slot] = (struct AdapterLease){
         .Lease = lease,
         .State = ADAPTER_LEASE_TX_BUILDING,
@@ -108,13 +105,12 @@ NetAdapterTxSubmit(
     NetBufferView_t      view;
     oserr_t              status;
 
-    // A packet from NetAdapterTxAcquire is required.
     if (!packet) {
         return OS_EINVALPARAMS;
     }
 
-    // The packet must belong to this adapter and identify a TX slot that is still
-    // being written by the caller, not one already submitted or cancelled.
+    // Verify this handle belongs to this adapter and still sits in TX_BUILDING.
+    // Already submitted or cancelled handles fail with OS_ENOENT.
     entry = NetAdapterFindPacketLease(
         adapter,
         &packet->Private,
@@ -125,35 +121,35 @@ NetAdapterTxSubmit(
         return OS_ENOENT;
     }
 
-    // Look up the slot's real size in the pool instead of trusting the Capacity
-    // field in the packet, which the caller could have changed.
+    // Re-read the real slot capacity from the pool instead of trusting
+    // packet->Capacity, which sits in caller-writable struct memory.
     status = NetBuffersView(adapter->Buffers, &entry->Lease, &view);
     if (status != OS_EOK) {
         return status;
     }
 
-    // The frame must hold at least an Ethernet header, carry no more than
-    // the MTU as payload, and fit in the slot.
+    // Check that the frame covers at least the 14-byte Ethernet header and fits
+    // within both the negotiated MTU and the slot size.
     if (length < NET_ADAPTER_ETHERNET_HEADER_SIZE ||
         length > adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE ||
         length > view.Capacity) {
         return OS_EINVALPARAMS;
     }
 
-    // A slot acquired before the adapter was stopped and started again can no
-    // longer be submitted; the caller has to cancel it.
+    // Reject packets built during an earlier run before a stop/restart. The
+    // caller must cancel those instead.
     if (!__AdapterCanTransmit(adapter) || entry->BuildRun != adapter->Window.Run) {
         return OS_ENOTCONNECTED;
     }
 
-    // Frames are sent in order of this counter. If it wrapped around to zero, a new
-    // frame would look older than frames already queued, so refuse instead.
+    // Frames send oldest first by QueueOrder. Refuse to wrap past UINT64_MAX
+    // so new packets can never sort ahead of older ones.
     if (adapter->Tx.QueueOrder == UINT64_MAX) {
         return OS_EOVERFLOW;
     }
 
-    // Put the slot on the TX queue. From now on the worker manages it, so the
-    // caller's packet structure is cleared.
+    // Hand the slot to the TX queue and clear the caller's packet struct so
+    // it cannot be submitted or cancelled again.
     entry->Cookie = cookie;
     entry->Length = length;
     entry->Order = adapter->Tx.QueueOrder++;
@@ -171,13 +167,12 @@ NetAdapterTxCancel(
     struct AdapterLease* entry;
     oserr_t              status;
 
-    // A packet from NetAdapterTxAcquire is required.
     if (!packet) {
         return OS_EINVALPARAMS;
     }
 
-    // Only cancel a slot the caller is still writing. An old or already submitted
-    // packet must not free a slot that is now used by someone else.
+    // Only cancel a slot still in TX_BUILDING so a stale handle can never free
+    // a slot that was already queued or reused.
     entry = NetAdapterFindPacketLease(
         adapter,
         &packet->Private,
@@ -188,8 +183,8 @@ NetAdapterTxCancel(
         return OS_ENOENT;
     }
 
-    // Only forget the slot once the pool has taken it back. If the adapter is
-    // already closed and this was the last packet held, its buffers can be freed.
+    // Return the slot to the pool first. If the adapter is already closed and
+    // this was the final held packet, free the session's remaining buffers.
     status = NetBuffersRelease(adapter->Buffers, &entry->Lease);
     if (status == OS_EOK) {
         memset(entry, 0, sizeof(*entry));
@@ -209,15 +204,14 @@ NetAdapterSend(
     NetAdapterTxPacket_t packet;
     oserr_t              status;
 
-    // Reject frames that are shorter than an Ethernet header or longer than the MTU
-    // allows before taking a pool slot.
+    // Validate length bounds before taking a TX slot from the pool.
     if (!adapter || !frame || length < NET_ADAPTER_ETHERNET_HEADER_SIZE ||
         length > adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE) {
         return OS_EINVALPARAMS;
     }
 
-    // Copy the frame into a slot taken the same way as NetAdapterTxAcquire, so copied
-    // and directly written frames are checked and queued in exactly the same way.
+    // Use the Acquire/Submit path so copied and zero-copy sends share the same
+    // validation and queuing logic.
     status = NetAdapterTxAcquire(adapter, &packet);
     if (status != OS_EOK) {
         return status;
@@ -226,7 +220,7 @@ NetAdapterSend(
     memcpy(packet.Data, frame, length);
     status = NetAdapterTxSubmit(adapter, &packet, length, cookie);
 
-    // If submission failed, the slot is still ours to manage; give it back.
+    // Give the slot back if queuing failed (for example, link dropped mid-call).
     if (status != OS_EOK) {
         NetAdapterTxCancel(adapter, &packet);
     }
