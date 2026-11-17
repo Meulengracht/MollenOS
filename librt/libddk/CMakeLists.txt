@@ -52,7 +52,7 @@ add_library(libddk
     dma/attachment.c
     dma/context.c
     dma/dma.c
-    # DMA begin/end calls with completion fences. Fence state and waits are in libos.
+    dma/region.c
     dma/fence.c
 
     initrd/depacks.c

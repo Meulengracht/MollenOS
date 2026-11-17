@@ -41,6 +41,11 @@ enum DMADirection {
 // It prepares the CPU caches when the first job starts and again when the last
 // job ends. Requires DMA_MAP_REQUIRE_DIRECT.
 #define DMA_MAP_PERSISTENT     0x2U
+// Maps one or more whole registered regions of an SHM_REGIONS buffer using
+// their original pages. Each region is opened and synced through its own
+// region session instead of sharing one job count across the whole mapping.
+// Requires DMA_MAP_REQUIRE_DIRECT and cannot be combined with DMA_MAP_PERSISTENT.
+#define DMA_MAP_REGIONS        0x4U
 
 /**
  * @brief A run of consecutive bytes, as the device addresses them.

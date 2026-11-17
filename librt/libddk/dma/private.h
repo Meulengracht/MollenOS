@@ -42,6 +42,26 @@ struct __DmaResource {
     SHMHandle_t*          Storage;
 };
 
+// Tracks a DMA mapping created by DMAMapSHM, DMAMapSHMDirect, DMAMapSHMPersistent,
+// or DMAMapSHMRegions. Setup and teardown calls on the mapping must be serialized.
+// Individual region sessions serialize their own transfers independently.
+struct DMAMapping {
+    // Kernel handle and cached device segments shared with DMABuffer.
+    struct __DmaResource Resource;
+    // DMA_MAP_* flags fixed when the mapping was created.
+    unsigned int         Flags;
+    // Mapped byte count, used to check streaming transfer ranges.
+    size_t               Length;
+    // Widest data direction allowed for transfers on this mapping.
+    enum DMADirection    Direction;
+    // Number of open DMARegionSession_t objects referencing this mapping.
+    // DMAUnmap refuses to run while any region session is still open.
+    unsigned int         Sessions;
+    // Set when DMAUnmap begins closing a region mapping so failed unmaps block
+    // new region sessions until the unmap retry finishes.
+    bool                 Closing;
+};
+
 // The driver's DMA access to one device. At most one context exists per device
 // in this process. All contexts are linked in a registry guarded by a lock.
 struct DMAContext {

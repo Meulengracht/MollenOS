@@ -16,6 +16,7 @@
  */
 
 #include <ddk/utils.h>
+#include <ddk/dma_region.h>
 #include <os/shm.h>
 #include <internal/_shm.h>
 #include <os/types/syscall.h>
@@ -28,11 +29,7 @@ struct DMABuffer {
     SHMHandle_t          Storage;
 };
 
-struct DMAMapping {
-    struct __DmaResource Resource;
-    unsigned int         Flags;
-    size_t               Length;
-};
+
 
 _Static_assert(offsetof(struct DMAMapping, Resource) == 0, "Resource release frees the mapping");
 _Static_assert(offsetof(struct DMABuffer, Resource) == 0, "Resource release frees the buffer");
@@ -317,6 +314,7 @@ __DmaMapSHM(
     }
 
     mapping->Flags = flags;
+    mapping->Direction = direction;
     mapping->Length = length;
     *mappingOut = mapping;
     return OS_EOK;
@@ -411,7 +409,10 @@ DMABeginTransfer(
 {
     oserr_t status;
 
-    if (mapping == NULL || (mapping->Flags & DMA_MAP_PERSISTENT) != 0) {
+    // Streaming transfer calls only apply to single-transfer mappings.
+    // Persistent mappings use DMABeginUse/DMAEndUse, and region mappings use
+    // DMARegionSession with DMATryBeginRegionUse/DMAEndRegionUse.
+    if (mapping == NULL || (mapping->Flags & (DMA_MAP_PERSISTENT | DMA_MAP_REGIONS)) != 0) {
         return OS_EINVALPARAMS;
     }
 
@@ -436,7 +437,10 @@ DMAEndTransfer(
 {
     oserr_t status;
 
-    if (mapping == NULL || (mapping->Flags & DMA_MAP_PERSISTENT) != 0) {
+    // Streaming transfer calls only apply to single-transfer mappings.
+    // Persistent mappings use DMABeginUse/DMAEndUse, and region mappings use
+    // DMARegionSession with DMATryBeginRegionUse/DMAEndRegionUse.
+    if (mapping == NULL || (mapping->Flags & (DMA_MAP_PERSISTENT | DMA_MAP_REGIONS)) != 0) {
         return OS_EINVALPARAMS;
     }
 
@@ -463,6 +467,18 @@ DMAUnmap(
 
     if (mapping == NULL || *mapping == NULL) {
         return OS_EOK;
+    }
+
+    // Region sessions read from this mapping's segment list, so every session
+    // must be closed before the mapping can be torn down.
+    if ((*mapping)->Sessions != 0) {
+        return OS_EBUSY;
+    }
+
+    // Stop new region sessions from opening if releasing the mapping fails and
+    // has to be retried later.
+    if (((*mapping)->Flags & DMA_MAP_REGIONS) != 0) {
+        (*mapping)->Closing = true;
     }
 
     status = __DmaRelease(&(*mapping)->Resource);
@@ -538,4 +554,28 @@ DMAEndUse(
         use->Mapping = NULL;
     }
     return status;
+}
+
+oserr_t
+DMAMapSHMRegions(
+    _In_    struct DMAContext*               context,
+    _In_    const OSHandle_t*                buffer,
+    _In_    size_t                           offset,
+    _In_    size_t                           length,
+    _In_    enum DMADirection                direction,
+    _In_    const struct DMAMapRequirements* requirements,
+    _InOut_ struct DMAMapping**              mappingOut)
+{
+    // Region mappings always map the original SHM pages directly without a bounce
+    // buffer, and sync access per region session instead of mapping-wide.
+    return __DmaMapSHM(
+        context,
+        buffer,
+        offset,
+        length,
+        direction,
+        DMA_MAP_REQUIRE_DIRECT | DMA_MAP_REGIONS,
+        requirements,
+        mappingOut
+    );
 }

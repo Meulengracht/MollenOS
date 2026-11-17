@@ -24,10 +24,11 @@
 #include <os/types/syscall.h>
 #include <capabilities.h>
 #include <debug.h>
-#include <shm/record.h>
 #include <memoryspace.h>
+#include <shm/record.h>
 #include <shm/shm.h>
 #include <shm/device.h>
+#include <shm/device_region.h>
 #include <string.h>
 
 static oserr_t
@@ -240,6 +241,14 @@ static const SHMRecordOps_t g_mappingOps = {
     .End = __EndMappingAccess,
     .CancelOperation = SHMDeviceOperationCancel
 };
+
+bool
+SHMDeviceIsMappingRecord(
+    _In_ const SHMRecord_t* record)
+{
+    return record->Ops == &g_mappingOps;
+}
+
 
 oserr_t
 ScDmaOpenBound(
@@ -501,6 +510,9 @@ ScDmaMapShm(
     }
 
     switch (parameters.Flags) {
+        case DMA_MAP_REQUIRE_DIRECT | DMA_MAP_REGIONS:
+            kind = SHMDeviceMappingRegions;
+            break;
         case DMA_MAP_REQUIRE_DIRECT | DMA_MAP_PERSISTENT:
             kind = SHMDeviceMappingPersistent;
             break;
