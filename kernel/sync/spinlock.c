@@ -54,21 +54,13 @@ SpinlockAcquire(
     int          backOff = 1;
     assert(spinlock != NULL);
 
+    // Tickets can wrap around. They remain valid across UINT_MAX as long
+    // as fewer than the entire unsigned ticket space can wait on this lock.
     ticket = atomic_fetch_add(&spinlock->Next, 1);
     for (;;) {
         unsigned int current = atomic_load(&spinlock->Current);
         if (current == ticket) {
             break;
-        } else if (current > ticket) {
-            // Protect the thread against cases where the spinlock has been
-            // released to many times. If the current ticket suddenly surpassed
-            // our position in the queue, then something has definitely gone to
-            // shit.
-            // 1. We could do an assert here assert(current < ticket) and let the
-            //    program itself crash
-            // 2. We can ignore it and autocorrect by letting this thread get a new
-            //    position in the queue.
-            ticket = atomic_fetch_add(&spinlock->Next, 1);
         }
 
         // A lock owner may be unmapping memory. IRQ-disabled waiters must
@@ -126,7 +118,7 @@ SpinlockRelease(
     // detect if a thread releases multiple times and there
     // are enough waiters in queue to cover the additional
     // releases
-    assert(current < atomic_load(&spinlock->Next));
+    assert(current != atomic_load(&spinlock->Next));
 }
 
 void
