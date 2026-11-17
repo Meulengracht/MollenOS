@@ -17,6 +17,7 @@
  */
 
 #include <debug.h>
+#include <arch/acpi.h>
 #include <heap.h>
 #include <string.h>
 
@@ -296,6 +297,14 @@ __ScanRoot(
     }
 
     root->Value.Id = ++g_pciRootCount;
+    // A failed DMA lookup is stored in DmaStatus. The root is still kept, so
+    // configuration access and interrupts keep working.
+    root->Value.DmaStatus = ArchAcpiGetPciDma(handle, &root->Value, &root->Value.Dma);
+    if (root->Value.DmaStatus != OS_EOK) {
+        WARNING("ACPI PCI: root %u segment %u direct DMA unavailable (%u)",
+                root->Value.Id, root->Value.Segment, root->Value.DmaStatus);
+    }
+
     *link = root;
     return AE_OK;
 

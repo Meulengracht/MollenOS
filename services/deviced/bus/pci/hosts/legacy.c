@@ -95,8 +95,22 @@ __LegacyWrite(
     }
 }
 
+static oserr_t
+__LegacyGetDmaDescription(
+    _In_  PciHost_t*                host,
+    _Out_ struct PciDmaDescription* description)
+{
+    // Reaching a device through these I/O ports says nothing about its DMA rules.
+    // If the host comes from ACPI, the rules the kernel stored for the root are
+    // used, even though this host reads configuration through these ports.
+    if (host->AcpiRootId != 0) {
+        return PciHostGetAcpiDma(host, description);
+    }
+    return PciHostGetIdentityDma(host, description);
+}
+
 static const struct PciHostOperations g_pciLegacyOperations = {
-    .GetDmaDescription = PciHostGetIdentityDma,
+    .GetDmaDescription = __LegacyGetDmaDescription,
     .Read = __LegacyRead,
     .Write = __LegacyWrite
 };

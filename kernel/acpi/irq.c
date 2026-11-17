@@ -23,6 +23,7 @@
 #define __MODULE "acpi"
 //#define __TRACE
 
+#include <arch/acpi.h>
 #include <arch/utils.h>
 #include <acpiinterface.h>
 #include <stddef.h>
@@ -591,6 +592,7 @@ __ValidatePrt(
     return AE_BAD_DATA;
 }
 
+
 oserr_t
 AcpiPciRoute(
     _In_  ACPI_HANDLE                bus,
@@ -606,12 +608,6 @@ AcpiPciRoute(
     uint32_t                function;
     int                     exact;
     int                     matchedExact = 0;
-
-#if defined(__i386__) || defined(__amd64__)
-    AcpiDevice_t*            device;
-    AcpiInterruptSource_t*   source;
-    AcpiInterruptResource_t* interrupt;
-#endif
 
     acpiStatus = AcpiGetIrqRoutingTable(bus, &buffer);
     if (ACPI_FAILURE(acpiStatus)) {
@@ -667,38 +663,10 @@ AcpiPciRoute(
         goto exit;
     }
 
-    status = OS_ENOTSUPPORTED;
-
-#if defined(__i386__) || defined(__amd64__)
-    // On x86 we keep the existing link device setup and the IRQ it selected.
-    // Match on the _PRT source of the route we found, instead of the old
-    // device/pin cache index, so a route for one function cannot pick up the
-    // link of another function.
-    device = AcpiDeviceLookupHandle(bus);
-    if (!device || !device->Routings || match->SourceIndex != 0) {
-        goto exit;
+    status = ArchAcpiResolvePciLink(bus, match, result);
+    if (status != OS_EOK) {
+        WARNING("ACPI PCI: link %s resolution failed (%u)", match->Source, status);
     }
-
-    source = list_find_value(&device->Routings->Sources, match->Source);
-    if (!source || !source->CurrentInterrupt) {
-        goto exit;
-    }
-
-    interrupt = source->CurrentInterrupt;
-    result->Line = interrupt->Irq;
-    result->Conform = INTERRUPT_ACPICONFORM_PRESENT;
-    if (interrupt->Trigger == ACPI_LEVEL_SENSITIVE) {
-        result->Conform |= INTERRUPT_ACPICONFORM_TRIGGERMODE;
-    }
-    if (interrupt->Polarity == ACPI_ACTIVE_LOW) {
-        result->Conform |= INTERRUPT_ACPICONFORM_POLARITY;
-    }
-    if (interrupt->Shareable) {
-        result->Conform |= INTERRUPT_ACPICONFORM_SHAREABLE;
-    }
-
-    status = OS_EOK;
-#endif
 
 exit:
     AcpiOsFree(buffer.Pointer);

@@ -136,7 +136,7 @@ __DtResolveInterrupt(
 }
 
 static const struct PciHostOperations g_pciAcpiEcamOperations = {
-    .GetDmaDescription = PciHostGetIdentityDma,
+    .GetDmaDescription = PciHostGetAcpiDma,
     .Read = __EcamRead,
     .Write = __EcamWrite
 };

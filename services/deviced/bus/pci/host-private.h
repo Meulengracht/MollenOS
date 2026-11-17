@@ -179,6 +179,10 @@ typedef struct PciHost {
 
     struct PciHostResources    Resources;
     uint32_t                   AcpiRootId;
+    // The kernel read the DMA rules at boot. A failure is stored here instead of
+    // in the window data, so it does not stop the host from being used.
+    uint32_t                   AcpiDmaStatus;
+    AcpiPciDma_t               AcpiDma;
     const struct FdtPciHost*   Firmware;
     uuid_t                     InterruptControllerId;
     // One bit per bus number, covering all 256 PCI buses.
@@ -200,18 +204,20 @@ __PciHostSetState(
 }
 
 /**
- * @brief Copies the ACPI windows of a root into the host. This must be called
- * before the host is registered, and the host must not have any windows yet.
+ * @brief Copies the ACPI root information and CPU windows into a host.
+ * The host must not have any windows yet. The DMA status is copied even when DMA
+ * is not available, so the host can still be used for configuration access and
+ * interrupts.
  *
  * @param host The unregistered host. The copied windows are freed when the host
  *             is torn down.
  * @param root The root information from the kernel. Its Id is used to query the
  *             windows.
- * @return OS_EOK once all windows have been copied. On failure the host is left
- *         unchanged.
+ * @return OS_EOK once the root and all windows have been copied. On failure
+ *         the host is not changed.
  */
 __EXTERN oserr_t
-PciHostLoadAcpiWindows(
+PciHostLoadAcpiRoot(
     _In_ PciHost_t*                host,
     _In_ const struct AcpiPciRoot* root);
 

@@ -39,11 +39,12 @@ struct PciDmaDescription {
 };
 
 /**
- * @brief Describe the DMA translation that this host has successfully configured.
+ * @brief Describe the DMA address rules that apply to this host.
  *
- * The host reports configured hardware settings. Firmware requests alone do not
- * establish a DMA translation. This query does not enable device bus mastering
- * or clear DMA pending.
+ * Hosts with their own DMA controller report the address translation they have
+ * set up. Hosts found through ACPI report the rules the kernel read from the
+ * firmware and checked at boot. This query does not allow a device to start DMA
+ * (bus mastering stays off) and does not clear the DMA pending state.
  *
  * @param host Live host. The owner must exclude setup, reset and destruction
  *             while querying and using the result, as for other host operations.
@@ -72,6 +73,27 @@ PciHostGetDmaDescription(
  */
 __EXTERN oserr_t
 PciHostGetIdentityDma(
+    _In_  PciHost_t*                host,
+    _Out_ struct PciDmaDescription* description);
+
+/**
+ * @brief Turn the DMA rules stored with an ACPI host into address ranges.
+ *
+ * The host must already have its root information loaded, which happens before
+ * enumeration. The ranges describe memory that devices can reach directly, up
+ * to the address limit the kernel reported. The firmware is not asked again, and
+ * no bus-master register is changed. A host with no stored rules gets no DMA.
+ * The host identification is filled in afterwards by PciHostGetDmaDescription,
+ * once this function has succeeded.
+ *
+ * @return OS_EOK on success. OS_ENOTSUPPORTED if the stored rules are missing
+ *         or do not allow direct addressing. OS_EINVALPARAMS if an argument,
+ *         the status or the flags are invalid. The error the kernel stored
+ *         during discovery is returned as is. On failure description is not
+ *         changed.
+ */
+__EXTERN oserr_t
+PciHostGetAcpiDma(
     _In_  PciHost_t*                host,
     _Out_ struct PciDmaDescription* description);
 

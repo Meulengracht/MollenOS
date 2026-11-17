@@ -187,7 +187,7 @@ __EnumerateLegacy(
         host->Identification.BusStart = root->BusStart;
         host->Identification.BusEnd = root->BusEnd;
         
-        status = PciHostLoadAcpiWindows(host, root);
+        status = PciHostLoadAcpiRoot(host, root);
         if (status != OS_EOK) {
             __RecordDiscoveryError(status);
             __DiscardHost(host, NULL);
@@ -261,7 +261,7 @@ __EnumerateEcamWindow(
     }
     
     if (acpiRoot != NULL) {
-        status = PciHostLoadAcpiWindows(host, acpiRoot);
+        status = PciHostLoadAcpiRoot(host, acpiRoot);
         if (status != OS_EOK) {
             __RecordDiscoveryError(status);
             __DiscardHost(host, tree);

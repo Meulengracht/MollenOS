@@ -18,7 +18,7 @@ add_custom_command(
 # The shared ACPICA layer calls the architecture hook only in ACPI builds.
 set(X86_ACPI_SOURCES)
 if (VALI_BUILD_FEATURE_ACPI)
-    list(APPEND X86_ACPI_SOURCES components/acpi.c)
+    list(APPEND X86_ACPI_SOURCES components/acpi.c components/acpi-pci.c)
 endif ()
 
 add_kernel_library(vali-x86 ""

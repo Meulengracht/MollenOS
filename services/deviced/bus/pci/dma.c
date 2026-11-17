@@ -19,6 +19,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <ddk/pci/acpi.h>
 #include <string.h>
 
 #include <bus/pci/dma.h>
@@ -43,6 +44,72 @@ PciHostGetIdentityDma(
     WARNING("PciHostGetIdentityDma: host %p has no identity DMA support on this architecture", host);
     return OS_ENOTSUPPORTED;
 #endif
+}
+
+oserr_t
+PciHostGetAcpiDma(
+    _In_  PciHost_t*                host,
+    _Out_ struct PciDmaDescription* description)
+{
+    struct PciDmaDescription result = { 0 };
+    const AcpiPciDma_t*      policy;
+
+    if (host == NULL || description == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (host->AcpiRootId == 0) {
+        WARNING("PciHostGetAcpiDma: host %u has no ACPI root ID", host->Identification.HostId);
+        return OS_ENOTSUPPORTED;
+    }
+
+    if (!OSERR_VALID(host->AcpiDmaStatus)) {
+        ERROR("PciHostGetAcpiDma: root %u has invalid DMA status %u",
+              host->AcpiRootId, host->AcpiDmaStatus);
+        return OS_EINVALPARAMS;
+    }
+
+    if (host->AcpiDmaStatus != OS_EOK) {
+        WARNING("PciHostGetAcpiDma: host %u root %u DMA policy unavailable (%u)",
+                host->Identification.HostId, host->AcpiRootId, host->AcpiDmaStatus);
+        return (oserr_t)host->AcpiDmaStatus;
+    }
+
+    policy = &host->AcpiDma;
+    if (policy->Flags & ~ACPI_PCI_DMA_DIRECT) {
+        ERROR("PciHostGetAcpiDma: root %u has unknown DMA flags 0x%x",
+              host->AcpiRootId, policy->Flags);
+        return OS_EINVALPARAMS;
+    }
+
+    if (!(policy->Flags & ACPI_PCI_DMA_DIRECT)) {
+        WARNING("PciHostGetAcpiDma: root %u has no direct DMA policy", host->AcpiRootId);
+        return OS_ENOTSUPPORTED;
+    }
+
+    if (policy->CachePolicy != SHMDeviceCacheCoherent) {
+        WARNING("PciHostGetAcpiDma: root %u has unsupported cache policy %u",
+                host->AcpiRootId, policy->CachePolicy);
+        return OS_ENOTSUPPORTED;
+    }
+
+    // The kernel found one set of rules that is valid for every device on this
+    // host. The cache setting has its own enum in this service, separate from
+    // the one in the DDK, so it is converted here.
+    result.CachePolicy = DmDmaCacheCoherent;
+    result.Map.Count = 1;
+
+    // The length is the number of bytes, which would be 2^64 for the full address
+    // range. That does not fit in a uint64_t, so in that case we leave out the
+    // last byte instead of letting the value wrap around to zero.
+    result.Map.Ranges[0].Length = policy->AddressLimit == UINT64_MAX
+        ? UINT64_MAX : policy->AddressLimit + 1;
+    DEBUG("PciHostGetAcpiDma: host %u root %u coherent direct DMA limit=0x%llx",
+          host->Identification.HostId, host->AcpiRootId,
+          (unsigned long long)policy->AddressLimit);
+    
+    *description = result;
+    return OS_EOK;
 }
 
 oserr_t

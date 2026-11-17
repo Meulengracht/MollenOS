@@ -40,6 +40,40 @@ void
 AcpiPciScan(void);
 
 /**
+ * @brief What the firmware tells us about DMA for one PCI root. Devices use DMA
+ * to read and write memory without the CPU copying every byte.
+ *
+ * CoherencyPresent is true when a _CCA value was found, so that a missing _CCA
+ * can be told apart from a _CCA that is set to zero. Coherent is that _CCA value
+ * (true means devices see the same memory as the CPU caches). HasDma is true if a
+ * _DMA object exists on the way down to the root or anywhere below it, even if
+ * the object is empty.
+ */
+typedef struct AcpiPciDmaProperties {
+    bool CoherencyPresent;
+    bool Coherent;
+    bool HasDma;
+} AcpiPciDmaProperties_t;
+
+/**
+ * @brief Reads the DMA information the firmware gave for a PCI root. Call this
+ * only after the whole ACPI namespace has been loaded.
+ *
+ * It finds the first _CCA value that applies to the root and checks whether a
+ * _DMA object exists. The contents of _DMA are not read. The walk stops at a
+ * fixed number of objects and levels. The architecture code decides what to do
+ * with the result.
+ *
+ * @return OS_EOK on success. OS_ENOTSUPPORTED if the walk limit was reached or
+ *         \_SB does not exist. Another error if a value is invalid or the
+ *         firmware code fails. On failure propertiesOut is not changed.
+ */
+KERNELABI oserr_t KERNELAPI
+AcpiPciReadDmaProperties(
+    _In_  ACPI_HANDLE             rootHandle,
+    _Out_ AcpiPciDmaProperties_t* propertiesOut);
+
+/**
  * @brief Answers an ACPI PCI query from userspace, using the list of PCI roots
  * built by AcpiPciScan.
  *

@@ -20,6 +20,8 @@
 #define __VALI_ARCH_ACPI_H__
 
 #include <os/osdefs.h>
+#include <acpi.h>
+#include <ddk/pci/acpi.h>
 
 /**
  * @brief Reads ACPI tables needed to configure this architecture's platform.
@@ -37,6 +39,45 @@
  */
 __EXTERN oserr_t
 ArchAcpiInitialize(void);
+
+/**
+ * @brief Works out how devices below one PCI root are allowed to use DMA.
+ *
+ * This is called while the PCI roots are discovered, after the ACPI namespace
+ * has been loaded. Each architecture decides what it accepts: what happens when
+ * the firmware says nothing about cache coherency, which namespace layouts it
+ * can handle, and which other firmware tables it must check. The answer is
+ * stored with the root before any user-space program runs. No device is touched.
+ *
+ * @return OS_EOK on success. OS_ENOTSUPPORTED if the firmware information is
+ *         missing or this architecture cannot use it. Another error if the
+ *         information is invalid or memory runs out. On failure dmaOut is not
+ *         changed.
+ */
+KERNELABI oserr_t KERNELAPI
+ArchAcpiGetPciDma(
+    _In_  ACPI_HANDLE               rootHandle,
+    _In_  const struct AcpiPciRoot*  root,
+    _Out_ AcpiPciDma_t*             dmaOut);
+
+/**
+ * @brief Finds the interrupt behind a named link in a PCI interrupt route.
+ *
+ * Some routes in the _PRT table do not name an interrupt directly. They name a
+ * link object instead, and the interrupt is found by looking that object up.
+ * The caller has already checked the route, and route->Source holds the link
+ * name. The name is looked up starting from bus, and the interrupt that is
+ * already set up for it is returned. Nothing is assigned or reconfigured here.
+ *
+ * @return OS_EOK on success. OS_ENOTSUPPORTED if this kind of link cannot be
+ *         handled. Another error if the lookup fails or the link resource is
+ *         invalid. On failure result is not changed.
+ */
+KERNELABI oserr_t KERNELAPI
+ArchAcpiResolvePciLink(
+    _In_  ACPI_HANDLE                   bus,
+    _In_  const ACPI_PCI_ROUTING_TABLE* route,
+    _Out_ struct AcpiPciInterrupt*      result);
 
 /**
  * @brief Selects the cache attributes to use when ACPICA maps a physical range.

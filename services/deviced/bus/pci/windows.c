@@ -22,7 +22,7 @@
 #include <stdlib.h>
 
 oserr_t
-PciHostLoadAcpiWindows(
+PciHostLoadAcpiRoot(
     _In_ PciHost_t*               host,
     _In_ const struct AcpiPciRoot* root)
 {
@@ -68,6 +68,8 @@ PciHostLoadAcpiWindows(
     host->Resources.Present = 1;
     host->Resources.AssignBars = 0;
     host->AcpiRootId = root->Id;
+    host->AcpiDmaStatus = root->DmaStatus;
+    host->AcpiDma = root->Dma;
     return OS_EOK;
 }
 
