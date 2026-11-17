@@ -13,6 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Handle wrapper for shared-memory CPU sessions, DMA contexts, DMA mappings,
+ * and DMA region sessions. Serializes system calls per handle and drives
+ * cleanup when a handle closes or its process exits.
  */
 
 #ifndef __SHM_RECORD_H__
@@ -29,35 +33,50 @@ DECL_STRUCT(SHMRecord);
 /**
  * @brief Callbacks for a kernel handle of type HandleTypeSHMAccess.
  *
- * Release runs when user code explicitly closes the resource. Returning an error
+ * Release runs when user code explicitly closes the handle. Returning an error
  * leaves the object alive so the caller can try closing it again.
- * Cleanup runs when setup or publication fails, when the last handle reference
- * goes away, or when every thread in the process group exits. It must either
- * free the object or lock its memory range until the hardware has stopped.
+ * Cleanup runs when setup or handle publication fails, when the last handle
+ * reference drops, or when every thread in the process group exits. It must
+ * either free the object or lock its memory range until the hardware stops.
  *
- * Both Release and Cleanup receive a pointer to the object slot (void**) and
- * must set that slot to NULL once cleanup finishes. Begin and End can be NULL
- * if the resource does not support range access. Keep the Ops table valid in
- * memory for as long as the record lives.
+ * Both Release and Cleanup own record->Object while they run. They must set it
+ * to NULL once the object is gone, and leave it set when the object survives so
+ * a later retry can find it. Most resources use SHMRecordDetachObject before
+ * destroying the object, so an interrupted thread never leaves record->Object
+ * pointing at freed memory, and SHMRecordAttachObject afterwards to keep
+ * whatever is left. A resource whose teardown can be interrupted and retried
+ * leaves record->Object set until the object is unlinked, and clears it itself.
+ *
+ * Begin and End can be NULL if the resource does not support range access.
+ * Keep Ops valid in memory for as long as the record lives.
  *
  * CancelOperation is optional. It runs during process shutdown when a thread
  * was interrupted inside a blocked system call (such as waiting for a busy
- * memory range), and runs after all threads in the group have stopped even if
- * Object is NULL. Returning an error leaves PendingOperation set and keeps the
- * record alive, which prevents Cleanup from running on memory that might still
- * be in use.
+ * memory range). It runs after all threads in the process group have stopped,
+ * even if Object is NULL. Returning an error leaves PendingOperation set and
+ * keeps the record alive, so Cleanup never frees memory that might still be in
+ * use by hardware or a stalled wait.
  */
 typedef struct SHMRecordOps {
-    oserr_t (*Release)(SHMRecord_t*, void**);
-    oserr_t (*Cleanup)(SHMRecord_t*, void**);
+    oserr_t (*Release)(SHMRecord_t*);
+    oserr_t (*Cleanup)(SHMRecord_t*);
     oserr_t (*Begin)(SHMRecord_t*, const struct SHMAccessBeginParameters*, OSAsyncContext_t*);
     oserr_t (*End)(SHMRecord_t*, const struct SHMAccessEndParameters*);
     oserr_t (*CancelOperation)(SHMRecord_t*);
 } SHMRecordOps_t;
 
+/**
+ * @brief Serializes system calls on one SHMRecord.
+ *
+ * Only one caller moves a record from Idle to Updating at a time, so concurrent
+ * syscalls on the same handle fail fast with OS_EBUSY instead of racing.
+ */
 enum SHMRecordState {
+    // No system call or teardown holds the record right now.
     SHMRecordIdle,
+    // Setup, teardown, or an active system call holds the record exclusively.
     SHMRecordUpdating,
+    // The handle has been removed and can no longer be looked up.
     SHMRecordClosed
 };
 
@@ -67,7 +86,8 @@ enum SHMRecordState {
  * The kernel handle table controls which process can look up this record and
  * when it gets freed. State makes sure only one system call touches the record
  * at a time, returning OS_EBUSY right away when another call is already running
- * on it.
+ * on it. PendingOperation points to any mid-flight wait or region call so
+ * process-exit cleanup can cancel or finish it before running Cleanup.
  */
 typedef struct SHMRecord {
     uuid_t                       Handle;
@@ -76,6 +96,39 @@ typedef struct SHMRecord {
     void*                        Object;
     void*                        PendingOperation;
 } SHMRecord_t;
+
+/**
+ * @brief Takes the object out of a record before it is destroyed.
+ *
+ * Clears record->Object so the record never points at an object that is being
+ * freed. Pair this with SHMRecordAttachObject once the destroy call returns.
+ *
+ * @param record Record in the Updating state.
+ * @return The object that was stored in the record, or NULL if it had none.
+ */
+static inline void*
+SHMRecordDetachObject(
+    _In_ SHMRecord_t* record)
+{
+    void* object = record->Object;
+    record->Object = NULL;
+    return object;
+}
+
+/**
+ * @brief Puts back whatever is left of an object after a destroy attempt.
+ *
+ * @param record Record in the Updating state.
+ * @param object The object pointer left by the destroy call. NULL if the
+ *               object was destroyed.
+ */
+static inline void
+SHMRecordAttachObject(
+    _In_ SHMRecord_t* record,
+    _In_ void*        object)
+{
+    record->Object = object;
+}
 
 /**
  * @brief Creates a new record in the Updating state with its initial handle reference.
@@ -142,9 +195,10 @@ SHMRecordRelease(
  * handle teardown can try again later. If the slot is empty there is nothing to
  * clean up and no callback runs.
  *
- * This does not cancel operations, close the record or end a parent operation.
- * Keep any parent operation open while Cleanup runs, then remove the failed
- * record with SHMRecordRemove.
+ * This does not cancel operations, close the record, or end a parent
+ * operation (for example, a submit operation keeping a parent mapping alive
+ * while a child session is torn down). Keep any parent operation open while
+ * Cleanup runs, then remove the failed record with SHMRecordRemove.
  *
  * @param record Record that is in the Updating state.
  * @return OS_EOK if the slot was empty or Cleanup succeeded. Otherwise the

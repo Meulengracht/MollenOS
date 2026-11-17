@@ -46,6 +46,7 @@ add_kernel_library (vali-core-memory ""
     dma/domain.c
     dma/connection.c
     dma/binding.c
+    dma/region_operation.c
     dma/groups.c
     dma/recovery.c
     dma/events.c
@@ -55,9 +56,13 @@ add_kernel_library (vali-core-memory ""
     shm/view.c
     shm/access.c
     shm/region.c
+    shm/region_usage.c
     shm/device/device.c
     shm/device/layout.c
     shm/device/cleanup.c
     shm/device/attachment.c
     shm/device/context.c
+    shm/device/region_mapping.c
+    shm/device/region_session.c
+    shm/device/region_use.c
 )

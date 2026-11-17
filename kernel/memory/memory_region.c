@@ -13,6 +13,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Picks a physical address range from the boot loader's memory map for the
+ * system's reserved DMA device memory pool.
  */
 
 #include <component/memory.h>
@@ -21,25 +24,32 @@
 /**
  * @brief Accept a loader-marked range only if it can be used as given.
  *
- * ARM64 maps the pool in whole 2 MiB uncached blocks, so a range off the
- * required alignment would leave part of it with a cached view.
+ * On ARM64, the pool is mapped with uncached 2 MiB blocks. Any range whose start
+ * or length is off that alignment would share a block with normal cached RAM,
+ * creating mixed cached and uncached mappings for the same memory. The last
+ * byte must also stay at or below limit, checked without adding Base + Length
+ * so 64-bit address arithmetic cannot wrap around.
  */
 static bool
 __LoaderRangeUsable(
     _In_ const struct VBootMemoryEntry* entry,
+    _In_ paddr_t                        limit,
     _In_ size_t                         alignment)
 {
-    if (entry->Length == 0) {
+    if (entry->Length == 0 || entry->Length > SIZE_MAX || entry->PhysicalBase > limit) {
+        return false;
+    }
+    if (entry->Length - 1 > limit - entry->PhysicalBase) {
         return false;
     }
     return entry->PhysicalBase % alignment == 0 && entry->Length % alignment == 0;
 }
 
 /**
- * @brief Find the highest start in one available range for the default pool.
+ * @brief Find the highest aligned start for a size-byte pool inside one entry.
  *
- * Works with the last usable byte rather than an end address, so a range
- * reaching the top of the physical address space cannot wrap.
+ * Tracks the inclusive last usable byte instead of an exclusive end address,
+ * so ranges reaching the top of physical memory cannot overflow.
  */
 static bool
 __HighestStart(
@@ -56,6 +66,7 @@ __HighestStart(
         return false;
     }
 
+    // Clamp the entry's top byte to limit before backing down by size bytes.
     last = entry->PhysicalBase + (entry->Length - 1);
     if (last < entry->PhysicalBase || last > limit) {
         last = limit;
@@ -64,6 +75,8 @@ __HighestStart(
         return false;
     }
 
+    // Round the candidate start downward to a multiple of alignment, then verify
+    // it still sits inside this memory map entry.
     base = (last - (size - 1)) & ~(uint64_t)(alignment - 1);
     if (base < entry->PhysicalBase) {
         return false;
@@ -93,20 +106,22 @@ SystemMemoryFitDeviceRegion(
         return OS_EINVALPARAMS;
     }
 
-    // A range the loader chose, for example from a device tree
-    // shared-dma-pool node, takes priority over the default choice.
+    // Pass 1: honor a loader-reserved pool (for example, from a device tree
+    // shared-dma-pool node) using its own length when it meets our constraints.
     entries = (const struct VBootMemoryEntry*)(uintptr_t)boot->Memory.Entries;
     for (unsigned int i = 0; i < boot->Memory.NumberOfEntries; i++) {
         if (entries[i].Type != VBootMemoryType_DevicePool) {
             continue;
         }
-        if (__LoaderRangeUsable(&entries[i], alignment)) {
+        if (__LoaderRangeUsable(&entries[i], limit, alignment)) {
             *baseOut = (paddr_t)entries[i].PhysicalBase;
             *lengthOut = (size_t)entries[i].Length;
             return OS_EOK;
         }
     }
 
+    // Pass 2: pick the highest aligned fallback block below limit so lower
+    // physical addresses remain free for 32-bit or narrower devices.
     for (unsigned int i = 0; i < boot->Memory.NumberOfEntries; i++) {
         if (entries[i].Type != VBootMemoryType_Available) {
             continue;

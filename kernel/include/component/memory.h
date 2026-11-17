@@ -59,12 +59,18 @@ typedef struct SystemMemoryAllocator {
     SystemMemoryAllocatorRegion_t Region[MEMORY_MASK_COUNT];
 } SystemMemoryAllocator_t;
 
+/**
+ * @brief Physical memory pool reserved at boot for DMA devices.
+ *
+ * Devices with limited address ranges or uncached buffer needs allocate from
+ * this range through a spinlock-guarded stack instead of general RAM.
+ */
 typedef struct SystemMemoryDeviceRegion {
     paddr_t           Base;
     size_t            Length;
     MemoryStack_t     Stack;
     Spinlock_t        Lock;
-    // Whether the device memory region is cached for CPU access.
+    // True when CPU mappings of this region use normal write-back caching.
     bool              Cached;
 } SystemMemoryDeviceRegion_t;
 
@@ -77,6 +83,12 @@ typedef struct SystemMemory {
     SystemMemoryDeviceRegion_t DeviceMemory;
 } SystemMemory_t;
 
+/**
+ * @brief Tracks one contiguous allocation taken from the device memory pool.
+ *
+ * Zero-initialize this record before calling SystemMemoryAllocateDevice, and
+ * keep it until SystemMemoryReleaseAllocation frees the pages back to Owner.
+ */
 struct SystemMemoryAllocation {
     SystemMemory_t* Owner;
     paddr_t         PhysicalBase;
@@ -133,22 +145,25 @@ SystemMemoryContainsAddress(
     _In_ uintptr_t       address);
 
 /**
- * @brief Decide where the system's device pool goes, from the loader's map.
+ * @brief Choose where the boot-time device memory pool sits in physical RAM.
  *
- * A range the loader marked as VBootMemoryType_DevicePool is prioritized, when it is
- * aligned to alignment. Otherwise the highest available RAM that fits size
- * bytes, starting on a multiple of alignment and ending at or below limit, is
- * used; the highest is chosen to leave the lowest memory for devices with the
- * tightest address limits. This function does not modify the memory map.
+ * Devices often need bounce buffers or uncached shared pages in a fixed pool.
+ * If the boot loader marked a VBootMemoryType_DevicePool range whose start and
+ * length are multiples of alignment and whose last byte is at or below limit,
+ * this picks that range with its own length. Otherwise it picks a size-byte
+ * aligned block as high as possible at or below limit. Putting the pool high
+ * leaves lower physical addresses free for devices that can only reach low RAM.
+ * The boot memory map itself is left unchanged.
  *
- * @param boot Loader information with the physical memory map.
- * @param size Default pool size; a multiple of alignment.
- * @param limit Last physical address the default pool may use, inclusive.
- * @param alignment Power of two the pool's start and size must be multiples of.
- * @param baseOut Receives the pool's first physical address.
- * @param lengthOut Receives the pool's size in bytes.
- * @return OS_EOK; OS_EINVALPARAMS for NULL arguments or a bad size or
- *         alignment; OS_ENOENT if no range fits.
+ * @param boot      Boot loader state carrying the physical memory map.
+ * @param size      Fallback pool size in bytes when no loader pool qualifies.
+ *                  Must be nonzero and a multiple of alignment.
+ * @param limit     Highest physical byte address the pool may reach, inclusive.
+ * @param alignment Power-of-two alignment required for both start and length.
+ * @param baseOut   Receives the chosen first physical address on success.
+ * @param lengthOut Receives the chosen size in bytes on success.
+ * @return OS_EOK on success, OS_EINVALPARAMS for NULL pointers or invalid size
+ *         or alignment, or OS_ENOENT if no range fits below limit.
  */
 oserr_t
 SystemMemoryFitDeviceRegion(
@@ -160,20 +175,23 @@ SystemMemoryFitDeviceRegion(
     _Out_ size_t*             lengthOut);
 
 /**
- * @brief Register the component's reserved device region. This must only be called
- * once during boot.
- * 
- * The memory range must be excluded from ordinary free ranges and consistent
- * CPU mappings must be arranged before registration. Storage and the component live for the
- * lifetime of the system. A failed registration leaves the component unchanged.
- * 
- * @param systemMemory Constructed memory component, with a valid BlockSize.
- * @param base First physical byte of the reserved range.
- * @param length Nonzero length in whole pages.
- * @param cached Whether CPU mappings of the range are cached.
- * @param storage Aligned range metadata, kept alive for the region's lifetime.
- * @param storageSize At least MemoryStackCalculateSize(length / BlockSize) bytes.
- * @return OS_EOK, OS_EBUSY if registered, or the backend validation error.
+ * @brief Register the reserved device memory pool on this component.
+ *
+ * Call this once during boot after excluding the range from normal page
+ * allocators. When cached is false, all CPU page tables covering this range
+ * must already map it uncached so CPU accesses match the pool policy. Both
+ * systemMemory and storage must stay alive for the lifetime of the system. If
+ * registration fails, systemMemory stays unchanged.
+ *
+ * @param systemMemory Constructed memory component with a power-of-two BlockSize.
+ * @param base         First physical byte of the reserved pool, page-aligned.
+ * @param length       Nonzero pool size in bytes, a whole number of pages.
+ * @param cached       True if CPU mappings of this pool use caching.
+ * @param storage      Backing metadata buffer for the page stack, kept alive forever.
+ * @param storageSize  Size of storage in bytes. Must be at least
+ *                     MemoryStackCalculateSize(length / BlockSize).
+ * @return OS_EOK on success, OS_EBUSY if already registered, OS_ENOTSUPPORTED if
+ *         the pool is too large, or OS_EINVALPARAMS for invalid geometry or storage.
  */
 oserr_t
 SystemMemoryInitializeDeviceRegion(
@@ -185,8 +203,17 @@ SystemMemoryInitializeDeviceRegion(
     _In_ size_t          storageSize);
 
 /**
- * @brief Allocate memory from the device region.
- * Stores the allocation details in the provided record.
+ * @brief Allocate contiguous pages from the reserved device memory pool.
+ *
+ * Rounds length up to whole BlockSize pages and fills allocation on success.
+ *
+ * @param systemMemory Memory component with an initialized device pool.
+ * @param length       Requested byte count.
+ * @param alignment    Required start alignment in bytes, or 0 for page alignment.
+ * @param boundary     Power-of-two address boundary the block must not cross, or 0 for none.
+ * @param allocation   Caller record with Owner set to NULL. Filled on success.
+ * @return OS_EOK on success, OS_EBUSY if allocation is already in use,
+ *         OS_ENOTSUPPORTED if no device pool is registered, or an allocator error.
  */
 oserr_t
 SystemMemoryAllocateDevice(
@@ -197,8 +224,14 @@ SystemMemoryAllocateDevice(
     _InOut_ struct SystemMemoryAllocation* allocation);
 
 /**
- * @brief Free an allocation and clear the record.
- * @return OS_EOK, or a release error with ownership retained for the caller.
+ * @brief Return pages allocated by SystemMemoryAllocateDevice to the pool.
+ *
+ * A zeroed record (Owner == NULL) succeeds right away. If freeing fails,
+ * allocation stays unchanged so the caller can retry later.
+ *
+ * @param allocation Allocation record filled by SystemMemoryAllocateDevice.
+ *                   Cleared on success.
+ * @return OS_EOK on success, OS_EINVALPARAMS for NULL, or a stack push error.
  */
 oserr_t
 SystemMemoryReleaseAllocation(

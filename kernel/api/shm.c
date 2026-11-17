@@ -32,25 +32,12 @@
 static oserr_t
 __ReleaseObject(
     _In_ SHMRecord_t* record,
-    _In_ oserr_t    (*operation)(SHMRecord_t*, void**))
+    _In_ oserr_t    (*operation)(SHMRecord_t*))
 {
-    void*   object = record->Object;
-    oserr_t status;
-
-    if (object == NULL) {
+    if (record->Object == NULL) {
         return OS_EOK;
     }
-
-    // Clear the object pointer before calling the release operation. If the
-    // thread is stopped halfway through, the record must not be left pointing
-    // at a freed object. On failure we put the pointer back.
-    record->Object = NULL;
-
-    status = operation(record, &object);
-    if (status != OS_EOK) {
-        record->Object = object;
-    }
-    return status;
+    return operation(record);
 }
 
 static void
@@ -233,26 +220,23 @@ SHMRecordRemove(
 
 static oserr_t
 __ReleaseCpu(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
-    struct SHMAccess* access = *object;
+    struct SHMAccess* access = SHMRecordDetachObject(record);
     oserr_t           status;
-    (void)record;
 
     status = SHMAccessDestroy(&access);
-    *object = access;
+    SHMRecordAttachObject(record, access);
     return status;
 }
 
 static oserr_t
 __CleanupCpu(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
     dma_mb();
-    SHMAccessEnd(*object);
-    return __ReleaseCpu(record, object);
+    SHMAccessEnd(record->Object);
+    return __ReleaseCpu(record);
 }
 
 static oserr_t

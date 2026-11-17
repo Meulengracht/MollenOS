@@ -22,29 +22,25 @@
 
 static oserr_t
 __ReleaseRegionSession(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
-    struct SHMRegionCpuSession* session = *object;
+    struct SHMRegionCpuSession* session = SHMRecordDetachObject(record);
     oserr_t                     status;
-    (void)record;
 
     status = SHMRegionCpuDestroy(&session, false);
-    *object = session;
+    SHMRecordAttachObject(record, session);
     return status;
 }
 
 static oserr_t
 __CleanupRegionSession(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
-    struct SHMRegionCpuSession* session = *object;
+    struct SHMRegionCpuSession* session = SHMRecordDetachObject(record);
     oserr_t                     status;
-    (void)record;
 
     status = SHMRegionCpuDestroy(&session, true);
-    *object = session;
+    SHMRecordAttachObject(record, session);
     return status;
 }
 

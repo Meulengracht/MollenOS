@@ -33,51 +33,44 @@
 
 static oserr_t
 __CleanupContext(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
-    struct SHMDeviceContext* context = *object;
-    (void)record;
+    struct SHMDeviceContext* context = SHMRecordDetachObject(record);
 
     SHMDeviceContextAbandon(&context);
-    *object = context;
+    SHMRecordAttachObject(record, context);
     return OS_EOK;
 }
 
 static oserr_t
 __ReleaseContext(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
-    struct SHMDeviceContext* context = *object;
+    struct SHMDeviceContext* context = SHMRecordDetachObject(record);
     oserr_t                  status;
-    (void)record;
 
     status = SHMDeviceContextClose(&context);
-    *object = context;
+    SHMRecordAttachObject(record, context);
     return status;
 }
 
 static oserr_t
 __CleanupMapping(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
-    struct SHMDeviceMapping* mapping = *object;
+    struct SHMDeviceMapping* mapping = SHMRecordDetachObject(record);
     oserr_t                  status;
-    (void)record;
 
     status = SHMDeviceAbandon(&mapping);
-    *object = mapping;
+    SHMRecordAttachObject(record, mapping);
     return status;
 }
 
 static oserr_t
 __UnmapMapping(
-    _In_    SHMRecord_t* record,
-    _InOut_ void**       object)
+    _In_ SHMRecord_t* record)
 {
-    SHMDeviceMapping_t*   mapping = *object;
+    SHMDeviceMapping_t*   mapping = record->Object;
     SHMDeviceOperation_t* operation = NULL;
     oserr_t               status;
 
@@ -87,12 +80,13 @@ __UnmapMapping(
         return status;
     }
 
+    SHMRecordDetachObject(record);
     status = SHMDeviceUnmap(operation, &mapping);
     if (status != OS_EOK) {
         ERROR("__UnmapMapping: SHMDeviceUnmap resource %u failed: %u", record->Handle, status);
     }
 
-    *object = mapping;
+    SHMRecordAttachObject(record, mapping);
 
     // SHMDeviceUnmap can drop the mapping's initial reference, so the operation
     // token keeps the mapping struct alive until SHMDeviceOperationEnd returns.
@@ -242,6 +236,8 @@ static const SHMRecordOps_t g_mappingOps = {
     .CancelOperation = SHMDeviceOperationCancel
 };
 
+// Check that a generic SHM record holds a DMA mapping before reading
+// record->Object as a SHMDeviceMapping_t pointer.
 bool
 SHMDeviceIsMappingRecord(
     _In_ const SHMRecord_t* record)
@@ -509,6 +505,9 @@ ScDmaMapShm(
         return status;
     }
 
+    // Map the requested flags to the exact kernel mapping mode. Region and
+    // persistent mappings always require direct original pages, and cannot be
+    // combined with each other.
     switch (parameters.Flags) {
         case DMA_MAP_REQUIRE_DIRECT | DMA_MAP_REGIONS:
             kind = SHMDeviceMappingRegions;

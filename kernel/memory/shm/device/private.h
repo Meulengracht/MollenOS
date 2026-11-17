@@ -36,8 +36,8 @@
 // Tracks what an active device operation is currently doing.
 // Running:        allocating, copying, or syncing caches. Process exit cannot
 //                 safely undo partial work in this phase.
-// RangeAdmission: waiting for a conflicting CPU or device range access to
-//                 clear. Process exit can safely cancel this wait.
+// RangeAdmission: waiting for a conflicting CPU or device lock on the byte
+//                 range to clear. Process exit can safely cancel this wait.
 enum SHMDeviceOperationPhase {
     SHMDeviceOperationRunning,
     SHMDeviceOperationRangeAdmission
@@ -47,7 +47,8 @@ enum SHMDeviceOperationPhase {
  * @brief Tracks how far operation setup got, so a failed start can be undone.
  *
  * Setup takes a context reference, then a mapping reference, then registers
- * the operation with the binding's recovery group. Each value means all the
+ * the operation with the binding's recovery group (the set of devices on a
+ * shared bus or reset line that must stop together). Each value means all
  * earlier steps are done. Operations on a context alone skip the mapping step.
  * Once fully set up (Counted), the operation is part of the recovery group's
  * count of running operations. The group waits for that count to reach zero
@@ -71,7 +72,7 @@ enum SHMDeviceOperationSetup {
  * the process has stopped, and uses them to tell an interrupted call from an
  * idle handle. The references taken here keep the struct and context in memory
  * even if unmap drops the mapping's initial reference. Only changing the
- * recovery group's counter needs group->Lock.
+ * recovery group's counter needs the group's access spinlock.
  */
 struct SHMDeviceOperation {
     SHMRecord_t*                  Record;
@@ -208,7 +209,9 @@ struct SHMDeviceMapping {
     };
 
     // Non-NULL only for SHMDeviceMappingRegions mappings. Holds per-region
-    // cache/fault state and the list of open device region sessions.
+    // cache and fault state plus the list of open device region sessions.
+    // Region mappings track access with per-region usage counters instead of
+    // the shared Access range list used by streaming and persistent mappings.
     struct SHMDeviceRegions*  Regions;
     SHMSG_t*                  Extents;
     int                       ExtentCount;
