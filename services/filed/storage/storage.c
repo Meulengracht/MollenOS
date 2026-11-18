@@ -29,6 +29,8 @@
 
 #include <sys_storage_service_server.h>
 
+static void __StorageDestroy(struct VFSStorage* storage, unsigned int flags);
+
 static list_t            g_disks = LIST_INIT;
 static struct usched_mtx g_diskLock;
 
@@ -61,24 +63,34 @@ VFSStorageNew(
     return storage;
 }
 
-static void __DestroyFilesystem(
-        _In_ element_t* item,
-        _In_ void*      context)
-{
-    FileSystem_t* fileSystem = (FileSystem_t*)item;
-    _CRT_UNUSED(context);
-    FileSystemDestroy(fileSystem);
-}
-
 void
 VFSStorageDelete(
         _In_ struct VFSStorage* storage)
 {
+    element_t* item;
+
     if (storage == NULL) {
         return;
     }
 
-    list_clear(&storage->Filesystems, __DestroyFilesystem, NULL);
+    // Take the filesystems off the list one at a time and destroy them after
+    // the list lock is released. list_clear would call FileSystemDestroy while
+    // holding the list spinlock, and FileSystemDestroy can wait (VFSDestroy
+    // closes open handles and may yield).
+    for (;;) {
+        item = list_front(&storage->Filesystems);
+        if (item == NULL) {
+            break;
+        }
+
+        if (list_remove(&storage->Filesystems, item) != 0) {
+            ERROR("VFSStorageDelete failed to remove filesystem from storage");
+            break;
+        }
+        FileSystemDestroy((FileSystem_t*)item->value);
+    }
+
+    mstr_delete(storage->DirectoryPath);
     free(storage);
 }
 
@@ -197,19 +209,49 @@ __StorageMount(
     }
     TRACE("__StorageMount mounting at %ms", path);
 
-    // TODO we should probably be using VFSNodeMkdir instead and keep a handle
-    // on the directory for the lifetime of the storage.
+    // The path is kept in the storage so __StorageRemoveDirectory can remove
+    // the directory again when the storage is unregistered. A directory that
+    // already exists (OS_EEXISTS) was not created here and is not kept.
     osStatus = VFSNodeNewDirectory(
             fsScope, path,
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE,
             &deviceNode
     );
     if (osStatus != OS_EOK) {
-        ERROR("__StorageMount failed to create node %ms", path);
+        ERROR("__StorageMount failed to create node %ms: %u", path, osStatus);
+        mstr_delete(path);
+        return osStatus;
     }
 
-    mstr_delete(path);
-    return osStatus;
+    storage->DirectoryPath = path;
+    return OS_EOK;
+}
+
+// Removes the directory /storage/<Serial> that __StorageMount created. The
+// filesystem mount directories below it must already be removed (see
+// VFSFileSystemUnmount), as VFSNodeUnlink refuses a directory with children.
+static void
+__StorageRemoveDirectory(
+        _In_ struct VFSStorage* storage)
+{
+    char*   path;
+    oserr_t oserr;
+
+    if (storage->DirectoryPath == NULL) {
+        return;
+    }
+
+    path = mstr_u8(storage->DirectoryPath);
+    if (path == NULL) {
+        ERROR("__StorageRemoveDirectory failed to convert path %ms", storage->DirectoryPath);
+        return;
+    }
+
+    oserr = VFSNodeUnlink(VFSScopeGet(UUID_INVALID), path);
+    if (oserr != OS_EOK) {
+        ERROR("__StorageRemoveDirectory failed to remove %s: %u", path, oserr);
+    }
+    free(path);
 }
 
 void sys_storage_register_invocation(struct gracht_message* message,
@@ -232,24 +274,43 @@ void sys_storage_register_invocation(struct gracht_message* message,
     list_append(&g_disks, &storage->ListHeader);
     usched_mtx_unlock(&g_diskLock);
 
+    // Mounting and parsing wait for IPC, so an unregister for this device can
+    // run in between. While State is VFSSTORAGE_STATE_INITIALIZING, unregister
+    // only marks the storage, and the end of this function tears it down.
+
     // Next thing is mounting the storage device as a folder
     oserr = __StorageMount(storage);
     if (oserr != OS_EOK) {
         ERROR("__StorageSetup mounting storage device failed: %u", oserr);
-        goto error;
+        goto exit;
     }
 
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
     oserr = VFSStorageParse(storage);
     if (oserr != OS_EOK) {
-        goto error;
+        ERROR("sys_storage_register_invocation failed to parse storage for device %u: %u", deviceId, oserr);
     }
 
-    storage->State = VFSSTORAGE_STATE_CONNECTED;
-    return;
-error:
-    storage->State = VFSSTORAGE_STATE_DISCONNECTED;
+exit:
+    // The pending check and the state change must happen under the same lock
+    // as unregister's state check, or an unregister could be lost in between.
+    usched_mtx_lock(&g_diskLock);
+    if (storage->UnregisterPending) {
+        if (list_remove(&g_disks, &storage->ListHeader) != 0) {
+            ERROR("sys_storage_register_invocation storage for device %u was not in the disk list", deviceId);
+        }
+        usched_mtx_unlock(&g_diskLock);
+
+        TRACE("sys_storage_register_invocation device %u was unregistered during registration", deviceId);
+        __StorageDestroy(storage, storage->UnregisterFlags);
+        return;
+    }
+
+    // A storage that failed to mount or parse stays in the list as
+    // disconnected, so its unregister still finds it and removes what was set up.
+    storage->State = oserr == OS_EOK ? VFSSTORAGE_STATE_CONNECTED : VFSSTORAGE_STATE_DISCONNECTED;
+    usched_mtx_unlock(&g_diskLock);
 }
 
 // Unmounts each filesystem on the storage and disconnects its interface. The
@@ -281,6 +342,20 @@ __StorageUnmount(
     usched_mtx_unlock(&fsStorage->Lock);
 }
 
+// Tears down a storage that is no longer in g_disks. The filesystems are
+// unmounted (which removes their mount directories) and disconnected first.
+// Then the device directory can be removed, as it is empty, and
+// VFSStorageDelete destroys the filesystems and frees the storage.
+static void
+__StorageDestroy(
+        _In_ struct VFSStorage* storage,
+        _In_ unsigned int       flags)
+{
+    __StorageUnmount(storage, flags);
+    __StorageRemoveDirectory(storage);
+    VFSStorageDelete(storage);
+}
+
 void sys_storage_unregister_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t forced)
 {
     element_t*         header;
@@ -289,19 +364,29 @@ void sys_storage_unregister_invocation(struct gracht_message* message, const uui
 
     usched_mtx_lock(&g_diskLock);
     header = list_find(&g_disks, (void*)(uintptr_t)deviceId);
-    if (header) {
-        list_remove(&g_disks, header);
-    }
-    usched_mtx_unlock(&g_diskLock);
-
     if (header == NULL) {
+        usched_mtx_unlock(&g_diskLock);
         WARNING("sys_storage_unregister_invocation no storage registered for device %u", deviceId);
         return;
     }
 
-    // Unmount and disconnect first, then VFSStorageDelete destroys the
-    // filesystems and frees the storage.
+    // Registration is still mounting or parsing this storage and uses it until
+    // it finishes. Leave the storage in place and let registration tear it down.
     fsStorage = header->value;
-    __StorageUnmount(fsStorage, forced);
-    VFSStorageDelete(fsStorage);
+    if (fsStorage->State == VFSSTORAGE_STATE_INITIALIZING) {
+        fsStorage->UnregisterPending = true;
+        fsStorage->UnregisterFlags = forced;
+        usched_mtx_unlock(&g_diskLock);
+        TRACE("sys_storage_unregister_invocation device %u is still registering, teardown deferred", deviceId);
+        return;
+    }
+
+    if (list_remove(&g_disks, header) != 0) {
+        usched_mtx_unlock(&g_diskLock);
+        ERROR("sys_storage_unregister_invocation failed to remove storage for device %u", deviceId);
+        return;
+    }
+    usched_mtx_unlock(&g_diskLock);
+
+    __StorageDestroy(fsStorage, forced);
 }

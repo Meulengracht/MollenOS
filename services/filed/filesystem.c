@@ -100,7 +100,7 @@ FileSystemNew(
 {
     FileSystem_t* fileSystem;
     TRACE("FileSystemNew(storage=%u, partition=%i, sector=%llu)",
-          &storage->ID, partitionIndex, sector->QuadPart);
+          storage->ID, partitionIndex, sector->QuadPart);
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -138,7 +138,7 @@ FileSystemDestroy(
         _In_ FileSystem_t* fileSystem)
 {
     TRACE("FileSystemDestroy(storage=%u, sector=%llu)",
-          &fileSystem->Storage->ID,
+          fileSystem->Storage->ID,
           fileSystem->SectorStart.QuadPart);
 
     // Unmount and destroy all resources related to the VFS
@@ -148,7 +148,12 @@ FileSystemDestroy(
     // resources which are bound to this.
     __DestroyDriver(fileSystem);
 
+    // Return the identifier VFSStorageRegisterPartition allocated for this
+    // filesystem, so a disk that is registered again gets the same ones.
+    VFSIdentifierFree(fileSystem->Storage, fileSystem->ID);
+
     // Cleanup memory allocated by this subsystem
+    mstr_delete(fileSystem->MountPath);
     free(fileSystem);
 }
 
@@ -170,15 +175,45 @@ static mstring_t* __GetLabel(
     return mstr_fmt("p%i", fileSystem->PartitionIndex);
 }
 
+// Closes the handle on a default mount directory and then removes the
+// directory, so the next mount of the same disk can create it again.
+// VFSNodeUnlink refuses a directory with open handles, so the close goes first.
+static void
+__RemoveMountDirectory(
+        _In_ struct VFS* fsScope,
+        _In_ uuid_t      directoryHandle,
+        _In_ mstring_t*  path)
+{
+    char*   cpath;
+    oserr_t oserr;
+
+    oserr = VFSNodeClose(fsScope, directoryHandle);
+    if (oserr != OS_EOK) {
+        ERROR("__RemoveMountDirectory failed to close %ms: %u", path, oserr);
+    }
+
+    cpath = mstr_u8(path);
+    if (cpath == NULL) {
+        ERROR("__RemoveMountDirectory failed to convert path %ms", path);
+        return;
+    }
+
+    oserr = VFSNodeUnlink(fsScope, cpath);
+    if (oserr != OS_EOK) {
+        ERROR("__RemoveMountDirectory failed to remove %ms: %u", path, oserr);
+    }
+    free(cpath);
+}
+
 static oserr_t
 __MountFileSystemAtDefault(
         _In_ FileSystem_t* fileSystem)
 {
-    struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
-    uuid_t          nodeHandle;
-    oserr_t         osStatus;
-    mstring_t*      path;
-    mstring_t*      label;
+    struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
+    uuid_t      nodeHandle;
+    oserr_t     osStatus;
+    mstring_t*  path;
+    mstring_t*  label;
     TRACE("__MountFileSystemAtDefault(fs=%u)", fileSystem->ID);
 
     label = __GetLabel(fileSystem);
@@ -192,14 +227,16 @@ __MountFileSystemAtDefault(
         return OS_EOOM;
     }
 
+    // VFSNodeMkdir gives no handle for a directory that already exists
+    // (OS_EEXISTS), so that is a failure here too.
     osStatus = VFSNodeMkdir(
-            fsScope,
-            path,
-            FILE_PERMISSION_READ,
-            &nodeHandle
+        fsScope,
+        path,
+        FILE_PERMISSION_READ,
+        &nodeHandle
     );
-    if (osStatus != OS_EOK && osStatus != OS_EEXISTS) {
-        ERROR("__MountFileSystemAtDefault failed to create node %ms", path);
+    if (osStatus != OS_EOK) {
+        ERROR("__MountFileSystemAtDefault failed to create node %ms: %u", path, osStatus);
         mstr_delete(path);
         return osStatus;
     }
@@ -207,10 +244,15 @@ __MountFileSystemAtDefault(
     osStatus = VFSNodeMount(fsScope, nodeHandle, fileSystem->VFS);
     if (osStatus != OS_EOK) {
         ERROR("__MountFileSystemAtDefault failed to mount filesystem at %ms", path);
+        __RemoveMountDirectory(fsScope, nodeHandle, path);
         mstr_delete(path);
         return osStatus;
     }
+
+    // VFSFileSystemUnmount undoes this mount with these, in the same scope.
     fileSystem->MountHandle = nodeHandle;
+    fileSystem->MountScope  = fsScope;
+    fileSystem->MountPath   = path;
     return OS_EOK;
 }
 
@@ -426,17 +468,23 @@ VFSFileSystemUnmount(
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_MOUNTED) {
-        // TODO this is absolutely wrong, right now we are trying to unmount
-        // ourselves in the wrong VFS (Which is ourselves). The right thing to do
-        // here is to STORE THE VFS WE ARE MOUNTED IN.
-        VFSNodeUnmount(
-                fileSystem->VFS,
-                fileSystem->MountHandle
+        // Undo __MountFileSystemAtDefault in the scope it mounted in. The
+        // mount directory is closed and removed even if the unmount fails, so
+        // the next registration of the disk can mount there again.
+        osStatus = VFSNodeUnmount(
+            fileSystem->MountScope,
+            fileSystem->MountHandle
         );
-        // TODO this is also wrong fs scope!
-        VFSNodeClose(fileSystem->VFS, fileSystem->MountHandle);
-        fileSystem->State = FileSystemState_CONNECTED;
-        osStatus = OS_EOK;
+        if (osStatus != OS_EOK) {
+            ERROR("VFSFileSystemUnmount failed to unmount filesystem %u: %u", fileSystem->ID, osStatus);
+        }
+
+        __RemoveMountDirectory(fileSystem->MountScope, fileSystem->MountHandle, fileSystem->MountPath);
+        mstr_delete(fileSystem->MountPath);
+        fileSystem->MountPath   = NULL;
+        fileSystem->MountScope  = NULL;
+        fileSystem->MountHandle = UUID_INVALID;
+        fileSystem->State       = FileSystemState_CONNECTED;
     }
     usched_mtx_unlock(&fileSystem->Lock);
     return osStatus;
@@ -461,7 +509,17 @@ VFSFileSystemDisconnectInterface(
         VFSDestroy(fileSystem->VFS);
         fileSystem->VFS = NULL;
         osStatus = fileSystem->Interface->Operations.Destroy(fileSystem->Interface, fileSystem->Data, flags);
-        fileSystem->State = FileSystemState_NO_INTERFACE;
+        if (osStatus != OS_EOK) {
+            WARNING("VFSFileSystemDisconnectInterface failed to destroy filesystem %u: %u", fileSystem->ID, osStatus);
+        }
+
+        // Each filesystem gets its own interface (VFSInterfaceLoadDriver), so
+        // it is released here, also when Destroy failed, as nothing else uses
+        // it. __DestroyDriver skips NO_INTERFACE, so this is the only release.
+        VFSInterfaceDelete(fileSystem->Interface);
+        fileSystem->Interface = NULL;
+        fileSystem->Data      = NULL;
+        fileSystem->State     = FileSystemState_NO_INTERFACE;
     }
     usched_mtx_unlock(&fileSystem->Lock);
     return osStatus;

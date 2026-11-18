@@ -42,6 +42,7 @@ typedef struct FileSystem {
     element_t             Header;
     uuid_t                ID;
     guid_t                GUID;
+    struct usched_mtx     Lock;
     struct VFSStorage*    Storage;
     int                   PartitionIndex;
     UInteger64_t          SectorStart;
@@ -49,8 +50,16 @@ typedef struct FileSystem {
     enum FileSystemState  State;
     struct VFS*           VFS;
     struct VFSInterface*  Interface;
+    /**
+     * The mount members describe the default mount at /storage/<Serial>/<label>,
+     * and are set while State is FileSystemState_MOUNTED:
+     * MountHandle: open handle on the mount directory.
+     * MountScope: the VFS scope the directory was created and mounted in.
+     * MountPath: path of the mount directory, used to remove it on unmount.
+     */
     uuid_t                MountHandle;
-    struct usched_mtx     Lock;
+    struct VFS*           MountScope;
+    mstring_t*            MountPath;
 } FileSystem_t;
 
 /**

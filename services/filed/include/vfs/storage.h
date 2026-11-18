@@ -21,6 +21,7 @@
 #include <ddk/filesystem.h>
 #include <ds/guid.h>
 #include <ds/list.h>
+#include <ds/mstring.h>
 #include <os/usched/mutex.h>
 
 struct FileSystem;
@@ -60,6 +61,17 @@ struct VFSStorageProtocol {
     } Storage;
 };
 
+/**
+ * @brief A storage medium and the filesystems on it.
+ * Device-backed storage also uses these members:
+ * DirectoryPath: /storage/<Serial>, set only when registration created that
+ *                directory. Unregister removes the directory and frees the path.
+ * UnregisterPending: set when an unregister arrives while State is still
+ *                    VFSSTORAGE_STATE_INITIALIZING. Registration then tears the
+ *                    storage down when it finishes, using UnregisterFlags.
+ *                    Read and written only while holding the disk list lock
+ *                    in storage.c.
+ */
 struct VFSStorage {
     element_t                   ListHeader;
     uuid_t                      ID;
@@ -69,6 +81,9 @@ struct VFSStorage {
     struct VFSStorageOperations Operations;
     StorageDescriptor_t         Stats;
     list_t                      Filesystems;
+    mstring_t*                  DirectoryPath;
+    bool                        UnregisterPending;
+    unsigned int                UnregisterFlags;
 };
 
 /**

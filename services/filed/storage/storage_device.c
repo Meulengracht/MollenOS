@@ -34,10 +34,11 @@ static struct VFSStorageOperations g_operations = {
         .Write = __WriteDevice,
 };
 
-static oserr_t __DeviceQueryStats(
-        _In_ uuid_t               deviceID,
-        _In_ uuid_t               driverID,
-        _In_ StorageDescriptor_t* stats)
+static oserr_t
+__DeviceQueryStats(
+    _In_ uuid_t               deviceID,
+    _In_ uuid_t               driverID,
+    _In_ StorageDescriptor_t* stats)
 {
     struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(driverID);
     oserr_t                    osStatus;
