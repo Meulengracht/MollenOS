@@ -24,6 +24,7 @@
 #include "msd.h"
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
+#include <internal/_gracht.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
 
@@ -44,23 +45,72 @@ static const char* g_deviceProtocolNames[ProtocolCount] = {
     "Bulk"
 };
 
-static inline void
+// Registers the disk with filed and waits for the result. This runs in the
+// device registration job, which holds no driver lock, and filed answers
+// before it sends its stat query back to this driver. A failure is only
+// logged.
+static void
 __RegisterStorage(
         _In_ uuid_t       protocolServerId,
         _In_ uuid_t       deviceId,
         _In_ unsigned int flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    (void)sys_storage_register(GetGrachtClient(), &msg.base, protocolServerId, deviceId, flags);
+    oserr_t                  result;
+    oserr_t                  oserr;
+    int                      status;
+
+    status = sys_storage_register(GetGrachtClient(), &msg.base, protocolServerId, deviceId, flags);
+    if (status != 0) {
+        ERROR("[msd] failed to send register for device %u: %i", deviceId, status);
+        return;
+    }
+
+    oserr = __GrachtAwaitCompleted(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (oserr != OS_EOK) {
+        ERROR("[msd] no register result for device %u: %u", deviceId, oserr);
+        return;
+    }
+
+    status = sys_storage_register_result(GetGrachtClient(), &msg.base, &result);
+    if (status != 0) {
+        ERROR("[msd] failed to read register result for device %u: %i", deviceId, status);
+        return;
+    }
+
+    if (result != OS_EOK) {
+        ERROR("[msd] filed rejected device %u: %u", deviceId, result);
+    }
 }
 
-static inline void
+// Unregisters the disk without waiting for the result. MSDDeviceDestroy also
+// runs from OnUnload at process exit, while the device list is locked, and
+// the IPC response may never be read there. The request is abandoned so the client does
+// not keep the response around.
+static void
 __UnregisterStorage(
         _In_ uuid_t  deviceId,
         _In_ uint8_t forced)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    (void)sys_storage_unregister(GetGrachtClient(), &msg.base, deviceId, forced);
+    int                      status;
+
+    status = sys_storage_unregister(
+        GetGrachtClient(),
+        &msg.base,
+        GetNativeHandle(__crt_get_server_iod()),
+        deviceId,
+        forced
+    );
+    if (status != 0) {
+        ERROR("[msd] failed to send unregister for device %u: %i", deviceId, status);
+        return;
+    }
+
+    status = gracht_client_abandon(GetGrachtClient(), &msg.base);
+    if (status != 0) {
+        WARNING("[msd] failed to drop the unregister result for device %u: %i", deviceId, status);
+    }
 }
 
 static inline void*

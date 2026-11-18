@@ -69,6 +69,8 @@ struct VFSStorageProtocol {
  * UnregisterPending: set when an unregister arrives while State is still
  *                    VFSSTORAGE_STATE_INITIALIZING. Registration then tears the
  *                    storage down when it finishes, using UnregisterFlags.
+ *                    The disk lookup skips a storage with this set, so the
+ *                    driver can register the same disk again at once.
  *                    Read and written only while holding the disk list lock
  *                    in storage.c.
  */

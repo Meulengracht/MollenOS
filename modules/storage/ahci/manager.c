@@ -181,6 +181,11 @@ AhciManagerRegisterDevice(
     return OS_EOK;
 }
 
+// The register and unregister requests are sent without waiting for filed's
+// result. Both can be sent from the interrupt handler, which runs in the module
+// main loop. That loop is also the only place that reads IPC responses, so
+// waiting there would never finish. The request is abandoned right after it
+// is sent, so the client does not keep the response around.
 static void
 __RegisterStorage(
         _In_ uuid_t       ProtocolServerId,
@@ -189,10 +194,16 @@ __RegisterStorage(
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    
+
     status = sys_storage_register(GetGrachtClient(), &msg.base, ProtocolServerId, DeviceId, Flags);
     if (status) {
-        // @todo log message
+        ERROR("__RegisterStorage failed to send register for device %u: %i", DeviceId, status);
+        return;
+    }
+
+    status = gracht_client_abandon(GetGrachtClient(), &msg.base);
+    if (status) {
+        WARNING("__RegisterStorage failed to drop the register result for device %u: %i", DeviceId, status);
     }
 }
 
@@ -203,10 +214,22 @@ __UnregisterStorage(
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    
-    status = sys_storage_unregister(GetGrachtClient(), &msg.base, deviceId, forced);
+
+    status = sys_storage_unregister(
+        GetGrachtClient(),
+        &msg.base,
+        GetNativeHandle(__crt_get_server_iod()),
+        deviceId,
+        forced
+    );
     if (status) {
-        // @todo log message
+        ERROR("__UnregisterStorage failed to send unregister for device %u: %i", deviceId, status);
+        return;
+    }
+
+    status = gracht_client_abandon(GetGrachtClient(), &msg.base);
+    if (status) {
+        WARNING("__UnregisterStorage failed to drop the unregister result for device %u: %i", deviceId, status);
     }
 }
 

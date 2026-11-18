@@ -27,18 +27,22 @@
  * A temporary grant token is created for the range, and the sector size comes
  * from the cached device geometry. The driver checks the sector size and byte
  * length again on its side.
+ * When the driver answers OS_EBUSY, the transfer is sent again every 20 ms,
+ * at most 50 times, with a new grant token each time. OS_EBUSY is returned
+ * if the driver is still busy after that. Must be called from a usched job,
+ * as the wait between attempts puts the job to sleep.
  */
 oserr_t
 __StorageTransfer(
-    _In_  uuid_t             driverID,
-    _In_  uuid_t             deviceID,
-    _In_  uuid_t             bufferID,
-    _In_  size_t             offset,
+    _In_  uuid_t              driverID,
+    _In_  uuid_t              deviceID,
+    _In_  uuid_t              bufferID,
+    _In_  size_t              offset,
     _In_  const UInteger64_t* sector,
-    _In_  size_t             sectorSize,
-    _In_  size_t             count,
-    _In_  bool               write,
-    _Out_ size_t*            completed);
+    _In_  size_t              sectorSize,
+    _In_  size_t              count,
+    _In_  bool                write,
+    _Out_ size_t*             completed);
 
 /**
  * @brief Validates a decoded storage request and attaches to its restricted buffer.

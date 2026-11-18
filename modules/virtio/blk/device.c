@@ -63,30 +63,58 @@ VirtioBlkDeviceRegisterStorage(
         (enum sys_storage_flags)device->Descriptor.Flags
     );
 
-    if (status == 0) {
-        device->Registered = 1;
-        return OS_EOK;
+    if (status != 0) {
+        ERROR("Failed to register Virtio storage device %u: %i", device->Descriptor.DeviceID, status);
+        return OS_EUNKNOWN;
     }
-    ERROR("Failed to register Virtio storage device %u", device->Descriptor.DeviceID);
-    return OS_EUNKNOWN;
+    device->Registered = 1;
+
+    // filed's result is not awaited. This runs with the driver lock held, and
+    // the module main loop, which is the only place that reads IPC responses,
+    // takes the same lock for interrupt events. Waiting here could block the
+    // loop that would deliver the result. The request is abandoned so the
+    // client does not keep the response around.
+    status = gracht_client_abandon(GetGrachtClient(), &message.base);
+    if (status != 0) {
+        WARNING("Failed to drop the register result for Virtio storage device %u: %i",
+                device->Descriptor.DeviceID, status);
+    }
+    return OS_EOK;
 }
 
+// Unregisters the disk from filed without waiting for the result. This also
+// runs from the interrupt event path in the module main loop, see
+// VirtioBlkDeviceRegisterStorage for why the result cannot be awaited there.
 static void
 __UnregisterStorage(
     _In_ VirtioBlkDevice_t* device)
 {
     struct vali_link_message message = VALI_MSG_INIT_HANDLE(GetFileService());
+    int                      status;
+
     if (!device->Registered) {
         return;
     }
 
-    (void)sys_storage_unregister(
+    status = sys_storage_unregister(
         GetGrachtClient(),
         &message.base,
+        GetNativeHandle(__crt_get_server_iod()),
         device->Descriptor.DeviceID,
         1
     );
+    
     device->Registered = 0;
+    if (status != 0) {
+        ERROR("Failed to unregister Virtio storage device %u: %i", device->Descriptor.DeviceID, status);
+        return;
+    }
+
+    status = gracht_client_abandon(GetGrachtClient(), &message.base);
+    if (status != 0) {
+        WARNING("Failed to drop the unregister result for Virtio storage device %u: %i",
+                device->Descriptor.DeviceID, status);
+    }
 }
 
 oserr_t

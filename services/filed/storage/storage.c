@@ -52,9 +52,9 @@ VFSStorageNew(
     }
     memset(storage, 0, sizeof(struct VFSStorage));
 
-    // The list element value always points back to the storage. The key is set
-    // by the code that inserts the storage into a list (see
-    // sys_storage_register_invocation for device-backed storage).
+    // The list element value always points back to the storage. The key is not
+    // used. Device-backed storage is found by its driver ID and device ID, see
+    // __FindRegisteredDisk.
     ELEMENT_INIT(&storage->ListHeader, 0, storage);
     usched_mtx_init(&storage->Lock, USCHED_MUTEX_PLAIN);
     storage->State = VFSSTORAGE_STATE_INITIALIZING;
@@ -254,26 +254,119 @@ __StorageRemoveDirectory(
     free(path);
 }
 
+// Finds the disk that a driver registered. Each driver numbers its own disks,
+// so the device ID alone is not unique, and the lookup always uses the driver
+// ID too. A storage with UnregisterPending set is skipped: its driver has
+// already unregistered it, and registration only has to finish tearing it
+// down. g_diskLock must be held.
+static struct VFSStorage*
+__FindRegisteredDisk(
+        _In_ uuid_t driverId,
+        _In_ uuid_t deviceId)
+{
+    element_t* i;
+
+    _foreach(i, &g_disks) {
+        struct VFSStorage* storage = i->value;
+        if (storage->Protocol.Storage.Device.DriverID == driverId &&
+            storage->Protocol.Storage.Device.DeviceID == deviceId &&
+            !storage->UnregisterPending) {
+            return storage;
+        }
+    }
+    return NULL;
+}
+
+// Sends the result of a register request. The driver may not be waiting for
+// it, so a failed send is only logged.
+static void
+__SendRegisterResult(
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 driverId,
+        _In_ uuid_t                 deviceId,
+        _In_ oserr_t                result)
+{
+    int status;
+
+    status = sys_storage_register_response(message, result);
+    if (status != 0) {
+        ERROR("sys_storage_register_invocation failed to send result %u to driver %u for device %u: %i",
+              result, driverId, deviceId, status);
+    }
+}
+
+// Sends the result of an unregister request. The driver may not be waiting for
+// it, so a failed send is only logged.
+static void
+__SendUnregisterResult(
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 driverId,
+        _In_ uuid_t                 deviceId,
+        _In_ oserr_t                result)
+{
+    int status;
+
+    status = sys_storage_unregister_response(message, result);
+    if (status != 0) {
+        ERROR("sys_storage_unregister_invocation failed to send result %u to driver %u for device %u: %i",
+              result, driverId, deviceId, status);
+    }
+}
+
+// Adds a disk and sets it up. The steps are:
+// 1. Check the arguments and create the storage object.
+// 2. List the disk, unless the driver already registered the same device ID.
+// 3. Send the result to the driver.
+// 4. Query the disk, create /storage/<Serial> and parse the partitions.
+// Every return before step 3 sends its own result, so each request gets
+// exactly one answer. The result only says the disk was accepted. A failure
+// in step 4 is logged here and never reaches the driver.
 void sys_storage_register_invocation(struct gracht_message* message,
                                      const uuid_t driverId, const uuid_t deviceId, const enum sys_storage_flags flags)
 {
     struct VFSStorage* storage;
     bool               unregisterPending;
     oserr_t            oserr;
-    TRACE("sys_storage_register_invocation()");
+    TRACE("sys_storage_register_invocation(driver=%u, device=%u)", driverId, deviceId);
 
-    storage = VFSStorageCreateDeviceBacked(deviceId, driverId, flags);
-    if (storage == NULL) {
-        ERROR("sys_storage_register_invocation failed to create storage for device %u", deviceId);
+    // The driver ID is the IPC handle filed sends its stat and transfer
+    // requests to, so it must be a valid handle.
+    if (driverId == UUID_INVALID) {
+        ERROR("sys_storage_register_invocation invalid driver ID for device %u", deviceId);
+        __SendRegisterResult(message, driverId, deviceId, OS_EINVALPARAMS);
         return;
     }
 
-    // sys_storage_unregister_invocation looks up the disk by device ID only, so
-    // the list key must be the device ID.
-    ELEMENT_INIT(&storage->ListHeader, (uintptr_t)deviceId, storage);
+    // VFSStorageCreateDeviceBacked only fails when it cannot allocate memory.
+    storage = VFSStorageCreateDeviceBacked(deviceId, driverId, flags);
+    if (storage == NULL) {
+        ERROR("sys_storage_register_invocation failed to create storage for driver %u device %u",
+              driverId, deviceId);
+        __SendRegisterResult(message, driverId, deviceId, OS_EOOM);
+        return;
+    }
+
+    // The duplicate check and the append must happen under the same lock, or
+    // two register requests for the same disk could both be listed.
     usched_mtx_lock(&g_diskLock);
+    if (__FindRegisteredDisk(driverId, deviceId) != NULL) {
+        usched_mtx_unlock(&g_diskLock);
+        WARNING("sys_storage_register_invocation driver %u device %u is already registered",
+                driverId, deviceId);
+        VFSStorageDelete(storage);
+        __SendRegisterResult(message, driverId, deviceId, OS_EEXISTS);
+        return;
+    }
+    
     list_append(&g_disks, &storage->ListHeader);
     usched_mtx_unlock(&g_diskLock);
+
+    // Answer before the stat query. A driver may hold its own device lock
+    // while it registers a disk (virtio-blk does), and its stat handler needs
+    // the same lock. If filed answered only after the stat query, a driver
+    // that waits for this result would wait for filed while filed waits for
+    // the stat answer.
+    __SendRegisterResult(message, driverId, deviceId, OS_EOK);
 
     // The stat query, mounting and parsing wait for IPC, so an unregister for
     // this device can run in between. The storage is listed above, before the
@@ -282,13 +375,17 @@ void sys_storage_register_invocation(struct gracht_message* message,
     // the end of this function tears it down.
 
     // A failed stat query leaves nothing behind. Nothing else is set up yet,
-    // so taking the storage off the list and deleting it is enough.
+    // so taking the storage off the list and deleting it is enough. An
+    // unregister may already have marked the storage. The driver got OS_EOK
+    // for that unregister, and the storage is deleted here as well.
     oserr = VFSStorageQueryDeviceStats(storage);
     if (oserr != OS_EOK) {
-        ERROR("sys_storage_register_invocation failed to query device %u: %u", deviceId, oserr);
+        ERROR("sys_storage_register_invocation failed to query driver %u device %u: %u",
+              driverId, deviceId, oserr);
         usched_mtx_lock(&g_diskLock);
         if (list_remove(&g_disks, &storage->ListHeader) != 0) {
-            ERROR("sys_storage_register_invocation storage for device %u was not in the disk list", deviceId);
+            ERROR("sys_storage_register_invocation storage for driver %u device %u was not in the disk list",
+                  driverId, deviceId);
         }
         usched_mtx_unlock(&g_diskLock);
         VFSStorageDelete(storage);
@@ -316,7 +413,8 @@ void sys_storage_register_invocation(struct gracht_message* message,
     // try to detect which kind of filesystem is present
     oserr = VFSStorageParse(storage);
     if (oserr != OS_EOK) {
-        ERROR("sys_storage_register_invocation failed to parse storage for device %u: %u", deviceId, oserr);
+        ERROR("sys_storage_register_invocation failed to parse storage for driver %u device %u: %u",
+              driverId, deviceId, oserr);
     }
 
 exit:
@@ -325,11 +423,13 @@ exit:
     usched_mtx_lock(&g_diskLock);
     if (storage->UnregisterPending) {
         if (list_remove(&g_disks, &storage->ListHeader) != 0) {
-            ERROR("sys_storage_register_invocation storage for device %u was not in the disk list", deviceId);
+            ERROR("sys_storage_register_invocation storage for driver %u device %u was not in the disk list",
+                  driverId, deviceId);
         }
         usched_mtx_unlock(&g_diskLock);
 
-        TRACE("sys_storage_register_invocation device %u was unregistered during registration", deviceId);
+        TRACE("sys_storage_register_invocation driver %u device %u was unregistered during registration",
+              driverId, deviceId);
         __StorageDestroy(storage, storage->UnregisterFlags);
         return;
     }
@@ -383,37 +483,54 @@ __StorageDestroy(
     VFSStorageDelete(storage);
 }
 
-void sys_storage_unregister_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t forced)
+// Removes a disk. The disk is taken off the list and the result is sent
+// before the teardown starts. A disk that is still registering is only marked,
+// and registration tears it down when it finishes. Every path sends exactly
+// one result.
+void sys_storage_unregister_invocation(struct gracht_message* message,
+                                       const uuid_t driverId, const uuid_t deviceId, const uint8_t forced)
 {
-    element_t*         header;
     struct VFSStorage* fsStorage;
-    TRACE("sys_storage_unregister_invocation(device=%u)", deviceId);
+    TRACE("sys_storage_unregister_invocation(driver=%u, device=%u)", driverId, deviceId);
 
     usched_mtx_lock(&g_diskLock);
-    header = list_find(&g_disks, (void*)(uintptr_t)deviceId);
-    if (header == NULL) {
+    fsStorage = __FindRegisteredDisk(driverId, deviceId);
+    if (fsStorage == NULL) {
         usched_mtx_unlock(&g_diskLock);
-        WARNING("sys_storage_unregister_invocation no storage registered for device %u", deviceId);
+        WARNING("sys_storage_unregister_invocation no storage registered for driver %u device %u",
+                driverId, deviceId);
+        __SendUnregisterResult(message, driverId, deviceId, OS_ENOENT);
         return;
     }
 
     // Registration is still mounting or parsing this storage and uses it until
     // it finishes. Leave the storage in place and let registration tear it down.
-    fsStorage = header->value;
+    // The driver can treat the disk as removed, so the result is OS_EOK.
     if (fsStorage->State == VFSSTORAGE_STATE_INITIALIZING) {
         fsStorage->UnregisterPending = true;
         fsStorage->UnregisterFlags = forced;
         usched_mtx_unlock(&g_diskLock);
-        TRACE("sys_storage_unregister_invocation device %u is still registering, teardown deferred", deviceId);
+        TRACE("sys_storage_unregister_invocation driver %u device %u is still registering, teardown deferred",
+              driverId, deviceId);
+        __SendUnregisterResult(message, driverId, deviceId, OS_EOK);
         return;
     }
 
-    if (list_remove(&g_disks, header) != 0) {
+    // The storage was found under the same lock, so it is in the list. A
+    // failure here means the list is damaged.
+    if (list_remove(&g_disks, &fsStorage->ListHeader) != 0) {
         usched_mtx_unlock(&g_diskLock);
-        ERROR("sys_storage_unregister_invocation failed to remove storage for device %u", deviceId);
+        ERROR("sys_storage_unregister_invocation failed to remove storage for driver %u device %u",
+              driverId, deviceId);
+        __SendUnregisterResult(message, driverId, deviceId, OS_EUNKNOWN);
         return;
     }
     usched_mtx_unlock(&g_diskLock);
 
+    // Answer before the unmount. Unmounting waits for the filesystem modules,
+    // which can send requests to the storage driver. A driver that holds its
+    // own device lock while it waits for this result would block those
+    // requests, and the unmount would never finish.
+    __SendUnregisterResult(message, driverId, deviceId, OS_EOK);
     __StorageDestroy(fsStorage, forced);
 }

@@ -1,13 +1,33 @@
 /**
- * Device Service
- * Provides the means to discover and manipulate devices in the system.
+ * Storage Service
+ * Lets storage drivers add disks to filed and remove them again.
+ *
+ * filed finds a disk by the driver ID and the device ID together. Each driver
+ * numbers its own disks, so two drivers may use the same device ID.
  */
- 
+
 import "types"
 
 namespace sys
 
 service storage : message {
-    func register(uuid_t driverId, uuid_t deviceId, storage_flags flags) : () = 1;
-    func unregister(uuid_t deviceId, bool forced) : () = 2;
+    // Adds a disk to filed. filed answers once it has checked the arguments and
+    // listed the disk, before it sends the stat query back to the driver.
+    // OS_EOK only says the disk was accepted. filed logs a later stat, mount or
+    // parse failure, and the driver never gets a result for it.
+    // Results:
+    //   OS_EOK          the disk was accepted and listed.
+    //   OS_EEXISTS      the driver ID and device ID pair is already registered.
+    //   OS_EOOM         filed could not create the storage object.
+    //   OS_EINVALPARAMS driverId is UUID_INVALID.
+    func register(uuid_t driverId, uuid_t deviceId, storage_flags flags) : (oserr_t result) = 1;
+
+    // Removes a disk from filed. filed answers once the disk is off its list,
+    // before it unmounts the filesystems. When registration of the disk is
+    // still running, the teardown is deferred to the end of registration and
+    // the answer is sent at once.
+    // Results:
+    //   OS_EOK          the disk was removed, or its teardown was deferred.
+    //   OS_ENOENT       no disk is registered for the driver ID and device ID pair.
+    func unregister(uuid_t driverId, uuid_t deviceId, bool forced) : (oserr_t result) = 2;
 }

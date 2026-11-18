@@ -50,6 +50,7 @@ add_library(libddk
     ${ASM_SOURCES}
 
     dma/attachment.c
+    dma/chunk.c
     dma/context.c
     dma/dma.c
     dma/region.c

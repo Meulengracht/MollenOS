@@ -203,6 +203,16 @@ DMAFree(
  * the range. Dropping such a cache line could destroy the CPU's changes to those
  * neighbouring bytes.
  *
+ * Behind an IOMMU the device can only be given whole IOMMU granules, often 4096
+ * bytes. A range that is not whole granules, such as a 512-byte storage request,
+ * is copied through a bounce buffer of whole granules. The buffer is zeroed before
+ * the device can reach it, and the bytes after the request are private padding.
+ * The segment list still has one segment of exactly the requested length, and
+ * transfers can only name bytes inside it. The device can reach the padding, so a
+ * device overrun lands there and never in other memory. Each such mapping holds at
+ * least one granule of the reserved device pool for as long as it exists, and at
+ * most 262144 bytes.
+ *
  * The segments describe the mapped bytes in buffer order, which can differ from the
  * physical layout. The driver must still respect the descriptor limits of its
  * hardware. The segment list is ready when this call succeeds.
@@ -228,6 +238,12 @@ DMAFree(
  * @param requirements Optional limits on the device segments. NULL means no limits.
  * @param mappingOut Must point to a NULL pointer. Unchanged on failure.
  * @return OS_EOK, or an argument, allocation, address translation or kernel error.
+ *         Two results concern the bounce buffer behind an IOMMU:
+ *         - OS_EBUFFER if the copy would need more than 262144 bytes of
+ *           storage. The same length fails again. Map the range in smaller pieces.
+ *         - The pool allocator's error, OS_EOOM today, if the device pool is
+ *           short. Other mappings hold the storage, so the same request can work
+ *           later.
  */
 DDKDECL(oserr_t,
 DMAMapSHM(
@@ -270,6 +286,99 @@ DMAMapSHMDirect(
     _In_    enum DMADirection                direction,
     _In_    const struct DMAMapRequirements* requirements,
     _InOut_ struct DMAMapping**              mappingOut));
+
+/**
+ * @brief Size limits for one piece (chunk) of a transfer mapped by DMAMapSHMChunk.
+ *
+ * All three values are in bytes. DirectLength and BounceLength must each be at
+ * least BlockLength. A limit that is not a whole number of blocks is rounded
+ * down to whole blocks before use. The limits are only read during the call, so
+ * one structure can be shared by every request of a driver.
+ */
+struct DMAChunkLimits {
+    // Largest length to map when the device can use the original pages. This
+    // costs no pool memory, so it can be large, e.g. 1 MiB.
+    size_t DirectLength;
+    // Largest length to map when the pages may have to be copied through a
+    // bounce buffer. Each byte of such a mapping holds device pool memory for as
+    // long as the mapping exists, so keep this small, e.g. 128 KiB.
+    size_t BounceLength;
+    // The mapped length is always a whole number of blocks, e.g. the 512-byte
+    // sector size of a storage device. Must be nonzero.
+    size_t BlockLength;
+};
+
+/**
+ * @brief Maps the next piece (chunk) of an SHM transfer for streaming DMA. The
+ * chunk is kept small enough to work when the pages must be copied.
+ *
+ * Use it instead of DMAMapSHM when a driver moves a large client buffer one piece
+ * at a time, as a storage driver does. A plain DMAMapSHM call on a large range
+ * can fail or starve other drivers when the kernel copies the data:
+ * - A bounce buffer is temporary memory that the device can reach. The kernel
+ *   copies data through it when the device cannot use the original pages.
+ * - Bounce buffers come from the device pool, a small reserved block of
+ *   device-reachable memory (4 MiB on ARM64, 2 MiB on x86) that every driver and
+ *   every DMAAllocate call shares.
+ * - Without an IOMMU, one bounce mapping takes one contiguous piece of the pool.
+ *   Behind an IOMMU, a bounce mapping above 262144 bytes fails with OS_EBUFFER.
+ *
+ * The call works in three steps:
+ * 1. Map min(length, DirectLength) with DMAMapSHMDirect. This uses the original
+ *    pages and no pool memory.
+ * 2. If the device cannot use the original pages (OS_ENOENT or OS_ENOTSUPPORTED
+ *    from step 1), map min(length, BounceLength) with DMAMapSHM. DMAMapSHM still
+ *    uses the original pages when the smaller range allows it.
+ * 3. If step 2 fails with OS_EOOM or OS_EBUFFER, halve the length, round it down
+ *    to whole blocks and try again. The smallest attempt is one block.
+ *
+ * The result is an ordinary streaming mapping. Call DMABeginTransfer,
+ * DMAEndTransfer and DMAUnmap on it exactly as for DMAMapSHM. The returned length
+ * can be shorter than the bytes left in the transfer. To map the next chunk, add
+ * the mapped length to offset, subtract it from length, and call again.
+ *
+ * Preconditions:
+ * - The same rules as DMAMapSHM apply to buffer, offset, direction and
+ *   requirements. Requirements are passed unchanged to both map calls.
+ * - length must be a nonzero multiple of BlockLength.
+ * - If requirements has a nonzero LengthAlignment, BlockLength should be a
+ *   multiple of it. Otherwise a shrunk length can fail with OS_EINVALPARAMS.
+ *
+ * Errors:
+ * - OS_EINVALPARAMS if a required pointer is NULL, *mappingOut is not NULL,
+ *   BlockLength is zero, length is zero or not a multiple of BlockLength, or
+ *   DirectLength or BounceLength is smaller than BlockLength. No map call is made.
+ * - OS_EOOM or OS_EBUFFER if even a one-block bounce mapping failed. The device
+ *   pool is short. Other mappings hold the memory, so retry the same call later,
+ *   for example after one of the driver's own transfers has completed.
+ * - Any other error from DMAMapSHMDirect or DMAMapSHM is returned unchanged,
+ *   without further attempts.
+ *
+ * @param context Open controller context. Must be serialized against DMAClose.
+ * @param buffer Existing SHM handle. The caller keeps its own attachment.
+ * @param offset First byte to map, counted from the start of the whole SHM buffer.
+ * @param length Number of committed bytes left in the transfer, starting at offset.
+ * @param direction How the hardware will access the memory. Fixed for the life of
+ * this mapping.
+ * @param requirements Optional limits on the device segments. NULL means no limits.
+ * @param limits Chunk size limits. See struct DMAChunkLimits.
+ * @param mappingOut Must point to a NULL pointer. Unchanged on failure.
+ * @param mappedLengthOut Receives the number of mapped bytes on success. This is a
+ * nonzero multiple of BlockLength and never larger than length. Unchanged on
+ * failure.
+ * @return OS_EOK or an error described above.
+ */
+DDKDECL(oserr_t,
+DMAMapSHMChunk(
+    _In_    struct DMAContext*               context,
+    _In_    const OSHandle_t*                buffer,
+    _In_    size_t                           offset,
+    _In_    size_t                           length,
+    _In_    enum DMADirection                direction,
+    _In_    const struct DMAMapRequirements* requirements,
+    _In_    const struct DMAChunkLimits*     limits,
+    _InOut_ struct DMAMapping**              mappingOut,
+    _Out_   size_t*                          mappedLengthOut));
 
 /**
  * @brief Maps the original committed pages of an SHM buffer for repeated, queued
