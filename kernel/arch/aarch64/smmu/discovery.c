@@ -18,9 +18,11 @@
  * Looks up SMMU units and expands device requester IDs from a discovery table.
  */
 
-#include "discovery-private.h"
+#include <debug.h>
 #include <heap.h>
 #include <string.h>
+
+#include "discovery-private.h"
 
 uint32_t
 ArmSMMUGetUnitCount(
@@ -46,10 +48,10 @@ ArmSMMUGetUnitDescription(
 }
 
 /**
- * Checks whether firmware already reserved a requester ID on this SMMU.
- * Devices using a firmware-held ID may still have pre-boot DMA running (such
- * as a display scanout), so the kernel must leave them alone and never move
- * them into a new translation domain.
+ * Checks whether firmware already reserved a stream ID on this SMMU.
+ * Devices using a firmware-held ID may still run pre-boot DMA (such as an
+ * active boot display), so the kernel leaves them alone instead of moving them
+ * into a new translation domain.
  */
 static bool
 __IsIdHeldByFirmware(
@@ -68,9 +70,9 @@ __IsIdHeldByFirmware(
 }
 
 /**
- * Inserts one requester ID into route->Requesters in ascending order while
- * dropping duplicates. Returns OS_ENOTSUPPORTED if the ID is new and the
- * array is already full.
+ * Inserts one stream ID into result->Requesters in ascending order while
+ * dropping duplicates. Fails with OS_ENOTSUPPORTED if the ID is new and the
+ * fixed array is full.
  */
 static oserr_t
 __AppendRequester(
@@ -79,8 +81,8 @@ __AppendRequester(
 {
     uint32_t position = 0;
 
-    // Scan to the sorted insertion point and ignore repeated IDs before
-    // checking capacity, so a duplicate does not fail a full list.
+    // Find the sorted insertion slot first so duplicate IDs return OS_EOK even
+    // when the array has already hit DMA_MANAGER_MAX_ATTACHMENTS.
     while (position < result->RequesterCount && result->Requesters[position] < requester) {
         position++;
     }
@@ -90,6 +92,8 @@ __AppendRequester(
     }
 
     if (result->RequesterCount == DMA_MANAGER_MAX_ATTACHMENTS) {
+        WARNING("__AppendRequester: route needs more than %u requester IDs",
+                DMA_MANAGER_MAX_ATTACHMENTS);
         return OS_ENOTSUPPORTED;
     }
 
@@ -104,10 +108,10 @@ __AppendRequester(
 }
 
 /**
- * Expands one SMMU ID and its MMU-500 don't-care bitmask into exact IDs.
- * Every bit set to 1 in mask is ignored during hardware matching, so the rule
- * accepts both 0 and 1 in those bit positions. Fails with OS_ENOTSUPPORTED if
- * the expanded IDs exceed DMA_MANAGER_MAX_ATTACHMENTS or hit a firmware-held ID.
+ * Expands one SMMU stream ID and its MMU-500 ignored-bits mask into exact IDs.
+ * Any bit set to 1 in mask is ignored during hardware matching, so that bit can
+ * be either 0 or 1 in an incoming stream ID. Fails with OS_ENOTSUPPORTED if the
+ * expanded list exceeds DMA_MANAGER_MAX_ATTACHMENTS or hits a firmware-held ID.
  */
 static oserr_t
 __AppendMaskedRequesters(
@@ -121,24 +125,26 @@ __AppendMaskedRequesters(
     uint32_t count = 1;
     oserr_t  status;
 
-    // Each bit set in mask doubles the number of matching IDs. Clearing the
-    // lowest set bit (bits & (bits - 1)) counts set bits quickly and stops
-    // before enumerating if the expansion would overflow a route, including
-    // when bit 31 is set in mask. A zero mask runs once for the exact ID.
+    // Each set bit in mask doubles how many stream IDs match. Stripping the
+    // lowest set bit (bits & (bits - 1)) counts set bits directly and stops
+    // before expanding if the total would exceed a route's capacity (including
+    // when bit 31 is set). When mask is zero, the loop below runs once.
     for (uint32_t bits = mask; bits != 0; bits &= bits - 1) {
         count *= 2;
         if (count > DMA_MANAGER_MAX_ATTACHMENTS) {
+            WARNING("__AppendMaskedRequesters: ignored-bits mask %x on unit %u expands past %u IDs",
+                    mask, unitIndex, DMA_MANAGER_MAX_ATTACHMENTS);
             return OS_ENOTSUPPORTED;
         }
     }
-    
-    // Clear the ignored bits in the base ID so subset can fill every
-    // combination of those bits cleanly.
+
+    // Clear masked bits in requester so ORing subset fills every combination.
     requester &= ~mask;
     do {
         uint32_t exact = requester | subset;
 
         if (__IsIdHeldByFirmware(discovery, unitIndex, exact)) {
+            WARNING("__AppendMaskedRequesters: ID %u on unit %u is held by firmware", exact, unitIndex);
             return OS_ENOTSUPPORTED;
         }
 
@@ -146,18 +152,20 @@ __AppendMaskedRequesters(
         if (status != OS_EOK) {
             return status;
         }
-        // Standard bit-mask iteration: subtracting mask and masking back down
-        // visits every subset of bits in mask in ascending order until it wraps to 0.
+
+        // Step through every subset of the bits set in mask in ascending order.
+        // Subtracting mask borrows across cleared gaps, and masking back down
+        // keeps only the bits in mask until subset wraps around to 0.
         subset = (subset - mask) & mask;
     } while (subset != 0);
     return OS_EOK;
 }
 
 /**
- * Finds the mapping range inside one PCI host source that covers requesterId.
+ * Finds the mapping range on one PCI host bridge covering requesterId.
  * PCI sources have NULL AcpiPath and DeviceTreeDevice and match by segment.
- * Returns NULL when the source belongs to another segment or does not cover
- * the ID. On a match, inputOut receives the ID after any DT mask is applied.
+ * Returns NULL if the source belongs to another segment or omits the ID.
+ * When matched, inputOut receives the ID after applying any DT mask.
  */
 static const ArmSMMURouteRange_t*
 __FindPciRange(
@@ -197,8 +205,8 @@ __FindPciRange(
 
 /**
  * Builds the final route for a PCI requester ID that matched range.
- * Errors saved on the host source or range are returned as-is so an
- * unsupported route is never mistaken for a device without an SMMU.
+ * Errors recorded on the host source or target range are returned as-is so
+ * an unsupported route is never mistaken for a device without an SMMU.
  */
 static oserr_t
 __BuildPciRoute(
@@ -213,15 +221,18 @@ __BuildPciRoute(
     oserr_t              status;
 
     if (source->Status != OS_EOK) {
+        WARNING("__BuildPciRoute: PCI segment %u has an unusable DMA route: %u",
+                source->Segment, source->Status);
         return source->Status;
     }
 
     if (range->Status != OS_EOK) {
+        WARNING("__BuildPciRoute: PCI segment %u maps to an unusable target: %u",
+                source->Segment, range->Status);
         return range->Status;
     }
 
-    // Discovery already checked that adding the offset inside this interval
-    // cannot overflow 32 bits.
+    // Discovery verified earlier that adding the offset stays within 32 bits.
     requester = range->OutputFirst;
     if (!range->MapsToOneId) {
         requester += input - range->InputFirst;
@@ -235,6 +246,8 @@ __BuildPciRoute(
         &result
     );
     if (status != OS_EOK) {
+        WARNING("__BuildPciRoute: expanding requester %u on segment %u failed: %u",
+                requester, source->Segment, status);
         return status;
     }
 
@@ -257,12 +270,12 @@ ArmSMMUResolvePci(
         return OS_EINVALPARAMS;
     }
 
-    // Stop at the first PCI host source covering this ID, even if it recorded
-    // an error, so a later entry never silently masks a broken route.
-    for (uint32_t i = 0; i < discovery->RouteCount; i++) {
-        const ArmSMMUSource_t* source = &discovery->Routes[i];
-        const ArmSMMURouteRange_t*    range;
-        uint32_t                      input;
+    // Return immediately on the first PCI host source covering this ID, even
+    // when that source holds an error, so a later entry cannot mask a failure.
+    for (uint32_t i = 0; i < discovery->SourceCount; i++) {
+        const ArmSMMUSource_t*     source = &discovery->Sources[i];
+        const ArmSMMURouteRange_t* range;
+        uint32_t                   input;
 
         range = __FindPciRange(discovery, source, segment, requesterId, &input);
         if (range != NULL) {
@@ -273,9 +286,10 @@ ArmSMMUResolvePci(
 }
 
 /**
- * Adds every output ID from one mapping range into a named device's route.
- * Unlike PCI lookups that pick one device ID, a named device can own its whole
- * range, so every entry must fit in one route and target the same SMMU unit.
+ * Adds every stream ID from one mapping range into a named device's route.
+ * A PCI lookup picks a single device ID, whereas a named platform device uses
+ * every ID in its range together, so all entries must fit in one route and
+ * target the same SMMU controller.
  */
 static oserr_t
 __AppendRangeRequesters(
@@ -286,15 +300,19 @@ __AppendRangeRequesters(
     uint64_t count;
     oserr_t  status;
 
-    // One DMA domain attaches to a single SMMU unit, so splitting a device
-    // across two different SMMUs is unsupported.
+    // One DMA translation domain binds to a single SMMU unit, so spanning two
+    // different SMMU controllers is rejected.
     if (result->RequesterCount != 0 && result->UnitIndex != range->UnitIndex) {
+        WARNING("__AppendRangeRequesters: device spans SMMU units %u and %u",
+                result->UnitIndex, range->UnitIndex);
         return OS_ENOTSUPPORTED;
     }
 
     result->UnitIndex = range->UnitIndex;
     count = range->MapsToOneId ? 1 : (uint64_t)range->InputLast - range->InputFirst + 1;
     if (count > DMA_MANAGER_MAX_ATTACHMENTS) {
+        WARNING("__AppendRangeRequesters: range of %llu IDs on unit %u exceeds %u",
+                count, range->UnitIndex, DMA_MANAGER_MAX_ATTACHMENTS);
         return OS_ENOTSUPPORTED;
     }
 
@@ -314,8 +332,8 @@ __AppendRangeRequesters(
 }
 
 /**
- * Collects all SMMU IDs for one named ACPI or Device Tree device into a single
- * route. Succeeds only when every SMMU mapping is valid and fits in routeOut.
+ * Collects every SMMU stream ID for one named ACPI or Device Tree device into
+ * routeOut. Succeeds only when all SMMU mappings are valid and fit together.
  * Returns OS_ENOENT if the device has only interrupt routes and no SMMU route.
  */
 static oserr_t
@@ -328,23 +346,26 @@ __ResolveNamedRoute(
     oserr_t              status;
 
     if (source->Status != OS_EOK) {
+        WARNING("__ResolveNamedRoute: device has an unusable DMA route: %u", source->Status);
         return source->Status;
     }
 
     for (uint32_t i = 0; i < source->RangeCount; i++) {
         const ArmSMMURouteRange_t* range = &discovery->Ranges[source->FirstRange + i];
 
-        // A named device can list both DMA mappings to an SMMU and MSI
-        // mappings to an ITS group. Skip ITS entries (OS_ENOENT), while failing
-        // immediately on any unsupported or broken SMMU mapping.
+        // A named device can carry both DMA routes (to an SMMU) and MSI
+        // interrupt routes (to a GIC ITS controller). Skip ITS entries marked
+        // OS_ENOENT, while failing immediately on any broken SMMU entry.
         if (range->Status == OS_ENOENT) {
             continue;
         } else if (range->Status != OS_EOK) {
+            WARNING("__ResolveNamedRoute: mapping %u targets an unusable unit: %u", i, range->Status);
             return range->Status;
         }
 
         status = __AppendRangeRequesters(discovery, range, &result);
         if (status != OS_EOK) {
+            WARNING("__ResolveNamedRoute: adding mapping %u failed: %u", i, status);
             return status;
         }
     }
@@ -366,13 +387,13 @@ ArmSMMUResolveAcpiDevice(
     _In_  const char*               absolutePath,
     _Out_ ArmSMMUDeviceRoute_t*     routeOut)
 {
-    // ACPI absolute paths always start at the root backslash.
+    // ACPI namespace paths always start at the root backslash.
     if (discovery == NULL || absolutePath == NULL || routeOut == NULL || absolutePath[0] != '\\') {
         return OS_EINVALPARAMS;
     }
 
-    for (uint32_t i = 0; i < discovery->RouteCount; i++) {
-        const ArmSMMUSource_t* source = &discovery->Routes[i];
+    for (uint32_t i = 0; i < discovery->SourceCount; i++) {
+        const ArmSMMUSource_t* source = &discovery->Sources[i];
 
         if (source->AcpiPath != NULL && !strcmp(source->AcpiPath, absolutePath)) {
             return __ResolveNamedRoute(discovery, source, routeOut);
@@ -382,9 +403,9 @@ ArmSMMUResolveAcpiDevice(
 }
 
 /**
- * Verifies that a caller-supplied DeviceTreeNode_t pointer belongs to tree
- * by walking the tree's node list. Compares pointers only and never reads
- * fields through device, so invalid caller pointers cannot fault.
+ * Verifies that a caller-supplied DeviceTreeNode_t pointer actually belongs to
+ * tree by walking tree->Nodes. Compares pointers only without reading through
+ * device, so a stale or invalid pointer from a caller cannot fault.
  */
 static const DeviceTreeNode_t*
 __FindTreeNode(
@@ -409,14 +430,14 @@ ArmSMMUResolveDeviceTreeDevice(
         return OS_EINVALPARAMS;
     }
 
-    // Verify device belongs to the parsed tree before matching it against routes.
+    // Confirm device lives inside the parsed tree before scanning sources.
     if (__FindTreeNode(discovery->DeviceTree, device) == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    for (uint32_t i = 0; i < discovery->RouteCount; i++) {
-        if (discovery->Routes[i].DeviceTreeDevice == device) {
-            return __ResolveNamedRoute(discovery, &discovery->Routes[i], routeOut);
+    for (uint32_t i = 0; i < discovery->SourceCount; i++) {
+        if (discovery->Sources[i].DeviceTreeDevice == device) {
+            return __ResolveNamedRoute(discovery, &discovery->Sources[i], routeOut);
         }
     }
     return OS_ENOENT;
@@ -434,12 +455,12 @@ ArmSMMUDiscoveryDestroy(
 
     released = *discovery;
 
-    // Only ACPI device paths are heap-allocated per route. All other arrays
-    // live inline inside ArmSMMUDiscovery_t.
-    for (uint32_t i = 0; i < released->RouteCount; i++) {
-        kfree(released->Routes[i].AcpiPath);
+    // Only AcpiPath strings are allocated separately on the heap, while every
+    // other table lives inline inside ArmSMMUDiscovery_t.
+    for (uint32_t i = 0; i < released->SourceCount; i++) {
+        kfree(released->Sources[i].AcpiPath);
     }
-    
+
     kfree(released);
     *discovery = NULL;
 }

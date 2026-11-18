@@ -22,7 +22,9 @@
 #define __VALI_AARCH64_RPI_MIP_H__
 
 #include <devicetree.h>
+
 #include "msi-firmware.h"
+#include "../common/private.h"
 
 // Minimum register range needed to cover the BCM2712 MIP block.
 #define ARM64_MIP_REGISTER_LENGTH 0xc0U
@@ -47,9 +49,9 @@
 #define MIP_NO_BITS          0U
 
 // One msi-ranges entry holds a GIC handle, three interrupt cells, and a count.
-#define MIP_DT_RANGE_CELLS   (1U + RPI_MSI_DT_GIC_CELLS + 1U)
+#define MIP_DT_RANGE_CELLS   (1U + ARM64_DT_GIC_CELLS + 1U)
 // The count follows the GIC handle and its interrupt description.
-#define MIP_DT_COUNT_OFFSET ((1U + RPI_MSI_DT_GIC_CELLS) * RPI_MSI_DT_CELL_BYTES)
+#define MIP_DT_COUNT_OFFSET ((1U + ARM64_DT_GIC_CELLS) * RPI_MSI_DT_CELL_BYTES)
 
 struct Arm64MipRoute {
     const DeviceTreeNode_t* Host;

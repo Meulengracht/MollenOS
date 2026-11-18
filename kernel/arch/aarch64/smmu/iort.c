@@ -15,20 +15,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * ARM SMMU ACPI IORT Discovery
- * Copies SMMU descriptions, reserved device IDs, and routing ranges from
- * a validated IORT catalogue into an ArmSMMUDiscovery_t lookup table.
+ * Translates an ACPI IORT (Input Output Remapping Table) catalogue into an
+ * ArmSMMUDiscovery_t lookup table. IORT is the ACPI firmware table that lists
+ * ARM SMMUs, interrupt controllers, and which device IDs map to each one.
  */
 
 #include "discovery-private.h"
 #include "../acpi/iort.h"
+#include <debug.h>
 #include <heap.h>
 #include <string.h>
 
 /**
- * Copies every supported SMMU description into discovery->Units and records
- * its local unit index in unitIndices[nodeIndex]. Unsupported SMMUs still
- * count toward ARM_SMMU_MAX_UNITS, and leave UINT32_MAX in unitIndices so
- * later route lookups spot and refuse them.
+ * Copies every supported SMMU description into discovery->Units and records its
+ * compact discovery index in unitIndices[nodeIndex]. Unsupported SMMUs still
+ * count toward ARM_SMMU_MAX_UNITS and leave UINT32_MAX in unitIndices so later
+ * route lookups reject devices routed through them.
  */
 static oserr_t
 __AssignUnitIndices(
@@ -46,6 +48,7 @@ __AssignUnitIndices(
         }
 
         if (++unitCount > ARM_SMMU_MAX_UNITS) {
+            ERROR("__AssignUnitIndices: IORT describes more than %u SMMUs", ARM_SMMU_MAX_UNITS);
             return OS_ENOTSUPPORTED;
         }
 
@@ -58,9 +61,10 @@ __AssignUnitIndices(
 }
 
 /**
- * Copies the SMMU IDs that firmware reserved for pre-boot DMA from one RMR
- * (Reserved Memory Region) node. Only mappings aimed at a supported SMMU
- * matter here. Any device route matching these IDs will be refused later.
+ * Records SMMU stream IDs reserved by firmware for pre-boot DMA from one RMR
+ * (Reserved Memory Region) node, such as an active boot display framebuffer.
+ * Only mappings targeting a supported SMMU matter here. Any device route
+ * matching these IDs will be refused later so active firmware DMA stays safe.
  */
 static oserr_t
 __AddHeldIds(
@@ -76,12 +80,13 @@ __AddHeldIds(
             continue;
         }
 
-        if (discovery->HeldIdCount == ARM_SMMU_MAX_RANGES) {
+        if (discovery->HeldIdCount == ARM_SMMU_MAX_HELD_IDS) {
+            ERROR("__AddHeldIds: IORT reserves more than %u firmware ID spans", ARM_SMMU_MAX_HELD_IDS);
             return OS_ENOTSUPPORTED;
         }
 
-        // An RMR entry carries its span length via InputFirst..InputLast and
-        // places that span at OutputFirst on the target SMMU.
+        // An RMR mapping uses InputFirst..InputLast to express the count of
+        // reserved IDs and places that span starting at OutputFirst.
         ids = &discovery->HeldIds[discovery->HeldIdCount++];
         ids->UnitIndex = unitIndices[mapping->TargetIndex];
         ids->First = mapping->OutputFirst;
@@ -91,10 +96,11 @@ __AddHeldIds(
 }
 
 /**
- * Copies all ID mapping rules of one source node into discovery->Ranges.
- * Mappings pointing at an ITS interrupt group get OS_ENOENT because ITS blocks
- * handle interrupts, not DMA. Mappings to an SMMU inherit that SMMU's status,
- * and anything else gets OS_ENOTSUPPORTED. Caller must verify array space first.
+ * Copies every ID mapping rule from one source node into discovery->Ranges.
+ * Mappings aimed at an ITS controller get OS_ENOENT because ITS blocks route
+ * MSI interrupts rather than DMA. Mappings to an SMMU inherit that SMMU's
+ * DmaStatus, and other targets get OS_ENOTSUPPORTED. Caller must verify array
+ * room before calling this.
  */
 static void
 __AddRouteRanges(
@@ -119,14 +125,17 @@ __AddRouteRanges(
             range->Status = OS_ENOENT;
         } else if (target->Type == ArmIortSmmu || target->Type == ArmIortSmmuV3) {
             range->Status = target->DmaStatus;
+        } else {
+            WARNING("__AddRouteRanges: mapping %u targets IORT node type %u, which cannot translate DMA",
+                    i, (uint32_t)target->Type);
         }
     }
 }
 
 /**
- * Adds a PCI host bridge or named ACPI device as a route source along with
- * its mapping ranges. Copies AcpiPath onto the heap so the caller can free the
- * IORT catalogue afterwards. Returns OS_ENOTSUPPORTED if the fixed tables fill up.
+ * Adds a PCI host bridge or named ACPI device source along with its mapping
+ * ranges. Heap-copies AcpiPath for named devices so the caller can release
+ * the raw IORT catalogue as soon as discovery returns.
  */
 static oserr_t
 __AddRouteSource(
@@ -137,14 +146,19 @@ __AddRouteSource(
 {
     ArmSMMUSource_t* source;
 
-    if (discovery->RouteCount == ARM_SMMU_MAX_NODES ||
-        node->MappingCount > ARM_SMMU_MAX_RANGES - discovery->RangeCount) {
+    if (discovery->SourceCount == ARM_SMMU_MAX_SOURCES) {
+        ERROR("__AddRouteSource: IORT describes more than %u DMA sources", ARM_SMMU_MAX_SOURCES);
         return OS_ENOTSUPPORTED;
     }
 
-    // Increment RouteCount before copying AcpiPath so ArmSMMUDiscoveryDestroy
-    // frees any partial strings cleanly if a later step fails.
-    source = &discovery->Routes[discovery->RouteCount++];
+    if (node->MappingCount > ARM_SMMU_MAX_RANGES - discovery->RangeCount) {
+        ERROR("__AddRouteSource: IORT needs more than %u ID mapping ranges", ARM_SMMU_MAX_RANGES);
+        return OS_ENOTSUPPORTED;
+    }
+
+    // Advance SourceCount before copying AcpiPath so ArmSMMUDiscoveryDestroy
+    // frees earlier strings cleanly if kmalloc fails below.
+    source = &discovery->Sources[discovery->SourceCount++];
     source->Segment = node->Segment;
     source->Status = node->DmaStatus;
     source->CachePolicy = node->CachePolicy;
@@ -158,6 +172,7 @@ __AddRouteSource(
 
         source->AcpiPath = kmalloc(length);
         if (source->AcpiPath == NULL) {
+            ERROR("__AddRouteSource: allocating %u bytes for the device path failed", (uint32_t)length);
             return OS_EOOM;
         }
         memcpy(source->AcpiPath, node->AcpiPath, length);
@@ -176,34 +191,37 @@ ArmSMMUDiscoverIort(
 
     if (catalogue == NULL || discoveryOut == NULL) {
         return OS_EINVALPARAMS;
-    } 
+    }
 
     if (*discoveryOut != NULL) {
         return OS_EBUSY;
     }
 
     if (ArmIortGetNodeCount(catalogue) > ARM_SMMU_MAX_NODES) {
+        ERROR("ArmSMMUDiscoverIort: IORT has %u nodes, more than the supported %u",
+              ArmIortGetNodeCount(catalogue), ARM_SMMU_MAX_NODES);
         return OS_ENOTSUPPORTED;
     }
 
     discovery = kmalloc(sizeof(ArmSMMUDiscovery_t));
     if (discovery == NULL) {
+        ERROR("ArmSMMUDiscoverIort: allocating the discovery table failed");
         return OS_EOOM;
     }
 
-    // Initialize every unit index to UINT32_MAX (0xFFFFFFFF) so unsupported or
-    // non-SMMU nodes are easy to spot during the second pass.
+    // Fill unitIndices with UINT32_MAX (0xFFFFFFFF) so Pass 2 easily tells
+    // supported SMMUs apart from unsupported SMMUs and non-SMMU nodes.
     memset(discovery, 0, sizeof(ArmSMMUDiscovery_t));
     memset(unitIndices, 0xFF, sizeof(unitIndices));
 
-    // Pass 1: assign local unit indices to all SMMUs before any source or RMR
-    // tries to reference them. These indices belong to discovery, not IORT.
+    // Pass 1: assign compact discovery indices to supported SMMUs before any
+    // device source or RMR references them.
     status = __AssignUnitIndices(catalogue, discovery, unitIndices);
     if (status != OS_EOK) {
         goto cleanup;
     }
 
-    // Pass 2: record firmware-reserved IDs and device routing sources.
+    // Pass 2: record firmware-reserved stream IDs and device routing sources.
     for (uint32_t i = 0; i < ArmIortGetNodeCount(catalogue); i++) {
         const ArmIortNode_t* node = ArmIortGetNode(catalogue, i);
 

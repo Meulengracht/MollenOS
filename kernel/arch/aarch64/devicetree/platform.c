@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "../common/private.h"
+#include "gic-interrupt.h"
 
 struct Arm64Platform g_arm64Platform;
 
@@ -162,7 +163,8 @@ __ReadTimer(
     _In_  const DeviceTreeNode_t* gic,
     _Out_ struct Arm64Platform* platform)
 {
-    DeviceTreeReference_t interrupt;
+    DeviceTreeReference_t reference;
+    Arm64GicInterrupt_t   interrupt;
     unsigned int          index;
     unsigned int          trigger;
     oserr_t               status;
@@ -172,25 +174,30 @@ __ReadTimer(
         return status;
     }
 
-    status = DeviceTreeReadInterrupt(tree, node, index, &interrupt);
+    status = DeviceTreeReadInterrupt(tree, node, index, &reference);
     if (status != OS_EOK) {
         return status;
     }
 
-    if (interrupt.Node != gic || interrupt.CellCount != ARM64_DT_GIC_CELLS) {
+    if (reference.Node != gic) {
         return OS_ENOTSUPPORTED;
     }
 
-    if (interrupt.Cells[0] != ARM64_DT_GIC_PPI || interrupt.Cells[1] >= ARM64_GIC_PPI_BASE) {
+    status = Arm64GicDecodeInterrupt(&reference, &interrupt);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (!interrupt.Private) {
         return OS_ENOTSUPPORTED;
     }
 
-    trigger = interrupt.Cells[2] & ARM64_DT_GIC_TRIGGER_MASK;
+    trigger = interrupt.Flags & ARM64_DT_GIC_TRIGGER_MASK;
     if (trigger != ARM64_DT_GIC_LEVEL_HIGH && trigger != ARM64_DT_GIC_LEVEL_LOW) {
         return OS_ENOTSUPPORTED;
     }
 
-    platform->TimerInterrupt = interrupt.Cells[1] + ARM64_GIC_PPI_BASE;
+    platform->TimerInterrupt = interrupt.Line;
     // Convert the DT cells to the kernel's interrupt flags, so the timer code
     // gets the same format as when booting with ACPI. The PPI polarity is
     // wired by the platform, and the GIC driver never programs it.

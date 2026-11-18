@@ -26,21 +26,6 @@
 // A parent reference contains only its node handle; these receivers take no arguments.
 #define RPI_MSI_DT_PARENT_BYTES        RPI_MSI_DT_CELL_BYTES
 
-// A GIC interrupt description has three cells: kind, number within that kind, flags.
-#define RPI_MSI_DT_GIC_CELLS           3U
-// Kind zero means a shared device interrupt, rather than a CPU-private interrupt.
-#define RPI_MSI_DT_GIC_SHARED          0U
-// Rising-edge delivery is required for each BCM2712 MIP output.
-#define RPI_MSI_DT_IRQ_EDGE_RISING     1U
-// High-level delivery is required for the BCM2711 combined receiver output.
-#define RPI_MSI_DT_IRQ_LEVEL_HIGH      4U
-// Shared interrupt numbers in the tree start at zero; GIC hardware IDs start at 32.
-#define RPI_MSI_DT_GIC_SPI_BASE        32U
-// IDs 1020-1023 are special GIC responses, not usable device interrupts.
-#define RPI_MSI_DT_GIC_ID_LIMIT        1020U
-// Number of shared device interrupts below the first special GIC ID.
-#define RPI_MSI_DT_GIC_SPI_COUNT       (RPI_MSI_DT_GIC_ID_LIMIT - RPI_MSI_DT_GIC_SPI_BASE)
-
 // PCI addresses use one space/flags cell followed by two cells of address.
 #define RPI_MSI_DT_PCI_ADDRESS_CELLS   3U
 // Two cells can hold a full 64-bit bus address, parent address, or window length.

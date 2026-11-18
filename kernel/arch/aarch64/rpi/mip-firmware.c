@@ -19,6 +19,7 @@
  */
 
 #include "mip.h"
+#include "../devicetree/gic-interrupt.h"
 
 static oserr_t
 __ReadCell(
@@ -124,6 +125,7 @@ __ReadInterruptRange(
 {
     const DeviceTreeProperty_t* property;
     DeviceTreeReference_t       reference;
+    Arm64GicInterrupt_t         interrupt;
     uint32_t                    first;
     oserr_t                     status;
 
@@ -140,14 +142,18 @@ __ReadInterruptRange(
         return status;
     }
     
-    if (reference.Node != gic || reference.CellCount != RPI_MSI_DT_GIC_CELLS) {
+    if (reference.Node != gic) {
         return OS_ENOTSUPPORTED;
+    }
+    
+    status = Arm64GicDecodeInterrupt(&reference, &interrupt);
+    if (status != OS_EOK) {
+        return status;
     }
     
     // Each message becomes a pulse on a shared GIC input. Level-triggered or
     // CPU-private interrupts would need different handling and cannot be used.
-    if (reference.Cells[0] != RPI_MSI_DT_GIC_SHARED ||
-        reference.Cells[2] != RPI_MSI_DT_IRQ_EDGE_RISING) {
+    if (interrupt.Private || interrupt.Flags != ARM64_DT_GIC_EDGE_RISING) {
         return OS_EINVALPARAMS;
     }
     
@@ -167,14 +173,12 @@ __ReadInterruptRange(
         return OS_EINVALPARAMS;
     }
     
-    if (reference.Cells[1] >= RPI_MSI_DT_GIC_SPI_COUNT ||
-        interruptCount > RPI_MSI_DT_GIC_ID_LIMIT) {
+    if (interruptCount > ARM64_GIC_SPECIAL_ID_BASE) {
         return OS_EINVALPARAMS;
     }
     
-    // The tree counts shared interrupts from zero; the GIC has 32 CPU-local
-    // IDs before them. Apply the host's message offset to that hardware ID too.
-    first = RPI_MSI_DT_GIC_SPI_BASE + reference.Cells[1] + route->MessageOffset;
+    // Apply the host's message offset to the GIC interrupt ID too.
+    first = interrupt.Line + route->MessageOffset;
     if (first >= interruptCount || route->Count > interruptCount - first) {
         return OS_EINVALPARAMS;
     }

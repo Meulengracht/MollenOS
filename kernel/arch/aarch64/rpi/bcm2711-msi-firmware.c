@@ -18,8 +18,11 @@
  *
  */
 
-#include "bcm2711-msi.h"
 #include <string.h>
+
+#include "bcm2711-msi.h"
+#include "../common/private.h"
+#include "../devicetree/gic-interrupt.h"
 
 static oserr_t
 __Bcm2711MsiInterruptIndex(
@@ -72,7 +75,8 @@ Arm64Bcm2711MsiReadRoute(
 {
     struct Arm64Bcm2711MsiRoute route = { .Host = host };
     const DeviceTreeProperty_t* property;
-    DeviceTreeReference_t       interrupt;
+    DeviceTreeReference_t       reference;
+    Arm64GicInterrupt_t         interrupt;
     unsigned int                index;
     uint64_t                    length;
     oserr_t                     status;
@@ -123,32 +127,30 @@ Arm64Bcm2711MsiReadRoute(
         return status;
     }
     
-    status = DeviceTreeReadInterrupt(tree, host, index, &interrupt);
+    status = DeviceTreeReadInterrupt(tree, host, index, &reference);
     if (status != OS_EOK) {
         return status;
     }
     
-    if (interrupt.Node != gic || interrupt.CellCount != RPI_MSI_DT_GIC_CELLS) {
+    if (reference.Node != gic) {
         return OS_ENOTSUPPORTED;
+    }
+    
+    status = Arm64GicDecodeInterrupt(&reference, &interrupt);
+    if (status != OS_EOK) {
+        return status;
     }
     
     // All message bits feed one shared GIC input. It stays high until pending
     // unmasked messages are cleared, so edge-triggered setup could lose work.
     // This is not the host's separate interrupt for legacy PCI devices (INTx).
-    if (interrupt.Cells[0] != RPI_MSI_DT_GIC_SHARED ||
-        interrupt.Cells[2] != RPI_MSI_DT_IRQ_LEVEL_HIGH) {
+    if (interrupt.Private || interrupt.Flags != ARM64_DT_GIC_LEVEL_HIGH) {
         return OS_EINVALPARAMS;
     }
     
-    if (interrupt.Cells[1] >= RPI_MSI_DT_GIC_SPI_COUNT ||
-        interruptCount > RPI_MSI_DT_GIC_ID_LIMIT) {
-        return OS_EINVALPARAMS;
-    }
-    
-    // Firmware numbers shared interrupts from zero. Skip the GIC's CPU-local
-    // IDs, then check against the interrupt count the actual GIC reported.
-    route.ParentInterrupt = RPI_MSI_DT_GIC_SPI_BASE + interrupt.Cells[1];
-    if (route.ParentInterrupt >= interruptCount) {
+    // Check against the interrupt count the actual GIC reported.
+    route.ParentInterrupt = interrupt.Line;
+    if (interruptCount > ARM64_GIC_SPECIAL_ID_BASE || route.ParentInterrupt >= interruptCount) {
         return OS_EINVALPARAMS;
     }
     
