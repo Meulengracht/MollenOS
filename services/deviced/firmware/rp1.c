@@ -47,10 +47,10 @@ struct __Rp1Children {
 };
 
 struct __Rp1DmaWalk {
-    uint32_t          ChildNode;
-    int               Found;
-    const DmDmaMap_t* Parent;
-    DmDmaMap_t        Result;
+    uint32_t           ChildNode;
+    int                Found;
+    const FdtDmaMap_t* Parent;
+    FdtDmaMap_t        Result;
 };
 
 static int
@@ -462,9 +462,8 @@ __Rp1DmaPath(
     _In_    int                        depth,
     _InOut_ struct __Rp1DmaWalk*       walk)
 {
-    struct FdtDmaRanges child;
-    uint32_t            length;
-    oserr_t             status;
+    FdtDmaBusWindows_t child;
+    oserr_t            status;
 
     if (nodes[depth].Malformed || nodes[depth].ParentMalformed) {
         ERROR("__Rp1DmaPath: child %u has malformed parent nodes", walk->ChildNode);
@@ -482,21 +481,26 @@ __Rp1DmaPath(
         return OS_ENOTSUPPORTED;
     }
     
-    // Every node on the path must use direct DMA translation. IOMMU mappings
-    // require setup that this firmware resolver does not perform.
+    // Check every node from the root down to the RP1 child. The child itself
+    // uses FdtDmaDeviceIsDirect, while buses above it use FdtDmaNodeIsDirect
+    // so the PCI host and the RP1 bus below it are both accepted.
     for (int i = 0; i <= depth; i++) {
-        if (FdtProperty(&nodes[i].View, "iommus", &length) != NULL) {
-            WARNING("__Rp1DmaPath: child %u node %u has unsupported iommus",
-                walk->ChildNode, nodes[i].NodeOffset);
-            return OS_ENOTSUPPORTED;
-        }
-        if (FdtProperty(&nodes[i].View, "iommu-map", &length) != NULL) {
-            WARNING("__Rp1DmaPath: child %u node %u has unsupported iommu-map",
-                walk->ChildNode, nodes[i].NodeOffset);
-            return OS_ENOTSUPPORTED;
+        enum FdtDmaIndirectReason reason;
+        FdtDmaNode_t              description;
+        bool                      direct;
+
+        FdtDescribeDmaNode(&nodes[i], i == 0 ? NULL : &nodes[i - 1], &description);
+        direct = i == depth ? FdtDmaDeviceIsDirect(&description, &reason) :
+                              FdtDmaNodeIsDirect(&description, &reason);
+        if (!direct) {
+            WARNING("__Rp1DmaPath: child %u node %u is not on a direct DMA path (reason %u)",
+                walk->ChildNode, nodes[i].NodeOffset, (uint32_t)reason);
+            return reason == FdtDmaIndirectDisabled ? OS_ENOENT : OS_ENOTSUPPORTED;
         }
     }
     
+    // Decode the RP1 bus (nodes[depth - 1]), which maps simple 2-cell RP1
+    // addresses onto 3-cell PCI addresses on its parent PCI host.
     status = FdtDecodeDmaRanges(
         &nodes[depth - 1],
         FdtDmaAddressSimple,
@@ -508,7 +512,7 @@ __Rp1DmaPath(
         return status;
     }
 
-    status = FdtComposeDmaRanges(&child, walk->Parent, &walk->Result);
+    status = FdtDmaCompose(&child, walk->Parent, &walk->Result);
     if (status != OS_EOK) {
         WARNING("__Rp1DmaPath: child %u DMA composition failed (%u)", walk->ChildNode, status);
         return status;
@@ -550,8 +554,8 @@ oserr_t
 FdtComposeRp1Dma(
     _In_  const struct FdtPciHost* host,
     _In_  uint32_t                 childNode,
-    _In_  const DmDmaMap_t*        parent,
-    _Out_ DmDmaMap_t*              map)
+    _In_  const FdtDmaMap_t*       parent,
+    _Out_ FdtDmaMap_t*             map)
 {
     struct __Rp1DmaWalk walk = { 0 };
     oserr_t             status;
@@ -588,10 +592,10 @@ oserr_t
 FdtResolveRp1Dma(
     _In_  const struct FdtPciHost* host,
     _In_  uint32_t                 childNode,
-    _Out_ DmDmaMap_t*              map)
+    _Out_ FdtDmaMap_t*             map)
 {
-    DmDmaMap_t parent;
-    oserr_t    status;
+    FdtDmaMap_t parent;
+    oserr_t     status;
 
     TRACE("FdtResolveRp1Dma(host=%p, child=%u)", host, childNode);
     // Preserve the descriptive API for discovery and offline firmware checks.

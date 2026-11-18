@@ -221,46 +221,6 @@ FdtTranslateAddress(
     _In_    int                        dma);
 
 /**
- * @brief Read one or more device-tree cells as a single integer.
- *
- * Device-tree values are stored as 32-bit numbers in big-endian byte order.
- * Addresses and sizes may use multiple cells, with the most significant cell
- * first. This helper joins those cells and converts each one to the CPU's
- * byte order, so callers can do ordinary integer comparisons and arithmetic.
- *
- * @param value Bytes to read. The caller must ensure at least cells * 4 bytes
- *              are available.
- * @param cells Number of 32-bit values to combine. Use no more than two when
- *              the result must fit in 64 bits.
- * @return The combined integer, or zero when cells is zero.
- */
-__EXTERN uint64_t
-FdtReadCells(
-    _In_ const uint8_t* value,
-    _In_ uint32_t       cells);
-
-/**
- * @brief Check whether a zero-terminated string list contains a name.
- *
- * Properties such as "compatible" and "clock-names" store several strings
- * back-to-back, each ending with a zero byte. This function walks those
- * strings one at a time and compares complete entries, so a short name does
- * not accidentally match the beginning of a longer one. The search stops at
- * the first match or unterminated entry. Bytes after a match are not checked.
- *
- * @param list Bytes containing the string list.
- * @param length Number of bytes available in list.
- * @param needle Name to find, compared exactly.
- * @return 1 if a complete matching entry is found, or 0 if it is absent or the
- *         list contains an unterminated entry before a match.
- */
-__EXTERN int
-FdtStringListContains(
-    _In_ const uint8_t* list,
-    _In_ uint32_t       length,
-    _In_ const char*    needle);
-
-/**
  * @brief Find a name's position and validate the complete name list.
  *
  * Some properties pair a list of names with another list of values by using

@@ -34,9 +34,32 @@
  *              Arm64ValidateBootMemory.
  * @return Nonzero if the entry is RAM that early translation setup may map.
  */
-int
+KERNELAPI int KERNELABI
 Arm64BootMemoryIsRam(
     _In_ const struct VBootMemoryEntry* entry);
+
+/**
+ * @brief Verify that every byte of a range sits inside mapped firmware RAM.
+ *
+ * Used before early boot code reads a firmware blob such as the Device Tree.
+ * A boot loader may split one contiguous blob across several back-to-back
+ * VBootMemoryType_Firmware entries, so this walks across touching entries
+ * until all bytes are covered. Entries marked NO_MAP and other memory types
+ * do not count. Allocates no memory, takes no locks, and leaves the map
+ * untouched.
+ *
+ * @param boot   Boot information whose memory map passed Arm64ValidateBootMemory.
+ * @param base   Physical start address of the range to check.
+ * @param length Range size in bytes. Zero returns false.
+ * @param limit  Exclusive upper physical address limit (e.g. boot identity end).
+ * @return true if every byte is covered by mapped Firmware entries below limit.
+ */
+KERNELAPI bool KERNELABI
+Arm64BootMemoryRangeIsFirmware(
+    _In_ const struct VBoot* boot,
+    _In_ uint64_t            base,
+    _In_ uint64_t            length,
+    _In_ uint64_t            limit);
 
 /**
  * @brief Validates the memory map from the loader before any page tables are
@@ -53,7 +76,7 @@ Arm64BootMemoryIsRam(
  *                      must be below this address.
  * @return OS_EOK if the map can be used, otherwise OS_ENOTSUPPORTED.
  */
-oserr_t
+KERNELAPI oserr_t KERNELABI
 Arm64ValidateBootMemory(
     _In_ const struct VBoot* boot,
     _In_ uint64_t            identityLimit);

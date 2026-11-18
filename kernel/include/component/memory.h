@@ -97,6 +97,19 @@ struct SystemMemoryAllocation {
 };
 
 /**
+ * @brief One inclusive CPU physical address interval (Base through Limit).
+ *
+ * Used to pass DMA-reachable RAM windows into the device pool allocator. Each
+ * pool must fit inside a single entry. Even if two entries touch in physical
+ * memory, keep them separate when a bus shifts DMA addresses differently on
+ * either side of the boundary.
+ */
+typedef struct SystemMemoryPhysicalRange {
+    uint64_t Base;
+    uint64_t Limit;
+} SystemMemoryPhysicalRange_t;
+
+/**
  * @brief Initializes the system memory component.
  */
 KERNELAPI void KERNELABI
@@ -173,6 +186,39 @@ SystemMemoryFitDeviceRegion(
     _In_  size_t              alignment,
     _Out_ paddr_t*            baseOut,
     _Out_ size_t*             lengthOut);
+
+/**
+ * @brief Pick a device pool inside one of the supplied CPU physical intervals.
+ *
+ * Checks loader-reserved pools (such as Device Tree shared-dma-pool regions)
+ * first if an entire entry fits inside one of @p ranges. Otherwise picks the
+ * highest aligned @p size-byte block from available RAM inside @p ranges.
+ * Picking high addresses keeps low RAM free for devices with narrow address
+ * limits. An empty range list (@p rangeCount == 0) means no memory is reachable
+ * and fails with OS_ENOENT instead of falling back to all RAM.
+ *
+ * Allocates no memory, logs nothing, and leaves outputs and the boot map
+ * unchanged on failure.
+ *
+ * @param boot       Loader boot state holding the physical memory map.
+ * @param size       Fallback pool size in bytes when no loader pool fits.
+ * @param alignment  Power-of-two alignment required for both start and size.
+ * @param ranges     Permitted physical intervals the pool must stay inside.
+ * @param rangeCount Number of intervals in @p ranges.
+ * @param baseOut    Receives the chosen physical start address on success.
+ * @param lengthOut  Receives the chosen pool length in bytes on success.
+ * @return OS_EOK on success, OS_ENOENT if nothing fits, or OS_EINVALPARAMS for
+ *         invalid inputs.
+ */
+KERNELAPI oserr_t KERNELABI
+SystemMemoryFitDeviceRegionInRanges(
+    _In_  const struct VBoot*                boot,
+    _In_  size_t                             size,
+    _In_  size_t                             alignment,
+    _In_  const SystemMemoryPhysicalRange_t* ranges,
+    _In_  uint32_t                           rangeCount,
+    _Out_ paddr_t*                           baseOut,
+    _Out_ size_t*                            lengthOut);
 
 /**
  * @brief Register the reserved device memory pool on this component.

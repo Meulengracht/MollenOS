@@ -57,7 +57,7 @@ ArchAcpiGetMappingFlags(
         }
 
         // The new mapping must use the same cache settings as the identity
-        // mapping of the same pages. The DMA pool is uncached Normal RAM,
+        // mapping of the same pages. The device pool is uncached Normal RAM,
         // while firmware tables are usually in cached (write-back) Normal RAM.
         // One OSL mapping can't be both, so a range that crosses from one to
         // the other is rejected.

@@ -27,6 +27,7 @@
 
 #include "private.h"
 #include "boot-memory.h"
+#include "device-pool.h"
 
 // Early translation must precede C atomics: with translation disabled the
 // architecture does not provide the Normal-memory attributes they require.
@@ -38,9 +39,6 @@ static uintptr_t    g_identityTable;
 static uintptr_t    g_kernelTable;
 static Spinlock_t   g_tableLock;
 
-// Device pool range, chosen before the identity map so it is never cached.
-static paddr_t      g_devicePoolBase;
-static size_t       g_devicePoolLength;
 
 /**
  * @brief Writes modified translation tables out of this CPU's data cache.
@@ -485,13 +483,14 @@ __MapBootPieces(
     _In_ uintptr_t base,
     _In_ uintptr_t end)
 {
-    uintptr_t poolBase = (uintptr_t)g_devicePoolBase;
-    uintptr_t poolEnd = poolBase + g_devicePoolLength;
-    uintptr_t inside;
-    uintptr_t insideEnd;
-    oserr_t   status;
+    PlatformDevicePool_t pool = Arm64SelectedDevicePool();
+    uintptr_t            poolBase = (uintptr_t)pool.Base;
+    uintptr_t            poolEnd = poolBase + pool.Length;
+    uintptr_t            inside;
+    uintptr_t            insideEnd;
+    oserr_t              status;
 
-    if (g_devicePoolLength == 0 || end <= poolBase || base >= poolEnd) {
+    if (pool.Length == 0 || end <= poolBase || base >= poolEnd) {
         return __MapBootRange(g_identityTable, base, base, end - base, MAPPING_EXECUTABLE, 1);
     }
 
@@ -623,10 +622,11 @@ oserr_t
 Arm64BootMemoryInitialize(
     _In_ struct VBoot* boot)
 {
-    uint64_t features;
-    oserr_t  status;
+    PlatformDevicePool_t pool;
+    uint64_t             features;
+    oserr_t              status;
 
-    // Validate the memory map before anything reads it, DMA pool selection
+    // Validate the memory map before anything reads it, device pool selection
     // included. We have no way of converting a map that uses the old meaning
     // of the memory types, so those are rejected here.
     status = Arm64ValidateBootMemory(boot, MEMORY_LOCATION_RING3_CODE);
@@ -647,20 +647,10 @@ Arm64BootMemoryInitialize(
     g_identityTable = __AllocateTable();
     g_kernelTable = __AllocateTable();
 
-    // Generic memory setup later makes the same choice from the same loader
-    // map, so the uncached mapping below covers exactly the pool it uses.
-    // Without room for a pool, all RAM is mapped as before.
-    status = SystemMemoryFitDeviceRegion(
-        boot,
-        ARM64_DEVICE_POOL_SIZE,
-        ARM64_MEMORY_MASK_LOW,
-        ARM64_BLOCK_SIZE,
-        &g_devicePoolBase,
-        &g_devicePoolLength
-    );
-    if (status != OS_EOK) {
-        g_devicePoolLength = 0;
-    }
+    // Pick the device pool before building the boot identity map so the pool
+    // pages start out uncached. If no pool fits, normal RAM still maps as
+    // usual and MmuGetDevicePool logs the failure once logging is up.
+    (void)Arm64PrepareDevicePool(boot);
     
     status = __MapBootMemory(boot);
     if (status != OS_EOK) {
@@ -675,8 +665,9 @@ Arm64BootMemoryInitialize(
     // The loader or firmware may have left pool lines in the cache while the
     // memory was mapped cached. Write them back and drop them once, so the
     // only view left is the uncached one.
-    if (g_devicePoolLength != 0) {
-        CpuDataCacheCleanInvalidate((uintptr_t)g_devicePoolBase, g_devicePoolLength);
+    pool = Arm64SelectedDevicePool();
+    if (pool.Length != 0) {
+        CpuDataCacheCleanInvalidate((uintptr_t)pool.Base, pool.Length);
     }
 
     SpinlockConstruct(&g_tableLock);
@@ -711,13 +702,6 @@ MmuGetMemoryConfiguration(
     configuration->MemoryMasks[0] = ARM64_MEMORY_MASK_LOW;
     configuration->MemoryMasks[1] = ARM64_MEMORY_MASK_32;
     configuration->MemoryMasks[2] = UINT64_MAX;
-
-    // Must match the arguments Arm64BootMemoryInitialize used to map the
-    // pool uncached. Below 2 GiB suits 32-bit devices and RP1's low alias.
-    configuration->DevicePoolSize = ARM64_DEVICE_POOL_SIZE;
-    configuration->DevicePoolLimit = ARM64_MEMORY_MASK_LOW;
-    configuration->DevicePoolAlignment = ARM64_BLOCK_SIZE;
-    configuration->DevicePoolCached = false;
 }
 
 /**

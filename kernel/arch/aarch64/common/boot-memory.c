@@ -28,6 +28,49 @@ Arm64BootMemoryIsRam(
         !(entry->Attributes & VBOOT_MEMORY_NO_MAP);
 }
 
+bool
+Arm64BootMemoryRangeIsFirmware(
+    _In_ const struct VBoot* boot,
+    _In_ uint64_t            base,
+    _In_ uint64_t            length,
+    _In_ uint64_t            limit)
+{
+    const struct VBootMemoryEntry* entries = (const void*)(uintptr_t)boot->Memory.Entries;
+    uint64_t                       covered;
+
+    if (length == 0 || base >= limit || length > limit - base) {
+        return false;
+    }
+
+    // The loader's map may split one region over several entries, so keep
+    // looking for the entry that holds the next uncovered byte.
+    while (length != 0) {
+        covered = 0;
+        for (uint32_t i = 0; i < boot->Memory.NumberOfEntries; i++) {
+            if (entries[i].Type != VBootMemoryType_Firmware ||
+                (entries[i].Attributes & VBOOT_MEMORY_NO_MAP) || base < entries[i].PhysicalBase ||
+                base - entries[i].PhysicalBase >= entries[i].Length) {
+                continue;
+            }
+
+            covered = entries[i].Length - (base - entries[i].PhysicalBase);
+            break;
+        }
+
+        if (covered == 0) {
+            return false;
+        }
+
+        if (covered >= length) {
+            return true;
+        }
+
+        base += covered;
+        length -= covered;
+    }
+    return true;
+}
+
 oserr_t
 Arm64ValidateBootMemory(
     _In_ const struct VBoot* boot,

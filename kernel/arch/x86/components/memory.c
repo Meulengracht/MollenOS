@@ -51,6 +51,16 @@ extern void memory_paging_init(uintptr_t pda, paddr_t stackPhysicalBase, vaddr_t
 extern uintptr_t g_kernelcr3;
 extern uintptr_t g_kernelpd;
 
+// x86 uses a cached 2 MiB device pool below 4 GiB, aligned to its full size.
+// Placing it under 4 GiB keeps it reachable by 32-bit PCI devices, and x86
+// hardware keeps DMA accesses coherent with CPU caches.
+#define X86_DEVICE_POOL_SIZE 0x200000
+
+// Boot-CPU state. Save the first selection so repeated calls return the same pool.
+static PlatformDevicePool_t g_devicePool;
+static oserr_t              g_devicePoolStatus;
+static bool                 g_devicePoolSelected;
+
 void
 ArchCopyFromUser(
     _Out_ void*       destination,
@@ -110,13 +120,41 @@ MmuGetMemoryConfiguration(
 #if defined(__amd64__)
     configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_64BIT;
 #endif
+}
 
-    // PCI devices see the CPU cache, so the pool may stay cached. It is only
-    // needed for contiguous, aligned runs; below 4 GiB suits 32-bit devices.
-    configuration->DevicePoolSize      = 0x200000;
-    configuration->DevicePoolLimit     = MEMORY_MASK_32BIT;
-    configuration->DevicePoolAlignment = 0x200000;
-    configuration->DevicePoolCached    = true;
+oserr_t
+MmuGetDevicePool(
+    _Out_ PlatformDevicePool_t* poolOut)
+{
+    if (poolOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (!g_devicePoolSelected) {
+        PlatformDevicePool_t pool = { .Cached = true };
+
+        g_devicePoolStatus = SystemMemoryFitDeviceRegion(
+            &GetMachine()->BootInformation,
+            X86_DEVICE_POOL_SIZE,
+            MEMORY_MASK_32BIT,
+            X86_DEVICE_POOL_SIZE,
+            &pool.Base,
+            &pool.Length
+        );
+        if (g_devicePoolStatus == OS_EOK) {
+            g_devicePool = pool;
+        }
+        g_devicePoolSelected = true;
+    }
+
+    if (g_devicePoolStatus != OS_EOK) {
+        ERROR("MmuGetDevicePool: device pool unavailable (%u), device allocations will fail: "
+              "no free RAM below 4 GiB fits the pool", g_devicePoolStatus);
+        return g_devicePoolStatus;
+    }
+
+    *poolOut = g_devicePool;
+    return OS_EOK;
 }
 
 

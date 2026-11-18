@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
+ * Device Tree DMA helpers for deviced firmware parsing
  */
 
 //#define __TRACE
@@ -22,106 +23,97 @@
 #include <firmware/resources.h>
 #include <ddk/utils.h>
 
-static int
-__DmaExtentValid(
-    _In_ uint64_t base,
-    _In_ uint64_t length,
-    _In_ uint64_t limit)
+// Known PCI hosts sometimes omit device_type = "pci". Fall back to the
+// compatible-string check used during PCI host enumeration.
+static bool
+__DmaNodeIsPci(
+    _In_ const struct FdtResources* node)
 {
-    // Compare the remaining address space without calculating base + length,
-    // which can wrap when the range ends at UINT64_MAX.
-    return length != 0 && base <= limit && length - 1 <= limit - base;
+    enum FdtPciHostType type;
+
+    return node != NULL && (node->IsPci || FdtPciHostType(&node->View, &type));
 }
 
-static int
-__DmaOverlaps(
-    _In_ uint64_t first,
-    _In_ uint64_t firstLength,
-    _In_ uint64_t second,
-    _In_ uint64_t secondLength)
+void
+FdtDescribeDmaNode(
+    _In_  const struct FdtResources* node,
+    _In_  const struct FdtResources* parent,
+    _Out_ FdtDmaNode_t*              description)
 {
-    return first <= second ? second - first < firstLength : first - second < secondLength;
+    uint32_t    compatibleLength;
+    uint32_t    length;
+    const void* compatible = FdtProperty(&node->View, "compatible", &compatibleLength);
+
+    *description = (FdtDmaNode_t) {
+        .Compatible = compatible,
+        .CompatibleLength = compatible != NULL ? compatibleLength : 0,
+        .IsRoot = parent == NULL,
+        .IsPci = __DmaNodeIsPci(node),
+        .ParentIsPci = __DmaNodeIsPci(parent),
+        .Disabled = node->Disabled || node->ParentDisabled,
+        .HasIommus = FdtProperty(&node->View, "iommus", &length) != NULL,
+        .HasIommuMap = FdtProperty(&node->View, "iommu-map", &length) != NULL,
+        .HasDmaParent = FdtProperty(&node->View, "dma-parent", &length) != NULL,
+        .HasDmaRanges = node->DmaRanges != NULL,
+        .HasMemoryRegion = FdtProperty(&node->View, "memory-region", &length) != NULL
+    };
 }
 
-static oserr_t
-__DmaAddressLimit(
-    _In_  enum FdtDmaAddressFormat format,
-    _In_  uint32_t                 cells,
-    _Out_ uint64_t*                limit)
+// Logs why FdtDmaDecode rejected the property of one bus. Every message names
+// the node, so the failing bus can be found in the device tree.
+static void
+__LogDecodeFault(
+    _In_ const struct FdtResources* bus,
+    _In_ const FdtDmaFault_t*       fault,
+    _In_ oserr_t                    status)
 {
-    if (format == FdtDmaAddressSimple && (cells == 1 || cells == 2)) {
-        *limit = cells == 1 ? UINT32_MAX : UINT64_MAX;
-        return OS_EOK;
+    switch (fault->Kind) {
+        case FdtDmaFaultChildFormat:
+            WARNING("FdtDecodeDmaRanges: node %u child address format unsupported (%u cells, %u)",
+                bus->NodeOffset, bus->AddressCells, status);
+            break;
+        case FdtDmaFaultParentFormat:
+            WARNING("FdtDecodeDmaRanges: node %u parent address format unsupported (%u cells, %u)",
+                bus->NodeOffset, bus->ParentAddressCells, status);
+            break;
+        case FdtDmaFaultSizeCells:
+            WARNING("FdtDecodeDmaRanges: node %u size cell count %u unsupported",
+                bus->NodeOffset, bus->SizeCells);
+            break;
+        case FdtDmaFaultMissingBytes:
+            ERROR("FdtDecodeDmaRanges: node %u lacks DMA property bytes", bus->NodeOffset);
+            break;
+        case FdtDmaFaultTruncatedWindow:
+            ERROR("FdtDecodeDmaRanges: node %u has a truncated DMA window", bus->NodeOffset);
+            break;
+        case FdtDmaFaultTooManyWindows:
+            WARNING("FdtDecodeDmaRanges: node %u has too many DMA windows (%u)",
+                bus->NodeOffset, fault->Count);
+            break;
+        case FdtDmaFaultChildAddress:
+            WARNING("FdtDecodeDmaRanges: node %u window %u child address unsupported (%u)",
+                bus->NodeOffset, fault->Window, status);
+            break;
+        case FdtDmaFaultParentAddress:
+            WARNING("FdtDecodeDmaRanges: node %u window %u parent address unsupported (%u)",
+                bus->NodeOffset, fault->Window, status);
+            break;
+        case FdtDmaFaultParentExtent:
+            ERROR("FdtDecodeDmaRanges: node %u window %u exceeds parent address space",
+                bus->NodeOffset, fault->Window);
+            break;
+        case FdtDmaFaultChildExtent:
+            ERROR("FdtDecodeDmaRanges: node %u window %u has an invalid extent",
+                bus->NodeOffset, fault->Window);
+            break;
+        case FdtDmaFaultOverlap:
+            ERROR("FdtDecodeDmaRanges: node %u windows %u and %u overlap",
+                bus->NodeOffset, fault->Window, fault->OtherWindow);
+            break;
+        case FdtDmaFaultNone:
+            ERROR("FdtDecodeDmaRanges: node %u DMA ranges rejected (%u)", bus->NodeOffset, status);
+            break;
     }
-    
-    if (format == FdtDmaAddressPci && cells == 3) {
-        *limit = UINT64_MAX;
-        return OS_EOK;
-    }
-    return OS_ENOTSUPPORTED;
-}
-
-static oserr_t
-__DmaDecodeAddress(
-    _In_  const uint8_t*           bytes,
-    _In_  uint32_t                 cells,
-    _In_  enum FdtDmaAddressFormat format,
-    _Out_ uint64_t*                address,
-    _Out_ uint32_t*                attributes)
-{
-    *attributes = 0;
-
-    if (format == FdtDmaAddressPci) {
-        FdtPciSpace_t space;
-
-        *attributes = FdtReadBe32(bytes);
-        
-        space = FDT_PCI_SPACE_FROM_ATTRIBUTES(*attributes);
-        
-        // The first PCI cell contains the address type and flags. DMA windows
-        // must describe memory addresses. Allow the prefetch and relocation
-        // flags, but reject I/O and configuration addresses.
-        if ((space != FdtPciSpaceMemory32 && space != FdtPciSpaceMemory64) ||
-            (*attributes & ~0xc3000000U)) {
-            return OS_ENOTSUPPORTED;
-        }
-
-        bytes += 4;
-        cells--;
-    }
-
-    *address = FdtReadCells(bytes, cells);
-    return OS_EOK;
-}
-
-static oserr_t
-__DmaCheckChild(
-    _In_ const struct FdtDmaRanges* child)
-{
-    const struct FdtDmaWindow* window;
-
-    if (child->Count > FDT_DMA_MAX_WINDOWS) {
-        WARNING("__DmaCheckChild: %u windows exceed capacity", child->Count);
-        return OS_ENOTSUPPORTED;
-    }
-
-    for (uint32_t i = 0; i < child->Count; i++) {
-        window = &child->Windows[i];
-        if (!__DmaExtentValid(window->ChildBase, window->Length, child->ChildLimit) ||
-            !__DmaExtentValid(window->ParentBase, window->Length, UINT64_MAX)) {
-            ERROR("__DmaCheckChild: window %u has an invalid extent", i);
-            return OS_EINVALPARAMS;
-        }
-        
-        for (uint32_t j = 0; j < i; j++) {
-            if (__DmaOverlaps(window->ChildBase, window->Length,
-                    child->Windows[j].ChildBase, child->Windows[j].Length)) {
-                ERROR("__DmaCheckChild: windows %u and %u overlap", i, j);
-                return OS_EINVALPARAMS;
-            }
-        }
-    }
-    return OS_EOK;
 }
 
 oserr_t
@@ -129,299 +121,55 @@ FdtDecodeDmaRanges(
     _In_  const struct FdtResources* bus,
     _In_  enum FdtDmaAddressFormat   childFormat,
     _In_  enum FdtDmaAddressFormat   parentFormat,
-    _Out_ struct FdtDmaRanges*       ranges)
+    _Out_ FdtDmaBusWindows_t*        windows)
 {
-    struct FdtDmaRanges  result = { 0 };
-    struct FdtDmaWindow* window;
-    const uint8_t*       bytes;
-    uint64_t             parentLimit;
-    uint32_t             stride;
-    oserr_t              status;
+    FdtDmaProperty_t property;
+    FdtDmaFault_t    fault = { FdtDmaFaultNone };
+    oserr_t          status;
 
     TRACE("FdtDecodeDmaRanges(bus=%p, childFormat=%u, parentFormat=%u)",
         bus, childFormat, parentFormat);
-    if (bus == NULL || ranges == NULL) {
+    if (bus == NULL || windows == NULL) {
         ERROR("FdtDecodeDmaRanges: missing bus or output");
         return OS_EINVALPARAMS;
     }
+
     if (bus->Malformed || bus->ParentMalformed) {
         ERROR("FdtDecodeDmaRanges: node %u has malformed parent nodes", bus->NodeOffset);
         return OS_EINVALPARAMS;
     }
-    
-    status = __DmaAddressLimit(childFormat, bus->AddressCells, &result.ChildLimit);
+
+    property = (FdtDmaProperty_t) {
+        .Bytes = bus->DmaRanges,
+        .Length = bus->DmaRangesLength,
+        .ChildCells = bus->AddressCells,
+        .ParentCells = bus->ParentAddressCells,
+        .SizeCells = bus->SizeCells,
+        .ChildFormat = childFormat,
+        .ParentFormat = parentFormat
+    };
+
+    status = FdtDmaDecode(&property, windows, &fault);
     if (status != OS_EOK) {
-        WARNING("FdtDecodeDmaRanges: node %u child address format %u/%u unsupported (%u)",
-            bus->NodeOffset, childFormat, bus->AddressCells, status);
+        __LogDecodeFault(bus, &fault, status);
         return status;
     }
-    
-    status = __DmaAddressLimit(parentFormat, bus->ParentAddressCells, &parentLimit);
-    if (status != OS_EOK) {
-        WARNING("FdtDecodeDmaRanges: node %u parent address format %u/%u unsupported (%u)",
-            bus->NodeOffset, parentFormat, bus->ParentAddressCells, status);
-        return status;
-    }
-    if (bus->SizeCells == 0 || bus->SizeCells > 2) {
-        WARNING("FdtDecodeDmaRanges: node %u size cell count %u unsupported",
-            bus->NodeOffset, bus->SizeCells);
-        return OS_ENOTSUPPORTED;
-    }
 
-    if (bus->DmaRanges == NULL) {
-        if (bus->DmaRangesLength != 0) {
-            ERROR("FdtDecodeDmaRanges: node %u lacks DMA property bytes", bus->NodeOffset);
-            return OS_EINVALPARAMS;
-        }
-        result.State = FdtDmaPropertyAbsent;
-    } else if (bus->DmaRangesLength == 0) {
-        result.State = FdtDmaPropertyIdentity;
-        if (parentLimit < result.ChildLimit) {
-            result.ChildLimit = parentLimit;
-        }
-    } else {
-        result.State = FdtDmaPropertyWindows;
-        stride = (bus->AddressCells + bus->ParentAddressCells + bus->SizeCells) * 4;
-        if (bus->DmaRangesLength % stride) {
-            ERROR("FdtDecodeDmaRanges: node %u has a truncated DMA window", bus->NodeOffset);
-            return OS_EINVALPARAMS;
-        }
-        result.Count = bus->DmaRangesLength / stride;
-        if (result.Count > FDT_DMA_MAX_WINDOWS) {
-            WARNING("FdtDecodeDmaRanges: node %u has too many DMA windows (%u)",
-                bus->NodeOffset, result.Count);
-            return OS_ENOTSUPPORTED;
-        }
-
-        for (uint32_t i = 0; i < result.Count; i++) {
-            bytes = bus->DmaRanges + i * stride;
-            window = &result.Windows[i];
-            
-            status = __DmaDecodeAddress(
-                bytes,
-                bus->AddressCells,
-                childFormat,
-                &window->ChildBase,
-                &window->ChildAttributes
-            );
-            if (status != OS_EOK) {
-                WARNING("FdtDecodeDmaRanges: node %u window %u child address unsupported (%u)",
-                    bus->NodeOffset, i, status);
-                return status;
-            }
-            bytes += bus->AddressCells * 4;
-            
-            status = __DmaDecodeAddress(
-                bytes,
-                bus->ParentAddressCells,
-                parentFormat,
-                &window->ParentBase,
-                &window->ParentAttributes
-            );
-            if (status != OS_EOK) {
-                WARNING("FdtDecodeDmaRanges: node %u window %u parent address unsupported (%u)",
-                    bus->NodeOffset, i, status);
-                return status;
-            }
-            
-            window->Length = FdtReadCells(bytes + bus->ParentAddressCells * 4, bus->SizeCells);
-            if (!__DmaExtentValid(window->ParentBase, window->Length, parentLimit)) {
-                ERROR("FdtDecodeDmaRanges: node %u window %u exceeds parent address space",
-                    bus->NodeOffset, i);
-                return OS_EINVALPARAMS;
-            }
-        }
-
-        status = __DmaCheckChild(&result);
-        if (status != OS_EOK) {
-            ERROR("FdtDecodeDmaRanges: node %u DMA windows invalid (%u)", bus->NodeOffset, status);
-            return status;
-        }
-    }
-
-    *ranges = result;
     TRACE("FdtDecodeDmaRanges: node %u state %u, %u windows",
-        bus->NodeOffset, result.State, result.Count);
-    return OS_EOK;
-}
-
-static oserr_t
-__DmaCheckParent(
-    _In_ const DmDmaMap_t* parent)
-{
-    const DmDmaRange_t* range;
-
-    if (parent->Count > DM_DMA_MAX_RANGES) {
-        WARNING("__DmaCheckParent: %u ranges exceed capacity", parent->Count);
-        return OS_ENOTSUPPORTED;
-    }
-
-    for (uint32_t i = 0; i < parent->Count; i++) {
-        range = &parent->Ranges[i];
-        if (!__DmaExtentValid(range->DeviceBase, range->Length, UINT64_MAX) ||
-            !__DmaExtentValid(range->PhysicalBase, range->Length, UINT64_MAX)) {
-            ERROR("__DmaCheckParent: range %u has an invalid extent", i);
-            return OS_EINVALPARAMS;
-        }
-
-        for (uint32_t j = 0; j < i; j++) {
-            if (__DmaOverlaps(range->DeviceBase, range->Length,
-                    parent->Ranges[j].DeviceBase, parent->Ranges[j].Length)) {
-                ERROR("__DmaCheckParent: ranges %u and %u overlap", i, j);
-                return OS_EINVALPARAMS;
-            }
-        }
-    }
-    return OS_EOK;
-}
-
-static oserr_t
-__DmaAppend(
-    _InOut_ DmDmaMap_t*         map,
-    _In_    const DmDmaRange_t* range)
-{
-    uint32_t index;
-
-    if (map->Count == DM_DMA_MAX_RANGES) {
-        WARNING("__DmaAppend: composed map exceeds %u ranges", DM_DMA_MAX_RANGES);
-        return OS_ENOTSUPPORTED;
-    }
-    
-    // Keep the output in device-address order even if firmware lists its
-    // windows in a different order. Keep touching ranges separate because the
-    // address mapping may change at their boundary.
-    index = map->Count++;
-    while (index != 0 && map->Ranges[index - 1].DeviceBase > range->DeviceBase) {
-        map->Ranges[index] = map->Ranges[index - 1];
-        index--;
-    }
-    
-    map->Ranges[index] = *range;
-    return OS_EOK;
-}
-
-oserr_t
-FdtComposeDmaRanges(
-    _In_  const struct FdtDmaRanges* child,
-    _In_  const DmDmaMap_t*          parent,
-    _Out_ DmDmaMap_t*                map)
-{
-    DmDmaMap_t                 result = { 0 };
-    DmDmaRange_t               range;
-    const DmDmaRange_t*        source;
-    const struct FdtDmaWindow* window;
-    uint64_t                   parentEnd;
-    uint64_t                   start;
-    uint64_t                   end;
-    oserr_t                    status;
-
-    TRACE("FdtComposeDmaRanges(child=%p, parent=%p)", child, parent);
-    if (child == NULL || parent == NULL || map == NULL) {
-        ERROR("FdtComposeDmaRanges: missing child, parent or output");
-        return OS_EINVALPARAMS;
-    }
-    
-    if (child->State == FdtDmaPropertyAbsent) {
-        WARNING("FdtComposeDmaRanges: child has no DMA mapping");
-        return OS_ENOTSUPPORTED;
-    }
-    
-    if (child->State != FdtDmaPropertyIdentity && child->State != FdtDmaPropertyWindows) {
-        ERROR("FdtComposeDmaRanges: invalid property state %u", child->State);
-        return OS_EINVALPARAMS;
-    }
-    
-    if ((child->State == FdtDmaPropertyIdentity && child->Count != 0) ||
-        (child->State == FdtDmaPropertyWindows && child->Count == 0)) {
-        ERROR("FdtComposeDmaRanges: state %u conflicts with window count %u",
-            child->State, child->Count);
-        return OS_EINVALPARAMS;
-    }
-    
-    status = __DmaCheckChild(child);
-    if (status != OS_EOK) {
-        WARNING("FdtComposeDmaRanges: child windows rejected (%u)", status);
-        return status;
-    }
-    
-    status = __DmaCheckParent(parent);
-    if (status != OS_EOK) {
-        WARNING("FdtComposeDmaRanges: parent ranges rejected (%u)", status);
-        return status;
-    }
-    
-    for (uint32_t i = 0; i < parent->Count; i++) {
-        source = &parent->Ranges[i];
-        parentEnd = source->DeviceBase + (source->Length - 1);
-        
-        if (child->State == FdtDmaPropertyIdentity) {
-            if (source->DeviceBase > child->ChildLimit) {
-                continue;
-            }
-            
-            range = *source;
-            end = parentEnd < child->ChildLimit ? parentEnd : child->ChildLimit;
-            range.Length = end - source->DeviceBase + 1;
-            
-            status = __DmaAppend(&result, &range);
-            if (status != OS_EOK) {
-                WARNING("FdtComposeDmaRanges: identity range %u cannot be appended (%u)", i, status);
-                return status;
-            }
-            continue;
-        }
-        
-        for (uint32_t j = 0; j < child->Count; j++) {
-            window = &child->Windows[j];
-            
-            // Both ranges use the parent bus address space here. Only their
-            // intersection can be translated from child addresses to memory.
-            start = source->DeviceBase > window->ParentBase ? source->DeviceBase : window->ParentBase;
-            end = window->ParentBase + (window->Length - 1);
-            if (parentEnd < end) {
-                end = parentEnd;
-            }
-            
-            if (start > end) {
-                continue;
-            }
-            
-            // Work with the address of the last byte so a range can end at
-            // UINT64_MAX without adding one and wrapping back to zero. The
-            // input checks ensure these calculated addresses stay in range.
-            range.DeviceBase = window->ChildBase + (start - window->ParentBase);
-            range.PhysicalBase = source->PhysicalBase + (start - source->DeviceBase);
-            range.Length = end - start + 1;
-            
-            status = __DmaAppend(&result, &range);
-            if (status != OS_EOK) {
-                WARNING("FdtComposeDmaRanges: parent range %u child window %u cannot be appended (%u)",
-                    i, j, status);
-                return status;
-            }
-        }
-    }
-
-    if (result.Count == 0) {
-        WARNING("FdtComposeDmaRanges: no child addresses reach parent memory");
-        return OS_ENOENT;
-    }
-
-    *map = result;
-    TRACE("FdtComposeDmaRanges: composed %u ranges", result.Count);
+        bus->NodeOffset, windows->State, windows->Count);
     return OS_EOK;
 }
 
 oserr_t
 FdtPciDmaMap(
     _In_  const struct FdtPciHost* host,
-    _Out_ DmDmaMap_t*         parent)
+    _Out_ FdtDmaMap_t*        parent)
 {
-    oserr_t    status;
-    DmDmaMap_t all = { 0 };
-    DmDmaMap_t ram = { 0 };
+    oserr_t     status;
+    FdtDmaMap_t all = { 0 };
+    FdtDmaMap_t ram = { 0 };
 
-    struct FdtDmaRanges        identity = {
+    FdtDmaBusWindows_t identity = {
         .State = FdtDmaPropertyIdentity,
         .ChildLimit = UINT64_MAX
     };
@@ -447,22 +195,23 @@ FdtPciDmaMap(
         }
         
         if (FDT_PCI_SPACE_FROM_ATTRIBUTES(window->Attributes) != window->Space ||
-            (window->Attributes & ~0xc3000000U)) {
+            (window->Attributes & ~FDT_DMA_PCI_VALID_FLAGS)) {
             WARNING("FdtPciDmaMap: domain %u window %u attributes 0x%x unsupported",
                 host->Segment, i, window->Attributes);
             return OS_ENOTSUPPORTED;
         }
         
-        all.Ranges[all.Count++] = (DmDmaRange_t) {
+        all.Ranges[all.Count++] = (FdtDmaRange_t) {
             .DeviceBase = window->BusBase,
             .PhysicalBase = window->PhysicalBase,
             .Length = window->Length
         };
     }
     
-    // Validate the entire PCI address space before filtering. A peer or MSI
-    // window overlapping RAM is ambiguous even if it would later be omitted.
-    status = FdtComposeDmaRanges(&identity, &all, &all);
+    // Run an identity pass over every PCI window first to catch invalid extents
+    // or overlaps. Even if a peer or MSI window gets filtered out later, an
+    // overlap with RAM leaves the device address ambiguous in hardware.
+    status = FdtDmaCompose(&identity, &all, &all);
     if (status != OS_EOK) {
         WARNING("FdtPciDmaMap: domain %u DMA windows rejected (%u)", host->Segment, status);
         return status;
@@ -474,7 +223,7 @@ FdtPciDmaMap(
             continue;
         }
 
-        ram.Ranges[ram.Count++] = (DmDmaRange_t) {
+        ram.Ranges[ram.Count++] = (FdtDmaRange_t) {
             .DeviceBase = window->BusBase,
             .PhysicalBase = window->PhysicalBase,
             .Length = window->Length
@@ -485,8 +234,9 @@ FdtPciDmaMap(
         return OS_ENOENT;
     }
     
-    // Reuse the composer to sort copied ranges and publish only a complete map.
-    status = FdtComposeDmaRanges(&identity, &ram, parent);
+    // Run a second identity pass on the RAM-only list so the output is sorted
+    // by bus address and written to parent only when everything succeeds.
+    status = FdtDmaCompose(&identity, &ram, parent);
     if (status != OS_EOK) {
         WARNING("FdtPciDmaMap: domain %u RAM map rejected (%u)", host->Segment, status);
         return status;

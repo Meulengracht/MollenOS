@@ -22,6 +22,7 @@
 #include "../smmu/discovery-private.h"
 #include <ddk/types/interrupt.h>
 #include <debug.h>
+#include <fdt/dma.h>
 #include <fdt/reader.h>
 #include <heap.h>
 #include <log.h>
@@ -53,18 +54,6 @@
 // each able to carry its own fault interrupt line.
 #define SMMU_500_MAX_CONTEXTS   128U
 
-// PCI dma-ranges encode each child address across three 32-bit cells: one
-// attribute word holding the PCI address space flags, then a 64-bit address.
-#define SMMU_PCI_ADDRESS_CELLS  3U
-
-// Bits inside the first cell of a PCI dma-ranges child address. Only 32-bit
-// and 64-bit memory spaces apply to DMA, optionally marked prefetchable or
-// relocatable.
-#define SMMU_PCI_SPACE_MASK     0x03000000U
-#define SMMU_PCI_SPACE_MEM32    0x02000000U
-#define SMMU_PCI_SPACE_MEM64    0x03000000U
-#define SMMU_PCI_VALID_FLAGS    0xc3000000U
-
 /**
  * @brief Scratch record for one enabled SMMU node found in the Device Tree.
  *
@@ -90,14 +79,6 @@ struct __SmmuTreeParser {
     ArmSMMUDiscovery_t*     Discovery;
     uint32_t                UnitCount;
     struct __SmmuTreeUnit   Units[ARM_SMMU_MAX_UNITS];
-};
-
-// Number of 32-bit cells used by each field in a dma-ranges tuple:
-// <child-address parent-address length>.
-struct __SmmuBusCells {
-    uint32_t Child;
-    uint32_t Parent;
-    uint32_t Size;
 };
 
 // Reads a single big-endian 32-bit integer property ("cell") from node.
@@ -645,110 +626,42 @@ __ReadCellsOrDefault(
     return status;
 }
 
-// Reads a big-endian 32-bit or 64-bit integer encoded across one or two cells.
-static uint64_t
-__ReadAddress(
-    _In_ const uint8_t* bytes,
-    _In_ uint32_t       cells)
-{
-    uint64_t address = FdtReadBe32(bytes);
-
-    if (cells == 2) {
-        address = (address << 32) | FdtReadBe32(bytes + 4);
-    }
-    return address;
-}
-
 /**
- * Reads the cell widths for one dma-ranges entry on bus. Each entry encodes
- * <child-address parent-address length>. Child addresses use #address-cells
- * on bus (always 3 cells for PCI), parent addresses use #address-cells on
- * bus->Parent, and length uses #size-cells on bus.
+ * Fills property with the dma-ranges bytes and address layout of bus. Each
+ * entry encodes <child-address parent-address length>. Child addresses use
+ * #address-cells on bus (a PCI address for PCI buses), parent addresses use
+ * #address-cells on bus->Parent, and length uses #size-cells on bus. The
+ * decoder validates the cell counts.
  */
 static oserr_t
-__ReadBusCells(
+__ReadDmaProperty(
     _In_  const DeviceTreeNode_t* bus,
     _In_  bool                    pci,
-    _Out_ struct __SmmuBusCells*  cells)
+    _Out_ FdtDmaProperty_t*       property)
 {
-    oserr_t status;
+    const DeviceTreeProperty_t* ranges = DeviceTreeGetProperty(bus, "dma-ranges");
+    oserr_t                     status;
 
-    status = __ReadCellsOrDefault(bus, "#address-cells", 2, &cells->Child);
+    *property = (FdtDmaProperty_t) {
+        .ChildFormat = pci ? FdtDmaAddressPci : FdtDmaAddressSimple,
+        .ParentFormat = FdtDmaAddressSimple
+    };
+
+    if (ranges != NULL) {
+        property->Bytes = ranges->Value;
+        property->Length = ranges->Length;
+    }
+
+    status = __ReadCellsOrDefault(bus, "#address-cells", 2, &property->ChildCells);
     if (status != OS_EOK) {
         return status;
     }
 
-    status = __ReadCellsOrDefault(bus->Parent, "#address-cells", 2, &cells->Parent);
+    status = __ReadCellsOrDefault(bus->Parent, "#address-cells", 2, &property->ParentCells);
     if (status != OS_EOK) {
         return status;
     }
-
-    status = __ReadCellsOrDefault(bus, "#size-cells", 1, &cells->Size);
-    if (status != OS_EOK) {
-        return status;
-    }
-
-    if ((pci ? cells->Child != SMMU_PCI_ADDRESS_CELLS : cells->Child < 1 || cells->Child > 2) ||
-        cells->Parent < 1 || cells->Parent > 2 || cells->Size < 1 || cells->Size > 2) {
-        return OS_ENOTSUPPORTED;
-    }
-    return OS_EOK;
-}
-
-/**
- * Validates one dma-ranges window entry and narrows limit to its top address.
- * For PCI buses, the first cell holds address-space flags followed by a 64-bit
- * address, and a 32-bit memory window lowers childLimit to UINT32_MAX.
- * Clears supported if the window translates addresses away from 0, splits into
- * multiple discontiguous entries (onlyEntry is false), or uses a non-memory PCI
- * address space, since ArmSMMUDeviceRoute carries a single 0-based limit.
- */
-static oserr_t
-__ReadDmaEntry(
-    _In_    const uint8_t*               entry,
-    _In_    bool                         pci,
-    _In_    const struct __SmmuBusCells* cells,
-    _In_    bool                         onlyEntry,
-    _In_    uint64_t                     parentLimit,
-    _InOut_ uint64_t*                    childLimit,
-    _InOut_ uint64_t*                    limit,
-    _InOut_ bool*                        supported)
-{
-    uint64_t child = __ReadAddress(entry + (pci ? 4 : 0), pci ? 2 : cells->Child);
-    uint64_t parent = __ReadAddress(entry + cells->Child * 4, cells->Parent);
-    uint64_t length = __ReadAddress(entry + (cells->Child + cells->Parent) * 4, cells->Size);
-
-    if (pci) {
-        uint32_t attributes = FdtReadBe32(entry);
-        uint32_t space = attributes & SMMU_PCI_SPACE_MASK;
-
-        // Allow only 32-bit or 64-bit PCI memory spaces with optional prefetch
-        // or relocatable flags.
-        if ((attributes & ~SMMU_PCI_VALID_FLAGS) != 0 ||
-            (space != SMMU_PCI_SPACE_MEM32 && space != SMMU_PCI_SPACE_MEM64)) {
-            *supported = false;
-        }
-
-        if (space == SMMU_PCI_SPACE_MEM32) {
-            *childLimit = UINT32_MAX;
-        }
-    }
-
-    // Check inclusive upper bounds without overflowing 64-bit arithmetic.
-    if (length == 0 || child > *childLimit || length - 1 > *childLimit - child ||
-        parent > parentLimit || length - 1 > parentLimit - parent) {
-        return OS_EINVALPARAMS;
-    }
-
-    // The route struct represents one contiguous identity window starting at 0.
-    if (child != 0 || parent != 0 || !onlyEntry) {
-        *supported = false;
-    }
-
-    if (length - 1 < *limit) {
-        *limit = length - 1;
-    }
-    return OS_EOK;
+    return __ReadCellsOrDefault(bus, "#size-cells", 1, &property->SizeCells);
 }
 
 /**
@@ -756,7 +669,9 @@ __ReadDmaEntry(
  * addresses can travel upstream toward RAM. Missing dma-ranges returns
  * OS_ENOTSUPPORTED because DMA reachability cannot be assumed. An empty
  * property means addresses pass 1:1, bounded only by child and parent cell
- * widths. Set pci to true for PCI host bridges using 3-cell child addresses.
+ * widths. Listed windows are supported only as one window that maps address 0
+ * to address 0, since ArmSMMUDeviceRoute carries a single 0-based limit. Set
+ * pci to true for PCI host bridges using 3-cell child addresses.
  */
 static oserr_t
 __ReadDmaWindow(
@@ -764,65 +679,40 @@ __ReadDmaWindow(
     _In_    bool                    pci,
     _InOut_ uint64_t*               limit)
 {
-    const DeviceTreeProperty_t* ranges = DeviceTreeGetProperty(bus, "dma-ranges");
-    struct __SmmuBusCells       cells;
-    uint32_t                    stride;
-    uint64_t                    childLimit;
-    uint64_t                    parentLimit;
-    oserr_t                     status;
-    bool                        supported = true;
+    FdtDmaProperty_t   property;
+    FdtDmaBusWindows_t windows;
+    oserr_t            status;
 
-    status = __ReadBusCells(bus, pci, &cells);
+    status = __ReadDmaProperty(bus, pci, &property);
     if (status != OS_EOK) {
         return status;
     }
 
-    childLimit = cells.Child == 1 ? UINT32_MAX : UINT64_MAX;
-    parentLimit = cells.Parent == 1 ? UINT32_MAX : UINT64_MAX;
-    
-    if (childLimit < *limit) {
-        *limit = childLimit;
+    status = FdtDmaDecode(&property, &windows);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    if (parentLimit < *limit) {
-        *limit = parentLimit;
-    }
+    switch (windows.State) {
+        case FdtDmaPropertyIdentity:
+            if (windows.ChildLimit < *limit) {
+                *limit = windows.ChildLimit;
+            }
+            return OS_EOK;
+        case FdtDmaPropertyWindows:
+            if (windows.Count != 1 || windows.Windows[0].ChildBase != 0 ||
+                windows.Windows[0].ParentBase != 0) {
+                return OS_ENOTSUPPORTED;
+            }
 
-    // Missing windows prove nothing. An empty property explicitly preserves
-    // addresses, subject to the width of both sides of this bus connection.
-    if (ranges == NULL) {
-        return OS_ENOTSUPPORTED;
+            if (windows.Windows[0].Length - 1 < *limit) {
+                *limit = windows.Windows[0].Length - 1;
+            }
+            return OS_EOK;
+        default:
+            // Missing windows prove nothing about what the bus can reach.
+            return OS_ENOTSUPPORTED;
     }
-
-    if (ranges->Length == 0) {
-        return OS_EOK;
-    }
-
-    stride = (cells.Child + cells.Parent + cells.Size) * 4;
-    if (ranges->Length % stride != 0) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (ranges->Length / stride > ARM_SMMU_MAX_RANGES) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    for (uint32_t offset = 0; offset < ranges->Length; offset += stride) {
-        status = __ReadDmaEntry(
-            (const uint8_t*)ranges->Value + offset,
-            pci,
-            &cells,
-            ranges->Length == stride,
-            parentLimit,
-            &childLimit,
-            limit,
-            &supported
-        );
-        if (status != OS_EOK) {
-            return status;
-        }
-    }
-    return supported ? OS_EOK : OS_ENOTSUPPORTED;
 }
 
 /**
@@ -861,21 +751,44 @@ __ReadCacheFlags(
     return OS_EOK;
 }
 
+// Returns true if node has device_type "pci". A NULL node is not PCI.
+static bool
+__IsPciNode(
+    _In_ const DeviceTreeNode_t* node)
+{
+    const char* type = node != NULL ? DeviceTreeReadString(node, "device_type") : NULL;
+
+    return type != NULL && strcmp(type, "pci") == 0;
+}
+
 /**
- * Checks whether node uses Device Tree properties that redirect DMA outside
- * the simple bus path our discovery models. The device node itself uses
- * iommus or iommu-map for its own route, while any parent bus with those
- * properties or any node with dma-parent or memory-region is unsupported.
+ * Checks whether node redirects DMA outside the simple bus path our discovery
+ * models, using the shared FdtDmaNodeIsDirect rules. The device node itself
+ * uses iommus or iommu-map for its own route, so those are ignored for it,
+ * while any parent bus with those properties is unsupported. A node with
+ * memory-region is unsupported too.
  */
 static bool
 __HasUnsupportedDmaRedirect(
     _In_ const DeviceTreeNode_t* device,
     _In_ const DeviceTreeNode_t* node)
 {
-    return DeviceTreeGetProperty(node, "dma-parent") != NULL ||
-           DeviceTreeGetProperty(node, "memory-region") != NULL ||
-           (node != device && (DeviceTreeGetProperty(node, "iommus") != NULL ||
-                               DeviceTreeGetProperty(node, "iommu-map") != NULL));
+    const DeviceTreeProperty_t* compatible = DeviceTreeGetProperty(node, "compatible");
+    FdtDmaNode_t                description = {
+        .Compatible = compatible != NULL ? compatible->Value : NULL,
+        .CompatibleLength = compatible != NULL ? compatible->Length : 0,
+        .IsRoot = node->Parent == NULL,
+        .IsPci = __IsPciNode(node),
+        .ParentIsPci = __IsPciNode(node->Parent),
+        .Disabled = !DeviceTreeIsEnabled(node),
+        .HasIommus = node != device && DeviceTreeGetProperty(node, "iommus") != NULL,
+        .HasIommuMap = node != device && DeviceTreeGetProperty(node, "iommu-map") != NULL,
+        .HasDmaParent = DeviceTreeGetProperty(node, "dma-parent") != NULL,
+        .HasDmaRanges = DeviceTreeGetProperty(node, "dma-ranges") != NULL
+    };
+
+    return DeviceTreeGetProperty(node, "memory-region") != NULL ||
+           !FdtDmaNodeIsDirect(&description, NULL);
 }
 
 // Applies the root node's #address-cells width to source->AddressLimit so a

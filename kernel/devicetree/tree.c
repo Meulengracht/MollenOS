@@ -92,6 +92,74 @@ DeviceTreeReadInteger(
     return OS_EOK;
 }
 
+oserr_t
+DeviceTreeReadCell(
+    _In_  const DeviceTreeNode_t* node,
+    _In_  const char*             name,
+    _Out_ uint32_t*               valueOut)
+{
+    const DeviceTreeProperty_t* property = DeviceTreeGetProperty(node, name);
+
+    if (!property) {
+        return OS_ENOENT;
+    }
+
+    if (property->Length != 4) {
+        return OS_EINVALPARAMS;
+    }
+
+    *valueOut = FdtReadBe32(property->Value);
+    return OS_EOK;
+}
+
+oserr_t
+DeviceTreeReadBoolean(
+    _In_  const DeviceTreeNode_t* node,
+    _In_  const char*             name,
+    _Out_ bool*                   valueOut)
+{
+    const DeviceTreeProperty_t* property = DeviceTreeGetProperty(node, name);
+
+    if (property && property->Length != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    *valueOut = property != NULL;
+    return OS_EOK;
+}
+
+oserr_t
+DeviceTreeCheckStrings(
+    _In_ const DeviceTreeNode_t* node,
+    _In_ const char*             name,
+    _In_ bool                    list)
+{
+    const DeviceTreeProperty_t* property = DeviceTreeGetProperty(node, name);
+    const char*                 bytes;
+
+    if (!property) {
+        return OS_EOK;
+    }
+
+    // Require at least one terminating zero byte at the end before calling
+    // strlen inside the buffer.
+    bytes = property->Value;
+    if (property->Length == 0 || bytes[property->Length - 1] != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    for (uint32_t offset = 0; offset < property->Length;) {
+        uint32_t length = (uint32_t)strlen(bytes + offset) + 1;
+
+        // length == 1 means a bare zero byte (an empty string entry).
+        if (length == 1 || (!list && length != property->Length)) {
+            return OS_EINVALPARAMS;
+        }
+        offset += length;
+    }
+    return OS_EOK;
+}
+
 int
 DeviceTreeIsCompatible(
     _In_ const DeviceTreeNode_t* node,

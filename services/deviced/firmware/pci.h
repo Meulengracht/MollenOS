@@ -21,6 +21,7 @@
 
 #include <os/osdefs.h>
 #include <firmware/interrupt.h>
+#include <fdt/pci.h>
 
 // Forward declarations
 struct FdtNode;
@@ -39,21 +40,6 @@ enum FdtPciHostType {
 
 // PCI memory window may be read ahead by the processor.
 #define FDT_PCI_PREFETCHABLE 0x40000000U
-
-typedef enum FdtPciSpace {
-    // PCI configuration addresses.
-    FdtPciSpaceConfiguration = 0,
-    // PCI I/O addresses.
-    FdtPciSpaceIo = 1,
-    // PCI memory addresses limited to 32 bits.
-    FdtPciSpaceMemory32 = 2,
-    // PCI memory addresses that can use 64 bits.
-    FdtPciSpaceMemory64 = 3
-} FdtPciSpace_t;
-
-// Read the PCI address-space kind from bits 25 through 24 of its attributes.
-#define FDT_PCI_SPACE_FROM_ATTRIBUTES(attributes) \
-    ((FdtPciSpace_t)(((attributes) >> 24) & 3))
 
 /**
  * @brief Describes what a PCI device can reach through one of its DMA address ranges.

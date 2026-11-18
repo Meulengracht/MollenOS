@@ -43,6 +43,7 @@ struct MemoryBootContext {
     // Physical range set aside for devices; zero length when there is none.
     paddr_t                 DevicePoolBase;
     size_t                  DevicePoolLength;
+    bool                    DevicePoolCached;
 };
 
 static PlatformMemoryMapping_t* g_kernelMappings        = NULL;
@@ -154,35 +155,30 @@ __OverlapsDevicePool(
 }
 
 /**
- * @brief Decide where the device pool goes, before any memory is handed out.
+ * @brief Fetch the architecture's selected device pool before handing RAM to
+ *        page allocators.
  *
- * Uses the same choice ARM64 made when it mapped the pool uncached at early
- * boot: the same function on the same loader map always gives the same range.
+ * On ARM64, the early boot mapper already picked this range and mapped it
+ * uncached, so generic memory setup asks MmuGetDevicePool instead of picking
+ * a different region on its own.
  */
 static void
 __FindDevicePool(
-    _In_ struct MemoryBootContext*            bootContext,
-    _In_ struct VBoot*                        bootInformation,
-    _In_ const PlatformMemoryConfiguration_t* configuration)
+    _In_ struct MemoryBootContext* bootContext)
 {
-    oserr_t oserr;
+    PlatformDevicePool_t pool;
+    oserr_t              status;
 
-    if (configuration->DevicePoolSize == 0) {
+    // MmuGetDevicePool logs the failure reason itself.
+    status = MmuGetDevicePool(&pool);
+    if (status != OS_EOK) {
+        bootContext->DevicePoolLength = 0;
         return;
     }
 
-    oserr = SystemMemoryFitDeviceRegion(
-        bootInformation,
-        configuration->DevicePoolSize,
-        configuration->DevicePoolLimit,
-        configuration->DevicePoolAlignment,
-        &bootContext->DevicePoolBase,
-        &bootContext->DevicePoolLength
-    );
-    if (oserr != OS_EOK) {
-        WARNING("MachineMemoryInitialize no room for the device pool, device allocations will fail");
-        bootContext->DevicePoolLength = 0;
-    }
+    bootContext->DevicePoolBase = pool.Base;
+    bootContext->DevicePoolLength = pool.Length;
+    bootContext->DevicePoolCached = pool.Cached;
 }
 
 // Size each mask's free-range array for its worst possible fragmentation.
@@ -733,7 +729,7 @@ __InitializeDevicePool(
         &GetMachine()->PhysicalMemory,
         bootContext->DevicePoolBase,
         bootContext->DevicePoolLength,
-        configuration->DevicePoolCached,
+        bootContext->DevicePoolCached,
         storage,
         storageSize
     );
@@ -744,7 +740,7 @@ __InitializeDevicePool(
 
     DEBUG("Device pool 0x%llx, %" PRIuIN " bytes, %s",
           (unsigned long long)bootContext->DevicePoolBase, bootContext->DevicePoolLength,
-          configuration->DevicePoolCached ? "cached" : "uncached");
+          bootContext->DevicePoolCached ? "cached" : "uncached");
     return OS_EOK;
 }
 
@@ -784,7 +780,7 @@ MachineMemoryInitialize(
 
     // Decide on the device pool first, so neither boot memory nor the page
     // allocator can take its pages.
-    __FindDevicePool(&bootContext, &machine->BootInformation, &configuration);
+    __FindDevicePool(&bootContext);
 
     oserr = __SizeAllocatorStorage(&bootContext, &machine->BootInformation, &configuration);
     if (oserr != OS_EOK) {

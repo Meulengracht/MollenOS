@@ -1,5 +1,6 @@
 add_library(deviced-firmware STATIC
     bcm.c
+    board-dma.c
     dma.c
     ethernet.c
     fdt.c
@@ -16,6 +17,7 @@ add_library(deviced-firmware STATIC
 target_link_libraries(deviced-firmware PRIVATE
     deviced-headers
     vali-fdt
+    vali-fdt-dma
     libddk
     libos-api
     c

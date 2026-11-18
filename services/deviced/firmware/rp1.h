@@ -20,9 +20,7 @@
 #define __FIRMWARE_RP1_H__
 
 #include <firmware/pci.h>
-
-// forward declarations
-typedef struct DmDmaMap DmDmaMap_t;
+#include <dma-types.h>
 
 #define FDT_RP1_MAX_REGISTERS   8
 #define FDT_RP1_MAX_INTERRUPTS  8
@@ -90,48 +88,49 @@ FdtEnumerateRp1Children(
     _In_ void*                     context);
 
 /**
- * @brief Describe the RAM ranges reachable by an enabled direct RP1 child.
+ * @brief Find the RAM ranges reachable by one enabled RP1 peripheral device.
  *
- * The result describes firmware DMA windows. The caller must check installed
- * RAM, cache policy and programmed hardware before using it for DMA. This
- * function does not allocate memory, publish devices or change readiness flags.
+ * RP1 is the I/O hub connected over PCIe on Raspberry Pi 5. This reads the
+ * PCI host's firmware DMA windows to RAM, then applies RP1's own dma-ranges
+ * to produce the peripheral's DMA map. Does not inspect or change live
+ * hardware, allocate buffers, or set cache policies.
  *
- * @param host Decoded PCI host description, kept alive throughout the call.
- *             Its DmaWindows include PCI-to-CPU translations through parent buses.
- *             Only windows classified as RAM contribute to the result.
- * @param childNode Exact firmware node offset from an enumerated RP1 child.
- * @param map Receives the complete copied mapping only on success. Aliases are
- *            included; holes, peer resources and MSI doorbells are excluded.
- * @return OS_EOK, OS_ENOENT for an absent/disabled child or no reachable RAM,
- *         OS_EINVALPARAMS for malformed/ambiguous descriptions, or
- *         OS_ENOTSUPPORTED for absent DMA ranges, IOMMU paths or insufficient
- *         map capacity.
+ * @param host      Decoded PCI host record, kept alive for the call. Only its
+ *                  RAM DMA windows contribute to the result.
+ * @param childNode Node offset of an enumerated RP1 peripheral.
+ * @param map       Receives the sorted child-to-RAM map on success. Unchanged
+ *                  on error. Gaps, peer PCI windows, and MSI write targets are
+ *                  excluded.
+ * @return OS_EOK on success, OS_ENOENT if the child is missing/disabled or no
+ *         RAM is reachable, OS_EINVALPARAMS for malformed descriptions, or
+ *         OS_ENOTSUPPORTED for missing dma-ranges, IOMMU paths, or full maps.
  */
 __EXTERN oserr_t
 FdtResolveRp1Dma(
     _In_  const struct FdtPciHost* host,
     _In_  uint32_t                 childNode,
-    _Out_ DmDmaMap_t*              map);
+    _Out_ FdtDmaMap_t*             map);
 
 /**
- * @brief Resolve the RP1 child path using the supplied PCI-to-RAM map.
+ * @brief Combine an RP1 peripheral's bus windows with a supplied PCI-to-RAM map.
  *
- * A running host must supply windows that match its programmed DMA settings.
- * The child path uses the same parent-bus and unsupported-path checks as
- * FdtResolveRp1Dma. No host DMA windows are read from firmware by this function.
+ * Unlike FdtResolveRp1Dma, this uses the PCI-to-RAM ranges supplied in @p parent
+ * instead of reading them from the PCI host's firmware description. Live bus
+ * drivers pass the windows actually programmed into the PCI host controller.
+ * Applies the same direct-path checks above the RP1 child.
  *
- * @param host Firmware used to locate this host and its RP1 child bus.
- * @param childNode Exact node offset of an enabled direct RP1 child.
- * @param parent PCI addresses mapped to physical RAM by the selected host.
- * @param map Complete child-to-RAM map on success; unchanged on failure. May
- *            alias parent. Does not allocate memory or establish cache policy.
- * @return Same errors as FdtResolveRp1Dma and FdtComposeDmaRanges.
+ * @param host      PCI host record used only to locate the RP1 node in the tree.
+ * @param childNode Node offset of an enabled RP1 peripheral.
+ * @param parent    PCI-to-RAM ranges active on the parent PCI host.
+ * @param map       Receives the combined child-to-RAM map on success. May point
+ *                  to the same struct as @p parent. Unchanged on error.
+ * @return Same status codes as FdtResolveRp1Dma and FdtDmaCompose.
  */
 __EXTERN oserr_t
 FdtComposeRp1Dma(
     _In_  const struct FdtPciHost* host,
     _In_  uint32_t                 childNode,
-    _In_  const DmDmaMap_t*        parent,
-    _Out_ DmDmaMap_t*              map);
+    _In_  const FdtDmaMap_t*       parent,
+    _Out_ FdtDmaMap_t*             map);
 
 #endif //!__FIRMWARE_RP1_H__

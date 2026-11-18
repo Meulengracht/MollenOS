@@ -23,46 +23,33 @@
 
 #include <os/osdefs.h>
 
-// Maximum number of address ranges a single DMA description can hold.
-#define DM_DMA_MAX_RANGES 64
+#include <fdt/dma.h>
 
-/**
- * @brief One contiguous block of memory a device can reach over DMA.
- * Some buses map device addresses differently from CPU physical addresses, so
- * each entry pairs the CPU physical start address with the matching bus address.
- */
-typedef struct DmDmaRange {
-    uint64_t PhysicalBase;
-    uint64_t DeviceBase;
-    uint64_t Length;
-} DmDmaRange_t;
+// Deviced uses this map type for every bus, including buses with no device tree.
+typedef FdtDmaMap_t DmDmaMap_t;
 
-/**
- * @brief List of memory ranges a device is allowed to access for DMA.
- * Only the first Count entries in Ranges are valid, up to DM_DMA_MAX_RANGES.
- */
-typedef struct DmDmaMap {
-    uint32_t     Count;
-    DmDmaRange_t Ranges[DM_DMA_MAX_RANGES];
-} DmDmaMap_t;
+#define DM_DMA_MAX_RANGES FDT_DMA_MAX_RANGES
 
 enum DmDmaCachePolicy {
     // Cached RAM cannot be used for DMA yet because the bus does not know
-    // whether the device sees CPU caches automatically.
+    // whether the device sees data still sitting in CPU caches.
     DmDmaCacheUnknown,
-    // The CPU and device may see stale cached data, so software has to flush
-    // CPU caches before device reads and invalidate them before CPU reads.
+    // The device reads main RAM directly and skips CPU caches. Software has to
+    // flush CPU caches before the device reads a buffer, and invalidate CPU
+    // caches before the CPU reads what the device wrote.
     DmDmaCacheNonCoherent,
-    // Hardware keeps CPU caches in sync with DMA accesses, so software cache
-    // flushes are skipped. Bus code should only pick this after checking every
+    // Hardware keeps CPU caches in sync with device DMA, so software skips
+    // manual cache flushes. Bus code should pick this only after checking every
     // bridge and bus hop between the device and memory.
     DmDmaCacheCoherent
 };
 
 /**
- * @brief Full DMA setup for a device: which device it belongs to, its parent
- * DMA host or IOMMU controller (HostId), the highest address the device can
- * target (AddressLimit), cache rules (CachePolicy), and allowed RAM ranges (Map).
+ * @brief Complete DMA setup for one device.
+ *
+ * Identifies the device (DeviceId), its parent DMA host or IOMMU controller
+ * (HostId), the highest address the device can target (AddressLimit), cache
+ * synchronization rules (CachePolicy), and the reachable RAM ranges (Map).
  */
 typedef struct DmDmaDescription {
     uuid_t                DeviceId;

@@ -162,6 +162,59 @@ DeviceTreeReadInteger(
     _Out_ uint64_t*               valueOut);
 
 /**
+ * @brief Read a property that holds one 32-bit big-endian integer (cell).
+ *
+ * Unlike DeviceTreeReadInteger, a 64-bit (two-cell) property is rejected. Use
+ * this for single-number properties like #address-cells or phandles.
+ *
+ * @param node     Node holding the property.
+ * @param name     Exact property name to read.
+ * @param valueOut Receives the host-endian 32-bit value on success.
+ * @return OS_EOK on success, OS_ENOENT if missing, or OS_EINVALPARAMS if the
+ *         property is not four bytes long.
+ */
+__EXTERN oserr_t
+DeviceTreeReadCell(
+    _In_  const DeviceTreeNode_t* node,
+    _In_  const char*             name,
+    _Out_ uint32_t*               valueOut);
+
+/**
+ * @brief Read a boolean Device Tree property.
+ *
+ * Device Tree booleans are empty flag properties: presence means true and
+ * absence means false. Any property carrying data bytes is rejected as malformed.
+ *
+ * @param node     Node holding the property.
+ * @param name     Exact property name to check.
+ * @param valueOut Receives true when present, or false when absent.
+ * @return OS_EOK on success, or OS_EINVALPARAMS if the property has non-zero length.
+ */
+__EXTERN oserr_t
+DeviceTreeReadBoolean(
+    _In_  const DeviceTreeNode_t* node,
+    _In_  const char*             name,
+    _Out_ bool*                   valueOut);
+
+/**
+ * @brief Validate that a string or string-list property is well formed.
+ *
+ * When present, the property must be non-empty, end with a zero byte, and
+ * contain no empty entries. When @p list is false, only a single string is
+ * allowed. Missing properties succeed.
+ *
+ * @param node Node holding the property.
+ * @param name Exact property name to check.
+ * @param list True if multiple zero-terminated strings back-to-back are allowed.
+ * @return OS_EOK if absent or valid, otherwise OS_EINVALPARAMS.
+ */
+__EXTERN oserr_t
+DeviceTreeCheckStrings(
+    _In_ const DeviceTreeNode_t* node,
+    _In_ const char*             name,
+    _In_ bool                    list);
+
+/**
  * @brief Check whether a node's compatible string list contains a value.
  *
  * Compares @p compatible against each NUL-terminated string in the node's

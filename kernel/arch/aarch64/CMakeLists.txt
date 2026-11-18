@@ -21,6 +21,7 @@ set (AARCH64_SOURCES
     common/thread.c
     common/memory.c
     common/boot-memory.c
+    common/device-pool.c
     common/device.c
     common/interrupts.c
     common/gicv2.c
@@ -28,7 +29,19 @@ set (AARCH64_SOURCES
     common/timer.c
     common/output.c
     smmu/discovery.c
+    smmu/memory.c
+    smmu/v3/unit.c
+    smmu/v3/queue.c
+    smmu/v3/fault.c
+    smmu/v3/table.c
+    smmu/v3/stream.c
+    smmu/mmu500/unit.c
+    smmu/mmu500/context.c
+    smmu/mmu500/fault.c
+    smmu/mmu500/table.c
+    smmu/mmu500/stream.c
     devicetree/smmu.c
+    devicetree/device-pool-fdt.c
 )
 
 # RPi uses device-tree discovery and adds its SoC interrupt controllers.
@@ -68,3 +81,6 @@ if (VALI_ARM64_GIC_SELFTEST)
 endif ()
 
 add_kernel_library(vali-aarch64 "" ${AARCH64_SOURCES})
+
+# The SMMU and device pool code decode device-tree DMA ranges on every platform.
+target_link_libraries(vali-aarch64 PRIVATE vali-fdt-dma)

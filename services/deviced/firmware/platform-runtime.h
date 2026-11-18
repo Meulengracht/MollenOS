@@ -93,24 +93,29 @@ FdtPlatformLocalDependencies(
     _Out_ struct FdtPlatformDependencies* dependencies);
 
 /**
- * @brief Compute the RAM ranges reachable by DMA through each parent bus.
+ * @brief Find all RAM ranges a platform device can reach over direct DMA.
  *
- * The caller must hold a tree reference during this call. Translation starts
- * with enabled memory ranges from the device tree. Every bus except the root
- * must have dma-ranges. An empty property leaves addresses unchanged. Missing
- * dma-ranges, PCI paths and IOMMU paths are unsupported.
- * The result contains address ranges only. The caller handles buffer allocation,
- * enabling DMA and any required cache synchronization separately.
+ * The caller must hold a tree reference during this call. Starts from enabled
+ * physical RAM nodes in the Device Tree, then applies every parent bus's
+ * dma-ranges from the root down toward the device. Every bus below the root
+ * needs a dma-ranges property (an empty property passes addresses through
+ * unchanged). One board exception exists: on Raspberry Pi 5, the SDIO1 bus
+ * omits dma-ranges and gets a 4 GiB pass-through fallback. Other missing
+ * routes, PCI buses, and IOMMU-translated devices are unsupported.
  *
- * @param tree Parsed tree with a reference held by the caller.
- * @param node Structure offset of the DMA master.
- * @param map Receives reachable RAM ranges. Unchanged on failure.
- * @return OS_EOK, OS_ENOENT for no reachable RAM, or a validation or support error.
+ * Returns address intervals only. Buffer allocation, enabling device DMA,
+ * and CPU cache flushes are handled separately by the caller.
+ *
+ * @param tree Parsed firmware tree with a reference held by the caller.
+ * @param node Structure offset of the DMA-capable device.
+ * @param map  Receives reachable RAM ranges on success. Unchanged on failure.
+ * @return OS_EOK on success, OS_ENOENT if disabled or no RAM is reachable,
+ *         or an error if the path is malformed or unsupported.
  */
 oserr_t
 FdtPlatformDma(
     _In_  const struct FdtTree* tree,
     _In_  uint32_t              node,
-    _Out_ DmDmaMap_t*           map);
+    _Out_ FdtDmaMap_t*          map);
 
-#endif
+#endif //!__FIRMWARE_PLATFORM_RUNTIME_H__

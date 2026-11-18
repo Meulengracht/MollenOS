@@ -33,13 +33,20 @@ typedef struct PlatformMemoryConfiguration {
     size_t            PageSize;
     int               MemoryMaskCount;
     size_t            MemoryMasks[MEMORY_MASK_COUNT];
-    // Default device pool: size (zero for none), last usable physical
-    // address, required alignment, and whether views of it may be cached.
-    size_t            DevicePoolSize;
-    paddr_t           DevicePoolLimit;
-    size_t            DevicePoolAlignment;
-    bool              DevicePoolCached;
 } PlatformMemoryConfiguration_t;
+
+/**
+ * @brief Physical RAM pool set aside at boot for DMA devices.
+ *
+ * Some devices cannot reach all system RAM or lack hardware cache syncing
+ * with the CPU. The architecture selects one contiguous pool before normal
+ * allocators run and sets up matching CPU cache rules (Cached) first.
+ */
+typedef struct PlatformDevicePool {
+    paddr_t Base;
+    size_t  Length;
+    bool    Cached;
+} PlatformDevicePool_t;
 
 typedef struct PlatformMemoryMapping {
     paddr_t PhysicalBase;
@@ -57,6 +64,21 @@ typedef struct PlatformMemoryMapping {
 KERNELAPI void KERNELABI
 MmuGetMemoryConfiguration(
         _In_ PlatformMemoryConfiguration_t* configuration);
+
+/**
+ * @brief Return the physical device memory pool chosen for this boot.
+ *
+ * Call this only after kernel logging is ready. Early boot code may pick the
+ * pool before logging exists, so this function logs any failure reason once
+ * and callers should avoid logging the same error again. Output stays
+ * unchanged on error.
+ *
+ * @param poolOut Receives the selected pool base, size, and cache setting.
+ * @return OS_EOK on success, OS_ENOENT if no RAM fits, or the boot selection error.
+ */
+KERNELAPI oserr_t KERNELABI
+MmuGetDevicePool(
+    _Out_ PlatformDevicePool_t* poolOut);
 
 /**
  * @brief Loads the kernel addressing space. It is expected that this function loads the virtual

@@ -17,6 +17,8 @@
  */
 
 #include <firmware/platform-runtime.h>
+#include <firmware/board-dma.h>
+#include <firmware/dma.h>
 #include <firmware/ethernet.h>
 #include <ddk/utils.h>
 #include <string.h>
@@ -28,8 +30,8 @@
  * which FdtPlatformDma reports once the walk finishes.
  */
 struct __PlatformRam {
-    DmDmaMap_t Map;
-    oserr_t    Status;
+    FdtDmaMap_t Map;
+    oserr_t     Status;
 };
 
 static int
@@ -615,14 +617,14 @@ __PlatformCollectRam(
             return;
         }
 
-        if (ram->Map.Count == DM_DMA_MAX_RANGES) {
+        if (ram->Map.Count == FDT_DMA_MAX_RANGES) {
             ERROR("__PlatformCollectRam: memory node %u exceeds the %u range limit",
-                  node->NodeOffset, (uint32_t)DM_DMA_MAX_RANGES);
+                  node->NodeOffset, (uint32_t)FDT_DMA_MAX_RANGES);
             ram->Status = OS_ENOTSUPPORTED;
             return;
         }
 
-        ram->Map.Ranges[ram->Map.Count++] = (DmDmaRange_t) { 
+        ram->Map.Ranges[ram->Map.Count++] = (FdtDmaRange_t) { 
             base,
             base,
             length
@@ -634,16 +636,16 @@ oserr_t
 FdtPlatformDma(
     _In_  const struct FdtTree* tree,
     _In_  uint32_t              node,
-    _Out_ DmDmaMap_t*           map)
+    _Out_ FdtDmaMap_t*          map)
 {
     const struct FdtResources* parentNodes[FDT_MAX_DEPTH];
     const struct FdtResources* resource = FdtTreeNode(tree, node);
-    DmDmaMap_t                 result;
+    FdtDmaMap_t                result;
     uint32_t                   count = 0;
     oserr_t                    status;
     struct __PlatformRam       ram = { 0 };
 
-    struct FdtDmaRanges ranges = {
+    FdtDmaBusWindows_t ranges = {
         .State = FdtDmaPropertyIdentity,
         .ChildLimit = UINT64_MAX
     };
@@ -653,11 +655,14 @@ FdtPlatformDma(
         return OS_ENOENT;
     }
 
-    // This routine requires a simple-bus path for direct DMA. Check every parent
-    // before building the map. PCI and IOMMU translation require separate setup
-    // that these ranges cannot describe.
+    // Walk up from the device to the root first so every node on the path is
+    // checked before any RAM translation begins. PCI and IOMMU paths need
+    // separate setup that simple-bus dma-ranges cannot describe.
     while (resource != NULL) {
-        uint32_t length;
+        const struct FdtResources* parent;
+        enum FdtDmaIndirectReason  reason;
+        FdtDmaNode_t               description;
+        bool                       direct;
 
         if (count == FDT_MAX_DEPTH) {
             ERROR("FdtPlatformDma: node %u is nested deeper than %u levels",
@@ -670,38 +675,50 @@ FdtPlatformDma(
                   node, resource->NodeOffset);
             return OS_EINVALPARAMS;
         }
-        
-        if (resource->Disabled || resource->ParentDisabled) {
-            TRACE("FdtPlatformDma: node %u is disabled by parent %u",
-                  node, resource->NodeOffset);
-            return OS_ENOENT;
+
+        // count == 0 is the leaf device itself, which is checked with
+        // FdtDmaDeviceIsDirect. Every node above it (count > 0) is a bus and
+        // must pass FdtDmaBusIsDirect (simple-bus below root, never PCI).
+        parent = FdtTreeParent(tree, resource->NodeOffset);
+        FdtDescribeDmaNode(resource, parent, &description);
+        direct = count == 0 ? FdtDmaDeviceIsDirect(&description, &reason) :
+                              FdtDmaBusIsDirect(&description, &reason);
+        if (!direct) {
+            switch (reason) {
+                case FdtDmaIndirectDisabled:
+                    TRACE("FdtPlatformDma: node %u or one of its parents is disabled (seen at node %u)",
+                          node, resource->NodeOffset);
+                    return OS_ENOENT;
+                case FdtDmaIndirectIommu:
+                    ERROR("FdtPlatformDma: node %u is translated by an IOMMU at node %u",
+                          node, resource->NodeOffset);
+                    return OS_ENOTSUPPORTED;
+                case FdtDmaIndirectDmaParent:
+                    ERROR("FdtPlatformDma: node %u uses dma-parent at node %u",
+                          node, resource->NodeOffset);
+                    return OS_ENOTSUPPORTED;
+                case FdtDmaIndirectMemoryRegion:
+                    ERROR("FdtPlatformDma: node %u uses memory-region at node %u",
+                          node, resource->NodeOffset);
+                    return OS_ENOTSUPPORTED;
+                case FdtDmaIndirectFirmwareBus:
+                case FdtDmaIndirectNotSimpleBus:
+                    ERROR("FdtPlatformDma: node %u has a non simple-bus parent %u",
+                          node, resource->NodeOffset);
+                    return OS_ENOTSUPPORTED;
+                case FdtDmaIndirectPci:
+                    ERROR("FdtPlatformDma: node %u is or sits below PCI node %u",
+                          node, resource->NodeOffset);
+                    return OS_ENOTSUPPORTED;
+            }
         }
-        
-        if (resource->IsPci) {
-            ERROR("FdtPlatformDma: node %u sits below PCI host %u",
-                  node, resource->NodeOffset);
-            return OS_ENOTSUPPORTED;
-        }
-        
-        if (FdtProperty(&resource->View, "iommus", &length) != NULL ||
-            FdtProperty(&resource->View, "iommu-map", &length) != NULL) {
-            ERROR("FdtPlatformDma: node %u is translated by an IOMMU at node %u",
-                  node, resource->NodeOffset);
-            return OS_ENOTSUPPORTED;
-        }
-        
-        if (FdtProperty(&resource->View, "dma-parent", &length) != NULL) {
-            ERROR("FdtPlatformDma: node %u uses dma-parent at node %u",
-                  node, resource->NodeOffset);
-            return OS_ENOTSUPPORTED;
-        }
-        
+
         parentNodes[count++] = resource;
-        resource = FdtTreeParent(tree, resource->NodeOffset);
+        resource = parent;
     }
 
-    // Start with RAM ranges. Bus windows can also cover registers or address
-    // space without memory, which cannot be used for DMA buffers.
+    // Start with physical RAM ranges from /memory nodes. Bus windows can also
+    // cover device registers or empty address space, which cannot hold DMA data.
     status = FdtWalkResources(tree, __PlatformCollectRam, &ram);
     if (status != OS_EOK) {
         ERROR("FdtPlatformDma: node %u could not walk the tree for RAM (%u)", node, status);
@@ -718,23 +735,19 @@ FdtPlatformDma(
         return OS_ENOENT;
     }
 
-    // Validate RAM overlap and sort ranges before applying bus DMA translations.
-    status = FdtComposeDmaRanges(&ranges, &ram.Map, &result);
+    // Validate and sort the RAM ranges before stepping through bus windows.
+    status = FdtDmaCompose(&ranges, &ram.Map, &result);
     if (status != OS_EOK) {
         ERROR("FdtPlatformDma: node %u could not compose the RAM ranges (%u)", node, status);
         return status;
     }
 
-    // Translate from the outermost bus toward the device. Each bus limits the
-    // reachable RAM and translates its bus address. Keep the CPU address so both
-    // addresses identify the same memory.
+    // Apply bus dma-ranges from the outermost bus under the root down to the
+    // device's own parent bus. parentNodes[count - 1] is the root (no parent),
+    // and parentNodes[0] is the leaf device, so buses sit at indices
+    // count - 2 down to 1 (visited here as parentNodes[i - 1]).
     for (uint32_t i = count - 1; i > 1; i--) {
         resource = parentNodes[i - 1];
-        if (!resource->IsSimpleBus) {
-            ERROR("FdtPlatformDma: node %u has a non simple-bus parent %u",
-                  node, resource->NodeOffset);
-            return OS_ENOTSUPPORTED;
-        }
 
         status = FdtDecodeDmaRanges(
             resource,
@@ -748,7 +761,25 @@ FdtPlatformDma(
             return status;
         }
 
-        status = FdtComposeDmaRanges(&ranges, &result, &result);
+        // When a bus has no dma-ranges property, only a three-node path
+        // (root -> bus -> device, so count == 3 and i == 2) can ask for a
+        // board fallback route.
+        if (ranges.State == FdtDmaPropertyAbsent) {
+            if (count != 3 || i != 2) {
+                ERROR("FdtPlatformDma: node %u has no DMA route through parent %u",
+                      node, resource->NodeOffset);
+                return OS_ENOTSUPPORTED;
+            }
+
+            status = FdtBoardDmaRanges(tree, node, &ranges);
+            if (status != OS_EOK) {
+                ERROR("FdtPlatformDma: node %u has no DMA route through parent %u (%u)",
+                      node, resource->NodeOffset, status);
+                return status;
+            }
+        }
+
+        status = FdtDmaCompose(&ranges, &result, &result);
         if (status != OS_EOK) {
             ERROR("FdtPlatformDma: node %u could not apply dma-ranges of parent %u (%u)",
                   node, resource->NodeOffset, status);

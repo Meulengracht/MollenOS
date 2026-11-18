@@ -166,8 +166,13 @@
 #define ARM64_MEMORY_MASK_LOW    0x7fffffffULL
 #define ARM64_MEMORY_MASK_32     0xffffffffULL
 
-// Default device pool size, in whole ARM64_BLOCK_SIZE blocks.
+// Default device pool size (4 MiB), sized in whole 2 MiB ARM64_BLOCK_SIZE blocks.
 #define ARM64_DEVICE_POOL_SIZE   0x400000ULL
+
+// ACPI platforms lack Device Tree DMA windows, so place the pool below 2 GiB
+// where 31-bit and 32-bit devices can reach it. Device Tree platforms compute
+// the allowed ranges directly from firmware dma-ranges instead.
+#define ARM64_ACPI_DEVICE_POOL_LIMIT ARM64_MEMORY_MASK_LOW
 
 // ESR_EL1.EC[31:26] selects the exception class. ISS[24:0] carries details.
 #define ARM64_ESR_SYNDROME_MASK           0x1ffffffU
@@ -222,13 +227,21 @@
 // Spin-table release slots hold one naturally aligned 64-bit entry address.
 #define ARM64_CPU_RELEASE_ALIGNMENT 8U
 
-// GICv2 DT interrupts contain type, relative ID, and flags. Type 1 is a PPI
-// with relative ID 0-15. The low flags nibble selects level-high/level-low.
+// GIC DT interrupts contain type, relative ID, and flags. Type 0 is a shared
+// peripheral interrupt (SPI) and type 1 is a per-core one (PPI). IDs in the
+// tree count from zero within their type. The low flags nibble selects the
+// trigger: rising edge, level-high or level-low.
 #define ARM64_DT_GIC_CELLS          3U
+#define ARM64_DT_GIC_SPI            0U
 #define ARM64_DT_GIC_PPI            1U
 #define ARM64_DT_GIC_TRIGGER_MASK   0xfU
+#define ARM64_DT_GIC_EDGE_RISING    1U
 #define ARM64_DT_GIC_LEVEL_HIGH     4U
 #define ARM64_DT_GIC_LEVEL_LOW      8U
+
+// Number of IDs in each DT interrupt type. SPIs end below the special IDs.
+#define ARM64_GIC_PPI_COUNT         (ARM64_GIC_SPI_BASE - ARM64_GIC_PPI_BASE)
+#define ARM64_GIC_SPI_COUNT         (ARM64_GIC_SPECIAL_ID_BASE - ARM64_GIC_SPI_BASE)
 
 // The unnamed timer binding lists the nonsecure physical timer second.
 #define ARM64_DT_PHYSICAL_TIMER_INDEX 1U

@@ -86,15 +86,17 @@ __HighestStart(
 }
 
 oserr_t
-SystemMemoryFitDeviceRegion(
-    _In_  const struct VBoot* boot,
-    _In_  size_t              size,
-    _In_  paddr_t             limit,
-    _In_  size_t              alignment,
-    _Out_ paddr_t*            baseOut,
-    _Out_ size_t*             lengthOut)
+SystemMemoryFitDeviceRegionInRanges(
+    _In_  const struct VBoot*                boot,
+    _In_  size_t                             size,
+    _In_  size_t                             alignment,
+    _In_  const SystemMemoryPhysicalRange_t* ranges,
+    _In_  uint32_t                           rangeCount,
+    _Out_ paddr_t*                           baseOut,
+    _Out_ size_t*                            lengthOut)
 {
     const struct VBootMemoryEntry* entries;
+    struct VBootMemoryEntry        clipped;
     paddr_t                        candidate;
     paddr_t                        best = 0;
     bool                           found = false;
@@ -102,36 +104,75 @@ SystemMemoryFitDeviceRegion(
     if (boot == NULL || baseOut == NULL || lengthOut == NULL) {
         return OS_EINVALPARAMS;
     }
+
     if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0 || size % alignment != 0) {
         return OS_EINVALPARAMS;
     }
 
+    if (rangeCount == 0) {
+        return OS_ENOENT;
+    }
+
+    if (ranges == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    for (uint32_t i = 0; i < rangeCount; i++) {
+        if (ranges[i].Base > ranges[i].Limit || ranges[i].Limit > UINTPTR_MAX) {
+            return OS_EINVALPARAMS;
+        }
+    }
+
     // Pass 1: honor a loader-reserved pool (for example, from a device tree
-    // shared-dma-pool node) using its own length when it meets our constraints.
+    // shared-dma-pool node) using its own length when it fits inside a single
+    // permitted interval.
     entries = (const struct VBootMemoryEntry*)(uintptr_t)boot->Memory.Entries;
     for (unsigned int i = 0; i < boot->Memory.NumberOfEntries; i++) {
         if (entries[i].Type != VBootMemoryType_DevicePool) {
             continue;
         }
-        if (__LoaderRangeUsable(&entries[i], limit, alignment)) {
-            *baseOut = (paddr_t)entries[i].PhysicalBase;
-            *lengthOut = (size_t)entries[i].Length;
-            return OS_EOK;
+
+        for (uint32_t j = 0; j < rangeCount; j++) {
+            if (entries[i].PhysicalBase >= ranges[j].Base &&
+                __LoaderRangeUsable(&entries[i], (paddr_t)ranges[j].Limit, alignment)) {
+                *baseOut = (paddr_t)entries[i].PhysicalBase;
+                *lengthOut = (size_t)entries[i].Length;
+                return OS_EOK;
+            }
         }
     }
 
-    // Pass 2: pick the highest aligned fallback block below limit so lower
-    // physical addresses remain free for 32-bit or narrower devices.
+    // Pass 2: test each available RAM entry against each permitted interval
+    // one pair at a time. Keeping intervals separate prevents a pool from
+    // crossing a firmware hole or a DMA bus translation boundary.
     for (unsigned int i = 0; i < boot->Memory.NumberOfEntries; i++) {
         if (entries[i].Type != VBootMemoryType_Available) {
             continue;
         }
-        if (!__HighestStart(&entries[i], size, limit, alignment, &candidate)) {
-            continue;
-        }
-        if (!found || candidate > best) {
-            best = candidate;
-            found = true;
+
+        for (uint32_t j = 0; j < rangeCount; j++) {
+            uint64_t skipped;
+
+            // Trim off any lower portion of the RAM entry that falls below
+            // ranges[j].Base before asking __HighestStart for the top fit.
+            clipped = entries[i];
+            if (clipped.PhysicalBase < ranges[j].Base) {
+                skipped = ranges[j].Base - clipped.PhysicalBase;
+                if (skipped >= clipped.Length) {
+                    continue;
+                }
+                clipped.PhysicalBase = ranges[j].Base;
+                clipped.Length -= skipped;
+            }
+
+            if (!__HighestStart(&clipped, size, (paddr_t)ranges[j].Limit, alignment, &candidate)) {
+                continue;
+            }
+
+            if (!found || candidate > best) {
+                best = candidate;
+                found = true;
+            }
         }
     }
     if (!found) {
@@ -141,4 +182,26 @@ SystemMemoryFitDeviceRegion(
     *baseOut = best;
     *lengthOut = size;
     return OS_EOK;
+}
+
+oserr_t
+SystemMemoryFitDeviceRegion(
+    _In_  const struct VBoot* boot,
+    _In_  size_t              size,
+    _In_  paddr_t             limit,
+    _In_  size_t              alignment,
+    _Out_ paddr_t*            baseOut,
+    _Out_ size_t*             lengthOut)
+{
+    SystemMemoryPhysicalRange_t range = { 0, limit };
+
+    return SystemMemoryFitDeviceRegionInRanges(
+        boot,
+        size,
+        alignment,
+        &range,
+        1,
+        baseOut,
+        lengthOut
+    );
 }

@@ -23,48 +23,6 @@
 
 #include "tree-private.h"
 
-uint64_t
-FdtReadCells(
-    _In_ const uint8_t* p,
-    _In_ uint32_t       cells)
-{
-    uint64_t value = 0;
-    for (uint32_t i = 0; i < cells; i++) {
-        value = (value << 32) | FdtReadBe32(p + (i * 4));
-    }
-    return value;
-}
-
-int
-FdtStringListContains(
-    _In_ const uint8_t* list,
-    _In_ uint32_t       length,
-    _In_ const char*    needle)
-{
-    size_t   needleLength = strlen(needle);
-    uint32_t offset = 0;
-
-    while (offset < length) {
-        size_t         entryLength;
-        const uint8_t* entry = list + offset;
-        const uint8_t* end = memchr(entry, 0, length - offset);
-        if (end == NULL) {
-            TRACE("FdtStringListContains: unterminated entry at byte %u of %u for %s",
-                  offset, length, needle);
-            return 0;
-        }
-
-        entryLength = (size_t)(end - entry);
-        if (entryLength == needleLength) {
-            if (memcmp(entry, needle, needleLength) == 0) {
-                return 1;
-            }
-        }
-        offset += (uint32_t)entryLength + 1;
-    }
-    return 0;
-}
-
 static int
 __FdtCellCountSupported(
     _In_ uint32_t count)

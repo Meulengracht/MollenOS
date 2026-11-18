@@ -135,6 +135,86 @@ FdtReadBe32(
 }
 
 /**
+ * @brief Read one or more 32-bit big-endian cells into a single 64-bit integer.
+ *
+ * Device Tree properties store numbers in 32-bit big-endian chunks called
+ * cells. Larger addresses or sizes use two cells, with the high 32 bits first.
+ * This reads @p cells chunks from @p value and combines them into a CPU-endian
+ * integer.
+ *
+ * @param value Start of the cells. Must point to at least cells * 4 readable bytes.
+ * @param cells Number of 32-bit cells to read (0, 1, or 2 so it fits in 64 bits).
+ * @return The combined integer, or zero when @p cells is zero.
+ */
+static inline uint64_t
+FdtReadCells(
+    _In_ const void* value,
+    _In_ uint32_t    cells)
+{
+    const uint8_t* bytes = value;
+    uint64_t       result = 0;
+
+    for (uint32_t i = 0; i < cells; i++) {
+        result = (result << 32) | FdtReadBe32(bytes + (i * 4));
+    }
+    return result;
+}
+
+/**
+ * @brief Check whether a packed string list contains an exact name.
+ *
+ * Properties like "compatible" store multiple zero-terminated strings
+ * back-to-back in one byte buffer. This walks every entry in the buffer and
+ * compares full strings, so a short name never matches the prefix of a longer
+ * one. If any entry runs past @p length without a zero byte, the whole list
+ * is treated as malformed and the function returns false even if an earlier
+ * entry matched.
+ *
+ * @param list   Byte buffer holding the packed strings. May be NULL if length is zero.
+ * @param length Number of bytes in @p list.
+ * @param name   Zero-terminated string to search for.
+ * @return true if a complete entry matches @p name and the whole list is valid.
+ */
+static inline bool
+FdtStringListContains(
+    _In_ const void* list,
+    _In_ uint32_t    length,
+    _In_ const char* name)
+{
+    const char* bytes = list;
+    uint32_t    offset = 0;
+    bool        found = false;
+
+    if (bytes == NULL || name == NULL) {
+        return false;
+    }
+
+    while (offset < length) {
+        const char* entry = bytes + offset;
+        uint32_t    entryLength = 0;
+        uint32_t    matched = 0;
+
+        while (offset + entryLength < length && entry[entryLength] != '\0') {
+            entryLength++;
+        }
+
+        if (offset + entryLength == length) {
+            return false;
+        }
+
+        while (matched < entryLength && name[matched] == entry[matched]) {
+            matched++;
+        }
+
+        if (matched == entryLength && name[matched] == '\0') {
+            found = true;
+        }
+        offset += entryLength + 1;
+    }
+    return found;
+}
+
+/**
  * @brief Decode and validate the fixed-size header at the start of an FDT blob.
  *
  * Reads the ten 32-bit header fields, converts them from big-endian to host
