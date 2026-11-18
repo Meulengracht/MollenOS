@@ -139,6 +139,9 @@ _CODE_END
 #define Syscall_DmaOpenBound(binding, parameters, contextOut) (oserr_t)syscall3(99, SCPARAM(binding), SCPARAM(parameters), SCPARAM(contextOut))
 #define Syscall_DmaAttachmentPrepareStop(manager, attachment, ticketOut) (oserr_t)syscall3(100, SCPARAM(manager), SCPARAM(attachment), SCPARAM(ticketOut))
 #define Syscall_DmaAttachmentCompleteStop(manager, ticket) (oserr_t)syscall2(101, SCPARAM(manager), SCPARAM(ticket))
+#define Syscall_DmaRegionSessionOpen(mapping, identity, capacity, result) (oserr_t)syscall4(102, SCPARAM(mapping), SCPARAM(identity), SCPARAM(capacity), SCPARAM(result))
+#define Syscall_DmaRegionBeginUse(session, slot, generation, direction) (oserr_t)syscall4(103, SCPARAM(session), SCPARAM(slot), SCPARAM(generation), SCPARAM(direction))
+#define Syscall_DmaRegionEndUse(session, slot, generation) (oserr_t)syscall3(104, SCPARAM(session), SCPARAM(slot), SCPARAM(generation))
 // END GENERATED SYSCALL WRAPPERS
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

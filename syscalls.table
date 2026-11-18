@@ -133,3 +133,8 @@
 99     DmaOpenBound                         ScDmaOpenBound                         oserr_t   binding, parameters, contextOut
 100    DmaAttachmentPrepareStop             ScDmaAttachmentPrepareStop             oserr_t   manager, attachment, ticketOut
 101    DmaAttachmentCompleteStop            ScDmaAttachmentCompleteStop            oserr_t   manager, ticket
+
+# Prepared device-region sessions.
+102    DmaRegionSessionOpen                 ScDmaRegionSessionOpen                 oserr_t   mapping, identity, capacity, result
+103    DmaRegionBeginUse                    ScDmaRegionBeginUse                    oserr_t   session, slot, generation, direction
+104    DmaRegionEndUse                      ScDmaRegionEndUse                      oserr_t   session, slot, generation

@@ -253,10 +253,6 @@ InitializeMachine(
 #endif
 
     // Initialize all userspace subsystems here
-#ifdef VALI_INTERRUPT_SELFTEST
-    extern void InterruptGroupSelfTest(void);
-    InterruptGroupSelfTest();
-#endif
     UserEventInitialize();
 
     // Start the bootstrap module if present

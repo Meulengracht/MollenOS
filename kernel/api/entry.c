@@ -29,6 +29,7 @@
 #include <ddk/io.h>
 #include <os/futex.h>
 #include <os/types/grants.h>
+#include <os/types/dma_region.h>
 #include <os/types/shm.h>
 #include <os/types/thread.h>
 #include <os/types/memory.h>
@@ -197,9 +198,12 @@ extern oserr_t ScShmRegionsRegister(uuid_t, const struct SHMRegionRange*, unsign
 extern oserr_t ScShmRegionSessionOpen(uuid_t, unsigned int, unsigned int, struct SHMRegionSession*);
 extern oserr_t ScShmRegionBeginCpu(uuid_t, unsigned int, unsigned int, enum SHMCpuAccess);
 extern oserr_t ScShmRegionEndCpu(uuid_t, unsigned int, unsigned int);
+extern oserr_t ScDmaRegionSessionOpen(uuid_t, const OSBufferIdentity_t*, unsigned int, OSDmaRegionSession_t*);
+extern oserr_t ScDmaRegionBeginUse(uuid_t, unsigned int, unsigned int, enum DMADirection);
+extern oserr_t ScDmaRegionEndUse(uuid_t, unsigned int, unsigned int);
 
 // BEGIN GENERATED SYSCALL COUNT - tools/generate_syscalls.py
-#define SYSTEM_CALL_COUNT 102
+#define SYSTEM_CALL_COUNT 105
 // END GENERATED SYSCALL COUNT
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
@@ -315,6 +319,9 @@ static struct SystemCallDescriptor {
     DefineSyscall(99, ScDmaOpenBound),
     DefineSyscall(100, ScDmaAttachmentPrepareStop),
     DefineSyscall(101, ScDmaAttachmentCompleteStop),
+    DefineSyscall(102, ScDmaRegionSessionOpen),
+    DefineSyscall(103, ScDmaRegionBeginUse),
+    DefineSyscall(104, ScDmaRegionEndUse),
 // END GENERATED SYSCALL TABLE
 };
 
