@@ -50,7 +50,10 @@ VFSStorageNew(
     }
     memset(storage, 0, sizeof(struct VFSStorage));
 
-    ELEMENT_INIT(&storage->ListHeader, 0, 0);
+    // The list element value always points back to the storage. The key is set
+    // by the code that inserts the storage into a list (see
+    // sys_storage_register_invocation for device-backed storage).
+    ELEMENT_INIT(&storage->ListHeader, 0, storage);
     usched_mtx_init(&storage->Lock, USCHED_MUTEX_PLAIN);
     storage->State = VFSSTORAGE_STATE_INITIALIZING;
     memcpy(&storage->Operations, operations, sizeof(struct VFSStorageOperations));
@@ -218,9 +221,13 @@ void sys_storage_register_invocation(struct gracht_message* message,
 
     storage = VFSStorageCreateDeviceBacked(deviceId, driverId, flags);
     if (storage == NULL) {
+        ERROR("sys_storage_register_invocation failed to create storage for device %u", deviceId);
         return;
     }
 
+    // sys_storage_unregister_invocation looks up the disk by device ID only, so
+    // the list key must be the device ID.
+    ELEMENT_INIT(&storage->ListHeader, (uintptr_t)deviceId, storage);
     usched_mtx_lock(&g_diskLock);
     list_append(&g_disks, &storage->ListHeader);
     usched_mtx_unlock(&g_diskLock);
@@ -245,26 +252,40 @@ error:
     storage->State = VFSSTORAGE_STATE_DISCONNECTED;
 }
 
+// Unmounts each filesystem on the storage and disconnects its interface. The
+// filesystems stay in the storage's list. VFSStorageDelete destroys them.
 static void
 __StorageUnmount(
         _In_ struct VFSStorage* fsStorage,
         _In_ unsigned int       flags)
 {
     element_t* i;
+    oserr_t    oserr;
 
     usched_mtx_lock(&fsStorage->Lock);
     _foreach(i, &fsStorage->Filesystems) {
         FileSystem_t* fileSystem = (FileSystem_t*)i->value;
-        VFSFileSystemUnmount(fileSystem, flags);
-        VFSFileSystemDisconnectInterface(fileSystem, flags);
-        FileSystemDestroy(fileSystem);
+
+        // OS_ENOTSUPPORTED means the filesystem was not mounted.
+        oserr = VFSFileSystemUnmount(fileSystem, flags);
+        if (oserr != OS_EOK && oserr != OS_ENOTSUPPORTED) {
+            WARNING("__StorageUnmount failed to unmount filesystem %u: %u", fileSystem->ID, oserr);
+        }
+
+        // OS_EBUSY means the filesystem had no connected interface.
+        oserr = VFSFileSystemDisconnectInterface(fileSystem, flags);
+        if (oserr != OS_EOK && oserr != OS_EBUSY) {
+            WARNING("__StorageUnmount failed to disconnect filesystem %u: %u", fileSystem->ID, oserr);
+        }
     }
     usched_mtx_unlock(&fsStorage->Lock);
 }
 
 void sys_storage_unregister_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t forced)
 {
-    element_t* header;
+    element_t*         header;
+    struct VFSStorage* fsStorage;
+    TRACE("sys_storage_unregister_invocation(device=%u)", deviceId);
 
     usched_mtx_lock(&g_diskLock);
     header = list_find(&g_disks, (void*)(uintptr_t)deviceId);
@@ -273,9 +294,14 @@ void sys_storage_unregister_invocation(struct gracht_message* message, const uui
     }
     usched_mtx_unlock(&g_diskLock);
 
-    if (header) {
-        struct VFSStorage* fsStorage = header->value;
-        __StorageUnmount(fsStorage, forced);
-        free(fsStorage);
+    if (header == NULL) {
+        WARNING("sys_storage_unregister_invocation no storage registered for device %u", deviceId);
+        return;
     }
+
+    // Unmount and disconnect first, then VFSStorageDelete destroys the
+    // filesystems and frees the storage.
+    fsStorage = header->value;
+    __StorageUnmount(fsStorage, forced);
+    VFSStorageDelete(fsStorage);
 }
