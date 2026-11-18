@@ -1,14 +1,14 @@
 set (LIBDS_SRCS
-        lf/bounded_stack.c
+    lf/bounded_stack.c
 
-        bounded_stack.c
-        guid.c
-        hashtable.c
-        hash_sip.c
-        list.c
-        queue.c
-        rbtree.c
-        streambuffer.c
+    bounded_stack.c
+    guid.c
+    hashtable.c
+    hash_sip.c
+    list.c
+    queue.c
+    rbtree.c
+    streambuffer.c
 )
 
 # handle unit test support, we need to combine some libDS specific

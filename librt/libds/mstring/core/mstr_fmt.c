@@ -18,6 +18,7 @@
 
 #include "../common/private.h"
 #include "../unicode/private.h"
+#include <ds/merr.h>
 #include <sys/types.h>
 #include <stdarg.h>
 
@@ -441,18 +442,16 @@ static inline mchar_t __parse_length(struct fmt_context* context, mchar_t curren
 // Supports only a subset of the regular printf formats.
 // %[flags][width][.precision][length]specifier
 // https://cplusplus.com/reference/cstdio/printf/
-mstring_t* mstr_fmt(const char* fmt, ...)
+mstring_t* mstr_fmt_v(const char* fmt, va_list args)
 {
     struct mstring_builder* builder;
     int                     fmti = 0;
-    va_list                 args;
 
     builder = mstring_builder_new(128);
     if (builder == NULL) {
         return NULL;
     }
 
-    va_start(args, fmt);
     while (fmt[fmti]) {
         struct fmt_context context = { 0, 0, 0, 0, 0, U' ', fmt, &fmti };
         mchar_t            val     = __context_next(&context);
@@ -479,6 +478,15 @@ mstring_t* mstr_fmt(const char* fmt, ...)
                         __FMT_CHECK(__append_u8(&context, builder, string))
                     }
                     consumed = 1;
+                } break;
+
+                case U'R':
+                case U'r': {
+                    merr_t* merr = va_arg(args, merr_t*);
+                    __FMT_CHECK(__append_mstring(&context, builder, merr->message))
+                    if (val == U'R') {
+                        merr_free(merr);
+                    }
                 } break;
 
                 // Signed decimal integer
@@ -534,7 +542,17 @@ mstring_t* mstr_fmt(const char* fmt, ...)
         }
         __FMT_CHECK(mstring_builder_append(builder, val))
     }
+    return mstring_builder_finish(builder);
+}
+
+mstring_t* mstr_fmt(const char* fmt, ...)
+{
+    mstring_t* result;
+    va_list    args;
+
+    va_start(args, fmt);
+    result = mstr_fmt_v(fmt, args);
     va_end(args);
 
-    return mstring_builder_finish(builder);
+    return result;
 }

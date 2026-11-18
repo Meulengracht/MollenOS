@@ -20,6 +20,7 @@
 #define __MSTRING_INTERFACE_H__
 
 #include <ds/dsdefs.h>
+#include <stdarg.h>
 
 typedef uint32_t mchar_t;
 #define MSTRING_EOS 0xFFFD // Marker for identifying end of string
@@ -99,6 +100,7 @@ DSDECL(size_t,  mstr_len_u8(const char* u8));
  * @return
  */
 DSDECL(mstring_t*, mstr_fmt(const char* fmt, ...));
+DSDECL(mstring_t*, mstr_fmt_v(const char* fmt, va_list args));
 
 DSDECL(mchar_t,    mstr_clower(mchar_t));
 DSDECL(mchar_t,    mstr_cupper(mchar_t));
