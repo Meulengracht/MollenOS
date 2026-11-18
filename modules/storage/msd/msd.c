@@ -281,25 +281,32 @@ MSDDeviceCreate(
         ERROR("Failed to initialize the device");
         goto Error;
     }
-
-    // Wait for the disk service to finish loading
-    if (WaitForFileService(1000) != OS_EOK) {
-        ERROR("[msd] disk ready but storage service did not start");
-        // TODO: what do
-        return msdDevice;
-    }
-
-    __RegisterStorage(
-            GetNativeHandle(__crt_get_server_iod()),
-            msdDevice->Device->Base.Id,
-            SYS_STORAGE_FLAGS_REMOVABLE
-    );
     return msdDevice;
 
 Error:
     // Cleanup
     MSDDeviceDestroy(msdDevice);
     return NULL;
+}
+
+void
+MSDDeviceRegisterStorage(
+        _In_ MSDDevice_t* msdDevice)
+{
+    uuid_t deviceId = msdDevice->Device->Base.Id;
+
+    // Wait for the disk service to finish loading
+    if (WaitForFileService(1000) != OS_EOK) {
+        ERROR("MSDDeviceRegisterStorage file service did not start, device %u is not registered", deviceId);
+        // TODO: what do
+        return;
+    }
+
+    __RegisterStorage(
+            GetNativeHandle(__crt_get_server_iod()),
+            deviceId,
+            SYS_STORAGE_FLAGS_REMOVABLE
+    );
 }
 
 oserr_t

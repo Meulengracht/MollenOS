@@ -71,17 +71,37 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOTSUPPORTED;
 }
 
+// Creates the disk and registers it with filed. filed sends its stat query
+// right after it answers the register request. The stat query is handled in
+// its own job, and that job can run before this one continues. The device is
+// therefore added to g_devices before it is registered, so the stat handler
+// always finds it.
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    UsbDevice_t* usbDevice = (UsbDevice_t*)from_sys_device(device);
+    UsbDevice_t* usbDevice;
     MSDDevice_t* msdDevice;
+    uuid_t       deviceId;
+
+    usbDevice = (UsbDevice_t*)from_sys_device(device);
+    if (usbDevice == NULL) {
+        ERROR("ctt_driver_register_device_invocation failed to read the device description");
+        return;
+    }
+
+    // MSDDeviceCreate may free usbDevice when it fails, 
+    // so keep the ID for the log.
+    deviceId  = usbDevice->Base.Id;
 
     msdDevice = MSDDeviceCreate(usbDevice);
     if (msdDevice == NULL) {
-        ERROR("OnRegister failed to create MSD device");
+        ERROR("ctt_driver_register_device_invocation failed to create MSD device %u", deviceId);
         return;
     }
+
+    // Important here that the device is added to g_devices 
+    // before it is registered,
     list_append(&g_devices, &msdDevice->Header);
+    MSDDeviceRegisterStorage(msdDevice);
 }
 
 oserr_t

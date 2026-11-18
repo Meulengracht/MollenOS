@@ -152,6 +152,20 @@ MSDDeviceCreate(
     _In_ UsbDevice_t *usbDevice);
 
 /**
+ * @brief Registers the disk with filed.
+ *
+ * filed sends a stat query for the disk right after it answers. The stat
+ * handler finds the disk with MsdDeviceGet, so the device must be in the
+ * device list before this is called. A failure is only logged, and the
+ * device stays in the list.
+ *
+ * @param msdDevice Device returned by MSDDeviceCreate.
+ */
+extern void
+MSDDeviceRegisterStorage(
+        _In_ MSDDevice_t* msdDevice);
+
+/**
  * @brief Unregisters the storage device and frees its buffers and device data.
  *
  * @param msdDevice Device to destroy.
