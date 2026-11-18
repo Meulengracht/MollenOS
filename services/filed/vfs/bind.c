@@ -64,6 +64,7 @@ exit:
 oserr_t VFSNodeUnbind(struct VFS* vfs, uuid_t directoryHandleID)
 {
     struct VFSNodeHandle* handle;
+    struct VFSNode*       source;
     oserr_t               oserr;
     _CRT_UNUSED(vfs);
 
@@ -77,6 +78,20 @@ oserr_t VFSNodeUnbind(struct VFS* vfs, uuid_t directoryHandleID)
         oserr = OS_EINVALPARAMS;
         goto exit;
     }
+
+    // Remove the record VFSNodeBind added to the source node. VFSNodeUnlink
+    // refuses a node that is still listed as bound somewhere, so without this
+    // the source directory could never be removed. The locks are taken in the
+    // same order as in VFSNodeBind.
+    source = handle->Node->TypeData;
+    usched_mtx_lock(&source->MountsLock);
+    hashtable_remove(
+        &source->Mounts,
+        &(struct __VFSMount) {
+            .Target = handle->Node
+        }
+    );
+    usched_mtx_unlock(&source->MountsLock);
 
     handle->Node->Type     = VFS_NODE_TYPE_REGULAR;
     handle->Node->TypeData = NULL;

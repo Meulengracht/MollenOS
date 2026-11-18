@@ -119,17 +119,35 @@ VFSStorageCreateFileBacked(
         _In_ uuid_t fileHandleID);
 
 /**
- * @brief
- * @param deviceID
- * @param driverID
- * @param flags
- * @return
+ * @brief Allocates a storage for a disk that a storage driver serves. This
+ * does not talk to the driver and does not wait, so the caller can make the
+ * storage visible (for example in the disk list) before the first wait.
+ * Stats stays zeroed until VFSStorageQueryDeviceStats fills it in.
+ * @param deviceID The disk's device ID, as given by the driver.
+ * @param driverID The driver that serves the disk.
+ * @param flags    The sys_storage flags given at registration.
+ * @return The new storage in state VFSSTORAGE_STATE_INITIALIZING, or NULL if
+ *         out of memory. Free it with VFSStorageDelete.
  */
 extern struct VFSStorage*
 VFSStorageCreateDeviceBacked(
         _In_ uuid_t       deviceID,
         _In_ uuid_t       driverID,
         _In_ unsigned int flags);
+
+/**
+ * @brief Asks the driver of a device-backed storage for the disk's geometry
+ * and serial (ctt_storage_stat), and stores the answer in storage->Stats.
+ * This waits for the driver to reply.
+ * @param storage A storage from VFSStorageCreateDeviceBacked.
+ * @return OS_EOK on success. OS_EINVALPARAMS for a storage that is not
+ *         device-backed or when the driver reports a sector size of zero, or
+ *         the error from the IPC or the driver. Stats may be partly filled in
+ *         on failure, and the storage should then be deleted.
+ */
+extern oserr_t
+VFSStorageQueryDeviceStats(
+        _In_ struct VFSStorage* storage);
 
 /**
  * @brief

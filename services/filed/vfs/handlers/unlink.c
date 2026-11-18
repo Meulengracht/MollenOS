@@ -75,16 +75,22 @@ __DeleteNode(
     parent = node->Parent;
     usched_rwlock_w_promote(&parent->Lock);
 
-    // Get a write-lock on this node
-    usched_rwlock_w_lock(&node->Lock);
-
     // Load node before deletion to make sure the node
-    // is up-to-date.
+    // is up-to-date. VFSNodeEnsureLoaded promotes a reader lock on the node
+    // while it loads, so it runs under a reader lock and before the write
+    // lock below. With the write lock held, the promote would wait for a lock
+    // this job already holds. The parent stays write locked in between, so no
+    // lookup can reach the node.
+    usched_rwlock_r_lock(&node->Lock);
     oserr = VFSNodeEnsureLoaded(node);
+    usched_rwlock_r_unlock(&node->Lock);
     if (oserr != OS_EOK) {
         ERROR("__DeleteNode: failed to ensure %ms was loaded: %u", node->Name, oserr);
-        goto error;
+        goto done;
     }
+
+    // Get a write-lock on this node
+    usched_rwlock_w_lock(&node->Lock);
 
     oserr = __VerifyCanDelete(node);
     if (oserr != OS_EOK) {

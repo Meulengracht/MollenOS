@@ -50,6 +50,7 @@ typedef struct FileSystem {
     enum FileSystemState  State;
     struct VFS*           VFS;
     struct VFSInterface*  Interface;
+    
     /**
      * The mount members describe the default mount at /storage/<Serial>/<label>,
      * and are set while State is FileSystemState_MOUNTED:
@@ -60,6 +61,20 @@ typedef struct FileSystem {
     uuid_t                MountHandle;
     struct VFS*           MountScope;
     mstring_t*            MountPath;
+
+    /**
+     * The bind members describe the bind mount VFSFileSystemMount made of the
+     * default mount directory, either at an explicit mount point or at a
+     * default path such as /boot. The bind is made in MountScope, and BindPath
+     * is NULL when there is no bind:
+     * BindHandle: open handle on the bind target directory, used to unbind it.
+     * BindPath: path of the bind target directory.
+     * BindCreatedDirectory: true when the target directory did not exist and
+     *                       was created for the bind. Unmount then removes it.
+     */
+    uuid_t                BindHandle;
+    mstring_t*            BindPath;
+    bool                  BindCreatedDirectory;
 } FileSystem_t;
 
 /**
@@ -132,6 +147,8 @@ VFSFileSystemDisconnectInterface(
 /**
  * @brief Mounts a previously registered filesystem at the provided mount point. If no mount point is provided
  * the default semantic for mount points is used, or default system mounts are automatically loaded.
+ * A mount point that another filesystem is already bound or mounted at is refused, and the first
+ * filesystem keeps it.
  *
  * @param fileSystem A pointer to the filesystem that should be mounted.
  * @param mountPoint The path where the filesystem should be mounted.
@@ -143,6 +160,8 @@ VFSFileSystemMount(
 
 /**
  * @brief Unmounts the given filesystem. The flags can specify the type of unmount that is occuring.
+ * The bind mount made by VFSFileSystemMount is undone first, and its target directory is removed
+ * if it was created for the bind. Then the default mount directory is unmounted and removed.
  *
  * @param fileSystem A pointer to the filesystem that should be unmounted.
  * @param flags      The type of unmount that is occuring.

@@ -258,6 +258,7 @@ void sys_storage_register_invocation(struct gracht_message* message,
                                      const uuid_t driverId, const uuid_t deviceId, const enum sys_storage_flags flags)
 {
     struct VFSStorage* storage;
+    bool               unregisterPending;
     oserr_t            oserr;
     TRACE("sys_storage_register_invocation()");
 
@@ -274,9 +275,35 @@ void sys_storage_register_invocation(struct gracht_message* message,
     list_append(&g_disks, &storage->ListHeader);
     usched_mtx_unlock(&g_diskLock);
 
-    // Mounting and parsing wait for IPC, so an unregister for this device can
-    // run in between. While State is VFSSTORAGE_STATE_INITIALIZING, unregister
-    // only marks the storage, and the end of this function tears it down.
+    // The stat query, mounting and parsing wait for IPC, so an unregister for
+    // this device can run in between. The storage is listed above, before the
+    // first wait, so the unregister always finds it. While State is
+    // VFSSTORAGE_STATE_INITIALIZING, unregister only marks the storage, and
+    // the end of this function tears it down.
+
+    // A failed stat query leaves nothing behind. Nothing else is set up yet,
+    // so taking the storage off the list and deleting it is enough.
+    oserr = VFSStorageQueryDeviceStats(storage);
+    if (oserr != OS_EOK) {
+        ERROR("sys_storage_register_invocation failed to query device %u: %u", deviceId, oserr);
+        usched_mtx_lock(&g_diskLock);
+        if (list_remove(&g_disks, &storage->ListHeader) != 0) {
+            ERROR("sys_storage_register_invocation storage for device %u was not in the disk list", deviceId);
+        }
+        usched_mtx_unlock(&g_diskLock);
+        VFSStorageDelete(storage);
+        return;
+    }
+
+    // An unregister that arrived during the stat query means the disk is
+    // gone. Skip mounting and parsing, which would only send requests to a
+    // removed device, and tear the storage down at the end.
+    usched_mtx_lock(&g_diskLock);
+    unregisterPending = storage->UnregisterPending;
+    usched_mtx_unlock(&g_diskLock);
+    if (unregisterPending) {
+        goto exit;
+    }
 
     // Next thing is mounting the storage device as a folder
     oserr = __StorageMount(storage);

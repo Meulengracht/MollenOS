@@ -350,5 +350,8 @@ static int __MountsCmp(const void* lh, const void* rh)
 {
     const struct __VFSMount* child1 = lh;
     const struct __VFSMount* child2 = rh;
-    return (uint64_t)child1 != (uint64_t)child2;
+
+    // Compare the target nodes, so a lookup or removal 
+    // with a record built on the stack can find the entry.
+    return child1->Target == child2->Target ? 0 : 1;
 }

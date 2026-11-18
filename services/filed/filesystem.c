@@ -154,6 +154,7 @@ FileSystemDestroy(
 
     // Cleanup memory allocated by this subsystem
     mstr_delete(fileSystem->MountPath);
+    mstr_delete(fileSystem->BindPath);
     free(fileSystem);
 }
 
@@ -256,15 +257,66 @@ __MountFileSystemAtDefault(
     return OS_EOK;
 }
 
+// Closes the handle on a bind target directory. A directory that was created
+// for the bind is removed as well, one that existed before is left in place.
+static void
+__CloseBindTarget(
+    _In_ struct VFS* fsScope,
+    _In_ uuid_t      directoryHandle,
+    _In_ mstring_t*  path,
+    _In_ bool        createdDirectory)
+{
+    oserr_t oserr;
+
+    if (createdDirectory) {
+        __RemoveMountDirectory(fsScope, directoryHandle, path);
+        return;
+    }
+
+    oserr = VFSNodeClose(fsScope, directoryHandle);
+    if (oserr != OS_EOK) {
+        ERROR("__CloseBindTarget failed to close %ms: %u", path, oserr);
+    }
+}
+
+// Bind mounts the default mount directory of the filesystem at the given path,
+// in the scope of the default mount. The target directory is created when it
+// does not exist. VFSNodeMkdir gives no handle for a directory that already
+// exists (OS_EEXISTS), so that directory is opened instead. VFSNodeOpen does
+// not follow a bind or mount on the last path element, so the handle is on
+// the target directory itself.
+// VFSNodeBind refuses a target that is already a bind or mount point. When two
+// filesystems want the same path, the first one keeps it and the second one
+// fails here, while its default mount stays in place.
+// The bind is stored in the filesystem, so VFSFileSystemUnmount can undo it.
 static oserr_t
 __MountFileSystemAt(
-        _In_ FileSystem_t* fileSystem,
-        _In_ mstring_t*    path)
+    _In_ FileSystem_t* fileSystem,
+    _In_ mstring_t*    path)
 {
-    struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
+    struct VFS* fsScope = fileSystem->MountScope;
     uuid_t      bindHandle;
+    bool        createdDirectory = true;
+    mstring_t*  bindPath;
+    char*       cpath;
     oserr_t     oserr;
+
     TRACE("__MountFileSystemAt(fs=%u, path=%ms)", fileSystem->ID, path);
+
+    if (path == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Only one bind is stored per filesystem.
+    if (fileSystem->BindPath != NULL) {
+        ERROR("__MountFileSystemAt filesystem %u is already bound at %ms", fileSystem->ID, fileSystem->BindPath);
+        return OS_EEXISTS;
+    }
+
+    bindPath = mstr_clone(path);
+    if (bindPath == NULL) {
+        return OS_EOOM;
+    }
 
     oserr = VFSNodeMkdir(
             fsScope,
@@ -272,12 +324,72 @@ __MountFileSystemAt(
             FILE_PERMISSION_READ,
             &bindHandle
     );
-    if (oserr != OS_EOK && oserr != OS_EEXISTS) {
-        ERROR("__MountFileSystemAt failed to create node %ms", path);
+    if (oserr == OS_EEXISTS) {
+        createdDirectory = false;
+        cpath = mstr_u8(path);
+        if (cpath == NULL) {
+            ERROR("__MountFileSystemAt failed to convert path %ms", path);
+            mstr_delete(bindPath);
+            return OS_EOOM;
+        }
+
+        oserr = VFSNodeOpen(
+            fsScope,
+            cpath,
+            __FILE_DIRECTORY,
+            FILE_PERMISSION_READ,
+            &bindHandle
+        );
+        free(cpath);
+    }
+    if (oserr != OS_EOK) {
+        ERROR("__MountFileSystemAt failed to create or open node %ms: %u", path, oserr);
+        mstr_delete(bindPath);
         return oserr;
     }
 
-    return VFSNodeBind(fsScope, fileSystem->MountHandle, bindHandle);
+    oserr = VFSNodeBind(fsScope, fileSystem->MountHandle, bindHandle);
+    if (oserr != OS_EOK) {
+        ERROR("__MountFileSystemAt failed to bind filesystem %u at %ms, the path may be used by another filesystem: %u",
+              fileSystem->ID, path, oserr);
+        __CloseBindTarget(fsScope, bindHandle, path, createdDirectory);
+        mstr_delete(bindPath);
+        return oserr;
+    }
+
+    fileSystem->BindHandle           = bindHandle;
+    fileSystem->BindPath             = bindPath;
+    fileSystem->BindCreatedDirectory = createdDirectory;
+    return OS_EOK;
+}
+
+// Undoes the bind that __MountFileSystemAt made, if there is one. The target
+// directory is closed, and removed if it was created for the bind.
+static void
+__RemoveBind(
+        _In_ FileSystem_t* fileSystem)
+{
+    oserr_t oserr;
+
+    if (fileSystem->BindPath == NULL) {
+        return;
+    }
+
+    oserr = VFSNodeUnbind(fileSystem->MountScope, fileSystem->BindHandle);
+    if (oserr != OS_EOK) {
+        ERROR("__RemoveBind failed to unbind %ms: %u", fileSystem->BindPath, oserr);
+    }
+
+    __CloseBindTarget(
+        fileSystem->MountScope,
+        fileSystem->BindHandle,
+        fileSystem->BindPath,
+        fileSystem->BindCreatedDirectory
+    );
+    mstr_delete(fileSystem->BindPath);
+    fileSystem->BindPath             = NULL;
+    fileSystem->BindHandle           = UUID_INVALID;
+    fileSystem->BindCreatedDirectory = false;
 }
 
 static void
@@ -435,12 +547,12 @@ VFSFileSystemMount(
                 if (osStatus != OS_EOK) {
                     WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
                             fsLabel, bindPath);
-                    mstr_delete(label);
                 } else {
                     TRACE("VFSFileSystemMount notifying session about %ms", bindPath);
                     __StorageReadyEvent(bindPath);
                 }
                 mstr_delete(bindPath);
+                mstr_delete(label);
                 break;
             }
             mstr_delete(label);
@@ -468,6 +580,10 @@ VFSFileSystemUnmount(
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_MOUNTED) {
+        // The bind goes first. VFSNodeUnlink refuses to remove the default
+        // mount directory while it is still bound somewhere.
+        __RemoveBind(fileSystem);
+
         // Undo __MountFileSystemAtDefault in the scope it mounted in. The
         // mount directory is closed and removed even if the unmount fails, so
         // the next registration of the disk can mount there again.

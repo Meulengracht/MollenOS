@@ -117,8 +117,23 @@ static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length)
         oserr_t                   osStatus;
         struct VFSStat            stats;
 
+        // An entry that already has a node was created through the VFS before
+        // this directory was loaded (VFSNodeCreateChild). That node is kept, as
+        // it may have open handles or something mounted on it. A new node
+        // would replace it in Children and leave it unreachable.
         __ToVFSStat(entry, &stats);
-        osStatus = VFSNodeChildNew(node->FileSystem, node, &stats, &result);
+        if (stats.Name != NULL &&
+            hashtable_get(&node->Children, &(struct __VFSChild) { .Key = stats.Name }) != NULL) {
+            osStatus = OS_EOK;
+        } else {
+            osStatus = VFSNodeChildNew(
+                node->FileSystem,
+                node,
+                &stats,
+                &result
+            );
+        }
+
         __CleanupVFSStat(&stats);
         if (osStatus != OS_EOK) {
             return osStatus;

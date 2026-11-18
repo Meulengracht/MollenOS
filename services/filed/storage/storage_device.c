@@ -74,24 +74,33 @@ VFSStorageCreateDeviceBacked(
         _In_ unsigned int flags)
 {
     struct VFSStorage*      storage;
-    oserr_t                 oserr;
 
     storage = VFSStorageNew(&g_operations, flags);
     if (storage == NULL) {
         return NULL;
     }
 
-    // setup protocol settings
+    // setup protocol settings. The disk is not queried here, see
+    // VFSStorageQueryDeviceStats.
     storage->Protocol.StorageType = VFSSTORAGE_TYPE_DEVICE;
     storage->Protocol.Storage.Device.DriverID = driverID;
     storage->Protocol.Storage.Device.DeviceID = deviceID;
-
-    oserr = __DeviceQueryStats(deviceID, driverID, &storage->Stats);
-    if (oserr != OS_EOK) {
-        VFSStorageDelete(storage);
-        return NULL;
-    }
     return storage;
+}
+
+oserr_t
+VFSStorageQueryDeviceStats(
+        _In_ struct VFSStorage* storage)
+{
+    if (storage == NULL || storage->Protocol.StorageType != VFSSTORAGE_TYPE_DEVICE) {
+        return OS_EINVALPARAMS;
+    }
+
+    return __DeviceQueryStats(
+        storage->Protocol.Storage.Device.DeviceID,
+        storage->Protocol.Storage.Device.DriverID,
+        &storage->Stats
+    );
 }
 
 static oserr_t __ReadDevice(
