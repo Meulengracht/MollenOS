@@ -29,43 +29,134 @@
 
 #include "private.h"
 
-void
-SHMDeviceReleaseBounce(
-    _InOut_ SHMDeviceBounce_t* bounce)
+// Remove a kernel view and clear its address, but only when the unmap works.
+// The views use MAPPING_PERSISTENT, so unmapping them never frees the pages
+// behind them. Pool units are given back separately.
+static oserr_t
+__UnmapKernelView(
+    _InOut_ vaddr_t*    view,
+    _In_    size_t      length,
+    _In_    const char* name)
 {
     oserr_t status;
 
-    // The views use MAPPING_PERSISTENT, so unmapping them does not free the
-    // pages. The bounce pages are given back to the device pool separately.
-    if (bounce->BounceMapping != 0) {
-        status = MemorySpaceUnmap(
-            GetDomainMemorySpace(),
-            bounce->BounceMapping,
-            bounce->Allocation.Length
-        );
-        if (status != OS_EOK) {
-            ERROR("SHMDeviceReleaseBounce: MemorySpaceUnmap bounce %p failed: %u",
-                  (void*)bounce->BounceMapping, status);
-        }
-        bounce->BounceMapping = 0;
+    if (*view == 0) {
+        return OS_EOK;
     }
 
-    status = SystemMemoryReleaseAllocation(&bounce->Allocation);
+    status = MemorySpaceUnmap(GetDomainMemorySpace(), *view, length);
     if (status != OS_EOK) {
-        ERROR("SHMDeviceReleaseBounce: SystemMemoryReleaseAllocation failed: %u", status);
+        ERROR("SHMDeviceReleaseBounce: MemorySpaceUnmap %s view %p, length %zu failed: %u",
+              name, (void*)*view, length, status);
+        return status;
     }
-    if (bounce->SourceMapping != 0) {
-        status = MemorySpaceUnmap(
-            GetDomainMemorySpace(),
-            bounce->SourceMapping,
-            bounce->SourceMappingLength
-        );
-        if (status != OS_EOK) {
-            ERROR("SHMDeviceReleaseBounce: MemorySpaceUnmap source %p failed: %u",
-                  (void*)bounce->SourceMapping, status);
+    *view = 0;
+    return OS_EOK;
+}
+
+// Give every unit that is still allocated back to the pool. A unit that fails
+// keeps its record, and the loop goes on with the next one, so one bad unit
+// does not hold back the others. A released record is zeroed by the pool, so a
+// retry skips it and never returns the same pages twice. Only the units that
+// went back stop counting as held translated bounce storage.
+static oserr_t
+__ReturnBounceUnits(
+    _In_    SHMDeviceContext_t* context,
+    _InOut_ SHMDeviceBounce_t*  bounce)
+{
+    size_t  returned = 0;
+    oserr_t firstError = OS_EOK;
+    oserr_t status;
+
+    for (size_t i = 0; i < bounce->UnitCount; i++) {
+        struct SystemMemoryAllocation* unit = &bounce->Units[i];
+        paddr_t                        base = unit->PhysicalBase;
+        size_t                         length = unit->Length;
+
+        if (unit->Owner == NULL) {
+            continue;
         }
-        bounce->SourceMapping = 0;
+
+        status = SystemMemoryReleaseAllocation(unit);
+        if (status != OS_EOK) {
+            ERROR("SHMDeviceReleaseBounce: SystemMemoryReleaseAllocation unit %zu of %zu (base %llx, length %zu) failed: %u",
+                  i, bounce->UnitCount, (unsigned long long)base, length, status);
+            if (firstError == OS_EOK) {
+                firstError = status;
+            }
+            continue;
+        }
+        returned += length;
     }
+
+    if (bounce->Translated) {
+        SHMDeviceContextRemoveBounceStorage(context, returned);
+    }
+    return firstError;
+}
+
+// Free the pool side of the bounce storage: the bounce view, then the units,
+// then the unit record array. Each step runs only when the one before it
+// succeeded, and the first failure is returned.
+static oserr_t
+__ReleaseBounceStorage(
+    _In_    SHMDeviceContext_t* context,
+    _InOut_ SHMDeviceBounce_t*  bounce)
+{
+    oserr_t status;
+
+    // The bounce view must be gone before any unit goes back to the pool. If
+    // it stays mapped, the units stay allocated as well.
+    status = __UnmapKernelView(
+        &bounce->BounceMapping,
+        bounce->BounceMappingLength,
+        "bounce"
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = __ReturnBounceUnits(context, bounce);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // The record array is the only way to find units that are still
+    // allocated, so it is freed only now that all of them are back.
+    if (bounce->Units != NULL) {
+        kfree(bounce->Units);
+        bounce->Units = NULL;
+        bounce->UnitCount = 0;
+    }
+    return OS_EOK;
+}
+
+oserr_t
+SHMDeviceReleaseBounce(
+    _In_    SHMDeviceContext_t* context,
+    _InOut_ SHMDeviceBounce_t*  bounce)
+{
+    oserr_t status;
+
+    // The source view maps the client's pages, not pool pages, so it is
+    // removed whatever happened to the bounce storage. When both fail, the
+    // storage error is returned because it came first. The source view
+    // failure is still logged by __UnmapKernelView.
+    status = __ReleaseBounceStorage(context, bounce);
+    if (status != OS_EOK) {
+        (void)__UnmapKernelView(
+            &bounce->SourceMapping,
+            bounce->SourceMappingLength,
+            "source"
+        );
+        return status;
+    }
+
+    return __UnmapKernelView(
+        &bounce->SourceMapping,
+        bounce->SourceMappingLength,
+        "source"
+    );
 }
 
 void
@@ -148,17 +239,15 @@ SHMDeviceMappingRelease(
     SHMDeviceContextRelease(&context);
 }
 
-oserr_t
-SHMDeviceMappingCleanup(
+// Stop the device from reaching the mapping: sync caches after a confirmed
+// stop, leave the Ready state and remove the device addresses. The caller
+// frees the storage only after this succeeds.
+static oserr_t
+__RemoveDeviceAccess(
     _In_ SHMDeviceMapping_t* mapping,
     _In_ bool                stopped)
 {
     oserr_t status;
-
-    if (mapping->State == SHMDeviceMappingStopped) {
-        return OS_EOK;
-    }
-    assert(mapping->Lifetime.Cleaning);
 
     if (stopped && mapping->State != SHMDeviceMappingReleasingAfterStop) {
         // After a forced stop there is no count of how many bytes the device
@@ -193,10 +282,43 @@ SHMDeviceMappingCleanup(
         // the release.
         return status;
     }
+    return OS_EOK;
+}
 
+oserr_t
+SHMDeviceMappingCleanup(
+    _In_ SHMDeviceMapping_t* mapping,
+    _In_ bool                stopped)
+{
+    oserr_t status;
+
+    if (mapping->State == SHMDeviceMappingStopped) {
+        return OS_EOK;
+    }
+    assert(mapping->Lifetime.Cleaning);
+
+    // Device access is removed first, and nothing below runs until it is.
+    // AddressMapping is cleared only when that removal succeeds, so a NULL
+    // pointer here means an earlier attempt got past it and then failed while
+    // freeing the storage. Any cache work the release needed ran before the
+    // addresses were removed, and the storage may now be partly back in the
+    // pool. Syncing the caches again could discard cache lines that belong to
+    // the pool's next user, so resume at the steps below instead.
+    if (mapping->AddressMapping != NULL) {
+        status = __RemoveDeviceAccess(mapping, stopped);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+
+    // The steps from here on can run again on a retry. Lifting the buffer
+    // lockdown does nothing for a range that is already removed, and clearing
+    // region faults only touches regions that are still faulted.
     if (stopped) {
         // Device addresses are now gone, so lift the fault or range lock so
-        // healthy regions or the buffer can be used again.
+        // healthy regions or the buffer can be used again. This is done
+        // before the bounce storage is released, so the client gets its
+        // buffer back even when that release fails and has to be retried.
         if (mapping->Regions != NULL) {
             status = SHMDeviceRegionsClearFaults(mapping);
             if (status != OS_EOK) {
@@ -207,8 +329,15 @@ SHMDeviceMappingCleanup(
         }
     }
 
+    // A failed release keeps the mapping in its releasing state, with its
+    // buffer reference and extents, so a later unmap or stop pass resumes
+    // here. The release itself repeats only the parts that failed.
     if (__SHMDeviceMappingIsStreaming(mapping)) {
-        SHMDeviceReleaseBounce(&mapping->Stream.Bounce);
+        status = SHMDeviceReleaseBounce(mapping->Context, &mapping->Stream.Bounce);
+        if (status != OS_EOK) {
+            ERROR("SHMDeviceMappingCleanup: SHMDeviceReleaseBounce mapping %p failed: %u", mapping, status);
+            return status;
+        }
     }
 
     // Clear Usage pointers before dropping the buffer reference that keeps them alive.
@@ -217,6 +346,7 @@ SHMDeviceMappingCleanup(
             mapping->Regions->Entries[i].Binding.Usage = NULL;
         }
     }
+    
     __ReleaseMemoryHandleReference(mapping->Access.ReferenceID, __func__);
     mapping->Access.ReferenceID = UUID_INVALID;
     mapping->Access.Buffer = NULL;

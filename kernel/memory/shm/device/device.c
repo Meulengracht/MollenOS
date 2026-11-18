@@ -667,7 +667,9 @@ __CheckMappingReady(
     return mapping->State == SHMDeviceMappingStopped ? OS_ECANCELLED : OS_EBUSY;
 }
 
-// Copy the CPU's data into the bounce pages, so the device can read it.
+// Copy the CPU's data into the bounce pages, so the device can read it. The
+// offset counts from the first requested byte, in the source and in the
+// payload inside the bounce storage.
 static void
 __CopyToBounce(
     _In_ const struct SHMDeviceMapping* mapping,
@@ -677,7 +679,7 @@ __CopyToBounce(
     const SHMDeviceBounce_t* bounce = &mapping->Stream.Bounce;
 
     memcpy(
-        (void*)(bounce->BounceMapping + offset),
+        (void*)(bounce->BounceMapping + __SHMDeviceBouncePayloadOffset(bounce) + offset),
         (const void*)(bounce->SourceMapping + bounce->SourceOffset + offset),
         length
     );
@@ -694,9 +696,33 @@ __CopyFromBounce(
 
     memcpy(
         (void*)(bounce->SourceMapping + bounce->SourceOffset + offset),
-        (const void*)(bounce->BounceMapping + offset),
+        (const void*)(bounce->BounceMapping + __SHMDeviceBouncePayloadOffset(bounce) + offset),
         length
     );
+}
+
+/**
+ * @brief Widen a cache range to the whole mapped span of translated bounce
+ *        storage.
+ *
+ * The device can reach every byte of the mapped granules, the padding after
+ * the request included, and can write there without reporting it. The
+ * storage is private to this mapping, idle between transfers, and used by one
+ * transfer at a time, so cache work over all of it cannot drop a neighbor's
+ * data. It also covers bytes left from an earlier transfer. Every other
+ * mapping keeps its exact range, because its cache lines can be shared with
+ * bytes the CPU is still using.
+ */
+static void
+__CacheRange(
+    _In_    const struct SHMDeviceMapping* mapping,
+    _InOut_ size_t*                        offset,
+    _InOut_ size_t*                        length)
+{
+    if (__SHMDeviceMappingIsTranslatedBounce(mapping)) {
+        *offset = 0;
+        *length = mapping->Stream.Bounce.MappedLength;
+    }
 }
 
 static inline void
@@ -705,6 +731,9 @@ __PrepareForDevice(
     _In_ size_t                   offset,
     _In_ size_t                   length)
 {
+    size_t cacheOffset = offset;
+    size_t cacheLength = length;
+
     // All earlier CPU writes to the buffer must be finished before the cache
     // work below and before the device starts the transfer.
     dma_mb();
@@ -716,10 +745,11 @@ __PrepareForDevice(
     // Uncached memory still needs the barrier above but has no cache lines to
     // maintain. Bounce pages follow the cache setting of the device pool.
     if (mapping->Cached && mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent) {
+        __CacheRange(mapping, &cacheOffset, &cacheLength);
         if (mapping->Direction == DMAToDevice) {
-            __SyncCacheRange(mapping, offset, length, CpuDataCacheClean);
+            __SyncCacheRange(mapping, cacheOffset, cacheLength, CpuDataCacheClean);
         } else {
-            __SyncCacheRange(mapping, offset, length, CpuDataCacheCleanInvalidate);
+            __SyncCacheRange(mapping, cacheOffset, cacheLength, CpuDataCacheCleanInvalidate);
         }
     }
 }
@@ -730,6 +760,9 @@ SHMDeviceCompleteForCpu(
     _In_ size_t                   offset,
     _In_ size_t                   length)
 {
+    size_t cacheOffset = offset;
+    size_t cacheLength = length;
+
     // The driver must already have confirmed that the device finished or
     // stopped. The barrier makes that check happen before the CPU reads, so
     // the reads see what the device wrote.
@@ -739,9 +772,12 @@ SHMDeviceCompleteForCpu(
     // memory into its cache, for example through speculative reads. Discard
     // those cached lines for the bytes the device wrote. Mapping setup already
     // checked that these cache lines do not reach outside the mapping.
+    // Translated bounce storage is discarded in full, even for zero completed
+    // bytes, because the device may have written bytes it cannot report.
     if (mapping->Cached && mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent &&
         __DeviceWrites(mapping)) {
-        __SyncCacheRange(mapping, offset, length, CpuDataCacheInvalidate);
+        __CacheRange(mapping, &cacheOffset, &cacheLength);
+        __SyncCacheRange(mapping, cacheOffset, cacheLength, CpuDataCacheInvalidate);
     }
 }
 
@@ -958,7 +994,16 @@ SHMDeviceMappingSegments(
         return NULL;
     }
     
-    segments = DMAAddressMappingSegments(mapping->AddressMapping, &count);
+    // A translated bounce mapping reaches whole granules, but only the payload
+    // belongs to the request. Publish that one segment instead of the padded
+    // span, so the driver never programs the private padding.
+    if (__SHMDeviceMappingIsTranslatedBounce(mapping)) {
+        segments = &mapping->Stream.PayloadSegment;
+        count = 1;
+    } else {
+        segments = DMAAddressMappingSegments(mapping->AddressMapping, &count);
+    }
+
     // The IOMMU unit can fail after the token was accepted. Check again before
     // handing out the segment list. The check also passes any failure it finds
     // on to the recovery code. No IOMMU lock is held at this point.

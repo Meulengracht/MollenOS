@@ -33,6 +33,18 @@
 #include "../../utils.h"
 #include "regions.h"
 
+// The largest translated bounce mapping, in bytes of bounce storage. This is
+// compared with the mapped length, the whole granules a mapping would hold,
+// before anything is allocated. Bounce storage comes from the small device
+// pool, which shared DMA allocations and IOMMU tables also use, so one mapping
+// must not be able to drain it. 262144 bytes is a sixteenth of the 4 MiB ARM64
+// pool. Direct bounce storage is not limited by this.
+//
+// The public headers cannot see this constant, so the value 262144 is written
+// out in kernel/include/shm/device.h, librt/libddk/include/ddk/dma.h,
+// docs/ddk-dma.md and docs/dma-translated-bounce.md. Change them together.
+#define SHM_DEVICE_TRANSLATED_BOUNCE_LIMIT 262144
+
 // Tracks what an active device operation is currently doing.
 // Running:        allocating, copying, or syncing caches. Process exit cannot
 //                 safely undo partial work in this phase.
@@ -88,6 +100,31 @@ struct SHMDeviceOperation {
 };
 
 /**
+ * @brief How much translated bounce storage one context uses.
+ *
+ * HeldBytes is the bounce storage the context's mappings hold right now,
+ * counted per pool unit. It includes units that failed to go back to the pool
+ * and are kept out of it for good. PeakBytes is the highest HeldBytes so far.
+ * Mappings counts the translated bounce mappings ever prepared, including any
+ * that later failed installation.
+ *
+ * LimitRefusals counts requests refused with OS_EBUFFER because their mapped
+ * length is above SHM_DEVICE_TRANSLATED_BOUNCE_LIMIT. PoolShortages counts
+ * requests that failed with OS_EOOM because the device pool had no free unit.
+ * Both are normal results for the caller, so only the first of each is logged
+ * as a warning, and the totals are logged when the context is freed.
+ *
+ * All fields are guarded by the context's MappingLock.
+ */
+struct SHMDeviceBounceUse {
+    size_t   HeldBytes;
+    size_t   PeakBytes;
+    uint64_t Mappings;
+    uint64_t LimitRefusals;
+    uint64_t PoolShortages;
+};
+
+/**
  * @brief One driver's DMA access to one device, with the mappings made through it.
  *
  * Binding links the context to the device and to its recovery group, which is
@@ -101,7 +138,9 @@ struct SHMDeviceOperation {
  * when its handle went away while the device might still be using it. It
  * waits on this list until the hardware stop is confirmed.
  * MappingLock guards the list links, the Abandoned flag, and the Cleaning flag
- * that keeps two cleanups from running on one mapping.
+ * that keeps two cleanups from running on one mapping. It also guards
+ * TranslatedBounce, which records how much the context copies through
+ * translated bounce storage, so that use is never silent.
  */
 struct SHMDeviceContext {
     _Atomic(unsigned int)     References;
@@ -112,33 +151,65 @@ struct SHMDeviceContext {
     enum SHMDeviceCachePolicy CachePolicy;
     uint64_t                  AddressLimit;
     struct DMAAddressSpace*   AddressSpace;
+    struct SHMDeviceBounceUse TranslatedBounce;
 };
 
 /**
- * @brief Kernel views used to copy between the buffer and bounce pages.
+ * @brief Kernel views and pool storage used to copy between the buffer and
+ *        bounce pages.
  *
  * Bounce pages are temporary pages from the device pool that the device can
  * reach. The kernel copies data between them and the real buffer when the
  * device cannot use the buffer's own pages. SourceMapping and BounceMapping
  * are the kernel views used for that copying.
  *
- * BounceMapping is 0 when the device uses the original buffer pages directly.
- * Allocation records the bounce pages so they go back to the device pool on
- * cleanup.
+ * The bounce storage is a list of units. A unit is one contiguous allocation
+ * from the device pool. Units has one record per unit, in the order the kernel
+ * view BounceMapping maps them. Units do not have to be next to each other in
+ * physical memory. A direct bounce uses one unit for its whole storage.
+ *
+ * Translated is set when the storage backs a translated bounce mapping. An
+ * IOMMU maps whole granules, so the device then reaches MappedLength bytes,
+ * the request rounded up to whole granules. The bytes after the request are
+ * private padding. In a direct bounce the device reaches only the requested
+ * bytes, and MappedLength is the request length.
+ *
+ * Release clears SourceMapping, BounceMapping, Units and UnitCount only when
+ * the piece they point to has been freed, so a failed release can be called
+ * again and repeats only what is left. A unit record with Owner set to NULL is
+ * already back in the pool. The other fields are never cleared. They describe
+ * the storage, and a retry still reads them. It needs the view lengths to
+ * unmap the views, and Translated to update the context's held bytes. All
+ * fields are zero when the device uses the original buffer pages directly.
  */
 typedef struct SHMDeviceBounce {
-    vaddr_t                       SourceMapping;       // Kernel view of the buffer's pages.
-    size_t                        SourceMappingLength;
-    size_t                        SourceOffset;        // Where the range starts inside that view.
-    vaddr_t                       BounceMapping;       // Kernel view of the bounce pages. The range starts at 0.
-    struct SystemMemoryAllocation Allocation;   // Device pool allocation behind the bounce pages.
+    vaddr_t                        SourceMapping;       // Kernel view of the buffer's pages.
+    size_t                         SourceMappingLength;
+    size_t                         SourceOffset;        // Where the range starts inside that view.
+    vaddr_t                        BounceMapping;       // Kernel view of all units, in Units order.
+    size_t                         BounceMappingLength; // Length of that view, the sum of all unit lengths.
+    size_t                         MappedLength;        // Bytes of the storage the device can reach.
+    struct SystemMemoryAllocation* Units;               // One pool allocation record per unit.
+    size_t                         UnitCount;
+    bool                           Cached;              // Cache setting of the pool, the same for every unit.
+    bool                           Translated;          // The storage backs a translated bounce mapping.
 } SHMDeviceBounce_t;
 
-// Offset and Length hold the range of the transfer that is in progress.
+/**
+ * @brief State of a streaming mapping.
+ *
+ * Offset and Length hold the range of the transfer that is in progress.
+ * PayloadSegment is valid only when Bounce.Translated is set. It is the one
+ * device segment the driver gets for a translated bounce mapping: the device
+ * address of the first requested byte and the requested length. The address
+ * mapping itself covers whole granules, including the padding after the
+ * request, and the driver never sees that longer segment.
+ */
 typedef struct SHMDeviceStream {
     size_t            Offset;
     size_t            Length;
     SHMDeviceBounce_t Bounce;
+    struct DMASegment PayloadSegment;
 } SHMDeviceStream_t;
 
 enum SHMDeviceMappingState {
@@ -230,6 +301,63 @@ SHMDeviceContextInitialize(
     _Out_ struct SHMDeviceContext* context);
 
 /**
+ * @brief Count translated bounce storage that was just taken from the pool.
+ *
+ * @param context Context whose mapping took the storage.
+ * @param bytes   Bytes of pool units taken. Zero is allowed.
+ */
+KERNELABI void KERNELAPI
+SHMDeviceContextAddBounceStorage(
+    _In_ SHMDeviceContext_t* context,
+    _In_ size_t              bytes);
+
+/**
+ * @brief Stop counting translated bounce storage that is back in the pool.
+ *
+ * @param context Context whose mapping held the storage.
+ * @param bytes   Bytes of pool units returned. At most the bytes still counted.
+ */
+KERNELABI void KERNELAPI
+SHMDeviceContextRemoveBounceStorage(
+    _In_ SHMDeviceContext_t* context,
+    _In_ size_t              bytes);
+
+/**
+ * @brief Count one more prepared translated bounce mapping of a context.
+ *
+ * The count is taken when preparation succeeds, before installation, so a
+ * mapping that later fails installation is still counted.
+ *
+ * @return true if this is the context's first translated bounce mapping, so
+ *         the caller can report it once at warning level.
+ */
+KERNELABI bool KERNELAPI
+SHMDeviceContextCountBounceMapping(
+    _In_ SHMDeviceContext_t* context);
+
+/**
+ * @brief Count one more translated bounce request refused because its mapped
+ *        length is above SHM_DEVICE_TRANSLATED_BOUNCE_LIMIT.
+ *
+ * @return true if this is the context's first such refusal, so the caller can
+ *         report it once at warning level.
+ */
+KERNELABI bool KERNELAPI
+SHMDeviceContextCountBounceLimitRefusal(
+    _In_ SHMDeviceContext_t* context);
+
+/**
+ * @brief Count one more translated bounce request that failed because the
+ *        device pool had no free unit (OS_EOOM).
+ *
+ * @return true if this is the context's first pool shortage, so the caller can
+ *         report it once at warning level.
+ */
+KERNELABI bool KERNELAPI
+SHMDeviceContextCountBouncePoolShortage(
+    _In_ SHMDeviceContext_t* context);
+
+/**
  * @brief Check that an operation token belongs to this context, mapping, and kind.
  *
  * The token must be fully set up (counted by the recovery group), must be the
@@ -271,6 +399,29 @@ __SHMDeviceMappingIsStreaming(
         mapping->Kind == SHMDeviceMappingStreamingDirect;
 }
 
+// True for a streaming mapping that copies through translated bounce storage.
+// Stream shares a union with the persistent state, so the kind is checked
+// before Stream is read. Use this for every translated bounce check.
+static inline bool
+__SHMDeviceMappingIsTranslatedBounce(
+    _In_ const SHMDeviceMapping_t* mapping)
+{
+    return __SHMDeviceMappingIsStreaming(mapping) && mapping->Stream.Bounce.Translated;
+}
+
+// Where the first requested byte sits in the bounce storage, as an offset
+// from the start of BounceMapping. Every bounce mapping puts it at offset zero
+// today. Copies and the published payload segment take the position from here
+// only, so a later change can place the payload elsewhere, for example to
+// bounce only the first and last granule of a large range.
+static inline size_t
+__SHMDeviceBouncePayloadOffset(
+    _In_ const SHMDeviceBounce_t* bounce)
+{
+    (void)bounce;
+    return 0;
+}
+
 /**
  * @brief Prepare a buffer range and its device layout, without installing it.
  *
@@ -303,8 +454,12 @@ __SHMDeviceMappingIsStreaming(
  * @param mappingOut Receives the prepared mapping only on success.
  * @return OS_EOK on success. OS_EINCOMPLETE if a page in the range was never
  *         allocated. OS_ENOTSUPPORTED if the layout cannot meet the limits.
- *         Otherwise the error from allocating bounce pages or building the
- *         device addresses.
+ *         OS_EBUFFER if a translated bounce would map more than
+ *         SHM_DEVICE_TRANSLATED_BOUNCE_LIMIT bytes. Otherwise the error from
+ *         allocating bounce storage or building the device addresses. If
+ *         freeing the bounce storage fails as well, the original error is
+ *         still returned and the storage that could not be freed is logged
+ *         and kept out of the pool for good.
  */
 KERNELABI oserr_t KERNELAPI
 SHMDeviceMappingPrepare(
@@ -319,23 +474,46 @@ SHMDeviceMappingPrepare(
     _Out_ SHMDeviceMapping_t**             mappingOut);
 
 /**
- * @brief Free the kernel views of the bounce pages and return the pages to the
- *        device pool.
+ * @brief Free the kernel views of the bounce storage and return its units to
+ *        the device pool.
  *
  * Call only when no other cleanup and no device transfer can touch these
- * pages. Each field is cleared as its piece is freed, so this is safe to call
- * after setup stopped halfway.
+ * pages. The device addresses of the storage must already be removed. The
+ * steps run in this order:
+ * 1. Unmap the bounce view.
+ * 2. Only when the bounce view is gone, return each unit to the pool. A unit
+ *    that fails stays allocated and the remaining units are still returned.
+ *    Returning a page that a kernel view still maps would let the next pool
+ *    user share memory with this view.
+ * 3. Free the unit record array, but only once every unit is back in the pool.
+ *    The array is the only way to find units that are still allocated.
+ * 4. Unmap the source view. This does not depend on steps 1 to 3 and always
+ *    runs, also when one of them failed.
  *
- * @param bounce Bounce storage to clear. A zero-initialized record is valid.
+ * Each field is cleared only when its step succeeds, so calling this again
+ * repeats only the steps that failed. A unit is never returned twice. This is
+ * also safe to call after setup stopped halfway. Units of translated bounce
+ * storage stop counting in the context's held bytes as they go back.
+ *
+ * @param context Context of the mapping that holds the storage. It is read
+ *                only for translated storage, to update the held bytes. Both
+ *                callers pass the context the storage was taken for.
+ * @param bounce  Bounce storage to clear. A zero-initialized record is valid
+ *                and releases nothing.
+ * @return OS_EOK when everything is freed, otherwise the first error in the
+ *         order of the steps above. Each failed call is logged on its own.
  */
-KERNELABI void KERNELAPI
+KERNELABI oserr_t KERNELAPI
 SHMDeviceReleaseBounce(
-    _InOut_ SHMDeviceBounce_t* bounce);
+    _In_    SHMDeviceContext_t* context,
+    _InOut_ SHMDeviceBounce_t*  bounce);
 
 /**
  * @brief Make data the device wrote visible to the CPU.
  *
  * For a non-coherent device this discards stale cached copies of the range.
+ * Translated bounce storage is discarded over its whole mapped span instead,
+ * whatever range is passed, because the device can write the padding too.
  * Call only after the device has finished or has been confirmed stopped. The
  * range must lie inside the mapping, and callers must keep other access and
  * cleanup from running at the same time.
@@ -406,8 +584,11 @@ SHMDeviceMappingRelease(
  * @param stopped True when the hardware is confirmed stopped. Cleanup then
  *                syncs caches for the full range and lifts the lockdown on
  *                the buffer range.
- * @return OS_EOK, or the error from releasing the device addresses. After that
- *         error the remaining pages stay allocated and the call can be retried.
+ * @return OS_EOK, or the error from releasing the device addresses or the
+ *         bounce storage. After an error the buffer reference, the extents and
+ *         every page that was not freed stay with the mapping, and the call
+ *         can be retried. Once the device addresses are gone, a retry resumes
+ *         at the bounce storage and does not sync caches again.
  */
 KERNELABI oserr_t KERNELAPI
 SHMDeviceMappingCleanup(

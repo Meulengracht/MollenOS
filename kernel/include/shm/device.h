@@ -146,6 +146,14 @@ SHMDeviceContextClose(
  * neighboring bytes. Uncached device-pool buffers do not have this problem.
  * Normal SHM buffers are cached, so they do.
  *
+ * Behind an IOMMU (a translated context) the device can only be given whole
+ * granules. StreamingBounce then copies through private bounce storage when
+ * the range is not whole granules, lies above the IOMMU's physical limit, or
+ * shares cache lines. The storage is rounded up to whole granules and zeroed
+ * before the device can reach it, and the device reaches that padding too.
+ * The mapping still has one segment of exactly the requested length. Such a
+ * mapping holds at most 262144 bytes of storage.
+ *
  * StreamingDirect, Persistent and Shared work on the original pages. On a
  * streaming mapping, call SHMDeviceSyncForDevice before each transfer and
  * SHMDeviceSyncForCpu after it. On a persistent mapping, call SHMDeviceBeginUse
@@ -192,6 +200,8 @@ SHMDeviceContextClose(
  *         OS_ENOTSUPPORTED if sharing a cache line directly would be unsafe, if
  *         the alignment cannot be met, or if the storage cannot be shared.
  *         OS_EINCOMPLETE if a page in the range was never allocated.
+ *         OS_EBUFFER if a translated bounce copy would need more than
+ *         262144 bytes of storage. A smaller range can still be mapped.
  *         OS_EOVERFLOW if the context cannot take another reference.
  *         OS_EOOM if an allocation fails.
  *         OS_ECANCELLED if the binding closes during setup.
@@ -321,7 +331,8 @@ SHMDeviceAllocate(
  * RAM. Before a device write they are also invalidated, so that old cached bytes
  * cannot overwrite what the device wrote later. Uncached pool memory skips the
  * cache calls, but it still runs memory barriers, access checks and bounce
- * copies.
+ * copies. For translated bounce storage the cache work covers the whole mapped
+ * span, padding included, whatever range is submitted.
  *
  * The mapping must be idle and the range must not be empty. Calls on one mapping
  * must not overlap. End any CPU session that conflicts with the range before
@@ -358,7 +369,9 @@ SHMDeviceSyncForDevice(
  *
  * Before calling this, confirm that the device really finished. Use a
  * completion interrupt or event, or stop the hardware. For a non-coherent
- * device write, the cached CPU lines for the completed range are discarded. If
+ * device write, the cached CPU lines for the completed range are discarded,
+ * or the whole mapped span for translated bounce storage, even when nothing
+ * completed, because the device may have written the padding. If
  * bounce pages were used, the completed bytes are copied back to the buffer and
  * the bytes outside that range are left alone. Device access then ends. Begin a
  * CPU session before reading or writing the buffer, and treat only the completed
@@ -396,10 +409,12 @@ SHMDeviceSyncForCpu(
  *                  points to a NULL pointer, nothing happens. Calls on one
  *                  mapping must not overlap.
  * @return OS_EOK, OS_EINVALPARAMS for an invalid token, or OS_EBUSY while
- *         device work is active. If freeing the device addresses fails, the
- *         pointer is left as it was and the pages stay allocated so cleanup
- *         can try again. The mapping can no longer be used for transfers or
- *         segment queries after that.
+ *         device work is active. If freeing the device addresses or the
+ *         bounce storage fails, the pointer is left as it was and the pages
+ *         that were not freed stay allocated so cleanup can try again. A retry
+ *         continues where the failed call stopped and does not remove the
+ *         device addresses twice. The mapping can no longer be used for
+ *         transfers or segment queries after that.
  */
 KERNELABI oserr_t KERNELAPI
 SHMDeviceUnmap(
@@ -408,6 +423,9 @@ SHMDeviceUnmap(
 
 /**
  * @brief Read the device segments covering the mapped range, in order.
+ *
+ * A translated bounce mapping returns one segment of exactly the requested
+ * length, even though the device can reach the padding after it.
  *
  * @param operation Mapping Submit token, or the context Submit token while a
  *                  mapping is being created. Keep it valid for as long as you

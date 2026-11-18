@@ -542,8 +542,18 @@ ScDmaMapShm(
         &mapping
     );
     if (status != OS_EOK) {
-        ERROR("ScDmaMapShm: SHMDeviceMap context %u, SHM %u, offset %zu, length %zu, direction %u failed: %u",
-              context, shm, parameters.Offset, parameters.Length, parameters.Direction, status);
+        // A range too large for a translated bounce copy (OS_EBUFFER) and a
+        // memory or device pool shortage (OS_EOOM) are results a driver can
+        // meet on every request. The SHM device layer reports each of them
+        // itself, so they are only traced here. A second error line for each
+        // request would flood the log.
+        if (status == OS_EBUFFER || status == OS_EOOM) {
+            TRACE("ScDmaMapShm: SHMDeviceMap context %u, SHM %u, offset %zu, length %zu, direction %u refused: %u",
+                  context, shm, parameters.Offset, parameters.Length, parameters.Direction, status);
+        } else {
+            ERROR("ScDmaMapShm: SHMDeviceMap context %u, SHM %u, offset %zu, length %zu, direction %u failed: %u",
+                  context, shm, parameters.Offset, parameters.Length, parameters.Direction, status);
+        }
         goto error;
     }
     record->Object = mapping;

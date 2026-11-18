@@ -115,6 +115,20 @@ DMAAddressSpaceGetGranularity(
     _In_ const struct DMAAddressSpace* space);
 
 /**
+ * @brief Get the highest physical address a space can map. Hold a reference to
+ *        the space first.
+ *
+ * A translated space returns the inclusive physical limit of its IOMMU unit.
+ * The unit cannot point a translation at memory above it, so preparing a
+ * mapping of such memory fails. A direct space has no IOMMU unit and no such
+ * limit, so it returns UINT64_MAX. What a direct device can reach is decided
+ * by the space's address ranges instead. The value never changes.
+ */
+KERNELABI uint64_t KERNELAPI
+DMAAddressSpaceGetPhysicalLimit(
+    _In_ const struct DMAAddressSpace* space);
+
+/**
  * @brief Check whether this space can accept new DMA work right now.
  *
  * Hold a space reference. Success only holds for this moment, because the unit
@@ -195,6 +209,10 @@ DMAAddressMappingInstall(
  *
  * The kernel uses this to check the layout. Reading the addresses does not
  * allow the device to use them. That only happens after Install succeeds.
+ * The segments describe every byte the mapping makes reachable. For a
+ * translated mapping that is the complete span of whole granules. A caller
+ * that maps a shorter request, such as SHM translated bounce storage, can
+ * publish a smaller view of this span to the driver. This list is unchanged.
  *
  * @param mapping Valid mapping. Keep it alive for as long as the array is used.
  * @param countOut Receives the number of segments.

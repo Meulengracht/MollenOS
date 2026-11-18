@@ -148,6 +148,14 @@ DMAAddressSpaceGetGranularity(
         ? space->Translated.Unit->Config.Granularity : 0;
 }
 
+uint64_t
+DMAAddressSpaceGetPhysicalLimit(
+    _In_ const struct DMAAddressSpace* space)
+{
+    return space->Mode == DMAAddressSpaceTranslated
+        ? space->Translated.Unit->Config.PhysicalLimit : UINT64_MAX;
+}
+
 oserr_t
 DMAAddressSpaceCheck(
     _In_ const struct DMAAddressSpace* space)
