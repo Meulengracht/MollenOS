@@ -23,6 +23,22 @@
 #include <ddk/pci/acpi.h>
 
 /**
+ * @brief What the firmware tells us about DMA for one PCI root. Devices use DMA
+ * to read and write memory without the CPU copying every byte.
+ *
+ * CoherencyPresent is true when a _CCA value was found, so that a missing _CCA
+ * can be told apart from a _CCA that is set to zero. Coherent is that _CCA value
+ * (true means devices see the same memory as the CPU caches). HasDma is true if a
+ * _DMA object exists on the way down to the root or anywhere below it, even if
+ * the object is empty.
+ */
+typedef struct AcpiPciDmaProperties {
+    bool CoherencyPresent;
+    bool Coherent;
+    bool HasDma;
+} AcpiPciDmaProperties_t;
+
+/**
  * @brief Validates the MCFG table, which must be done before namespace loading
  * can run PCI_Config AML. The ACPICA table manager and the kernel memory
  * manager must both be initialized. Once validated, the table is never released.
@@ -38,22 +54,6 @@ AcpiPciInitializeConfig(void);
  */
 void
 AcpiPciScan(void);
-
-/**
- * @brief What the firmware tells us about DMA for one PCI root. Devices use DMA
- * to read and write memory without the CPU copying every byte.
- *
- * CoherencyPresent is true when a _CCA value was found, so that a missing _CCA
- * can be told apart from a _CCA that is set to zero. Coherent is that _CCA value
- * (true means devices see the same memory as the CPU caches). HasDma is true if a
- * _DMA object exists on the way down to the root or anywhere below it, even if
- * the object is empty.
- */
-typedef struct AcpiPciDmaProperties {
-    bool CoherencyPresent;
-    bool Coherent;
-    bool HasDma;
-} AcpiPciDmaProperties_t;
 
 /**
  * @brief Reads the DMA information the firmware gave for a PCI root. Call this

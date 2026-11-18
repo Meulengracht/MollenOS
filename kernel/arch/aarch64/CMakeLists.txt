@@ -28,8 +28,12 @@ set (AARCH64_SOURCES
     common/gicv3.c
     common/timer.c
     common/output.c
+
+    smmu/deadline.c
     smmu/discovery.c
     smmu/memory.c
+    smmu/stage2-table.c
+    smmu/unit-common.c
     smmu/v3/unit.c
     smmu/v3/queue.c
     smmu/v3/fault.c
@@ -40,14 +44,20 @@ set (AARCH64_SOURCES
     smmu/mmu500/fault.c
     smmu/mmu500/table.c
     smmu/mmu500/stream.c
-    devicetree/smmu.c
-    devicetree/device-pool-fdt.c
+    smmu/devicetree.c
+    smmu/devicetree-route.c
+    smmu/devicetree-unit.c
+
+    devicetree/gic-interrupt.c
 )
 
-# RPi uses device-tree discovery and adds its SoC interrupt controllers.
+# RPi uses device-tree discovery and adds its SoC interrupt controllers. The
+# device pool scan reads the device tree, so only device-tree platforms build it.
 if (VALI_PLATFORM STREQUAL "rpi")
     list (APPEND AARCH64_SOURCES
+        devicetree/device-pool-fdt.c
         devicetree/platform.c
+
         rpi/interrupts.c
         rpi/mip.c
         rpi/mip-firmware.c
@@ -70,9 +80,10 @@ if (VALI_BUILD_FEATURE_ACPI)
         acpi/iort-catalogue.c
         acpi/iort-dma.c
         acpi/iort-msi.c
-        smmu/iort.c
         acpi/pci-dma.c
         acpi/pci-irq.c
+        
+        smmu/iort.c
     )
 endif ()
 
@@ -82,5 +93,6 @@ endif ()
 
 add_kernel_library(vali-aarch64 "" ${AARCH64_SOURCES})
 
-# The SMMU and device pool code decode device-tree DMA ranges on every platform.
+# The SMMU code decodes device-tree DMA ranges on every platform. The device pool
+# scan does so on device-tree platforms.
 target_link_libraries(vali-aarch64 PRIVATE vali-fdt-dma)
