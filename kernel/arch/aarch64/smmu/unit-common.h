@@ -113,7 +113,8 @@ ArmSMMUUnitStart(
  *
  * @param common Unit state to poll.
  * @param poll   Backend polling routine.
- * @param unit   Backend unit pointer passed to poll.
+ * @param unit   Pointer passed to poll unchanged. This is the backend unit, or
+ *               a backend request that names the unit.
  * @return OS_EOK if healthy and Ready, OS_EBUSY if not started, closing, or
  *         failed at startup, or the error returned by poll.
  */

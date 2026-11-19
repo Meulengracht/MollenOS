@@ -94,24 +94,55 @@ SMMUv3UnitGetBackend(
     _In_ SMMUv3Unit_t* unit);
 
 /**
- * @brief Checks global hardware errors and drains pending fault events.
+ * @brief Checks global hardware errors and reads pending event records.
  *
  * This driver polls in thread context rather than using hardware interrupts.
- * Each call checks for global errors and reads up to one full ring of event
- * records. Any observed event or hardware error marks the generic DMA unit as
- * failed so new DMA work stops. Propagate failures to attached DMA domains
- * after this call returns so domain callbacks never run while the unit mutex
- * is held.
+ * Call without the unit mutex held. Poll takes it and releases it again.
  *
- * @param unit Native SMMUv3 unit to inspect.
- * @return OS_EOK if healthy, OS_EINVALPARAMS if unit is NULL, OS_EBUSY if the
- *         unit has not started, is closing, or failed startup (diagnostics are
- *         still drained after a failed start), or OS_ECANCELLED or a fault
- *         status once the unit has failed.
+ * The unit writes a 32-byte event record to its event queue for every access
+ * it refuses and for every problem it finds in its own work. Poll reads the
+ * records and sorts each one by its event number:
+ * - Device fault: the record describes an access that a device sent, such as
+ *   an address with no mapping or a write to a read-only page. The unit has
+ *   already refused and ended that access, so the unit stays healthy. Poll
+ *   writes one DMAIOMMUFault_t to faults and does not log it.
+ * - Unit failure: the record points at the stream table, a page table or a
+ *   queue that the kernel wrote, or at memory the unit reads by itself. A
+ *   record with its Stall bit set or with an unknown event number is handled
+ *   the same way. The kernel can no longer trust the unit. Poll logs the
+ *   event number and Stream ID and fails the unit permanently. No record is
+ *   written for it.
+ * Any active global error (GERROR) also fails the unit.
+ *
+ * When the hardware dropped records because the queue was full, Poll
+ * acknowledges that and writes one DMAIOMMUFaultReportsLost record first. The
+ * unit stays healthy.
+ *
+ * One call reads at most capacity event records, or capacity - 1 when it also
+ * reports an overflow. The rest stay in the hardware queue for the next call.
+ * A caller that receives capacity records should poll again. After Poll
+ * returns, pass each record to DMAManagerReportFault. Poll never calls it,
+ * because that function takes manager locks that must not be taken under the
+ * unit mutex.
+ *
+ * @param unit     Native SMMUv3 unit to inspect.
+ * @param faults   Receives up to capacity fault records.
+ * @param capacity Number of records faults can hold. Must be at least 1.
+ * @param countOut Receives the number of records written. Set on every
+ *                 return when it is not NULL.
+ * @return OS_EOK while the unit is healthy, also when records were written.
+ *         OS_EINVALPARAMS if unit, faults or countOut is NULL or capacity is 0.
+ *         OS_EBUSY if the unit has not started, is closing, or failed
+ *         startup. After a failed start, events are still read and records
+ *         may be written. OS_ECANCELLED once the unit has failed. Records
+ *         written in the same call stay valid with every status.
  */
 KERNELABI oserr_t KERNELAPI
 SMMUv3UnitPoll(
-    _In_ SMMUv3Unit_t* unit);
+    _In_  SMMUv3Unit_t*    unit,
+    _Out_ DMAIOMMUFault_t* faults,
+    _In_  uint32_t         capacity,
+    _Out_ uint32_t*        countOut);
 
 /**
  * @brief Stops the controller, frees its memory, and clears *unit.

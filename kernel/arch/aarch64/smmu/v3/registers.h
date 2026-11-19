@@ -16,7 +16,7 @@
  *
  * SMMUv3 hardware registers, table entries, and command encodings.
  * Follows the ARM SMMUv3 architecture specification (Arm IHI 0070 G.a,
- * chapters 4 through 6).
+ * chapters 4 through 6). Event records follow section 7.3 of IHI 0070 G.b.
  *
  * Register layout:
  * Only the standard two-page Non-secure register layout (128 KiB total) is
@@ -111,17 +111,41 @@
 #define SMMUV3_QUEUE_ERROR_MASK    (0x7FU << 24) // ERR field in CMDQ_CONS (valid only while GERROR.CMDQ_ERR is active).
 #define SMMUV3_EVENT_OVERFLOW      (1U << 31)   // OVFLG bit in EVTQ_PROD/CONS, toggled when events are dropped.
 
-// Event record layout (32 bytes = four 64-bit words per ring entry).
-// Word 0 holds the event code in bits [7:0] and the device Stream ID (SID) in
-// bits [63:32]. Bit 31 of word 1 marks a stalled transaction that is waiting
-// for software to resume or terminate it. Translation faults (codes 0x10..0x13)
-// store the faulting device input address in word 2.
+// Event record layout (32 bytes = four 64-bit words per ring entry), from
+// section 7.3 of the specification. Every record has the event number and the
+// device Stream ID (SID) in word 0. The other fields exist only in some event
+// types, and the same bits mean something else in the rest. For example, bit 31
+// of word 1 is Stall in events 0x10 to 0x13, but the requested read permission
+// in event 0x05. Check the event number before reading any field below.
 #define SMMUV3_EVENT_WORDS         4U
-#define SMMUV3_EVENT_TYPE_MASK     0xFFU
-#define SMMUV3_EVENT_SID_SHIFT     32U
-#define SMMUV3_EVENT_STALL         (1ULL << 31)
-#define SMMUV3_EVENT_ADDRESS_FIRST 0x10U
-#define SMMUV3_EVENT_ADDRESS_LAST  0x13U
+#define SMMUV3_EVENT_TYPE_MASK     0xFFU        // Word 0 bits [7:0]: event number.
+#define SMMUV3_EVENT_SID_SHIFT     32U          // Word 0 bits [63:32]: Stream ID of the device.
+#define SMMUV3_EVENT_STALL         (1ULL << 31) // Word 1 bit 31: Stall, the transaction waits for software.
+#define SMMUV3_EVENT_READ          (1ULL << 35) // Word 1 bit 35: RnW, 1 for a read and 0 for a write.
+#define SMMUV3_EVENT_STAGE2        (1ULL << 39) // Word 1 bit 39: S2, the fault happened at stage 2.
+#define SMMUV3_EVENT_ADDRESS_WORD  2U           // Word 2: InputAddr, the address the device used.
+
+// Event numbers (section 7.3). Numbers 0xE0 to 0xEF are implementation defined.
+// All other numbers are reserved.
+#define SMMUV3_EVENT_F_UUT              0x01U // Unsupported transaction type from the device.
+#define SMMUV3_EVENT_C_BAD_STREAMID     0x02U // Stream ID has no stream table entry.
+#define SMMUV3_EVENT_F_STE_FETCH        0x03U // Reading a stream table entry failed.
+#define SMMUV3_EVENT_C_BAD_STE          0x04U // Stream table entry is invalid.
+#define SMMUV3_EVENT_F_BAD_ATS_TREQ     0x05U // PCIe ATS translation request is not allowed.
+#define SMMUV3_EVENT_F_STREAM_DISABLED  0x06U // Transaction without a substream ID is not allowed.
+#define SMMUV3_EVENT_F_TRANSL_FORBIDDEN 0x07U // PCIe ATS pre-translated transaction is not allowed.
+#define SMMUV3_EVENT_C_BAD_SUBSTREAMID  0x08U // Substream ID is not allowed for this stream.
+#define SMMUV3_EVENT_F_CD_FETCH         0x09U // Reading a context descriptor failed.
+#define SMMUV3_EVENT_C_BAD_CD           0x0AU // Context descriptor is invalid.
+#define SMMUV3_EVENT_F_WALK_EABT        0x0BU // Reading a page table entry failed.
+#define SMMUV3_EVENT_F_TRANSLATION      0x10U // No valid page table entry for the address.
+#define SMMUV3_EVENT_F_ADDR_SIZE        0x11U // Address is wider than a translation stage allows.
+#define SMMUV3_EVENT_F_ACCESS           0x12U // Page table entry has its access flag clear.
+#define SMMUV3_EVENT_F_PERMISSION       0x13U // Page table entry does not allow this direction.
+#define SMMUV3_EVENT_F_TLB_CONFLICT     0x20U // Translation cache lookup matched more than one entry.
+#define SMMUV3_EVENT_F_CFG_CONFLICT     0x21U // Configuration cache lookup matched more than one entry.
+#define SMMUV3_EVENT_E_PAGE_REQUEST     0x24U // Device hint that it will access an address range soon.
+#define SMMUV3_EVENT_F_VMS_FETCH        0x25U // Reading a virtual machine structure failed.
 
 // Two-level stream table layout and Stream Table Entry (STE) encodings.
 // Each Level-2 table is one 4 KiB page holding 64 STEs of 64 bytes (8 words)

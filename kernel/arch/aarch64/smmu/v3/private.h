@@ -267,20 +267,31 @@ SMMUv3FaultCheck(
     _In_ SMMUv3Unit_t* unit);
 
 /**
- * @brief Checks global errors and drains up to maximumEvents fault records.
+ * @brief Checks global errors and turns queued event records into fault records.
  *
- * Hold the unit mutex. Ordinary fault events fail the generic DMA unit so new
- * work stops, while still allowing checked queue cleanup during teardown. An
- * event ring overflow also marks control memory pinned.
+ * Hold the unit mutex. The event queue must have been enabled by Start. Each
+ * event record read from the queue is either a device fault, which is written
+ * to faults, or a unit failure, which is logged and fails the unit through
+ * ArmSMMUUnitFail. See SMMUv3UnitPoll for the full rules.
  *
- * @param unit          SMMUv3 unit to drain.
- * @param maximumEvents Maximum number of event records to read in this call.
- * @return OS_EOK if healthy, or an error status if the unit has failed.
+ * A queue overflow is acknowledged and reported as one DMAIOMMUFaultReportsLost
+ * record in faults[0]. It leaves capacity - 1 slots for queued events. Queue
+ * pointers that report more records than the queue holds fail the unit, and
+ * nothing is read.
+ *
+ * @param unit     SMMUv3 unit to drain.
+ * @param faults   Receives up to capacity fault records.
+ * @param capacity Number of records faults can hold. Must be at least 1.
+ * @param countOut Receives the number of records written. Always set.
+ * @return OS_EOK if the unit is healthy, or OS_ECANCELLED if it has failed.
+ *         Records written before a failure stay valid.
  */
 KERNELABI oserr_t KERNELAPI
 SMMUv3FaultDrain(
-    _In_ SMMUv3Unit_t* unit,
-    _In_ uint32_t      maximumEvents);
+    _In_  SMMUv3Unit_t*    unit,
+    _Out_ DMAIOMMUFault_t* faults,
+    _In_  uint32_t         capacity,
+    _Out_ uint32_t*        countOut);
 
 /**
  * @brief Connects the shared stage-2 page-table hooks to this SMMUv3 unit.

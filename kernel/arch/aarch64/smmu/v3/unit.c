@@ -614,17 +614,27 @@ SMMUv3UnitGetBackend(
     return unit == NULL ? NULL : unit->Common.Backend;
 }
 
-// Drain the event ring once startup has enabled it, or check global errors
-// if startup failed earlier. Entered with the unit mutex held.
+// Arguments of one SMMUv3UnitPoll call, passed through ArmSMMUUnitPoll to
+// __PollLocked. Count receives the number of records written to Faults.
+typedef struct __SMMUv3PollRequest {
+    SMMUv3Unit_t*    Unit;
+    DMAIOMMUFault_t* Faults;
+    uint32_t         Capacity;
+    uint32_t         Count;
+} __SMMUv3PollRequest_t;
+
+// Drain the event queue once startup has enabled it, or check global errors
+// if startup failed before that. Entered with the unit mutex held.
 static oserr_t
 __PollLocked(
     _In_ void* context)
 {
-    SMMUv3Unit_t* unit = context;
-    oserr_t       status;
+    __SMMUv3PollRequest_t* request = context;
+    SMMUv3Unit_t*          unit = request->Unit;
+    oserr_t                status;
 
     if (unit->StartProgress >= SMMUv3EventEnableIssued) {
-        return SMMUv3FaultDrain(unit, 1U << unit->EventBits);
+        return SMMUv3FaultDrain(unit, request->Faults, request->Capacity, &request->Count);
     }
 
     status = SMMUv3FaultCheck(unit);
@@ -636,13 +646,31 @@ __PollLocked(
 
 oserr_t
 SMMUv3UnitPoll(
-    _In_ SMMUv3Unit_t* unit)
+    _In_  SMMUv3Unit_t*    unit,
+    _Out_ DMAIOMMUFault_t* faults,
+    _In_  uint32_t         capacity,
+    _Out_ uint32_t*        countOut)
 {
-    if (unit == NULL) {
-        ERROR("SMMUv3UnitPoll: missing unit");
+    __SMMUv3PollRequest_t request;
+    oserr_t               status;
+
+    if (countOut != NULL) {
+        *countOut = 0;
+    }
+
+    if (unit == NULL || faults == NULL || countOut == NULL || capacity == 0) {
+        ERROR("SMMUv3UnitPoll: invalid arguments, unit %p, faults %p, capacity %u",
+              (void*)unit, (void*)faults, capacity);
         return OS_EINVALPARAMS;
     }
-    return ArmSMMUUnitPoll(&unit->Common, __PollLocked, unit);
+
+    request.Unit = unit;
+    request.Faults = faults;
+    request.Capacity = capacity;
+    request.Count = 0;
+    status = ArmSMMUUnitPoll(&unit->Common, __PollLocked, &request);
+    *countOut = request.Count;
+    return status;
 }
 
 // Wait for any register writes that startup issued before teardown began.
