@@ -468,6 +468,19 @@ int streamout(
                 }
                 else break;
             }
+            // C99 size modifiers: z for size_t, t for ptrdiff_t and j for
+            // intmax_t. Each reads 64 bits when its type is 64 bits wide on
+            // this target, and an int otherwise. Without them the '%' is
+            // dropped and every later argument is read from the wrong slot.
+            else if (chr == _T('z')) {
+                if (sizeof(size_t) == sizeof(int64_t)) flags |= FLAG_INT64;
+            }
+            else if (chr == _T('t')) {
+                if (sizeof(ptrdiff_t) == sizeof(int64_t)) flags |= FLAG_INT64;
+            }
+            else if (chr == _T('j')) {
+                if (sizeof(intmax_t) == sizeof(int64_t)) flags |= FLAG_INT64;
+            }
             else break;
             chr = *format++;
         }

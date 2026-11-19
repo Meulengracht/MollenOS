@@ -24,6 +24,8 @@
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <ddk/convert.h>
+#include <errno.h>
+#include <ioctl.h>
 #include <ioset.h>
 #include <string.h>
 #include <stdlib.h>
@@ -246,11 +248,28 @@ oserr_t OnEvent(struct ioset_event* event)
     if (event->events & IOSETSYN) {
         PS2Port_t*   port = event->data.context;
         unsigned int value;
+        int          raised = 0;
 
-        if (read(port->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
-            return OS_EUNKNOWN;
+        // Take the event counter before reading the response buffer. The
+        // counter is 0 or 1, but every signal queues an I/O set event. When a
+        // second signal arrives after the module loop took this event and
+        // before we read the counter, both signals share one raised counter
+        // and the second event finds it at 0. Its bytes are read together with
+        // the first ones, so an empty counter is normal. Only the module loop
+        // reads the counter, and the descriptor is non-blocking. A raised
+        // counter that cannot be read is a fault. libc does not set errno when
+        // this read fails, so errno is cleared first.
+        if (ioctl(port->event_descriptor, FIONREAD, &raised)) {
+            WARNING("PS2 port %i: querying the interrupt event failed: %i", port->Index, errno);
+        } else if (raised > 0) {
+            errno = 0;
+            if (read(port->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+                WARNING("PS2 port %i: taking the raised interrupt event failed: %i", port->Index, errno);
+            }
         }
 
+        // Always read the response buffer, also when the counter could not be
+        // read. The fast handler stores its bytes before it signals.
         if (SIGNATURE_IS_KEYBOARD(port->Signature)) {
             PS2KeyboardInterrupt(port);
         }

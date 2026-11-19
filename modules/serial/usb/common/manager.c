@@ -182,6 +182,8 @@ void
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller)
 {
+    int result;
+
     if (controller->State.Phase >= USB_CONTROLLER_DESTROY_PENDING) {
         list_remove(&g_destroyPending, &controller->DestroyElement);
     }
@@ -200,10 +202,21 @@ UsbManagerDestroyController(
     // clean up resources
     hashtable_destroy(&controller->Endpoints);
 
-    // Remove the event descriptor from the gracht server.
-    ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
-               IOSET_DEL, controller->event_descriptor, NULL);
-    close(controller->event_descriptor);
+    // Remove the event descriptor from the gracht server. A failed removal or
+    // close is only logged.
+    result = ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
+               IOSET_DEL, controller->event_descriptor,
+               &(struct ioset_event){ .data.context = controller, .events = IOSETSYN });
+    if (result) {
+        WARNING("[UsbManagerDestroyController] controller %u: removing the event descriptor "
+                "from the I/O set failed: %i", controller->Device->Id, result);
+    }
+
+    result = close(controller->event_descriptor);
+    if (result) {
+        WARNING("[UsbManagerDestroyController] controller %u: closing the event descriptor failed: %i",
+                controller->Device->Id, result);
+    }
 
     // We keep track of whether the controller ever
     // registered with usbd

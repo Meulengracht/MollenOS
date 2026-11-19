@@ -30,10 +30,14 @@
 //   DMA active, so the manager must physically stop the hardware first.
 // - DMA_ATTACHMENT_CLEANUP_FAILED: an earlier stop cleanup hit an error and
 //   needs to be retried.
+// - DMA_ATTACHMENT_DEVICE_FAULT: the IOMMU refused a DMA access from this
+//   device or from one that shares its hardware ID. The access reached no
+//   memory. The kernel has not stopped or blocked anything.
 // Note that getting an event does not mean the hardware has already stopped.
 #define DMA_ATTACHMENT_IDLE           0x1U
 #define DMA_ATTACHMENT_STOP_REQUIRED  0x2U
 #define DMA_ATTACHMENT_CLEANUP_FAILED 0x4U
+#define DMA_ATTACHMENT_DEVICE_FAULT   0x8U
 
 /**
  * @brief Describes a device's DMA setup as discovered by the bus manager.

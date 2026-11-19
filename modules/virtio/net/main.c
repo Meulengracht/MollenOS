@@ -23,9 +23,11 @@
 
 #include <ddk/convert.h>
 #include <ddk/utils.h>
+#include <errno.h>
 #include <gracht/link/vali.h>
 #include <io.h>
 #include <internal/_utils.h>
+#include <ioctl.h>
 #include <ioset.h>
 #include <os/usched/mutex.h>
 #include <stddef.h>
@@ -211,6 +213,7 @@ OnEvent(
     VirtioNetDevice_t* device;
     unsigned int       signal;
     uint8_t            pending;
+    int                raised = 0;
 
     if (event == NULL || !(event->events & IOSETSYN)) {
         return OS_ENOENT;
@@ -220,12 +223,28 @@ OnEvent(
     
     VirtioNetLock();
 
-    if (read(device->EventDescriptor, &signal, sizeof(signal)) != sizeof(signal)) {
-        VirtioNetUnlock();
-        return OS_EUNKNOWN;
+    // Take the event counter before the pending status. The counter is 0 or
+    // 1, but every interrupt queues an I/O set event. When a second interrupt
+    // arrives after the module loop took this event and before we read the
+    // counter, both interrupts share one raised counter and the second event
+    // finds it at 0. Its status was taken together with the first one, so an
+    // empty counter is normal. Only this handler reads the counter, under the
+    // module lock, and the descriptor is non-blocking. A raised counter that
+    // cannot be read is a fault. libc does not set errno when this read
+    // fails, so errno is cleared first.
+    if (ioctl(device->EventDescriptor, FIONREAD, &raised)) {
+        WARNING("virtio-net device=%u querying the interrupt event failed: %i",
+            device->BusDevice->Base.Id, errno);
+    } else if (raised > 0) {
+        errno = 0;
+        if (read(device->EventDescriptor, &signal, sizeof(signal)) != sizeof(signal)) {
+            WARNING("virtio-net device=%u taking the raised interrupt event failed: %i",
+                device->BusDevice->Base.Id, errno);
+        }
     }
 
-    // Atomically read and clear the pending interrupt status
+    // Always take and clear the pending status, also when the counter could
+    // not be read. The fast handler saves its status before it signals.
     pending = (uint8_t)atomic_exchange(&device->InterruptResource.PendingStatus, 0);
     
     // Handle if there are any pending interrupts

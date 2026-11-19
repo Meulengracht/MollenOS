@@ -126,7 +126,8 @@ CRTDECL(int, usched_job_detach(uuid_t jobID));
  * @brief Blocks the current job until the requested job has finished execution. The
  * exit code of that job will be then be returned.
  * @param jobID The ID of the job to wait for.
- * @param exitCode The exit code of the job will be placed here.
+ * @param exitCode The exit code of the job will be placed here. May be NULL when the
+ *                 caller does not need the exit code.
  * @return 0 If the job finished execution.
  *         -1 On any errors, consult errno.
  */

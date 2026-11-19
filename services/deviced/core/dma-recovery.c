@@ -125,9 +125,18 @@ DmDmaDrainEventsLocked(void)
             entry = __FindEventAttachment(events[i].Attachment);
             if (entry == NULL || entry->Host == NULL || events[i].Reserved != 0 ||
                 (events[i].Reasons & ~(DMA_ATTACHMENT_IDLE | DMA_ATTACHMENT_STOP_REQUIRED |
-                                      DMA_ATTACHMENT_CLEANUP_FAILED)) != 0) {
+                                      DMA_ATTACHMENT_CLEANUP_FAILED | DMA_ATTACHMENT_DEVICE_FAULT)) != 0) {
                 __DmaRecoveryFailed("invalid event", OS_EPROTOCOL);
                 return OS_EPROTOCOL;
+            }
+
+            // The IOMMU refused an access from this device and the kernel
+            // stopped nothing. Only log it for now. The fault address and kind
+            // are in the kernel log.
+            if (events[i].Reasons & DMA_ATTACHMENT_DEVICE_FAULT) {
+                WARNING("DMA recovery: device %u (attachment %llu, generation %llu) had a DMA access refused by the IOMMU",
+                        entry->Device, (unsigned long long)entry->Id.Value,
+                        (unsigned long long)events[i].Generation);
             }
 
             if (events[i].Reasons & (DMA_ATTACHMENT_STOP_REQUIRED | DMA_ATTACHMENT_CLEANUP_FAILED)) {

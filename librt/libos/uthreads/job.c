@@ -334,7 +334,10 @@ int usched_job_join(uuid_t jobID, int* exitCode)
         usched_cnd_wait(&context->cond, &context->mtx);
     }
 
-    *exitCode = context->exit_code;
+    // The exit code is optional. C11 thrd_join allows a NULL result pointer.
+    if (exitCode != NULL) {
+        *exitCode = context->exit_code;
+    }
     usched_mtx_unlock(&context->mtx);
     return 0;
 }

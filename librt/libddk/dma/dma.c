@@ -302,8 +302,19 @@ __DmaMapSHM(
 
     status = Syscall_DmaMapShm(context->Handle, buffer->ID, &parameters, &result);
     if (status != OS_EOK) {
-        WARNING("DMAMapSHM: device %u, buffer %u, range %zu+%zu failed (%u)",
-            context->Device, buffer->ID, offset, length, status);
+        // A streaming request for the original pages only (DMAMapSHMDirect) is
+        // refused with OS_ENOENT when the device cannot reach them, and with
+        // OS_ENOTSUPPORTED when they break the cache or alignment rules. That
+        // is an expected answer. DMAMapSHMChunk falls back to a bounce mapping
+        // on it, so it is only traced. The kernel logs the first bounce
+        // mapping of each context.
+        if (flags == DMA_MAP_REQUIRE_DIRECT && (status == OS_ENOENT || status == OS_ENOTSUPPORTED)) {
+            TRACE("DMAMapSHM: device %u, buffer %u, range %zu+%zu cannot use the original pages (%u)",
+                context->Device, buffer->ID, offset, length, status);
+        } else {
+            WARNING("DMAMapSHM: device %u, buffer %u, range %zu+%zu failed (%u)",
+                context->Device, buffer->ID, offset, length, status);
+        }
         free(mapping);
         return status;
     }

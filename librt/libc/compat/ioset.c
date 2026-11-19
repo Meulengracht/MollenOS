@@ -124,8 +124,11 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
     stdio_handle_t*    ioObject  = stdio_handle_get(iod);
     struct IOSet*      ios;
     struct IOSetEntry* entry;
+    oserr_t            oserr;
     
-    if (!event) {
+    // Adding and modifying copy the event into the set, so they need one.
+    // Removal does not use it, and the kernel accepts NULL for it as well.
+    if (!event && op != IOSET_DEL) {
         _set_errno(EINVAL);
         return -1;
     }
@@ -135,46 +138,66 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
         return -1;
     }
 
+    // The kernel is asked first, and our copy of the set is only changed
+    // when it agrees. Our copy reports level-triggered IOSETIN events in
+    // ioset_wait, so it must hold the same events and data as the kernel.
     ios = setObject->OpsContext;
     if (op == IOSET_ADD) {
+        // Allocate before asking the kernel, so a failed allocation never
+        // leaves a subscription in the kernel that we do not know about.
         entry = malloc(sizeof(struct IOSetEntry));
         if (!entry) {
             _set_errno(ENOMEM);
             return -1;
         }
-        
+
+        oserr = OSNotificationQueueCtrl(&setObject->OSHandle, op, &ioObject->OSHandle, event);
+        if (oserr != OS_EOK) {
+            free(entry);
+            return OsErrToErrNo(oserr);
+        }
+
         entry->iod          = iod;
         entry->event.events = event->events;
         entry->event.data   = event->data;
         entry->link         = NULL;
         ioset_append(ios, entry);
+        return 0;
     } else if (op == IOSET_MOD) {
         entry = ioset_get(ios, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
         }
+
+        oserr = OSNotificationQueueCtrl(&setObject->OSHandle, op, &ioObject->OSHandle, event);
+        if (oserr != OS_EOK) {
+            return OsErrToErrNo(oserr);
+        }
+
+        // The kernel replaces both the events and the data, so we do too.
         entry->event.events = event->events;
+        entry->event.data   = event->data;
+        return 0;
     } else if (op == IOSET_DEL) {
-        entry = ioset_remove(ios, iod);
+        entry = ioset_get(ios, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
         }
-        free(entry);
-    } else {
-        _set_errno(EINVAL);
-        return -1;
+
+        // OS_ENOENT means the kernel already dropped the subscription. It
+        // does that when the process closes its last reference to the
+        // handle. Our entry is then stale and is removed as well.
+        oserr = OSNotificationQueueCtrl(&setObject->OSHandle, op, &ioObject->OSHandle, event);
+        if (oserr == OS_EOK || oserr == OS_ENOENT) {
+            free(ioset_remove(ios, iod));
+        }
+        return OsErrToErrNo(oserr);
     }
 
-    return OsErrToErrNo(
-            OSNotificationQueueCtrl(
-                    &setObject->OSHandle,
-                    op,
-                    &ioObject->OSHandle,
-                    event
-            )
-    );
+    _set_errno(EINVAL);
+    return -1;
 }
 
 int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const struct timespec* until)
@@ -254,6 +277,7 @@ ioset_get(struct IOSet* ios, int iod)
         if (itr->iod == iod) {
             return itr;
         }
+        itr = itr->link;
     }
     return NULL;
 }

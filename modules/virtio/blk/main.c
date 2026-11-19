@@ -29,7 +29,9 @@
 #include <os/handle.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
+#include <errno.h>
 #include <io.h>
+#include <ioctl.h>
 #include <ioset.h>
 #include <os/types/device.h>
 #include <stdlib.h>
@@ -207,8 +209,8 @@ __OnEvent(
     VirtioBlkDevice_t* device;
     unsigned int signal;
     uint8_t status;
-    oserr_t queueStatus = OS_EOK;
-    oserr_t configStatus = OS_EOK;
+    oserr_t oserr;
+    int raised = 0;
 
     // The device may be removed while this event waits for the module lock.
     // Look it up by the increasing storage ID, so queued events do not need
@@ -218,13 +220,33 @@ __OnEvent(
         return OS_ENOENT;
     }
 
-    // Read the event counter before taking the pending ISR bits. The interrupt
+    // Take the event counter before taking the pending ISR bits. The interrupt
     // handler can add new bits while we process this event.
-    if (read(device->EventDescriptor, &signal, sizeof(signal)) != sizeof(signal)) {
-        ERROR("OnEvent failed to consume the Virtio interrupt event");
-        return OS_EUNKNOWN;
+    //
+    // The counter is 0 or 1, but every interrupt queues an I/O set event.
+    // When a second interrupt arrives after the module loop took this event
+    // and before we read the counter, both interrupts share one raised
+    // counter and the second event finds it at 0. Its ISR bits were taken
+    // together with the first ones, so an empty counter is normal. Only this
+    // handler reads the counter, under g_lock, and the descriptor is
+    // non-blocking. A raised counter that cannot be read is a fault. libc
+    // does not set errno when this read fails, so errno is cleared first.
+    if (ioctl(device->EventDescriptor, FIONREAD, &raised)) {
+        WARNING("virtio-blk %u: querying the interrupt event failed: %i",
+            device->BusDevice->Base.Id, errno);
+    } else if (raised > 0) {
+        errno = 0;
+        if (read(device->EventDescriptor, &signal, sizeof(signal)) != sizeof(signal)) {
+            WARNING("virtio-blk %u: taking the raised interrupt event failed: %i",
+                device->BusDevice->Base.Id, errno);
+        }
+    } else {
+        TRACE("virtio-blk %u: interrupt event was taken with an earlier event",
+            device->BusDevice->Base.Id);
     }
 
+    // Always process the saved ISR bits, also when the counter could not be
+    // read. The fast handler saves its bits before it signals.
     status = (uint8_t)atomic_exchange(
         &device->InterruptResource.PendingStatus,
         0
@@ -234,12 +256,24 @@ __OnEvent(
     // Process completed requests before configuration changes. If the device
     // needs a reset, we then cancel only the requests that are still pending.
     if (status & VIRTIO_ISR_QUEUE_INTERRUPT) {
-        queueStatus = VirtioBlkDeviceHandleInterrupt(device);
+        oserr = VirtioBlkDeviceHandleInterrupt(device);
+        if (oserr != OS_EOK) {
+            ERROR("virtio-blk %u: handling completed requests failed: %u",
+                device->BusDevice->Base.Id, oserr);
+        }
     }
     if (status & VIRTIO_ISR_CONFIG_INTERRUPT) {
-        configStatus = VirtioBlkDeviceHandleConfigurationChange(device);
+        oserr = VirtioBlkDeviceHandleConfigurationChange(device);
+        if (oserr != OS_EOK) {
+            ERROR("virtio-blk %u: handling the configuration change failed: %u",
+                device->BusDevice->Base.Id, oserr);
+        }
     }
-    return configStatus != OS_EOK ? configStatus : queueStatus;
+
+    // The event belongs to this device, also when handling it failed. Any
+    // other result would make the module loop pass the interrupt descriptor
+    // to the IPC server.
+    return OS_EOK;
 }
 
 static void

@@ -60,6 +60,25 @@ struct ioset_event {
 _CODE_BEGIN
 
 CRTDECL(int, ioset(int flags));
+
+/**
+ * @brief Adds, changes or removes an I/O descriptor in an I/O set.
+ * @param set_iod The I/O set descriptor, created by ioset().
+ * @param op IOSET_ADD, IOSET_MOD or IOSET_DEL.
+ * @param iod The descriptor to add, change or remove.
+ * @param event The events to watch and the data to report with them. Required for
+ *              IOSET_ADD and IOSET_MOD. May be NULL for IOSET_DEL, which ignores it.
+ *              IOSET_MOD replaces both the events and the data of the entry. Events
+ *              that are queued but not yet returned by ioset_wait also report the
+ *              new data, because the data is read when ioset_wait returns them.
+ * @return 0 on success.
+ *         -1 on any errors, consult errno. EINVAL for an unknown operation or a NULL
+ *         event with IOSET_ADD or IOSET_MOD, EBADF for an invalid descriptor and
+ *         ENOENT when IOSET_MOD or IOSET_DEL cannot find the descriptor in the set.
+ *         Other values come from the kernel's handle set call. On failure the set
+ *         is unchanged, except when IOSET_DEL fails with ENOENT because the kernel
+ *         already dropped the entry. The entry is then removed here as well.
+ */
 CRTDECL(int, ioset_ctrl(int set_iod, int op, int iod, struct ioset_event*));
 CRTDECL(int, ioset_wait(int set_iod, struct ioset_event*, int max_events, const struct timespec* until));
 

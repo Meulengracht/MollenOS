@@ -133,6 +133,7 @@ VirtioNetUnregisterInterrupt(
     _InOut_ VirtioNetDevice_t* device)
 {
     oserr_t status;
+    int     result;
 
     status = DeviceInterruptDestroy(&device->Interrupt);
     if (status != OS_EOK) {
@@ -140,14 +141,27 @@ VirtioNetUnregisterInterrupt(
         return status;
     }
 
+    // A failed removal is only logged. The descriptor is closed either way.
     if (device->EventDescriptor >= 0) {
-        ioset_ctrl(
+        result = ioset_ctrl(
             gracht_server_get_aio_handle(__crt_get_module_server()),
             IOSET_DEL,
             device->EventDescriptor,
-            NULL
+            &(struct ioset_event) {
+                .data.context = device,
+                .events = IOSETSYN
+            }
         );
-        close(device->EventDescriptor);
+        if (result) {
+            WARNING("virtio-net %u: removing the interrupt event descriptor from the I/O set failed: %i",
+                device->BusDevice->Base.Id, result);
+        }
+
+        result = close(device->EventDescriptor);
+        if (result) {
+            WARNING("virtio-net %u: closing the interrupt event descriptor failed: %i",
+                device->BusDevice->Base.Id, result);
+        }
         device->EventDescriptor = -1;
     }
     return OS_EOK;

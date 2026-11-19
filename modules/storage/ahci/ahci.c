@@ -178,6 +178,7 @@ AhciControllerDestroy(
     _In_ AhciController_t* controller)
 {
     oserr_t status;
+    int     result;
 
     controller->Stopping = true;
 
@@ -221,14 +222,28 @@ AhciControllerDestroy(
         controller->Registers = NULL;
     }
 
+    // A failed removal or close is only logged, because the interrupt is
+    // already gone.
     if (controller->event_descriptor >= 0) {
-        ioset_ctrl(
+        result = ioset_ctrl(
             gracht_server_get_aio_handle(__crt_get_module_server()),
             IOSET_DEL,
             controller->event_descriptor,
-            NULL
+            &(struct ioset_event) {
+                .data.context = controller,
+                .events = IOSETSYN
+            }
         );
-        close(controller->event_descriptor);
+        if (result) {
+            WARNING("AHCI controller %u: removing the event descriptor from the I/O set failed: %i",
+                controller->Device->Base.Id, result);
+        }
+
+        result = close(controller->event_descriptor);
+        if (result) {
+            WARNING("AHCI controller %u: closing the event descriptor failed: %i",
+                controller->Device->Base.Id, result);
+        }
         controller->event_descriptor = -1;
     }
 

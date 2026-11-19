@@ -127,6 +127,7 @@ VirtioBlkUnregisterInterrupt(
     _InOut_ VirtioBlkDevice_t* device)
 {
     oserr_t status;
+    int     result;
 
     // Device teardown stops the hardware first. We must also wait for any running
     // handler before closing the event or freeing the device state.
@@ -136,10 +137,27 @@ VirtioBlkUnregisterInterrupt(
         return status;
     }
 
+    // A failed removal is only logged. The descriptor is closed either way.
     if (device->EventDescriptor >= 0) {
-        ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
-                   IOSET_DEL, device->EventDescriptor, NULL);
-        close(device->EventDescriptor);
+        result = ioset_ctrl(
+            gracht_server_get_aio_handle(__crt_get_module_server()),
+            IOSET_DEL,
+            device->EventDescriptor,
+            &(struct ioset_event) {
+                .data.context = (void*)(uintptr_t)device->Descriptor.DeviceID,
+                .events = IOSETSYN
+            }
+        );
+        if (result) {
+            WARNING("virtio-blk %u: removing the interrupt event descriptor from the I/O set failed: %i",
+                device->BusDevice->Base.Id, result);
+        }
+
+        result = close(device->EventDescriptor);
+        if (result) {
+            WARNING("virtio-blk %u: closing the interrupt event descriptor failed: %i",
+                device->BusDevice->Base.Id, result);
+        }
         device->EventDescriptor = -1;
     }
     return OS_EOK;

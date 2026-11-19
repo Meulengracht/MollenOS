@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ddk/utils.h>
 #include <os/event.h>
 #include <internal/_syscalls.h>
 #include <internal/_tls.h>
@@ -126,34 +127,44 @@ OSEventLock(
 {
     OSFutexParameters_t parameters;
     struct Event*       event = handle->Payload;
-    oserr_t             oserr = OS_EOK;
+    oserr_t             oserr;
     int                 value;
 
     parameters.Futex0   = event->SyncAddress;
     parameters.Flags    = FUTEX_FLAG_WAIT;
     parameters.Deadline = NULL;
 
+    // The counter is only lowered by the compare-exchange below, and only
+    // from a value of 1 or more. So it can never go below 0, also when a wait
+    // fails.
     for (;;) {
         value = atomic_load(event->SyncAddress);
-        while (value < 1) {
+        if (value < 1) {
             if (options & OSEVENT_LOCK_NONBLOCKING) {
                 return OS_EBUSY;
             }
 
+            // Sleep while the counter still has the value we read. The kernel
+            // refuses the wait with OS_EINTERRUPTED when the counter changed
+            // before we got to sleep. Then we read it again. Any other failed
+            // wait is returned, and the counter is left as it is.
             parameters.Expected0 = value;
             oserr = OSFutex(&parameters, __tls_current()->async_context);
-            if (oserr != OS_EOK) {
-                break;
+            if (oserr == OS_EINTERRUPTED && atomic_load(event->SyncAddress) != value) {
+                continue;
             }
-
-            value = atomic_load(event->SyncAddress);
+            if (oserr != OS_EOK) {
+                return oserr;
+            }
+            continue;
         }
 
+        // Another thread may take the unit first. The exchange then fails and
+        // we start over with the new value.
         if (atomic_compare_exchange_strong(event->SyncAddress, &value, value - 1)) {
-            break;
+            return OS_EOK;
         }
     }
-    return oserr;
 }
 
 oserr_t
@@ -163,34 +174,42 @@ OSEventUnlock(
 {
     OSFutexParameters_t parameters;
     struct Event*       event = handle->Payload;
-    oserr_t             status = OS_EINCOMPLETE;
     int                 currentValue;
-    int                 i;
-    int                 result;
+    unsigned int        i;
+    oserr_t             oserr;
 
     parameters.Futex0    = event->SyncAddress;
     parameters.Expected0 = 0;
     parameters.Flags     = FUTEX_FLAG_WAKE;
 
-    // assert not max
+    // Raise the counter by up to count units, but never above MaxValue.
+    // Expected0 counts the units that were added, and is the number of
+    // waiters to wake. A failed exchange loads the current value and tries
+    // again, so it adds nothing to Expected0. OSEventLock never lowers the
+    // counter below 0. The check for it only keeps the unsigned comparison
+    // with MaxValue correct.
     currentValue = atomic_load(event->SyncAddress);
-    if (currentValue < event->MaxValue) {
-        for (i = 0; i < count; i++) {
-            result = 0;
-            while (!result && currentValue < event->MaxValue) {
-                result = atomic_compare_exchange_weak(event->SyncAddress,
-                                                      &currentValue, currentValue + 1);
-                parameters.Expected0++;
-            }
+    for (i = 0; i < count && currentValue >= 0 && (unsigned int)currentValue < event->MaxValue; ) {
+        if (atomic_compare_exchange_weak(event->SyncAddress, &currentValue, currentValue + 1)) {
+            currentValue++;
+            parameters.Expected0++;
+            i++;
         }
     }
 
-    if (parameters.Expected0) {
-        OSFutex(&parameters, __tls_current()->async_context);
-        status = OS_EOK;
+    // OS_EINCOMPLETE tells the caller that nothing was added, because the
+    // counter was already at its maximum or count was 0.
+    if (parameters.Expected0 == 0) {
+        return OS_EINCOMPLETE;
     }
 
-    return status;
+    // The units are added at this point, so the result stays OS_EOK. A wake
+    // with nobody asleep returns OS_ENOENT, which is normal.
+    oserr = OSFutex(&parameters, __tls_current()->async_context);
+    if (oserr != OS_EOK && oserr != OS_ENOENT) {
+        ERROR("OSEventUnlock: waking waiters on event %u failed: %u", handle->ID, oserr);
+    }
+    return OS_EOK;
 }
 
 int

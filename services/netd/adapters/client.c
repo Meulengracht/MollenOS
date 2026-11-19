@@ -21,6 +21,7 @@
  * NetAdapterLinkChanged, and NetAdapterClose.
  */
 
+#include <ddk/utils.h>
 #include <ioset.h>
 #include <errno.h>
 #include <string.h>
@@ -104,12 +105,29 @@ NetAdapterClientDestroy(
     _In_ int              eventSet,
     _In_ gracht_client_t* client)
 {
+    int iod;
+    int status;
+
     if (client == NULL) {
         return;
     }
     
     // Remove from the worker's I/O set before shutting down the descriptor.
-    ioset_ctrl(eventSet, IOSET_DEL, gracht_client_iod(client), NULL);
+    // A failed removal is only logged, and the client is shut down either way.
+    iod = gracht_client_iod(client);
+    status = ioset_ctrl(
+        eventSet,
+        IOSET_DEL,
+        iod,
+        &(struct ioset_event){
+            .events = IOSETIN | IOSETLVT,
+            .data.iod = iod
+        }
+    );
+    if (status) {
+        WARNING("NetAdapterClientDestroy: removing client descriptor %i from the I/O set failed: %i",
+            iod, status);
+    }
     gracht_client_shutdown(client);
 }
 

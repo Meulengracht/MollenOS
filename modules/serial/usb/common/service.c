@@ -21,6 +21,8 @@
 
 //#define __TRACE
 
+#include <errno.h>
+#include <ioctl.h>
 #include <ioset.h>
 #include "hci.h"
 
@@ -57,13 +59,30 @@ oserr_t OnEvent(struct ioset_event* event)
     if (event->events & IOSETSYN) {
         UsbManagerController_t* controller = event->data.context;
         unsigned int            value;
+        int                     raised = 0;
 
-        int bytesRead = read(controller->event_descriptor, &value, sizeof(unsigned int));
-        if (bytesRead != sizeof(unsigned int)) {
-            ERROR("[OnEvent] read failed %i :(", bytesRead);
-            return OS_EUNKNOWN;
+        // Take the event counter before HciInterruptCallback takes the saved
+        // status. The counter is 0 or 1, but every interrupt queues an I/O set
+        // event. When a second interrupt arrives after the module loop took
+        // this event and before we read the counter, both interrupts share one
+        // raised counter and the second event finds it at 0. Its status was
+        // taken together with the first one, so an empty counter is normal.
+        // Only the module loop reads the counter, and the descriptor is
+        // non-blocking. A raised counter that cannot be read is a fault. libc
+        // does not set errno when this read fails, so errno is cleared first.
+        if (ioctl(controller->event_descriptor, FIONREAD, &raised)) {
+            WARNING("USB controller %u: querying the interrupt event failed: %i",
+                controller->Device->Id, errno);
+        } else if (raised > 0) {
+            errno = 0;
+            if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
+                WARNING("USB controller %u: taking the raised interrupt event failed: %i",
+                    controller->Device->Id, errno);
+            }
         }
 
+        // Always handle the saved status, also when the counter could not be
+        // read. The fast handler saves its status before it signals.
         if (controller->State.Phase >= USB_CONTROLLER_DESTROY_PENDING) {
             return OS_EOK;
         }

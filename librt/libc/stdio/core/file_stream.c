@@ -100,7 +100,12 @@ __flush_entry(
     stdio_handle_t*                  object = entry->handle;
     uint16_t                         flags  = *((uint16_t*)userContext);
     _CRT_UNUSED(index);
-    if (object->Stream->Flags & flags) {
+
+    // Only descriptors opened as a FILE have a stream. Others, such as I/O
+    // sets, events, sockets and IPC links, have no stream and nothing to flush.
+    // exit() flushes all descriptors, so a NULL stream here crashed every
+    // process that held one of them when it exited.
+    if (object->Stream != NULL && (object->Stream->Flags & flags)) {
         fflush(object->Stream);
     }
 }
