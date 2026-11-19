@@ -14,6 +14,10 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: recursive
+    - name: Check syscall definitions
+      run: |
+        python3 tools/generate_syscalls.py --check
+        python3 -m unittest discover -s tools/tests -p 'test_generate_syscalls.py'
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DVALI_ARCH=amd64 -D__BUILD_UNIT_TESTS=ON
     - name: Build
