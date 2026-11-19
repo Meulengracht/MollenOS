@@ -547,8 +547,19 @@ ScDmaMapShm(
         // meet on every request. The SHM device layer reports each of them
         // itself, so they are only traced here. A second error line for each
         // request would flood the log.
+        //
+        // A streaming request for the original pages only is refused with
+        // OS_ENOENT when the device cannot reach them, and with
+        // OS_ENOTSUPPORTED when they break the cache or alignment rules.
+        // Drivers send it first and fall back to a bounce mapping on these
+        // two results (see DMAMapSHMChunk), so it is traced too. The SHM
+        // device layer logs the first bounce mapping of each context.
         if (status == OS_EBUFFER || status == OS_EOOM) {
             TRACE("ScDmaMapShm: SHMDeviceMap context %u, SHM %u, offset %zu, length %zu, direction %u refused: %u",
+                  context, shm, parameters.Offset, parameters.Length, parameters.Direction, status);
+        } else if (kind == SHMDeviceMappingStreamingDirect &&
+                   (status == OS_ENOENT || status == OS_ENOTSUPPORTED)) {
+            TRACE("ScDmaMapShm: SHMDeviceMap context %u, SHM %u, offset %zu, length %zu, direction %u cannot use the original pages: %u",
                   context, shm, parameters.Offset, parameters.Length, parameters.Direction, status);
         } else {
             ERROR("ScDmaMapShm: SHMDeviceMap context %u, SHM %u, offset %zu, length %zu, direction %u failed: %u",

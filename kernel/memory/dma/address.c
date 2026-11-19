@@ -243,7 +243,15 @@ DMAAddressMappingPrepare(
         );
     }
     if (status != OS_EOK) {
-        ERROR("DMAAddressMappingPrepare: mapping prepare on space %p failed: %u", (void*)space, status);
+        // OS_ENOENT (the device cannot reach a page) and OS_ENOTSUPPORTED (the
+        // pages break an alignment rule) describe the pages. A mapping that
+        // may bounce falls back on them, so they are only traced here. The
+        // caller logs them when the request cannot continue.
+        if (status == OS_ENOENT || status == OS_ENOTSUPPORTED) {
+            TRACE("DMAAddressMappingPrepare: space %p cannot use the pages as they are: %u", (void*)space, status);
+        } else {
+            ERROR("DMAAddressMappingPrepare: mapping prepare on space %p failed: %u", (void*)space, status);
+        }
         DMAAddressSpaceRelease(&space);
         return status;
     }

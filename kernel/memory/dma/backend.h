@@ -72,6 +72,41 @@ typedef struct DMAIOMMUMappingConfig {
     int               ExtentCount;
 } DMAIOMMUMappingConfig_t;
 
+// Why the IOMMU refused an access. The first four kinds describe an access a
+// device sent. NoRoute and ReportsLost carry no address space to search.
+enum DMAIOMMUFaultKind {
+    DMAIOMMUFaultNoMapping,    // The device address has no installed mapping.
+    DMAIOMMUFaultPermission,   // A mapping exists, but not for this direction.
+    DMAIOMMUFaultAddressRange, // The address is above what the unit can translate.
+    DMAIOMMUFaultOther,        // Another refused access. Code holds the details.
+    DMAIOMMUFaultNoRoute,      // The hardware ID is connected to no address space.
+    DMAIOMMUFaultReportsLost   // The unit dropped an unknown number of reports.
+};
+
+// Set when DeviceAddress holds the address the device used.
+#define DMA_IOMMU_FAULT_ADDRESS 0x1U
+// Set when the unit reported the direction of the refused access.
+#define DMA_IOMMU_FAULT_READ    0x2U
+#define DMA_IOMMU_FAULT_WRITE   0x4U
+
+/**
+ * @brief One access that the IOMMU refused, as reported by a backend.
+ *
+ * HardwareID uses the same unit-local numbering as PrepareHardwareIDs. It is
+ * valid for every kind except DMAIOMMUFaultReportsLost, where it is zero.
+ * Flags is a mask of DMA_IOMMU_FAULT_* bits. DeviceAddress is only valid when
+ * DMA_IOMMU_FAULT_ADDRESS is set. Code is the raw event or status value of the
+ * backend and is only used in the log. The record holds no pointers, so it can
+ * be copied and kept after the unit mutex is released.
+ */
+typedef struct DMAIOMMUFault {
+    enum DMAIOMMUFaultKind Kind;
+    uint32_t               Flags;
+    uint32_t               HardwareID;
+    uint32_t               Code;
+    uint64_t               DeviceAddress;
+} DMAIOMMUFault_t;
+
 /**
  * @brief Hardware callbacks that a backend driver provides for one IOMMU unit.
  *

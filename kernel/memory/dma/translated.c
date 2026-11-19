@@ -438,9 +438,11 @@ DMATranslatedMappingPrepare(
         request.Alignment = requirements->AddressAlignment;
         if (requirements->LengthAlignment != 0 &&
             (request.Length & (requirements->LengthAlignment - 1)) != 0) {
-            WARNING("DMATranslatedMappingPrepare: mapping length 0x%llx does not meet length alignment 0x%llx",
-                    (unsigned long long)request.Length,
-                    (unsigned long long)requirements->LengthAlignment);
+            // An alignment refusal describes the pages, so it is traced.
+            // DMAAddressMappingPrepare leaves logging it to its caller.
+            TRACE("DMATranslatedMappingPrepare: mapping length 0x%llx does not meet length alignment 0x%llx",
+                  (unsigned long long)request.Length,
+                  (unsigned long long)requirements->LengthAlignment);
             return OS_ENOTSUPPORTED;
         }
     }

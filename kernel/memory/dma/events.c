@@ -48,7 +48,7 @@ DMAAttachmentQueueEventLocked(
 
     assert(reasons != 0);
     assert((reasons & ~(DMA_ATTACHMENT_IDLE | DMA_ATTACHMENT_STOP_REQUIRED |
-                       DMA_ATTACHMENT_CLEANUP_FAILED)) == 0);
+                       DMA_ATTACHMENT_CLEANUP_FAILED | DMA_ATTACHMENT_DEVICE_FAULT)) == 0);
 
     if (manager->State != DMAManagerLive) {
         return;

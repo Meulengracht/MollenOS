@@ -61,7 +61,7 @@ SHMDeviceContextRemoveBounceStorage(
     MutexUnlock(&context->MappingLock);
 }
 
-// Add one to a translated bounce counter of the context under MappingLock.
+// Add one to a bounce counter of the context under MappingLock.
 // Returns true when the counter was zero before, so the caller can log the
 // first event at warning level and only trace the later ones.
 static bool
@@ -83,6 +83,13 @@ SHMDeviceContextCountBounceMapping(
     _In_ struct SHMDeviceContext* context)
 {
     return __CountBounceEvent(context, &context->TranslatedBounce.Mappings);
+}
+
+bool
+SHMDeviceContextCountDirectBounceMapping(
+    _In_ struct SHMDeviceContext* context)
+{
+    return __CountBounceEvent(context, &context->DirectBounceMappings);
 }
 
 bool

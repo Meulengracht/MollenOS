@@ -33,7 +33,10 @@ ScSystemDebug(
     _In_ enum OSSysLogLevel level,
     _In_ const char*        message)
 {
-    LogAppendMessage(level, message);
+    // The caller has already formatted the message. Pass it as an argument so
+    // that a '%' left in the text is printed as is, and is not read as a
+    // conversion that would take arguments the caller never passed.
+    LogAppendMessage(level, "%s", message);
     return OS_EOK;
 }
 

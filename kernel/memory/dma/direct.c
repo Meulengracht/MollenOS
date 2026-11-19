@@ -201,6 +201,11 @@ __SegmentMeetsRequirements(
  * The counting call and the filling call run this same code, so they split and
  * merge the same byte ranges and report the same count.
  *
+ * A byte the device cannot reach (OS_ENOENT) and a segment that breaks the
+ * alignment (OS_ENOTSUPPORTED) are only traced. They describe the pages, not
+ * a fault. A mapping that may bounce falls back on them, and the caller logs
+ * the refusal when it is an error.
+ *
  * @param segmentsOut NULL to count only. Otherwise it must have room for every
  *                    segment, using the count from an earlier counting call.
  */
@@ -241,8 +246,8 @@ DMADirectWalkSegments(
             uint64_t covered = __TranslatePrefix(space, addressLimit, physical, remaining, &address);
 
             if (covered == 0) {
-                WARNING("DMADirectWalkSegments: physical address 0x%llx in extent %i is not reachable by the device",
-                        (unsigned long long)physical, i);
+                TRACE("DMADirectWalkSegments: physical address 0x%llx in extent %i is not reachable by the device",
+                      (unsigned long long)physical, i);
                 return OS_ENOENT;
             }
 
@@ -255,8 +260,8 @@ DMADirectWalkSegments(
                 // previous segment only once a new one starts. The final
                 // segment is checked after the loop.
                 if (count != 0 && !__SegmentMeetsRequirements(&last, requirements)) {
-                    WARNING("DMADirectWalkSegments: segment at 0x%llx with length 0x%llx does not meet the alignment",
-                            (unsigned long long)last.Address, (unsigned long long)last.Length);
+                    TRACE("DMADirectWalkSegments: segment at 0x%llx with length 0x%llx does not meet the alignment",
+                          (unsigned long long)last.Address, (unsigned long long)last.Length);
                     return OS_ENOTSUPPORTED;
                 }
 
@@ -285,8 +290,8 @@ DMADirectWalkSegments(
     }
 
     if (!__SegmentMeetsRequirements(&last, requirements)) {
-        WARNING("DMADirectWalkSegments: last segment at 0x%llx with length 0x%llx does not meet the alignment",
-                (unsigned long long)last.Address, (unsigned long long)last.Length);
+        TRACE("DMADirectWalkSegments: last segment at 0x%llx with length 0x%llx does not meet the alignment",
+              (unsigned long long)last.Address, (unsigned long long)last.Length);
         return OS_ENOTSUPPORTED;
     }
 

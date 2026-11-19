@@ -171,7 +171,10 @@ DMAAddressSpaceCheck(
  *                   the Prepared state.
  * @return OS_EOK on success. Validation, address conversion, reference-count
  *         and allocation errors leave *mappingOut unchanged. Temporary
- *         allocations and references are released on failure.
+ *         allocations and references are released on failure. OS_ENOENT (the
+ *         device cannot reach a page) and OS_ENOTSUPPORTED (an alignment rule
+ *         is broken) are only traced. The caller must log them if they end the
+ *         request.
  */
 KERNELABI oserr_t KERNELAPI
 DMAAddressMappingPrepare(

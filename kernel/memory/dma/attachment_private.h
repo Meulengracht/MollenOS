@@ -172,6 +172,11 @@ enum DMAConnectionState {
  * may still use them. While Ready, manager->Lock protects ConnectionState.
  * Before registration and after Closing, only the single-threaded create or
  * destroy caller touches connection fields.
+ *
+ * FaultCount is the number of device faults DMAManagerReportFault has counted
+ * for this domain. It starts at zero, stops at UINT64_MAX and is never reset.
+ * It decides which faults are logged and sent to the device manager. Hold
+ * manager->Lock to read or change it.
  */
 struct DMATranslatedDomain {
     element_t                     Link;
@@ -192,6 +197,7 @@ struct DMATranslatedDomain {
     uint32_t*                     HardwareIDs;
     uint32_t                      DeviceCount;
     uuid_t*                       Devices;
+    uint64_t                      FaultCount;
 };
 
 /**
@@ -466,7 +472,8 @@ DMARecoveryDiscardUpdate(
  * Merging into an already waiting event requires the same generation and stop
  * round, except DMA_ATTACHMENT_STOP_REQUIRED can upgrade a clean idle event
  * from round 0 to the current stop round (bumping Sequence so an older read
- * cannot clear the upgraded event).
+ * cannot clear the upgraded event). DMA_ATTACHMENT_DEVICE_FAULT is queued on
+ * its own and never moves an event to another stop round.
  *
  * Never allocates memory, and does nothing if the manager already closed. Call
  * DMAManagerNotifyEvents after dropping Lock while holding a manager reference.

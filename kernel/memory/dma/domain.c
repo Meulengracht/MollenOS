@@ -15,8 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Translated DMA domains. Validates domain configs, tracks reserved hardware
- * IDs and devices, handles domain creation and teardown, and propagates IOMMU
- * unit failures to affected recovery groups.
+ * IDs and devices, handles domain creation and teardown, propagates IOMMU
+ * unit failures to affected recovery groups, and reports device faults to the
+ * device manager.
  */
 
 #include <assert.h>
@@ -527,6 +528,229 @@ DMATranslatedDomainFail(
     status = DMARecoveryBlockFailedUnits(domain->Manager);
     if (status != OS_EOK) {
         ERROR("DMATranslatedDomainFail: failure propagation failed: %u (reason %u)", status, reason);
+    }
+    return status;
+}
+
+// Returns a short name for the fault kind, used in log lines. Returns NULL for
+// a value outside enum DMAIOMMUFaultKind, which the caller rejects.
+static const char*
+__FaultKindName(
+    _In_ enum DMAIOMMUFaultKind kind)
+{
+    switch (kind) {
+        case DMAIOMMUFaultNoMapping:    return "no mapping";
+        case DMAIOMMUFaultPermission:   return "permission";
+        case DMAIOMMUFaultAddressRange: return "address range";
+        case DMAIOMMUFaultOther:        return "other";
+        case DMAIOMMUFaultNoRoute:      return "no route";
+        case DMAIOMMUFaultReportsLost:  return "reports lost";
+    }
+    return NULL;
+}
+
+// Returns true if the domain's hardware ID list contains hardwareID.
+static bool
+__HoldsHardwareID(
+    _In_ const DMATranslatedDomain_t* domain,
+    _In_ uint32_t                     hardwareID)
+{
+    for (uint32_t i = 0; i < domain->HardwareIDCount; i++) {
+        if (domain->HardwareIDs[i] == hardwareID) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Hold manager->Lock. Returns the Ready domain on unit that holds hardwareID,
+// or NULL. Closing domains are skipped, as in DMARecoveryBlockFailedUnits. A
+// hardware ID is reserved by at most one domain per unit, so the first match
+// is the only one. Only the unit pointer is compared. Nothing is read through it.
+static DMATranslatedDomain_t*
+__FindFaultDomainLocked(
+    _In_ DMAManager_t*   manager,
+    _In_ DMAIOMMUUnit_t* unit,
+    _In_ uint32_t        hardwareID)
+{
+    foreach (node, &manager->Domains) {
+        DMATranslatedDomain_t* domain = node->value;
+
+        if (domain->State != DMATranslatedDomainReady || domain->Unit != unit) {
+            continue;
+        }
+
+        if (__HoldsHardwareID(domain, hardwareID)) {
+            return domain;
+        }
+    }
+    return NULL;
+}
+
+// Hold manager->Lock. Adds one to the domain's fault count, which stops at
+// UINT64_MAX. Returns true when this fault must be logged and sent to the
+// device manager. That is the case only when the new count is a power of two
+// (1, 2, 4, 8 and so on), so a device that keeps faulting cannot fill the log
+// or the event queue. The count is in every log line, so the number of faults
+// that were only counted can still be worked out.
+static bool
+__CountFaultLocked(
+    _In_ DMATranslatedDomain_t* domain)
+{
+    uint64_t count;
+
+    if (domain->FaultCount != UINT64_MAX) {
+        domain->FaultCount++;
+    }
+
+    count = domain->FaultCount;
+    return (count & (count - 1)) == 0;
+}
+
+// Hold manager->Lock. Returns the stop round to use for a fault event of the
+// attachment. That is 0 while its recovery group is Live, and the group's
+// current round otherwise. __DeleteBinding uses the same rule for its idle
+// event, so an event that is already queued always has the same round. Takes
+// group->Lock only to read the state. Lock order is manager->Lock, then
+// group->Lock.
+static uint64_t
+__FaultStopRoundLocked(
+    _In_ DMAAttachment_t* attachment)
+{
+    DMARecoveryGroup_t* group = attachment->RecoveryGroup;
+    uint64_t            stopRound;
+
+    MutexLock(&group->Lock);
+    stopRound = group->Access.State == DMARecoveryLive ? 0 : group->Stop.Round;
+    MutexUnlock(&group->Lock);
+    return stopRound;
+}
+
+// Hold manager->Lock. Queues DMA_ATTACHMENT_DEVICE_FAULT for every attachment
+// whose Domain is the faulting domain. Attachments in other domains, and direct
+// attachments, get nothing, also when they share a recovery group with the
+// faulting device. Group state, bindings and mappings are not changed. Returns
+// the number of attachments that got the event.
+static uint32_t
+__QueueFaultEventsLocked(
+    _In_ DMAManager_t*          manager,
+    _In_ DMATranslatedDomain_t* domain)
+{
+    uint32_t queued = 0;
+
+    foreach (node, &manager->Registry.Attachments) {
+        DMAAttachment_t* attachment = node->value;
+
+        if (attachment->Domain != domain) {
+            continue;
+        }
+
+        // A queued event keeps a new binding from being published, so the
+        // binding generation cannot change while an event waits. Using the
+        // current generation therefore matches any event that is already queued.
+        DMAAttachmentQueueEventLocked(
+            manager,
+            attachment,
+            attachment->Binding.Generation,
+            __FaultStopRoundLocked(attachment),
+            DMA_ATTACHMENT_DEVICE_FAULT
+        );
+        queued++;
+    }
+    return queued;
+}
+
+// Logs a device fault that passed the report limit. The address is only
+// printed when the backend reported one.
+static void
+__LogDeviceFault(
+    _In_ DMAIOMMUUnit_t*        unit,
+    _In_ const DMAIOMMUFault_t* fault,
+    _In_ uint64_t               faultCount)
+{
+    if (fault->Flags & DMA_IOMMU_FAULT_ADDRESS) {
+        WARNING("DMAManagerReportFault: unit %p hardware ID %u %s fault at device address 0x%llx "
+                "(code 0x%x, fault %llu of this domain)",
+                (void*)unit, fault->HardwareID, __FaultKindName(fault->Kind),
+                (unsigned long long)fault->DeviceAddress, fault->Code,
+                (unsigned long long)faultCount);
+    } else {
+        WARNING("DMAManagerReportFault: unit %p hardware ID %u %s fault, no address reported "
+                "(code 0x%x, fault %llu of this domain)",
+                (void*)unit, fault->HardwareID, __FaultKindName(fault->Kind), fault->Code,
+                (unsigned long long)faultCount);
+    }
+}
+
+oserr_t
+DMAManagerReportFault(
+    _In_ DMAManager_t*          manager,
+    _In_ DMAIOMMUUnit_t*        unit,
+    _In_ const DMAIOMMUFault_t* fault)
+{
+    DMATranslatedDomain_t* domain;
+    uint32_t               queued = 0;
+    oserr_t                status = OS_EOK;
+
+    if (manager == NULL || unit == NULL || fault == NULL || __FaultKindName(fault->Kind) == NULL) {
+        ERROR("DMAManagerReportFault: invalid manager %p, unit %p or fault %p",
+              (void*)manager, (void*)unit, (void*)fault);
+        return OS_EINVALPARAMS;
+    }
+
+    // These two kinds belong to no address space, so no domain is searched.
+    // A NoRoute access had no address space to reach memory through. Lost
+    // reports were all refused by the hardware as well, and the device that
+    // flooded the unit almost always shows up in the reports that were kept.
+    if (fault->Kind == DMAIOMMUFaultNoRoute) {
+        WARNING("DMAManagerReportFault: unit %p hardware ID %u is connected to no address space "
+                "(code 0x%x)", (void*)unit, fault->HardwareID, fault->Code);
+        return OS_ENOENT;
+    }
+
+    if (fault->Kind == DMAIOMMUFaultReportsLost) {
+        ERROR("DMAManagerReportFault: unit %p dropped an unknown number of fault reports (code 0x%x)",
+              (void*)unit, fault->Code);
+        return OS_EOK;
+    }
+
+    // Reporting a device fault only counts, logs and queues events. It blocks
+    // no group, closes no binding and touches no mapping. The unit mutex is
+    // never taken, so this can run while the unit is busy with other work.
+    MutexLock(&manager->Lock);
+    if (manager->State != DMAManagerLive) {
+        status = OS_ECANCELLED;
+        goto unlock;
+    }
+
+    domain = __FindFaultDomainLocked(manager, unit, fault->HardwareID);
+    if (domain == NULL) {
+        status = OS_ENOENT;
+        goto unlock;
+    }
+
+    if (!__CountFaultLocked(domain)) {
+        goto unlock;
+    }
+
+    __LogDeviceFault(unit, fault, domain->FaultCount);
+    queued = __QueueFaultEventsLocked(manager, domain);
+
+unlock:
+    MutexUnlock(&manager->Lock);
+    if (status == OS_ENOENT) {
+        WARNING("DMAManagerReportFault: unit %p hardware ID %u is held by no ready domain of manager %u "
+                "(%s fault, code 0x%x)",
+                (void*)unit, fault->HardwareID, manager->ID, __FaultKindName(fault->Kind), fault->Code);
+    } else if (status == OS_ECANCELLED) {
+        WARNING("DMAManagerReportFault: manager %u is closed, %s fault for hardware ID %u not reported",
+                manager->ID, __FaultKindName(fault->Kind), fault->HardwareID);
+    }
+
+    if (queued != 0) {
+        // The caller's manager reference keeps the manager alive here. If
+        // waking watchers fails, the events stay queued for the next read.
+        DMAManagerNotifyEvents(manager, __func__);
     }
     return status;
 }

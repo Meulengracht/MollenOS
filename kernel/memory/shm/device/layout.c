@@ -214,7 +214,12 @@ enum __BounceReason {
     __BounceAbovePhysicalLimit,
     // A non-coherent device would write into cache lines that also hold bytes
     // outside the range.
-    __BounceSharedCacheLines
+    __BounceSharedCacheLines,
+    // Direct context only: the device has no address for one of the pages.
+    __BounceUnreachable,
+    // Direct context only: the device segments of the pages break the
+    // alignment the driver asked for.
+    __BounceBreaksAlignment
 };
 
 static const char*
@@ -228,6 +233,10 @@ __BounceReasonName(
             return "lies above the physical limit";
         case __BounceSharedCacheLines:
             return "shares cache lines";
+        case __BounceUnreachable:
+            return "is not reachable by the device";
+        case __BounceBreaksAlignment:
+            return "breaks the device alignment";
         default:
             return "needs no bounce";
     }
@@ -238,10 +247,10 @@ __BounceReasonName(
  *
  * Extents describes the memory the device will use. That is the buffer's own
  * pages, or the bounce storage when UsesBounce is set. BouncePlan holds the
- * sizes of that storage once bounce is selected, and BounceReason says why a
- * translated mapping bounces. AddressMapping holds the device addresses built
- * from Extents. PayloadSegment is the segment a translated bounce mapping
- * publishes. When preparation fails, __ReleaseLayout frees everything here.
+ * sizes of that storage once bounce is selected, and BounceReason says why the
+ * mapping bounces. BounceReason is only read for logging. AddressMapping holds
+ * the device addresses built from Extents. PayloadSegment is the segment a
+ * translated bounce mapping publishes. When preparation fails, __ReleaseLayout frees everything here.
  * On success the mapping takes over Extents, Bounce, PayloadSegment and
  * AddressMapping.
  */
@@ -701,8 +710,10 @@ __CheckCacheLineFallback(
         return OS_EOK;
     }
 
-    WARNING("__CheckCacheLineFallback: context %p mapping kind %u cannot use bounce pages (walk status %u)",
-            context, (unsigned int)kind, status);
+    // The caller asked for the original pages only, and they cannot be used.
+    // This is an expected answer, and ScDmaMapShm logs it when it is an error.
+    TRACE("__CheckCacheLineFallback: context %p mapping kind %u cannot use bounce pages (walk status %u)",
+          context, (unsigned int)kind, status);
     return status == OS_EOK ? OS_ENOTSUPPORTED : status;
 }
 
@@ -883,6 +894,7 @@ __DecideDirectBounce(
     if (!layout->UsesBounce) {
         return OS_EOK;
     }
+    layout->BounceReason = __BounceSharedCacheLines;
 
     // Check the original pages before allocating bounce pages for the cache
     // line problem. A mapping kind that cannot use bounce pages fails here.
@@ -1013,8 +1025,10 @@ __DecideTranslatedBounce(
         return OS_EOK;
     }
 
-    WARNING("__DecideTranslatedBounce: buffer %u offset %zu, length %zu %s, and mapping kind %u cannot bounce",
-            buffer->ID, offset, length, __BounceReasonName(reason), (unsigned int)kind);
+    // The caller asked for the original pages only, and they cannot be used.
+    // This is an expected answer, and ScDmaMapShm logs it when it is an error.
+    TRACE("__DecideTranslatedBounce: buffer %u offset %zu, length %zu %s, and mapping kind %u cannot bounce",
+          buffer->ID, offset, length, __BounceReasonName(reason), (unsigned int)kind);
     return OS_ENOTSUPPORTED;
 }
 
@@ -1257,6 +1271,7 @@ __BuildLayout(
         }
         TRACE("__BuildLayout: context %p falls back to bounce pages: %u", context, status);
         layout->UsesBounce = true;
+        layout->BounceReason = status == OS_ENOENT ? __BounceUnreachable : __BounceBreaksAlignment;
     }
 
     status = __PrepareBounce(
@@ -1420,6 +1435,34 @@ __ReportTranslatedBounce(
 }
 
 /**
+ * @brief Report the first bounce mapping of a direct context.
+ *
+ * Without an IOMMU a bounce mapping copies the range through one contiguous
+ * piece of the device pool. Drivers ask for the original pages first, so the
+ * refusals before a bounce are only traced. This line is what tells an
+ * operator that the device bounces, and why. It is logged as a warning once
+ * per context. Later bounce mappings on the context are only traced, because
+ * a storage driver can bounce every request.
+ */
+static void
+__ReportDirectBounce(
+    _In_ SHMDeviceContext_t*           context,
+    _In_ const struct __MappingLayout* layout)
+{
+    // A kernel log line holds at most 127 characters. The longest reason
+    // still fits with a 64-bit pointer and limit.
+    if (SHMDeviceContextCountDirectBounceMapping(context)) {
+        WARNING("SHMDeviceMappingPrepare: context %p bounces: range %s, limit 0x%llx",
+                context, __BounceReasonName(layout->BounceReason),
+                (unsigned long long)context->AddressLimit);
+        return;
+    }
+
+    TRACE("SHMDeviceMappingPrepare: context %p bounces: range %s",
+          context, __BounceReasonName(layout->BounceReason));
+}
+
+/**
  * @brief Prepare and check a buffer range. The device cannot use it yet.
  *
  * The caller, __MapBuffer, already holds the buffer and context references
@@ -1529,6 +1572,8 @@ SHMDeviceMappingPrepare(
 
     if (layout.Bounce.Translated) {
         __ReportTranslatedBounce(context, length, &layout);
+    } else if (layout.UsesBounce) {
+        __ReportDirectBounce(context, &layout);
     }
 
     *mappingOut = mapping;

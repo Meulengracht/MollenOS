@@ -141,6 +141,9 @@ struct SHMDeviceBounceUse {
  * that keeps two cleanups from running on one mapping. It also guards
  * TranslatedBounce, which records how much the context copies through
  * translated bounce storage, so that use is never silent.
+ * DirectBounceMappings counts the bounce mappings prepared in a direct
+ * context (one without an IOMMU). It is only used to log the first one, and
+ * MappingLock guards it too.
  */
 struct SHMDeviceContext {
     _Atomic(unsigned int)     References;
@@ -152,6 +155,7 @@ struct SHMDeviceContext {
     uint64_t                  AddressLimit;
     struct DMAAddressSpace*   AddressSpace;
     struct SHMDeviceBounceUse TranslatedBounce;
+    uint64_t                  DirectBounceMappings;
 };
 
 /**
@@ -333,6 +337,16 @@ SHMDeviceContextRemoveBounceStorage(
  */
 KERNELABI bool KERNELAPI
 SHMDeviceContextCountBounceMapping(
+    _In_ SHMDeviceContext_t* context);
+
+/**
+ * @brief Count one more prepared bounce mapping of a direct context.
+ *
+ * @return true if this is the context's first direct bounce mapping, so the
+ *         caller can report it once at warning level.
+ */
+KERNELABI bool KERNELAPI
+SHMDeviceContextCountDirectBounceMapping(
     _In_ SHMDeviceContext_t* context);
 
 /**

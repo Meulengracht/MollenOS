@@ -208,7 +208,9 @@ DMAManagerPrepareTranslatedAttachment(
  * Call from thread context with a live domain and no backend, manager, group,
  * or SHM lock held. Calling this again keeps the first failure reason and
  * retries cancellation. Software cancellation stops new requests, though the
- * caller must still reset or stop physical hardware separately.
+ * caller must still reset or stop physical hardware separately. A device fault,
+ * where the IOMMU refused an access that a device sent, leaves the unit
+ * healthy. Report it with DMAManagerReportFault instead.
  *
  * @param domain Live domain whose IOMMU unit failed.
  * @param reason Non-OS_EOK error code describing the failure.
@@ -219,5 +221,36 @@ KERNELABI oserr_t KERNELAPI
 DMATranslatedDomainFail(
     _In_ DMATranslatedDomain_t* domain,
     _In_ oserr_t                reason);
+
+/**
+ * @brief Logs a device fault and tells the device manager about it.
+ *
+ * Call from thread context with no backend, manager, group or SHM lock held.
+ * The caller holds a manager reference and keeps unit alive during the call.
+ * Nothing is blocked, unmapped or stopped. The unit stays healthy.
+ *
+ * The fault is counted on the Ready domain of this manager that holds the
+ * hardware ID on this unit. Only faults whose count is a power of two (1, 2,
+ * 4, 8 and so on) are logged and sent as a DMA_ATTACHMENT_DEVICE_FAULT event
+ * to every attachment of that domain. The rest are only counted.
+ *
+ * Two kinds belong to no domain and are handled before the manager is looked
+ * at. DMAIOMMUFaultNoRoute is logged and returns OS_ENOENT. The lost reports
+ * of DMAIOMMUFaultReportsLost are logged as an error and return OS_EOK.
+ *
+ * @param manager DMA manager whose domains are searched.
+ * @param unit    Unit that reported the fault.
+ * @param fault   Record returned by the unit's backend.
+ * @return OS_EOK if the fault was handled. This includes a domain without
+ *         attachments and a report held back by the report limit. OS_ENOENT
+ *         if no Ready domain of this manager on this unit holds the hardware
+ *         ID. OS_ECANCELLED if the manager is closed. OS_EINVALPARAMS for a
+ *         NULL argument or an unknown kind.
+ */
+KERNELABI oserr_t KERNELAPI
+DMAManagerReportFault(
+    _In_ DMAManager_t*          manager,
+    _In_ DMAIOMMUUnit_t*        unit,
+    _In_ const DMAIOMMUFault_t* fault);
 
 #endif //!__DMA_DOMAIN_H__
