@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <ioctl.h>
 #include <ioset.h>
+#include <os/usched/mutex.h>
 #include <string.h>
 #include <stdlib.h>
 #include <threads.h>
@@ -39,6 +40,10 @@
 extern gracht_server_t* __crt_get_module_server(void);
 
 static PS2Controller_t* Ps2Controller = NULL;
+
+// Held for the whole of each device registration call. See
+// ctt_driver_register_device_invocation for why.
+static struct usched_mtx g_registrationLock;
 
 uint8_t
 PS2ReadStatus(void)
@@ -211,6 +216,8 @@ PS2Initialize(
 oserr_t
 OnLoad(void)
 {
+    usched_mtx_init(&g_registrationLock, USCHED_MUTEX_PLAIN);
+
     // Install supported protocols
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_input_server_protocol);
@@ -281,9 +288,10 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOENT;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* sysDevice)
+static void
+__RegisterDevice(
+    _In_ Device_t* device)
 {
-    Device_t*  device = from_sys_device(sysDevice);
     oserr_t    oserr;
     PS2Port_t* port;
 
@@ -329,6 +337,29 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
         WARNING("OnRegister unknown ps2 device");
     }
     free(device); // not used for ports atm
+}
+
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* sysDevice)
+{
+    Device_t* device;
+
+    device = from_sys_device(sysDevice);
+    if (device == NULL) {
+        ERROR("OnRegister failed to read the device description");
+        return;
+    }
+
+    // The module server runs each message in its own job, and a job lets the
+    // others run while it sleeps or waits for a reply. PS2Initialize registers
+    // each port device with deviced, and deviced sends that device back to us
+    // before RegisterDevice returns the device id. Without the lock, the port
+    // registration would run while PS2Initialize still waits for that id, find
+    // no port with a matching DeviceId and drop the device. The lock makes it
+    // wait until PS2Initialize has stored the ids of both ports. It also keeps
+    // two registrations from sending controller commands at the same time.
+    usched_mtx_lock(&g_registrationLock);
+    __RegisterDevice(device);
+    usched_mtx_unlock(&g_registrationLock);
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
