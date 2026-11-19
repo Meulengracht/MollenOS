@@ -1,0 +1,37 @@
+/**
+ * Clock Controller Contract
+ * The controller driver of a clock controller implements this contract, for
+ * example the driver for the clocks that the Raspberry Pi firmware manages.
+ * deviced is the only caller. It switches clocks on before another device is
+ * prepared, and reads their rates for that device's driver. deviced starts
+ * sending requests after the driver calls DeviceControllerEnable with
+ * DEVICE_CONTROLLER_CLOCK.
+ *
+ * deviceId is the controller's device, as given to the driver by deviced.
+ * clock is a clock number local to that clock controller. For the Raspberry Pi
+ * firmware this is the firmware clock ID, as in the cell of a device tree
+ * "clocks" reference to the "raspberrypi,firmware-clocks" node.
+ *
+ * Every call returns an oserr_t. Other output values are valid only on OS_EOK.
+ *
+ * deviced waits for each answer with the platform bus lock held, and stops
+ * waiting after a short deadline. While the driver handles one of these calls
+ * it must never call deviced (no ioctl, no DMA or interrupt request). deviced
+ * cannot answer until the call returns, so such a call would hang until the
+ * deadline and then fail.
+ */
+
+import "../types"
+
+namespace ctt
+
+service clock : message {
+    // Read whether the clock is running.
+    func get_enabled(uuid_t deviceId, uint32 clock) : (oserr_t result, bool enabled) = 1;
+
+    // Start (true) or stop (false) the clock. Returns once the change is done.
+    func set_enabled(uuid_t deviceId, uint32 clock, bool enabled) : (oserr_t result) = 2;
+
+    // Read the clock's current rate in Hz. A stopped clock may report 0.
+    func get_rate(uuid_t deviceId, uint32 clock) : (oserr_t result, uint64 rate) = 3;
+}
