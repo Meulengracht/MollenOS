@@ -89,6 +89,13 @@ typedef struct InterruptResourceTable {
  * use the translated I/O descriptors in its resource table. EventSignal wakes
  * deferred processing through HandleResource. Trace is for bounded diagnostics;
  * it does not make ordinary library calls or blocking operations safe.
+ *
+ * EventSignal returns OS_EINCOMPLETE when it raised the event counter and
+ * marked the descriptor in its I/O sets, and OS_EOK when the counter was
+ * already raised. Both mean the event is signalled. A signal that finds the
+ * counter raised marks nothing, so a fast handler must store its status
+ * before it signals, and the deferred handler must take the counter before
+ * the status.
  */
 typedef struct InterruptFunctionTable {
     size_t  (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);

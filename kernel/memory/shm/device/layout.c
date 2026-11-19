@@ -974,14 +974,17 @@ __ReportLimitRefusal(
  * is the only place a translated layout is chosen. A failure after this point
  * is returned to the caller and never retried with another layout.
  *
- * Other mapping kinds keep the results they always had. Pages that are not
- * whole granules or that share cache lines fail with OS_ENOTSUPPORTED. Pages
- * above the physical limit are left to the address core, which rejects them
- * with its own error when it prepares them.
+ * Other mapping kinds cannot bounce. Pages that are not whole granules or that
+ * share cache lines fail with OS_ENOTSUPPORTED. Pages above the physical limit
+ * fail with OS_ENOENT for a streaming request for the original pages only
+ * (SHMDeviceMappingStreamingDirect), because the device cannot reach them.
+ * Persistent and region mappings of such pages are left to the address core,
+ * which rejects them with OS_EINVALPARAMS when it prepares them.
  *
- * @return OS_EOK, OS_ENOTSUPPORTED for a kind that cannot bounce, or the error
- *         from planning the bounce storage, including OS_EBUFFER for a mapping
- *         above SHM_DEVICE_TRANSLATED_BOUNCE_LIMIT.
+ * @return OS_EOK, OS_ENOTSUPPORTED for a kind that cannot bounce, OS_ENOENT
+ *         for a streaming direct request above the physical limit, or the
+ *         error from planning the bounce storage, including OS_EBUFFER for a
+ *         mapping above SHM_DEVICE_TRANSLATED_BOUNCE_LIMIT.
  */
 static oserr_t
 __DecideTranslatedBounce(
@@ -1021,8 +1024,17 @@ __DecideTranslatedBounce(
         return status;
     }
 
+    // A streaming request for the original pages only gets OS_ENOENT, the
+    // answer DMAMapSHMDirect gives when the device cannot reach the pages.
+    // DMAMapSHMChunk falls back to a bounce mapping on it. Persistent and
+    // region mappings go on to the address core, which rejects the pages.
     if (reason == __BounceAbovePhysicalLimit) {
-        return OS_EOK;
+        if (kind != SHMDeviceMappingStreamingDirect) {
+            return OS_EOK;
+        }
+        TRACE("__DecideTranslatedBounce: buffer %u offset %zu, length %zu %s, and the request allows no bounce",
+              buffer->ID, offset, length, __BounceReasonName(reason));
+        return OS_ENOENT;
     }
 
     // The caller asked for the original pages only, and they cannot be used.

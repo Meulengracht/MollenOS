@@ -20,6 +20,7 @@
  *   provide binary semaphore functionality that can provide light synchronization primitives for interrupts
  */
 
+#include <debug.h>
 #include <futex.h>
 #include <handles/global.h>
 #include <handles/handle.h>
@@ -161,38 +162,44 @@ oserr_t
 UserEventSignal(
     _In_ uuid_t handle)
 {
-    UserEvent_t* event  = LookupGlobalHandle(handle, HandleTypeUserEvent);
-    oserr_t      status = OS_EOK;
+    UserEvent_t* event = LookupGlobalHandle(handle, HandleTypeUserEvent);
     int          currentValue;
-    int          result;
-    int          value = 1;
+    oserr_t      status;
 
-    if (!event) {
+    if (event == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    // assert not max
+    // Add one unit unless the counter is at its maximum (InitialValue). A
+    // failed exchange loads the current value, and the loop tries again with
+    // it. Readers never lower the counter below 0. The check for it only
+    // keeps the unsigned comparison with the maximum correct.
     currentValue = atomic_load(event->KernelMapping);
-    if ((currentValue + value) <= event->InitialValue) {
-        for (int i = 0; i < value; i++) {
-            while ((currentValue + 1) <= event->InitialValue) {
-                result = atomic_compare_exchange_weak(
-                    event->KernelMapping,
-                    &currentValue,
-                    currentValue + 1
-                );
-                if (result) {
-                    status = OS_EINCOMPLETE;
-                    break;
-                }
-
-                if (currentValue >= 0) {
-                    FutexWake(event->KernelMapping, 1, 0);
-                }
-            }
+    for (;;) {
+        if (currentValue < 0 || (unsigned int)currentValue >= event->InitialValue) {
+            // The signal merges with the units already in the counter. The
+            // reader that takes them sees this signal too, so the I/O set
+            // needs no new event and no sleeping reader needs a wake.
+            return OS_EOK;
+        }
+        if (atomic_compare_exchange_weak(event->KernelMapping, &currentValue, currentValue + 1)) {
+            break;
         }
     }
 
-    MarkHandle(handle, EVT_TYPE(event->flags) == EVT_TIMEOUT_EVENT ? IOSETTIM : IOSETSYN);
-    return status;
+    // Wake one reader that sleeps in read() on the counter. Nobody may be
+    // asleep, and then the wake returns OS_ENOENT, which is normal. The unit
+    // is already added, so a failed wake does not change the result.
+    status = FutexWake(event->KernelMapping, 1, 0);
+    if (status != OS_EOK && status != OS_ENOENT) {
+        WARNING("UserEventSignal: waking a reader of event %u failed: %u", handle, status);
+    }
+
+    // Queue an event in the I/O sets that watch the handle. OS_ENOENT means no
+    // set watches it, which is normal.
+    status = MarkHandle(handle, EVT_TYPE(event->flags) == EVT_TIMEOUT_EVENT ? IOSETTIM : IOSETSYN);
+    if (status != OS_EOK && status != OS_ENOENT) {
+        WARNING("UserEventSignal: marking event %u in its I/O sets failed: %u", handle, status);
+    }
+    return OS_EINCOMPLETE;
 }

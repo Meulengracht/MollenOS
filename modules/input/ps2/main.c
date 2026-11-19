@@ -251,14 +251,14 @@ oserr_t OnEvent(struct ioset_event* event)
         int          raised = 0;
 
         // Take the event counter before reading the response buffer. The
-        // counter is 0 or 1, but every signal queues an I/O set event. When a
-        // second signal arrives after the module loop took this event and
-        // before we read the counter, both signals share one raised counter
-        // and the second event finds it at 0. Its bytes are read together with
-        // the first ones, so an empty counter is normal. Only the module loop
-        // reads the counter, and the descriptor is non-blocking. A raised
-        // counter that cannot be read is a fault. libc does not set errno when
-        // this read fails, so errno is cleared first.
+        // counter is 0 or 1, and only a signal that raises it queues an I/O
+        // set event. A handler on another core can raise the counter just
+        // before we read it and queue its event just after. We then read its
+        // bytes here, and its event finds the counter at 0, so an empty
+        // counter is normal. Only the module loop reads the counter, and the
+        // descriptor is non-blocking. A raised counter that cannot be read is
+        // a fault. libc does not set errno when this read fails, so errno is
+        // cleared first.
         if (ioctl(port->event_descriptor, FIONREAD, &raised)) {
             WARNING("PS2 port %i: querying the interrupt event failed: %i", port->Index, errno);
         } else if (raised > 0) {

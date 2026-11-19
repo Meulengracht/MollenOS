@@ -223,13 +223,12 @@ __OnEvent(
     // Take the event counter before taking the pending ISR bits. The interrupt
     // handler can add new bits while we process this event.
     //
-    // The counter is 0 or 1, but every interrupt queues an I/O set event.
-    // When a second interrupt arrives after the module loop took this event
-    // and before we read the counter, both interrupts share one raised
-    // counter and the second event finds it at 0. Its ISR bits were taken
-    // together with the first ones, so an empty counter is normal. Only this
-    // handler reads the counter, under g_lock, and the descriptor is
-    // non-blocking. A raised counter that cannot be read is a fault. libc
+    // The counter is 0 or 1. Only a signal that raises it queues an I/O set
+    // event. A handler on another core can raise the counter just before we
+    // read it and queue its event just after. We then take its ISR bits here,
+    // and its event finds the counter at 0, so an empty counter is normal.
+    // Only this handler reads the counter, under g_lock, and the descriptor
+    // is non-blocking. A raised counter that cannot be read is a fault. libc
     // does not set errno when this read fails, so errno is cleared first.
     if (ioctl(device->EventDescriptor, FIONREAD, &raised)) {
         WARNING("virtio-blk %u: querying the interrupt event failed: %i",

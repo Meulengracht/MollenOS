@@ -51,13 +51,29 @@ UserEventCreate(
         _Out_ atomic_int** syncAddressOut);
 
 /**
- * @brief Signal an event from kernel or interrupt context and post its notification.
+ * @brief Signal an event from kernel or interrupt context.
  * The caller must hold a kernel reference for the entire call. Interrupt binding
  * validates the driver's grant and keeps this reference until callbacks stop.
  * This function does not check the interrupted process's grants.
  *
+ * The event counter is shared with user space, where read() takes one unit
+ * from it. A signal adds one unit, unless the counter is already at the
+ * event's maximum (1 for a reset event). When it adds a unit, it then wakes
+ * one reader that sleeps in read() on the counter, and marks the handle in
+ * the I/O sets that watch it (IOSETSYN, or IOSETTIM for a timeout event).
+ * A signal that finds the counter at its maximum changes nothing: it wakes
+ * nobody and queues no I/O set event, because the reader that takes the
+ * units already in the counter covers this signal too.
+ *
+ * A caller that stores data for the reader must store it before the signal,
+ * and the reader must take the counter before it takes the data. Then no
+ * data is left behind with the counter at 0 and no I/O set event queued.
+ *
  * @param handle Referenced user-event handle to signal.
- * @return Status of the signal operation, or OS_EINVALPARAMS for an invalid event.
+ * @return OS_EINCOMPLETE when a unit was added, OS_EOK when the counter was
+ *         already at its maximum, or OS_EINVALPARAMS for an invalid event.
+ *         Both OS_EINCOMPLETE and OS_EOK mean the event is signalled. A failed
+ *         wake or I/O set mark is logged and does not change the result.
  */
 KERNELAPI oserr_t KERNELABI
 UserEventSignal(

@@ -229,14 +229,14 @@ oserr_t OnEvent(struct ioset_event* event)
         int               raised = 0;
 
         // Take the event counter before OnInterrupt takes the saved status.
-        // The counter is 0 or 1, but every interrupt queues an I/O set event.
-        // When a second interrupt arrives after the module loop took this
-        // event and before we read the counter, both interrupts share one
-        // raised counter and the second event finds it at 0. Its status was
-        // taken together with the first one, so an empty counter is normal.
-        // Only the module loop reads the counter, and the descriptor is
-        // non-blocking. A raised counter that cannot be read is a fault. libc
-        // does not set errno when this read fails, so errno is cleared first.
+        // The counter is 0 or 1, and only a signal that raises it queues an
+        // I/O set event. A handler on another core can raise the counter just
+        // before we read it and queue its event just after. We then take its
+        // status here, and its event finds the counter at 0, so an empty
+        // counter is normal. Only the module loop reads the counter, and the
+        // descriptor is non-blocking. A raised counter that cannot be read is
+        // a fault. libc does not set errno when this read fails, so errno is
+        // cleared first.
         if (ioctl(controller->event_descriptor, FIONREAD, &raised)) {
             WARNING("AHCI controller %u: querying the interrupt event failed: %i",
                 controller->Device->Base.Id, errno);
