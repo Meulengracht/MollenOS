@@ -334,32 +334,63 @@ SMMU500ContextDisable(
     _In_ const ArmSMMUDeadline_t* deadline);
 
 /**
- * @brief Samples GFSR for global faults without clearing any status bits.
+ * @brief Checks GFSR for a unit failure without clearing any status bits.
  *
- * Hold the unit mutex. Used while polling or checking writes so syndrome
- * registers stay intact for SMMU500FaultPoll. Ordinary faults stop new work
- * while keeping checked cleanup possible.
+ * Hold the unit mutex. Used in wait loops and after checked writes, so it
+ * reads only the global status. A device fault (USF or UUT) is left latched
+ * for SMMU500FaultPoll and does not change the result. Any other global fault
+ * is logged and fails the unit through ArmSMMUUnitFail. See fault.c for the
+ * rules.
  *
  * @param unit MMU-500 unit to inspect.
- * @return OS_EOK if completion can still be trusted, or OS_ECANCELLED if an
- *         unexpected global fault made hardware completion unreliable.
+ * @return OS_EOK if completion can still be trusted, or OS_ECANCELLED once the
+ *         unit has failed through ArmSMMUUnitFail.
  */
 KERNELABI oserr_t KERNELAPI
 SMMU500FaultCheck(
     _In_ SMMU500Unit_t* unit);
 
 /**
- * @brief Captures, logs, and clears global and per-bank fault records.
+ * @brief Checks GFSR and every context bank FSR for a unit failure without
+ *        clearing any status bits.
  *
- * Hold the unit mutex. Clears only the write-1-to-clear bits observed in the
- * snapshot whose syndrome registers were read, then re-checks for racing faults.
+ * Hold the unit mutex. Used before and after changing context banks and when
+ * a TLB sync finishes. Device faults stay latched so SMMU500FaultPoll can
+ * still return their records. A unit failure is logged and fails the unit
+ * through ArmSMMUUnitFail.
  *
- * @param unit MMU-500 unit to poll.
- * @return Generic unit health status from DMAIOMMUUnitCheck.
+ * @param unit MMU-500 unit to inspect.
+ * @return Generic unit health status from DMAIOMMUUnitCheck. OS_ECANCELLED
+ *         also covers a unit failed through the generic DMA layer.
+ */
+KERNELABI oserr_t KERNELAPI
+SMMU500FaultCheckAll(
+    _In_ SMMU500Unit_t* unit);
+
+/**
+ * @brief Reads, sorts and clears the global and context bank fault status.
+ *
+ * Hold the unit mutex. Called only by SMMU500UnitPoll, which describes the
+ * rules. Reads GFSR first, then each context bank in index order, and stops
+ * reading banks once capacity records were written. Each status that shows a
+ * fault is either a device fault, which writes one record, or a unit failure,
+ * which is logged and fails the unit. A status is cleared only after its
+ * record was written or its failure logged, and only for the bits that were
+ * read, plus MULTI for a device fault.
+ *
+ * @param unit     MMU-500 unit to poll.
+ * @param faults   Receives up to capacity fault records.
+ * @param capacity Number of records faults can hold. Must be at least 1.
+ * @param countOut Receives the number of records written. Always set.
+ * @return Generic unit health status from DMAIOMMUUnitCheck. Records written
+ *         before a failure stay valid.
  */
 KERNELABI oserr_t KERNELAPI
 SMMU500FaultPoll(
-    _In_ SMMU500Unit_t* unit);
+    _In_  SMMU500Unit_t*   unit,
+    _Out_ DMAIOMMUFault_t* faults,
+    _In_  uint32_t         capacity,
+    _Out_ uint32_t*        countOut);
 
 /**
  * @brief Writes a 32-bit register and verifies the masked bits read back intact.

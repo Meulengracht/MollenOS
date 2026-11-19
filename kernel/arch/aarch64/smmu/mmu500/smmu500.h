@@ -90,23 +90,57 @@ SMMU500UnitGetBackend(
     _In_ SMMU500Unit_t* unit);
 
 /**
- * @brief Reads and clears pending global errors and per-bank fault records.
+ * @brief Reads and clears the fault status of the unit and its context banks.
  *
- * Must run in thread context because it acquires the unit mutex. Reads one
- * fault record from the global fault registers and each context bank, logs the
- * details, and clears only the bits that were read. Any observed fault fails
- * the generic DMA unit while leaving diagnostic state available. Callers must
- * propagate failures to affected DMA domains after returning from this call,
- * once the unit mutex is released.
+ * This driver polls in thread context rather than using hardware interrupts.
+ * Call without the unit mutex held. Poll takes it and releases it again.
  *
- * @param unit MMU-500 unit handle.
- * @return OS_EOK if healthy and Ready, OS_EINVALPARAMS if unit is NULL,
- *         OS_EBUSY when not Ready (unless startup failed and diagnostics
- *         report a hardware failure), or the latched unit error status.
+ * The MMU-500 has no event queue. It keeps one fault in the global fault
+ * status register (GFSR) for accesses that reach no context bank, and one
+ * fault in each context bank's status register (CB_FSR). A context bank is
+ * the hardware that translates for one address space. Address and syndrome
+ * registers next to each status register describe the fault it holds. A
+ * fault that arrives while a status register is nonzero only sets its MULTI
+ * bit. Poll reads each status register and sorts the fault it holds:
+ * - Device fault: the fault describes an access that a device sent, such as
+ *   an address with no mapping (TF), a write to a read-only page (PF) or a
+ *   Stream ID that no stream match slot accepts (USF). The unit has already
+ *   refused and ended that access, so the unit stays healthy. Poll writes one
+ *   DMAIOMMUFault_t to faults, clears the status and does not log it. MULTI
+ *   next to a device fault is cleared with it and changes nothing.
+ * - Unit failure: the fault points at a page table, stream route or register
+ *   that the kernel wrote, or at the unit itself, such as a stalled
+ *   transaction (SS) or an external abort (EF). The kernel can no longer
+ *   trust the unit. Poll logs the status, address, syndrome, Stream ID and
+ *   context bank, fails the unit permanently and clears the status. No
+ *   record is written for it.
+ *
+ * One call writes at most one record for GFSR and one for each context bank.
+ * GFSR is read first, then the banks in index order. Once capacity records
+ * are written, the remaining banks are not read and keep their status for
+ * the next call. A caller that receives capacity records should poll again.
+ * After Poll returns, pass each record to DMAManagerReportFault. Poll never
+ * calls it, because that function takes manager locks that must not be
+ * taken under the unit mutex.
+ *
+ * @param unit     MMU-500 unit to inspect.
+ * @param faults   Receives up to capacity fault records.
+ * @param capacity Number of records faults can hold. Must be at least 1.
+ * @param countOut Receives the number of records written. Set on every
+ *                 return when it is not NULL.
+ * @return OS_EOK while the unit is healthy, also when records were written.
+ *         OS_EINVALPARAMS if unit, faults or countOut is NULL or capacity is 0.
+ *         OS_EBUSY if the unit has not started, is closing, or failed
+ *         startup. After a failed start, fault status is still read and
+ *         records may be written. OS_ECANCELLED once the unit has failed.
+ *         Records written in the same call stay valid with every status.
  */
 KERNELABI oserr_t KERNELAPI
 SMMU500UnitPoll(
-    _In_ SMMU500Unit_t* unit);
+    _In_  SMMU500Unit_t*   unit,
+    _Out_ DMAIOMMUFault_t* faults,
+    _In_  uint32_t         capacity,
+    _Out_ uint32_t*        countOut);
 
 /**
  * @brief Shuts down and frees an MMU-500 unit after DMA traffic stops.

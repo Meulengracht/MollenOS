@@ -26,6 +26,15 @@
 #include <limits.h>
 #include <string.h>
 
+// Arguments of one SMMU500UnitPoll call, passed through ArmSMMUUnitPoll to
+// __PollLocked. Count receives the number of records written to Faults.
+typedef struct __SMMU500PollRequest {
+    SMMU500Unit_t*   Unit;
+    DMAIOMMUFault_t* Faults;
+    uint32_t         Capacity;
+    uint32_t         Count;
+} __SMMU500PollRequest_t;
+
 // Generic DMA IOMMU operations registered for each MMU-500 unit.
 static const DMAIOMMUBackendOps_t g_operations = {
     .CreateSpace = SMMU500SpaceCreate,
@@ -432,11 +441,11 @@ __ResetContextBanks(
 }
 
 // Reset hardware into a clean faulting baseline before marking the unit Ready.
-// Order matters: drain any firmware TLB sync and clear old faults first so no
+// Order matters: drain any firmware TLB sync and check old faults first so no
 // stalled transfer survives bank reconfiguration, configure CR0 and ACR before
 // resetting all stream slots to fault, verify writable SID mask bits on slot 0,
-// turn off all context banks, re-poll for any init-time faults, and finish with
-// a full TLB sync.
+// turn off all context banks, check again for any init-time unit failures,
+// and finish with a full TLB sync.
 static oserr_t
 __StartHardware(
     _In_ SMMU500Unit_t*           unit,
@@ -456,8 +465,10 @@ __StartHardware(
 
     unit->StartProgress = SMMU500Initializing;
 
-    // Drain and clear pre-existing fault records before changing any bank rules.
-    status = SMMU500FaultPoll(unit);
+    // Check for unit failures left by firmware before changing any bank
+    // rules, so no stalled transfer survives bank reconfiguration. Device
+    // faults left by firmware stay latched and the first Poll returns them.
+    status = SMMU500FaultCheckAll(unit);
     if (status != OS_EOK) {
         return status;
     }
@@ -487,8 +498,8 @@ __StartHardware(
         return status;
     }
 
-    // Check for any faults triggered during setup before moving to Ready.
-    status = SMMU500FaultPoll(unit);
+    // Check for unit failures triggered during setup before moving to Ready.
+    status = SMMU500FaultCheckAll(unit);
     if (status != OS_EOK) {
         return status;
     }
@@ -576,18 +587,44 @@ static oserr_t
 __PollLocked(
     _In_ void* context)
 {
-    return SMMU500FaultPoll(context);
+    __SMMU500PollRequest_t* request = context;
+
+    return SMMU500FaultPoll(
+        request->Unit,
+        request->Faults,
+        request->Capacity,
+        &request->Count
+    );
 }
 
 oserr_t
 SMMU500UnitPoll(
-    _In_ SMMU500Unit_t* unit)
+    _In_  SMMU500Unit_t*   unit,
+    _Out_ DMAIOMMUFault_t* faults,
+    _In_  uint32_t         capacity,
+    _Out_ uint32_t*        countOut)
 {
-    if (unit == NULL) {
-        WARNING("SMMU500UnitPoll: missing unit");
+    __SMMU500PollRequest_t request;
+    oserr_t                status;
+
+    if (countOut != NULL) {
+        *countOut = 0;
+    }
+
+    if (unit == NULL || faults == NULL || countOut == NULL || capacity == 0) {
+        ERROR("SMMU500UnitPoll: invalid arguments, unit %p, faults %p, capacity %u",
+              (void*)unit, (void*)faults, capacity);
         return OS_EINVALPARAMS;
     }
-    return ArmSMMUUnitPoll(&unit->Common, __PollLocked, unit);
+
+    request.Unit = unit;
+    request.Faults = faults;
+    request.Capacity = capacity;
+    request.Count = 0;
+    
+    status = ArmSMMUUnitPoll(&unit->Common, __PollLocked, &request);
+    *countOut = request.Count;
+    return status;
 }
 
 // Switch remaining stream slots to fault mode, resuming from CloseIndex if a

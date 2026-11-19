@@ -70,10 +70,10 @@ __FinishSync(
     if (unit->StartProgress == SMMU500NoWrites) {
         status = SMMU500FaultCheck(unit);
     } else {
-        status = SMMU500FaultPoll(unit);
+        status = SMMU500FaultCheckAll(unit);
     }
 
-    // Ordinary client faults still let cleanup finish once routes are faulted,
+    // A unit failed through the generic DMA layer can still finish cleanup,
     // so only abort here when completion itself became unreliable.
     if (status != OS_EOK && unit->Common.CompletionUnreliable) {
         return OS_ECANCELLED;
@@ -321,13 +321,14 @@ SMMU500ContextEnable(
         return OS_EOK;
     }
 
-    // Drain any prior global sync and poll faults before touching bank registers.
+    // Drain any prior global sync and check for unit failures before touching
+    // bank registers. Device faults stay latched for SMMU500UnitPoll.
     status = SMMU500SyncWait(unit, deadline);
     if (status != OS_EOK) {
         return status;
     }
 
-    status = SMMU500FaultPoll(unit);
+    status = SMMU500FaultCheckAll(unit);
     if (status != OS_EOK) {
         return status;
     }
@@ -372,17 +373,18 @@ SMMU500ContextEnable(
     return OS_EOK;
 }
 
-// Check for new faults before turning off a context bank. Ordinary client
-// faults still allow cleanup once routes are faulted and drained, while
-// unreliable completion aborts so a stalled request never loses its bank.
+// Check for unit failures before turning off a context bank. A unit failed
+// through the generic DMA layer still allows cleanup once routes are faulted
+// and drained, while unreliable completion aborts so a stalled request never
+// loses its bank. Device faults stay latched for SMMU500UnitPoll.
 static oserr_t
 __PollBeforeDisable(
     _In_ SMMU500Unit_t* unit)
 {
-    oserr_t status = SMMU500FaultPoll(unit);
+    oserr_t status = SMMU500FaultCheckAll(unit);
 
     if (status != OS_EOK) {
-        WARNING("__PollBeforeDisable: cleanup observed faults at %llx", unit->Common.Description.RegisterBase);
+        WARNING("__PollBeforeDisable: cleanup on failed unit at %llx", unit->Common.Description.RegisterBase);
         if (unit->Common.CompletionUnreliable) {
             return OS_ECANCELLED;
         }

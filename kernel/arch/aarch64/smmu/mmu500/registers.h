@@ -60,7 +60,7 @@
 // Global Register Space 1 (GR1) offsets. Add (1 << PageShift) to reach GR1
 // before applying these offsets.
 #define SMMU500_CBAR(index)         (4U * (index))          // Context bank type (stage 2) and VMID.
-#define SMMU500_CBFRSYNRA(index)    (0x400U + 4U * (index)) // Offending Stream ID (low 16 bits) on bank fault.
+#define SMMU500_CBFRSYNRA(index)    (0x400U + 4U * (index)) // Stream ID of the access behind a bank fault.
 #define SMMU500_CBA2R(index)        (0x800U + 4U * (index)) // Context bank page-table format (AArch64 vs AArch32).
 
 // Per-context-bank register offsets, relative to __SMMU500ContextBankOffset.
@@ -124,17 +124,58 @@
 #define SMMU500_VTCR_OUTER_SHARED   (2U << 12)
 #define SMMU500_VTCR_FIELDS         0x8007FFFFU
 
-// Global and context fault status masks.
-// Bits in W1C masks are write-1-to-clear. Ordinary client faults (such as USF
-// and UUT in GFSR, or translation/access/permission/address-size/UUT in FSR)
-// stop new DMA work while still allowing safe cleanup. Any other fault bit
-// (such as MULTI overflow, stalled requests, or format/external errors) means
-// hardware completion can no longer be trusted.
-#define SMMU500_GFSR_ORDINARY       ((1U << 1) | (1U << 8))
+// Global fault status (GFSR) bits, from IHI 0062D.c section 9.6.15. GFSR
+// records faults that no context bank can take, such as a Stream ID that no
+// stream match slot accepts. Writing 1 to a bit clears it. Bit 7 (PF) exists
+// only in the Secure copy of the register, so the Non-secure GFSR leaves it out.
+#define SMMU500_GFSR_ICF            (1U << 0)  // Invalid context: the stream was routed to a fault or invalid bank.
+#define SMMU500_GFSR_USF            (1U << 1)  // Unidentified stream: no stream match slot accepted the Stream ID.
+#define SMMU500_GFSR_SMCF           (1U << 2)  // Stream match conflict: more than one slot accepted the Stream ID.
+#define SMMU500_GFSR_UCBF           (1U << 3)  // Unimplemented context bank: a route names a missing bank.
+#define SMMU500_GFSR_UCIF           (1U << 4)  // Unimplemented context interrupt.
+#define SMMU500_GFSR_CAF            (1U << 5)  // Configuration access fault: a register access hit no register.
+#define SMMU500_GFSR_EF             (1U << 6)  // External fault: the memory system aborted an access.
+#define SMMU500_GFSR_UUT            (1U << 8)  // Unsupported upstream transaction sent by a device.
+#define SMMU500_GFSR_MULTI          (1U << 31) // Another fault arrived while GFSR was nonzero. Its details are lost.
+
+// Global fault syndrome fields. GFSYNR0 describes the access, and GFSYNR1
+// carries the Stream ID of the device that sent it.
+#define SMMU500_GFSYNR0_WRITE       (1U << 1)  // WNR: 1 for a write, 0 for a read.
+#define SMMU500_GFSYNR1_SID         0xFFFFU    // StreamID [15:0].
+
+// Context bank fault status (CB_FSR) bits, from IHI 0062D.c section 16.5.9.
+// Each context bank translates for one address space. Its FSR holds the first
+// fault seen since software last cleared it, and CB_FAR, CB_FSYNR0 and
+// CBFRSYNRA hold that fault's details. Writing 1 to a bit clears it. SS and
+// FORMAT are read-only. SS is cleared only by a write to CB_RESUME.
+#define SMMU500_FSR_TF              (1U << 1)  // Translation fault: the address has no valid page table entry.
+#define SMMU500_FSR_AFF             (1U << 2)  // Access flag fault: a page table entry has its access flag clear.
+#define SMMU500_FSR_PF              (1U << 3)  // Permission fault: the entry does not allow this direction.
+#define SMMU500_FSR_EF              (1U << 4)  // External fault: the memory system aborted an access.
+#define SMMU500_FSR_TLBMCF          (1U << 5)  // TLB match conflict: several cached entries matched one address.
+#define SMMU500_FSR_TLBLKF          (1U << 6)  // TLB lock fault.
+#define SMMU500_FSR_ASF             (1U << 7)  // Address size fault: an address had more bits than allowed.
+#define SMMU500_FSR_UUT             (1U << 8)  // Unsupported upstream transaction sent by a device.
+#define SMMU500_FSR_FORMAT          (3U << 9)  // Table format of the recorded fault. Read-only, not a fault.
+#define SMMU500_FSR_SS              (1U << 30) // Stalled: a transaction waits inside the unit for CB_RESUME.
+#define SMMU500_FSR_MULTI           (1U << 31) // Another fault arrived while FSR was nonzero. Its details are lost.
+
+// Context fault syndrome fields.
+#define SMMU500_FSYNR0_WRITE        (1U << 4)  // CB_FSYNR0.WNR: 1 for a write, 0 for a read.
+#define SMMU500_CBFRSYNRA_SID       0xFFFFU    // CBFRSYNRA StreamID [15:0] of the faulting access.
+
+// Fault status masks.
+// W1C masks hold every bit that a write of 1 clears. FSR_FAULTS also holds SS,
+// which software cannot clear. ORDINARY masks hold the bits that describe an
+// access sent by a device (a device fault). The unit refused that access, so
+// it stays healthy. Every other fault bit points at a table or register the
+// kernel wrote, or at the unit itself, and fails the unit. MULTI is handled
+// on its own, see fault.c. FSR ASF is a device fault only when CB_FAR is
+// above the input address range, see fault.c.
+#define SMMU500_GFSR_ORDINARY       (SMMU500_GFSR_USF | SMMU500_GFSR_UUT)
 #define SMMU500_GFSR_W1C            0x8000017FU
 #define SMMU500_FSR_FAULTS          0xC00001FEU
-#define SMMU500_FSR_FORMAT          (3U << 9)
-#define SMMU500_FSR_ORDINARY        ((1U << 1) | (1U << 2) | (1U << 3) | (1U << 7) | (1U << 8))
+#define SMMU500_FSR_ORDINARY        (SMMU500_FSR_TF | SMMU500_FSR_PF | SMMU500_FSR_ASF | SMMU500_FSR_UUT)
 #define SMMU500_FSR_W1C             0x800001FEU
 
 // Host tests swap out MMIO reads, writes, and barriers at compile time for an

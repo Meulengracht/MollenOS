@@ -79,6 +79,10 @@ typedef struct __SMMUv3DeviceEvent {
 // (0x20, 0x21), page request hints that this driver does not handle (0x24),
 // and every unknown or implementation defined number.
 //
+// F_ACCESS (0x12) is left out as well. It reports a page table entry with its
+// access flag clear. The kernel sets that flag in every entry it writes, so
+// the event can only mean that a page table is damaged.
+//
 // F_ADDR_SIZE has two causes in a stage 2 only setup. With S2 clear, the
 // device used an address wider than the unit's input size (SMMU_IDR5.IAS).
 // With S2 set, a page table entry the kernel wrote points outside the output
@@ -97,8 +101,6 @@ static const __SMMUv3DeviceEvent_t g_deviceEvents[] = {
       __EVENT_ADDRESS | __EVENT_DIRECTION | __EVENT_STALL },
     { SMMUV3_EVENT_F_ADDR_SIZE,        DMAIOMMUFaultAddressRange,
       __EVENT_ADDRESS | __EVENT_DIRECTION | __EVENT_STALL | __EVENT_STAGE1_ONLY },
-    { SMMUV3_EVENT_F_ACCESS,           DMAIOMMUFaultOther,
-      __EVENT_ADDRESS | __EVENT_DIRECTION | __EVENT_STALL },
     { SMMUV3_EVENT_F_PERMISSION,       DMAIOMMUFaultPermission,
       __EVENT_ADDRESS | __EVENT_DIRECTION | __EVENT_STALL }
 };
