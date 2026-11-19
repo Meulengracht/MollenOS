@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ddk/utils.h>
 #include <errno.h>
 #include <event.h>
 #include <internal/_io.h>
@@ -145,6 +146,20 @@ __evt_read(
     return OS_EOK;
 }
 
+/**
+ * Signals the event with the unsigned int at the start of buffer.
+ * A reset event stores the value for the reader and adds one unit. A semaphore
+ * event adds the value as units. The counter never goes above the maximum
+ * given to eventd, so units that do not fit are dropped.
+ *
+ * A write that adds no units still succeeds. Most often the counter is
+ * already at its maximum, and the reader that takes one of its units also
+ * sees the work behind this write. The kernel uses the same rule for
+ * interrupt events. A semaphore write of 0 adds nothing as well.
+ *
+ * bytes_written is set to sizeof(unsigned int), the size of the value that
+ * was read from buffer. It does not tell how many units were added.
+ */
 static oserr_t
 __evt_write(
         _In_  stdio_handle_t* handle,
@@ -153,29 +168,44 @@ __evt_write(
         _Out_ size_t*         bytes_written)
 {
     struct Event* event = handle->OpsContext;
-    oserr_t       result = OS_ENOTSUPPORTED;
+    unsigned int  count;
+    oserr_t       oserr;
+
     if (!buffer || length < sizeof(unsigned int)) {
         return OS_EPERMISSIONS;
     }
 
     if (EVT_TYPE(event->Flags) == EVT_RESET_EVENT) {
         event->InitialValue = *(unsigned int*)buffer;
-        *bytes_written = sizeof(unsigned int);
-
-        result = OSEventUnlock(&handle->OSHandle, 1);
-        if (result == OS_EOK) {
-            OSNotificationQueuePost(&handle->OSHandle, IOSETSYN);
-        }
+        count = 1;
     } else if (EVT_TYPE(event->Flags) == EVT_SEM_EVENT) {
-        unsigned int value = *(unsigned int*)buffer;
-
-        result = OSEventUnlock(&handle->OSHandle, value);
-        if (result == OS_EOK) {
-            OSNotificationQueuePost(&handle->OSHandle, IOSETSYN);
-        }
-        *bytes_written = sizeof(size_t);
+        count = *(unsigned int*)buffer;
+    } else {
+        return OS_ENOTSUPPORTED;
     }
-    return result;
+
+    // OS_EINCOMPLETE means that no unit was added, because the counter was
+    // already at its maximum or count was 0. The write merges with the units
+    // in the counter. No I/O set event is queued, because the write that
+    // raised the counter queued one already.
+    oserr = OSEventUnlock(&handle->OSHandle, count);
+    if (oserr == OS_EINCOMPLETE) {
+        *bytes_written = sizeof(unsigned int);
+        return OS_EOK;
+    }
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // The units are added at this point, so the write succeeds even when
+    // the post fails. OS_ENOENT means that no I/O set watches the event.
+    oserr = OSNotificationQueuePost(&handle->OSHandle, IOSETSYN);
+    if (oserr != OS_EOK && oserr != OS_ENOENT) {
+        ERROR("__evt_write: posting to the I/O sets of event %u failed: %u",
+              handle->OSHandle.ID, oserr);
+    }
+    *bytes_written = sizeof(unsigned int);
+    return OS_EOK;
 }
 
 static oserr_t

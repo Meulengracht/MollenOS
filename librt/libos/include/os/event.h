@@ -62,8 +62,10 @@ OSEventLock(
 /**
  * @brief Releases an event and increases its available value.
  * @param handle The event handle to release.
- * @param count The number of event units to release.
- * @return OS_EOK on success; otherwise, an error code.
+ * @param count The number of event units to release. The counter never goes
+ *              above the maximum of the event, so units that do not fit are dropped.
+ * @return OS_EOK when at least one unit was added, or OS_EINCOMPLETE when none
+ *         was added because the counter was already at its maximum or count was 0.
  */
 CRTDECL(oserr_t,
 OSEventUnlock(

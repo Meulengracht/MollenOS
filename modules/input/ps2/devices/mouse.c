@@ -78,7 +78,12 @@ PS2MouseFastInterrupt(
         smp_wmb();
         port->ResponseWriteIndex++;
 
-        if (!(index % breakAtBytes)) {
+        // Signal when the byte just stored is the last byte of a packet, so
+        // the event handler can read the whole packet. Packets start at
+        // positions that are a multiple of breakAtBytes. The store above
+        // comes before the signal, because the handler reads the buffer
+        // after it takes the event.
+        if (((index + 1) % breakAtBytes) == 0) {
             InterruptTable->EventSignal(ResourceTable->HandleResource);
         }
     }
@@ -143,9 +148,12 @@ PS2MouseInterrupt(
     uint8_t  bytesRequired = port->device_data.mouse.mode == 0 ? 3 : 4;
     uint32_t index         = port->ResponseReadIndex;
 
-    // make sure there always are enough bytes to read
+    // Read every complete packet and leave a partial packet for the next
+    // event. The indices are unsigned, so the check uses the number of
+    // unread bytes. Subtracting bytesRequired from the write index would wrap
+    // around while fewer than bytesRequired bytes have been stored.
     smp_rmb();
-    while (index <= (port->ResponseWriteIndex - bytesRequired)) {
+    while ((port->ResponseWriteIndex - index) >= bytesRequired) {
         __ParseCursorData(port, &port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE]);
         __ParseButtonData(port, &port->ResponseBuffer[index % PS2_RINGBUFFER_SIZE]);
         index += bytesRequired;
