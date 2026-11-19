@@ -1,0 +1,44 @@
+/**
+ * GPIO Controller Contract
+ * The controller driver of a GPIO controller implements this contract, for
+ * example the driver for the Raspberry Pi firmware GPIO expander. deviced is
+ * the only caller. It drives these lines to switch regulators and similar
+ * board parts on behalf of other devices. deviced starts sending requests
+ * after the driver calls DeviceControllerEnable with DEVICE_CONTROLLER_GPIO.
+ *
+ * deviceId is the controller's device, as given to the driver by deviced.
+ * line is a line number local to that GPIO controller. It is the same number
+ * as the second cell of a device tree "gpios" reference to the controller.
+ * Values are 0 for low and 1 for high, measured on the wire. Any active-low
+ * flag in the device tree is applied by deviced, never by the driver.
+ *
+ * Every call returns an oserr_t. Other output values are valid only on OS_EOK.
+ *
+ * deviced waits for each answer with the platform bus lock held, and stops
+ * waiting after a short deadline. While the driver handles one of these calls
+ * it must never call deviced (no ioctl, no DMA or interrupt request). deviced
+ * cannot answer until the call returns, so such a call would hang until the
+ * deadline and then fail.
+ */
+
+import "../types"
+
+namespace ctt
+
+enum gpio_direction {
+    INPUT = 1,
+    OUTPUT = 2
+}
+
+service gpio : message {
+    // Set a line's direction. For OUTPUT, value is driven on the line before
+    // or as the direction changes, so the line never shows the other level.
+    // value is ignored for INPUT.
+    func set_direction(uuid_t deviceId, uint32 line, gpio_direction direction, uint32 value) : (oserr_t result) = 1;
+
+    // Drive an output line low (0) or high (1). Fails if the line is an input.
+    func set_value(uuid_t deviceId, uint32 line, uint32 value) : (oserr_t result) = 2;
+
+    // Read the current level of a line, 0 or 1. Works for inputs and outputs.
+    func get_value(uuid_t deviceId, uint32 line) : (oserr_t result, uint32 value) = 3;
+}
