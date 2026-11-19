@@ -170,9 +170,10 @@
 // access sent by a device (a device fault). The unit refused that access, so
 // it stays healthy. Every other fault bit points at a table or register the
 // kernel wrote, or at the unit itself, and fails the unit. MULTI is handled
-// on its own, see fault.c. FSR ASF is a device fault only when CB_FAR is
-// above the input address range, see fault.c.
-#define SMMU500_GFSR_ORDINARY       (SMMU500_GFSR_USF | SMMU500_GFSR_UUT)
+// on its own, see fault.c. GFSR ICF counts as a device fault because the
+// kernel closes a route by setting it to fault, see fault.c. FSR ASF is a
+// device fault only when CB_FAR is above the input address range, see fault.c.
+#define SMMU500_GFSR_ORDINARY       (SMMU500_GFSR_ICF | SMMU500_GFSR_USF | SMMU500_GFSR_UUT)
 #define SMMU500_GFSR_W1C            0x8000017FU
 #define SMMU500_FSR_FAULTS          0xC00001FEU
 #define SMMU500_FSR_ORDINARY        (SMMU500_FSR_TF | SMMU500_FSR_PF | SMMU500_FSR_ASF | SMMU500_FSR_UUT)

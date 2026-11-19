@@ -47,18 +47,39 @@ typedef struct __SMMU500DeviceFault {
     uint32_t               Fields;
 } __SMMU500DeviceFault_t;
 
-// Global device faults. Both describe a device access that reached no context
-// bank, so no address space is involved and the record kind is NoRoute.
-// GFAR holds the input address for an unidentified stream. For an unsupported
-// transaction, section 3.8.1 of the specification names only GFSR, while its
-// general rule says every syndrome register is recorded. That record keeps
-// the Stream ID from GFSYNR1 and leaves out the address and direction.
+// Global device faults. Each one describes a device access that reached no
+// context bank. No address space is involved, so the record kind is NoRoute
+// for all three. Section numbers refer to the SMMU v2 specification.
+// - USF: no stream match slot accepted the Stream ID.
+// - ICF: the Stream ID matched a slot whose route (S2CR) is set to fault
+//   (section 3.8). SMMU500SlotSetFault and __ConnectRoutes in stream.c leave
+//   a slot like that for a moment between their two register writes. A device
+//   that sends DMA in that moment raises ICF. The kernel never routes a stream
+//   to a context bank it has not set up, so ICF is read as "a device sent DMA
+//   while its route was closed". The cost: a kernel bug that does route a
+//   stream to a badly set up bank also raises ICF. It is then reported as
+//   NoRoute and does not fail the unit. A barrier or other transaction that
+//   needs no translation also goes through stream matching (section 3.8.3),
+//   so a device can raise ICF without sending DMA. GFAR then holds no DMA
+//   address, but the record cannot tell the two apart.
+// - UUT: the device sent a kind of transaction the unit does not support.
 //
-// Every other GFSR bit fails the unit. ICF, SMCF, UCBF and UCIF point at
-// stream routes or context bank settings the kernel wrote. CAF means the
-// kernel accessed a register that does not exist. EF is an external abort.
+// A global fault that arrives while GFSR is zero also records GFAR, GFSYNR0
+// and GFSYNR1 (section 3.8.1), so USF and ICF records carry the address,
+// direction and Stream ID. For an unsupported transaction, section 3.8.1
+// names only GFSR. That record keeps the Stream ID from GFSYNR1 and leaves
+// out the address and direction.
+//
+// When one status has more than one of these bits set, the first entry in
+// table order picks the record fields. Entries with an address come first,
+// so the record with the most detail is kept.
+//
+// Every other GFSR bit fails the unit. SMCF, UCBF and UCIF point at stream
+// routes or context bank settings the kernel wrote. CAF means the kernel
+// accessed a register that does not exist. EF is an external abort.
 static const __SMMU500DeviceFault_t g_globalFaults[] = {
     { SMMU500_GFSR_USF, DMAIOMMUFaultNoRoute, __FAULT_ADDRESS | __FAULT_DIRECTION },
+    { SMMU500_GFSR_ICF, DMAIOMMUFaultNoRoute, __FAULT_ADDRESS | __FAULT_DIRECTION },
     { SMMU500_GFSR_UUT, DMAIOMMUFaultNoRoute, 0 }
 };
 
@@ -148,8 +169,8 @@ __FindDeviceFault(
 
 // Returns why a GFSR value fails the unit, or NULL when it is a device fault.
 // entry is the result of __FindDeviceFault for status. MULTI together with
-// USF or UUT is a device fault. The lost reports came from Stream IDs that
-// reached no context bank, and Poll returns the one record.
+// USF, ICF or UUT is a device fault. The lost reports came from Stream IDs
+// that reached no context bank, and Poll returns the one record.
 static const char*
 __GlobalFailureReason(
     _In_ const __SMMU500DeviceFault_t* entry,

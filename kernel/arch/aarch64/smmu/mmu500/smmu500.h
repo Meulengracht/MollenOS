@@ -103,11 +103,12 @@ SMMU500UnitGetBackend(
  * fault that arrives while a status register is nonzero only sets its MULTI
  * bit. Poll reads each status register and sorts the fault it holds:
  * - Device fault: the fault describes an access that a device sent, such as
- *   an address with no mapping (TF), a write to a read-only page (PF) or a
- *   Stream ID that no stream match slot accepts (USF). The unit has already
- *   refused and ended that access, so the unit stays healthy. Poll writes one
- *   DMAIOMMUFault_t to faults, clears the status and does not log it. MULTI
- *   next to a device fault is cleared with it and changes nothing.
+ *   an address with no mapping (TF), a write to a read-only page (PF), a
+ *   Stream ID that no stream match slot accepts (USF) or a Stream ID whose
+ *   route is closed (ICF). The unit has already refused and ended that
+ *   access, so the unit stays healthy. Poll writes one DMAIOMMUFault_t to
+ *   faults, clears the status and does not log it. MULTI next to a device
+ *   fault is cleared with it and changes nothing.
  * - Unit failure: the fault points at a page table, stream route or register
  *   that the kernel wrote, or at the unit itself, such as a stalled
  *   transaction (SS) or an external abort (EF). The kernel can no longer

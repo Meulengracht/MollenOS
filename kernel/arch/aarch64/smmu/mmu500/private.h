@@ -337,10 +337,10 @@ SMMU500ContextDisable(
  * @brief Checks GFSR for a unit failure without clearing any status bits.
  *
  * Hold the unit mutex. Used in wait loops and after checked writes, so it
- * reads only the global status. A device fault (USF or UUT) is left latched
- * for SMMU500FaultPoll and does not change the result. Any other global fault
- * is logged and fails the unit through ArmSMMUUnitFail. See fault.c for the
- * rules.
+ * reads only the global status. A device fault (USF, ICF or UUT) is left
+ * latched for SMMU500FaultPoll and does not change the result. Any other
+ * global fault is logged and fails the unit through ArmSMMUUnitFail. See
+ * fault.c for the rules.
  *
  * @param unit MMU-500 unit to inspect.
  * @return OS_EOK if completion can still be trusted, or OS_ECANCELLED once the

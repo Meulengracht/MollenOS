@@ -184,7 +184,7 @@ AcquireSystemDeviceIo(
             oserr_t oserr       = MemorySpaceMap(
                     GetCurrentMemorySpace(),
                     &(struct MemorySpaceMapOptions) {
-                        .PhysicalStart = physicalBase,
+                        .PhysicalStart = physicalBase - (physicalBase % pageSize),
                         .Length = length,
                         .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE |
                                  MAPPING_DEVICE | MAPPING_PERSISTENT,
