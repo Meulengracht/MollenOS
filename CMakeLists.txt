@@ -154,6 +154,15 @@ endmacro ()
 # Find the llvm-objcopy tool, we need this
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+add_custom_target(regenerate-syscalls
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate_syscalls.py
+        COMMENT "Regenerating syscall definitions from syscalls.table"
+        VERBATIM)
+add_custom_target(check-syscalls
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate_syscalls.py --check
+        COMMENT "Checking generated syscall definitions"
+        VERBATIM)
+
 # Detect whether diskbuilder is available on the host so we do
 # don't need to build it
 find_program(
@@ -222,7 +231,11 @@ add_subdirectory (modules)
 # is absent from a production checkout. They use the normal module build rules.
 option(VALI_EDU_SELFTEST "Build the QEMU EDU single-message MSI validation driver" OFF)
 option(VALI_ROCKER_SELFTEST "Build the QEMU Rocker MSI-X validation driver" OFF)
-if (VALI_EDU_SELFTEST OR VALI_ROCKER_SELFTEST)
+option(VALI_PCI_INTX_SELFTEST "Build the QEMU EDU ACPI/INTx validation driver" OFF)
+if (VALI_EDU_SELFTEST AND VALI_PCI_INTX_SELFTEST)
+    message(FATAL_ERROR "Choose one EDU test driver per image")
+endif ()
+if (VALI_EDU_SELFTEST OR VALI_ROCKER_SELFTEST OR VALI_PCI_INTX_SELFTEST)
     add_subdirectory(testing/modules testing-modules)
 endif ()
 
